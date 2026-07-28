@@ -1,0 +1,262 @@
+// Prisma schema for TEAMMART.
+//
+// This is an evolution of the original schema. It keeps the same core
+// idea (Zone -> Market -> Employee) but adds what the new frontend
+// (teammart_draft_1) actually needs:
+//   - Three real login types: staff (Admin / Regional Manager / Supervisor)
+//     and Employees (who log in with an employee code, not an email).
+//   - A Market now has its own Supervisor (not just a Zone manager).
+//   - A Task model for the daily-activity submission/approval workflow.
+//
+// Naming note: the OLD schema called the top staff role
+// "REGIONAL_SUPERVISOR" and had a "ZONE_MANAGER". The frontend actually
+// has three different people: Admin, Regional Manager (zone-scoped), and
+// Supervisor (market-scoped). We renamed the enum to match the frontend
+// exactly, so there is one shared vocabulary across the whole stack.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------
+
+// Staff roles. Employees are NOT part of this enum — they are a separate
+// model with their own login, because in the frontend they are a
+// fundamentally different kind of account (scoped to just themselves).
+enum StaffRole {
+  ADMIN
+  REGIONAL_MANAGER
+  SUPERVISOR
+}
+
+enum MarketStatus {
+  ACTIVE
+  MAINTENANCE
+  CLOSED
+}
+
+// Mirrors the frontend's TASK_SUBMISSION_OPTIONS / ACTIVITY_TYPES.
+enum TaskType {
+  FACING
+  REFILLING
+  DEPARTMENT_PHOTO
+  WASTE_ITEMS
+  SHELF_CLEANING
+  CHECKING_LABELS
+  COUNTING_ITEMS
+  CUSTOMIZATION
+}
+
+// ASSIGNED      -> a supervisor/manager created this task for an employee, not started yet
+// PENDING       -> employee submitted work, waiting for a supervisor to review it
+// APPROVED      -> reviewed and accepted
+// REJECTED      -> reviewed and sent back (see rejectionReason)
+enum TaskStatus {
+  ASSIGNED
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+// ---------------------------------------------------------------------
+// Activity — Phase 1, Step 3. Categories an employee's own daily activity
+// log can belong to. One reusable model + this enum stands in for what
+// would otherwise be six near-identical tables (ShelfCleaning,
+// LabelChecking, Inventory, DailyCleaning, ...). Adding a new category
+// later is a one-line enum change instead of a new table + migration +
+// new controller.
+enum ActivityCategory {
+  EXPIRED_ITEMS
+  SHELF_CLEANING
+  PRODUCT_CUSTOMIZATION
+  DAILY_CLEANING
+  ITEM_COUNTING
+  LABEL_CHECKING
+}
+
+// Deliberately only these four values (Step 4 spec). Note this is a
+// SEPARATE enum from TaskStatus even though they share three names —
+// Activity has no "ASSIGNED" state because an employee logs their own
+// activity, nobody assigns it to them (that concept stays on Task).
+// DRAFT   -> employee started an entry but hasn't submitted it yet
+// PENDING -> submitted, waiting for a supervisor to review it (later)
+// APPROVED / REJECTED -> reviewed (review endpoints are NOT built yet —
+// this module only lets an employee reach DRAFT/PENDING themselves)
+enum ActivityStatus {
+  DRAFT
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+// ---------------------------------------------------------------------
+// Staff (Admin / Regional Manager / Supervisor) — logs in with email
+// ---------------------------------------------------------------------
+model User {
+  id           Int       @id @default(autoincrement())
+  name         String
+  email        String    @unique
+  passwordHash String
+  role         StaffRole @default(SUPERVISOR)
+  createdAt    DateTime  @default(now())
+
+  // A Regional Manager manages exactly one zone.
+  managedZone   Zone?    @relation("ZoneManager")
+  // A Supervisor manages exactly one market.
+  managedMarket Market?  @relation("MarketSupervisor")
+
+  // Tasks this staff member has reviewed (approved/rejected).
+  reviewedTasks Task[] @relation("TaskReviewer")
+  // Tasks this staff member proactively assigned to an employee.
+  assignedTasks Task[] @relation("TaskAssigner")
+}
+
+// ---------------------------------------------------------------------
+// Zone -> Market -> Employee
+// ---------------------------------------------------------------------
+model Zone {
+  id        Int      @id @default(autoincrement())
+  number    Int      @unique
+  managerId Int?     @unique
+  manager   User?    @relation("ZoneManager", fields: [managerId], references: [id])
+  markets   Market[]
+  createdAt DateTime @default(now())
+}
+
+model Market {
+  id           String       @id @default(cuid())
+  name         String
+  status       MarketStatus @default(ACTIVE)
+  zoneId       Int
+  zone         Zone         @relation(fields: [zoneId], references: [id])
+  supervisorId Int?         @unique
+  supervisor   User?        @relation("MarketSupervisor", fields: [supervisorId], references: [id])
+  employees    Employee[]
+  tasks        Task[]
+  createdAt    DateTime     @default(now())
+
+  @@index([zoneId])
+}
+
+// Employees log in with an employeeCode + password, not an email — this
+// matches the frontend's "find yourself" login flow for the Employee role.
+model Employee {
+  id            String   @id @default(cuid())
+  employeeCode  String   @unique
+  name          String
+  passwordHash  String
+  position      String
+  secondaryRole String?
+  shift         String?
+  marketId      String
+  market        Market   @relation(fields: [marketId], references: [id])
+  tasks         Task[]
+  createdAt     DateTime @default(now())
+
+  // --- Employee Profile fields (Phase 1, Step 2) ---
+  // All nullable/optional so existing employee rows don't break and none
+  // of these are calculated yet — they're just places to store the data
+  // once the matching feature (photo upload, real performance calc) exists.
+  profilePictureUrl String?   // URL of an uploaded photo; no upload feature yet.
+  startDate         DateTime? // The employee's real hire date (different from
+                               // createdAt, which is just "when the DB row
+                               // was created" and may not match reality).
+  performanceRate   Int?      // Placeholder for a future calculated score.
+                               // Nothing writes to this yet — see Step 7.
+
+  activities Activity[]
+
+  @@index([marketId])
+}
+
+// ---------------------------------------------------------------------
+// Task — the daily-activity submission / assignment / review workflow
+// ---------------------------------------------------------------------
+model Task {
+  id         String     @id @default(cuid())
+  type       TaskType
+  label      String
+  department String
+  notes      String?
+  status     TaskStatus @default(PENDING)
+
+  requiresPhoto  Boolean @default(false)
+  // No file upload service is wired up yet — these hold a URL/path once
+  // one exists. Left nullable so the API works before that's built.
+  beforePhotoUrl String?
+  afterPhotoUrl  String?
+
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id])
+  marketId   String
+  market     Market   @relation(fields: [marketId], references: [id])
+
+  // Set when a supervisor/manager proactively assigns this task instead
+  // of the employee submitting it on their own initiative.
+  assignedById Int?
+  assignedBy   User?   @relation("TaskAssigner", fields: [assignedById], references: [id])
+
+  reviewedById     Int?
+  reviewedBy       User?     @relation("TaskReviewer", fields: [reviewedById], references: [id])
+  rejectionReason  String?
+  reviewedAt       DateTime?
+
+  submittedAt DateTime  @default(now())
+  createdAt   DateTime  @default(now())
+
+  @@index([employeeId])
+  @@index([marketId])
+  @@index([status])
+}
+
+// ---------------------------------------------------------------------
+// Activity — an employee's own daily activity log (Phase 1, Step 3/4).
+// This is intentionally separate from Task: Task is "a supervisor gave
+// me work to do", Activity is "I'm logging work I did on my own". Same
+// review lifecycle shape (submit -> approve/reject) but a different
+// reason for existing, so we do not merge them (Step 6).
+model Activity {
+  id       String           @id @default(cuid())
+  category ActivityCategory
+  date     DateTime
+  time     String // e.g. "9:15 AM" — stored as text to mirror what the
+                   // frontend already generates; no timezone-math is
+                   // needed for a simple "what time did this happen" label.
+  notes    String?
+  status   ActivityStatus @default(DRAFT)
+
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id])
+
+  images ActivityImage[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([employeeId])
+  @@index([status])
+}
+
+// One Activity can have many images, and each image belongs to exactly
+// one Activity (Step 5) — instead of fixed photo1/photo2/photo3 columns
+// on Activity, which would cap how many images an activity can ever have
+// and waste columns whenever there are fewer. This scales to any number
+// of images with no future schema change.
+model ActivityImage {
+  id  String @id @default(cuid())
+  url String
+
+  activityId String
+  activity   Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([activityId])
+}

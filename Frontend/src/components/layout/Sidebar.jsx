@@ -1,0 +1,77 @@
+import {
+  LayoutGrid,
+  MapPinned,
+  Store,
+  Users,
+  BarChart3,
+  Settings,
+} from "lucide-react";
+
+// Sidebar.jsx
+// Ships collapsed (icon rail) and expands on hover, per the brief.
+// Only "Dashboard" and "Zones" are wired up; the rest are placeholders
+// for future pages (Markets, Employees, Reports, Settings).
+
+const NAV_ITEMS = [
+  { key: "dashboard", label: "Dashboard", icon: LayoutGrid, active: true, roles: ["regionalManager", "supervisor"] },
+  { key: "zones", label: "Zones", icon: MapPinned, active: true, roles: ["regionalManager"] },
+  { key: "markets", label: "Markets", icon: Store, active: false, roles: ["regionalManager", "supervisor"] },
+  { key: "employees", label: "Employees", icon: Users, active: false, roles: ["regionalManager", "supervisor"] },
+  { key: "reports", label: "Reports", icon: BarChart3, active: false, roles: ["regionalManager", "supervisor"] },
+  { key: "settings", label: "Settings", icon: Settings, active: false, roles: ["regionalManager", "supervisor"] },
+];
+
+export default function Sidebar({ currentPage, onNavigate, role = "regionalManager" }) {
+  const items = NAV_ITEMS.filter((item) => item.roles.includes(role));
+
+  return (
+    <aside
+      className="group fixed left-0 top-0 z-40 h-screen w-[68px] hover:w-56
+                 bg-[#15192A]/95 backdrop-blur-xl border-r border-white/5
+                 transition-[width] duration-300 ease-out overflow-hidden
+                 hidden md:flex md:flex-col"
+    >
+      <div className="h-16 flex items-center px-5 border-b border-white/5">
+        <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-[#F47A20] to-[#c95c10] grid place-items-center shrink-0">
+          <span className="text-white font-display font-extrabold text-xs">TM</span>
+        </div>
+      </div>
+
+      <nav className="flex-1 py-4 px-3 space-y-1">
+        {items.map(({ key, label, icon: Icon, active }) => {
+          const isCurrent =
+            key === "dashboard"
+              ? currentPage === "dashboard"
+              : key === "zones"
+              ? ["zone", "market", "employee"].includes(currentPage)
+              : currentPage === key;
+          return (
+            <button
+              key={key}
+              disabled={!active}
+              onClick={() => active && onNavigate(key)}
+              title={label}
+              className={`w-full flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-all duration-200
+                ${isCurrent
+                  ? "bg-[#F47A20]/15 text-[#F47A20]"
+                  : active
+                  ? "text-[#B7BDCB] hover:bg-white/5 hover:text-white"
+                  : "text-[#4C5266] cursor-not-allowed"}
+              `}
+            >
+              <Icon size={20} strokeWidth={1.8} className="shrink-0" />
+              <span className="whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                {label}
+              </span>
+              {!active && (
+                <span className="ml-auto text-[10px] uppercase tracking-wide opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                  Soon
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </nav>
+    </aside>
+  );
+}
