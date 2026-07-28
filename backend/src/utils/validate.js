@@ -198,3 +198,38 @@ export const listActivitiesQuerySchema = z.object({
   category: z.enum(ACTIVITY_CATEGORIES).optional(),
   status: z.enum(["DRAFT", "PENDING", "APPROVED", "REJECTED"]).optional(),
 });
+
+// ---------------------------------------------------------------------
+// Sudden Tasks — a Supervisor/Manager/Admin pushing an urgent task at an
+// employee. Separate module from both Tasks and Activities.
+// ---------------------------------------------------------------------
+const SUDDEN_TASK_PRIORITIES = ["NORMAL", "HIGH", "URGENT"];
+
+export const createSuddenTaskSchema = z.object({
+  employeeId: z.string().min(1),
+  title: z.string().min(2).max(150),
+  description: z.string().min(2).max(1000),
+  priority: z.enum(SUDDEN_TASK_PRIORITIES).optional().default("NORMAL"),
+});
+
+export const listSuddenTasksQuerySchema = z.object({
+  status: z.enum(["ASSIGNED", "COMPLETED"]).optional(),
+  priority: z.enum(SUDDEN_TASK_PRIORITIES).optional(),
+  employeeId: z.string().optional(),
+  marketId: z.string().optional(),
+});
+
+// ---------------------------------------------------------------------
+// Attendance — worked hours + supervisor adjustments.
+// ---------------------------------------------------------------------
+export const createAttendanceRecordSchema = z.object({
+  employeeId: z.string().min(1),
+  date: z.coerce.date(),
+  hoursWorked: z.number().min(0).max(24),
+});
+
+export const createAttendanceAdjustmentSchema = z.object({
+  employeeId: z.string().min(1),
+  hours: z.number().refine((v) => v !== 0, "hours must not be 0"),
+  reason: z.string().min(2).max(500),
+});

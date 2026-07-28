@@ -1,8 +1,11 @@
 import { useEffect, useState } from "react";
-import { BadgeCheck, Clock, Store, CalendarDays, TrendingUp, AlertTriangle } from "lucide-react";
+import { BadgeCheck, Clock, Store, TrendingUp } from "lucide-react";
 import TaskSubmissionGrid from "../components/workspace/TaskSubmissionGrid";
 import SubmitTaskModal from "../components/workspace/SubmitTaskModal";
 import TaskStatusTabs from "../components/workspace/TaskStatusTabs";
+import SuddenTasksSection from "../components/employee/SuddenTasksSection";
+import AttendanceSection from "../components/employee/AttendanceSection";
+import ErrorBanner from "../components/common/ErrorBanner";
 import { ACTIVITY_SUBMISSION_OPTIONS } from "../data/workspaceData";
 import { getProfile } from "../services/profileService";
 import { listActivities, deleteActivity } from "../services/activityService";
@@ -142,12 +145,6 @@ export default function EmployeeWorkspace({ employeeId }) {
                 {profile.shift && <span className="flex items-center gap-1.5"><Clock size={13} /> {profile.shift}</span>}
                 <span className="flex items-center gap-1.5"><Store size={13} /> {profile.market?.name}</span>
                 <span className="flex items-center gap-1.5">
-                  <CalendarDays size={13} />
-                  {profile.startDate
-                    ? `Joined ${new Date(profile.startDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`
-                    : "Start date not set"}
-                </span>
-                <span className="flex items-center gap-1.5">
                   <TrendingUp size={13} />
                   {profile.performanceRate != null ? `Performance: ${profile.performanceRate}%` : "Performance: not yet available"}
                 </span>
@@ -156,6 +153,12 @@ export default function EmployeeWorkspace({ employeeId }) {
           </div>
         </section>
       )}
+
+      {/* Sudden Tasks — urgent, supervisor-pushed, separate from Activities */}
+      <section className="mt-6">
+        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-[#8B93A8]">Sudden Tasks</h2>
+        <SuddenTasksSection />
+      </section>
 
       {/* Daily activity submission */}
       <section className="mt-6">
@@ -177,6 +180,12 @@ export default function EmployeeWorkspace({ employeeId }) {
         )}
       </section>
 
+      {/* Attendance — worked hours, not a task; reference info, so it sits last */}
+      <section className="mt-6">
+        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-[#8B93A8]">Attendance</h2>
+        <AttendanceSection />
+      </section>
+
       <SubmitTaskModal option={activeOption} onClose={() => setActiveOption(null)} onSaved={handleSaved} />
       <SubmitTaskModal activity={editingActivity} onClose={() => setEditingActivity(null)} onSaved={handleSaved} />
 
@@ -185,20 +194,6 @@ export default function EmployeeWorkspace({ employeeId }) {
           {toast}
         </div>
       )}
-    </div>
-  );
-}
-
-function ErrorBanner({ message, onRetry }) {
-  return (
-    <div className="rounded-2xl p-5 bg-red-500/5 border border-red-500/20 flex items-center justify-between gap-4">
-      <span className="flex items-center gap-2 text-sm text-red-300"><AlertTriangle size={15} /> {message}</span>
-      <button
-        onClick={onRetry}
-        className="shrink-0 rounded-lg px-3 py-1.5 text-xs font-medium text-white bg-white/10 hover:bg-white/15 transition-colors duration-150"
-      >
-        Retry
-      </button>
     </div>
   );
 }

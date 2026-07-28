@@ -97,6 +97,33 @@ enum ActivityStatus {
 }
 
 // ---------------------------------------------------------------------
+// SuddenTask — a Supervisor/Manager/Admin pushing an urgent, ASAP task to
+// an employee. Deliberately its own model, not a reuse of Task: Task's
+// `type` field is an enum of activity-shaped categories (FACING,
+// REFILLING, ...) meant for the daily-activity submission flow, whereas a
+// Sudden Task is a freeform title/description with a priority — a
+// different shape for a different purpose. Also deliberately not merged
+// into Activity, which is "an employee logging their own work", not
+// "a supervisor pushing urgent work at an employee".
+enum SuddenTaskPriority {
+  NORMAL
+  HIGH
+  URGENT
+}
+
+// ASSIGNED  -> pushed to the employee, not done yet
+// COMPLETED -> employee marked it done
+enum SuddenTaskStatus {
+  ASSIGNED
+  COMPLETED
+}
+
+// ---------------------------------------------------------------------
+// Attendance — worked hours are NOT a Task or Activity; they're a
+// separate concern entirely (Step 3/4 of this phase).
+// ---------------------------------------------------------------------
+
+// ---------------------------------------------------------------------
 // Staff (Admin / Regional Manager / Supervisor) — logs in with email
 // ---------------------------------------------------------------------
 model User {
@@ -116,6 +143,13 @@ model User {
   reviewedTasks Task[] @relation("TaskReviewer")
   // Tasks this staff member proactively assigned to an employee.
   assignedTasks Task[] @relation("TaskAssigner")
+
+  // Sudden Tasks this staff member has pushed to an employee.
+  assignedSuddenTasks SuddenTask[] @relation("SuddenTaskAssigner")
+
+  // Attendance entries this staff member has recorded/adjusted for an employee.
+  recordedAttendance    AttendanceRecord[]    @relation("AttendanceRecorder")
+  adjustedAttendance    AttendanceAdjustment[] @relation("AttendanceAdjuster")
 }
 
 // ---------------------------------------------------------------------
@@ -140,6 +174,7 @@ model Market {
   supervisor   User?        @relation("MarketSupervisor", fields: [supervisorId], references: [id])
   employees    Employee[]
   tasks        Task[]
+  suddenTasks  SuddenTask[]
   createdAt    DateTime     @default(now())
 
   @@index([zoneId])
@@ -171,13 +206,30 @@ model Employee {
   performanceRate   Int?      // Placeholder for a future calculated score.
                                // Nothing writes to this yet — see Step 7.
 
+  // Required monthly hours for the Attendance module. Nullable and never
+  // defaulted to a guessed number — until a Supervisor/Admin sets this,
+  // the Attendance summary reports "not set" instead of assuming a value.
+  monthlyRequiredHours Int?
+
   activities Activity[]
+  suddenTasks SuddenTask[]
+  attendanceRecords     AttendanceRecord[]
+  attendanceAdjustments AttendanceAdjustment[]
 
   @@index([marketId])
 }
 
 // ---------------------------------------------------------------------
-// Task — the daily-activity submission / assignment / review workflow
+// Task — the daily-activity submission / assignment / review workflow.
+//
+// NOTE: as of the Sudden Tasks module, this model has no frontend caller
+// anywhere (no `taskService.js` exists) even though every endpoint below
+// is implemented and tested. It was NOT reused for Sudden Tasks because
+// `type` is an activity-shaped enum (FACING/REFILLING/...), not a
+// freeform title+description+priority. Leaving this here unused rather
+// than deleting it — it's a reasonable base for a future "Supervisor
+// assigns a normal activity-shaped task" feature, but that's a decision
+// for whoever builds the Supervisor module, not this change.
 // ---------------------------------------------------------------------
 model Task {
   id         String     @id @default(cuid())
@@ -259,4 +311,77 @@ model ActivityImage {
   createdAt DateTime @default(now())
 
   @@index([activityId])
+}
+
+// ---------------------------------------------------------------------
+// SuddenTask — a Supervisor/Manager/Admin pushing an urgent task at an
+// employee (see the SuddenTaskPriority/SuddenTaskStatus comment above for
+// why this is its own model, separate from both Task and Activity).
+// ---------------------------------------------------------------------
+model SuddenTask {
+  id          String             @id @default(cuid())
+  title       String
+  description String
+  priority    SuddenTaskPriority @default(NORMAL)
+  status      SuddenTaskStatus   @default(ASSIGNED)
+
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id])
+  marketId   String
+  market     Market   @relation(fields: [marketId], references: [id])
+
+  assignedById Int
+  assignedBy   User   @relation("SuddenTaskAssigner", fields: [assignedById], references: [id])
+
+  assignedAt  DateTime  @default(now())
+  completedAt DateTime?
+
+  @@index([employeeId])
+  @@index([marketId])
+  @@index([status])
+}
+
+// ---------------------------------------------------------------------
+// AttendanceRecord — one employee's worked hours for one day. This pass
+// has no clock-in/out UI; a staff member logs the hours (see
+// attendanceController.js). Real clock-in/out is a future upgrade that
+// would populate this same table without changing anything that reads it.
+// ---------------------------------------------------------------------
+model AttendanceRecord {
+  id          String   @id @default(cuid())
+  date        DateTime // the day this record is for; time part is ignored
+  hoursWorked Float
+
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id])
+
+  recordedById Int
+  recordedBy   User @relation("AttendanceRecorder", fields: [recordedById], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@index([employeeId])
+  @@index([date])
+}
+
+// AttendanceAdjustment — a supervisor's manual +/- correction to an
+// employee's hours (e.g. "+1 hour, stayed late for inventory recount" or
+// "-1 hour, sent home early as a reward"). Kept as its own append-only
+// history table (never edited/deleted) rather than a mutable field on
+// AttendanceRecord, so the reasoning behind every adjustment stays
+// visible to the employee instead of being overwritten.
+model AttendanceAdjustment {
+  id     String @id @default(cuid())
+  hours  Float // positive = extra hours credited, negative = hours deducted
+  reason String
+
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id])
+
+  createdById Int
+  createdBy   User @relation("AttendanceAdjuster", fields: [createdById], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@index([employeeId])
 }
