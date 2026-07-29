@@ -1,12 +1,12 @@
 import {
-  Trash2, Sparkles, Palette, ClipboardList, Tag, PackagePlus,
+  Sparkles, Palette, ClipboardList, Tag, PackagePlus,
 } from "lucide-react";
 
 // TaskSubmissionGrid.jsx — one button per submittable daily-activity
-// category. Clicking opens SubmitTaskModal for that category.
+// category. Clicking opens SubmitTaskModal for that category. Expired
+// Items was removed from this grid's option list — see workspaceData.js.
 
 const ICONS = {
-  EXPIRED_ITEMS: Trash2,
   SHELF_CLEANING: Sparkles,
   PRODUCT_CUSTOMIZATION: Palette,
   DAILY_CLEANING: PackagePlus,

@@ -220,16 +220,71 @@ export const listSuddenTasksQuerySchema = z.object({
 });
 
 // ---------------------------------------------------------------------
-// Attendance — worked hours + supervisor adjustments.
+// Products — a minimal per-market inventory catalog backing the
+// Expired/Wasted Items module (see schema.prisma's Product comment).
 // ---------------------------------------------------------------------
-export const createAttendanceRecordSchema = z.object({
-  employeeId: z.string().min(1),
+export const createProductSchema = z.object({
+  barcode: z.string().min(1).max(64),
+  name: z.string().min(1).max(200),
+  stockQuantity: z.number().int().min(0).optional().default(0),
+});
+
+export const searchProductsQuerySchema = z.object({
+  search: z.string().min(1).max(200).optional(),
+  barcode: z.string().min(1).max(64).optional(),
+});
+
+// ---------------------------------------------------------------------
+// Item Reports — Expired/Wasted Items module.
+// ---------------------------------------------------------------------
+const ITEM_CONDITIONS = ["EXPIRED", "WASTED"];
+
+export const createItemReportSchema = z.object({
+  productId: z.string().min(1),
+  condition: z.enum(ITEM_CONDITIONS),
+  quantity: z.number().int().positive(),
+  notes: z.string().max(1000).optional(),
+  imageUrl: z.string().url().optional(),
+});
+
+export const listItemReportsQuerySchema = z.object({
+  year: z.coerce.number().int().min(2000).max(2100).optional(),
+  month: z.coerce.number().int().min(1).max(12).optional(),
+});
+
+// ---------------------------------------------------------------------
+// Attendance — imported check-in/out records + supervisor adjustments.
+// ---------------------------------------------------------------------
+const ATTENDANCE_STATUSES = ["PRESENT", "LATE", "ABSENT", "DAY_OFF"];
+const SHIFTS = ["MORNING", "EVENING", "NIGHT"];
+const DAY_OFF_TYPES = ["WEEKLY", "MONTHLY", "OTHER"];
+const ATTENDANCE_ADJUSTMENT_TYPES = ["REWARD", "EXTRA", "PENALTY"];
+
+const attendanceImportRowSchema = z.object({
+  employeeCode: z.string().min(1),
   date: z.coerce.date(),
-  hoursWorked: z.number().min(0).max(24),
+  status: z.enum(ATTENDANCE_STATUSES).optional().default("PRESENT"),
+  shift: z.enum(SHIFTS).optional(),
+  checkIn: z.coerce.date().optional(),
+  checkOut: z.coerce.date().optional(),
+  breakStart: z.coerce.date().optional(),
+  breakEnd: z.coerce.date().optional(),
+  dayOffType: z.enum(DAY_OFF_TYPES).optional(),
+});
+
+export const importAttendanceRecordsSchema = z.object({
+  records: z.array(attendanceImportRowSchema).min(1).max(2000),
 });
 
 export const createAttendanceAdjustmentSchema = z.object({
   employeeId: z.string().min(1),
-  hours: z.number().refine((v) => v !== 0, "hours must not be 0"),
+  type: z.enum(ATTENDANCE_ADJUSTMENT_TYPES),
+  hours: z.number().positive(),
   reason: z.string().min(2).max(500),
+  date: z.coerce.date(),
+});
+
+export const attendanceMonthQuerySchema = z.object({
+  year: z.coerce.number().int().min(2000).max(2100).optional(),
+  month: z.coerce.number().int().min(1).max(12).optional(),
 });

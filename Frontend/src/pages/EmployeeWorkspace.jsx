@@ -4,6 +4,7 @@ import TaskSubmissionGrid from "../components/workspace/TaskSubmissionGrid";
 import SubmitTaskModal from "../components/workspace/SubmitTaskModal";
 import TaskStatusTabs from "../components/workspace/TaskStatusTabs";
 import SuddenTasksSection from "../components/employee/SuddenTasksSection";
+import ItemReportSection from "../components/employee/ItemReportSection";
 import AttendanceSection from "../components/employee/AttendanceSection";
 import ErrorBanner from "../components/common/ErrorBanner";
 import { ACTIVITY_SUBMISSION_OPTIONS } from "../data/workspaceData";
@@ -158,6 +159,15 @@ export default function EmployeeWorkspace({ employeeId }) {
       <section className="mt-6">
         <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-[#8B93A8]">Sudden Tasks</h2>
         <SuddenTasksSection />
+      </section>
+
+      {/* Expired & Wasted Items — one of the primary activity categories,
+          but its own section (not a TaskSubmissionGrid tile) since the
+          barcode/photo -> product-search -> quantity flow is materially
+          more than the other categories' single-form modal */}
+      <section className="mt-6">
+        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-[#8B93A8]">Expired & Wasted Items</h2>
+        <ItemReportSection />
       </section>
 
       {/* Daily activity submission */}

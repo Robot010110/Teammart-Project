@@ -1,31 +1,31 @@
 import { Router } from "express";
 import {
-  getAttendanceSummary,
-  listAttendanceAdjustments,
-  createAttendanceRecord,
+  importAttendanceRecords,
   createAttendanceAdjustment,
+  getAttendanceMonth,
 } from "../controllers/attendanceController.js";
 import { requireAuth, requireStaffRole, requireEmployeeAuth } from "../middleware/auth.js";
 import {
   validateBody,
-  createAttendanceRecordSchema,
+  validateQuery,
+  importAttendanceRecordsSchema,
   createAttendanceAdjustmentSchema,
+  attendanceMonthQuerySchema,
 } from "../utils/validate.js";
 
 const router = Router();
 
 router.use(requireAuth);
 
-router.get("/summary", requireEmployeeAuth, getAttendanceSummary);
-router.get("/adjustments", requireEmployeeAuth, listAttendanceAdjustments);
+router.get("/month", requireEmployeeAuth, validateQuery(attendanceMonthQuerySchema), getAttendanceMonth);
 
-// Staff-only. No frontend caller yet (no Supervisor UI) — prepared for
-// that module the same way sudden-task assignment is.
+// Staff-only. No frontend caller yet (no Supervisor/import UI) — prepared
+// for that module the same way Sudden Task assignment was.
 router.post(
-  "/records",
+  "/import",
   requireStaffRole("ADMIN", "REGIONAL_MANAGER", "SUPERVISOR"),
-  validateBody(createAttendanceRecordSchema),
-  createAttendanceRecord
+  validateBody(importAttendanceRecordsSchema),
+  importAttendanceRecords
 );
 router.post(
   "/adjustments",

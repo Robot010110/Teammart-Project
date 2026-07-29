@@ -119,9 +119,53 @@ enum SuddenTaskStatus {
 }
 
 // ---------------------------------------------------------------------
-// Attendance — worked hours are NOT a Task or Activity; they're a
-// separate concern entirely (Step 3/4 of this phase).
+// Expired & Wasted Items — an employee identifies a Product (barcode scan
+// or photo -> manual product search, see itemReportsController.js for
+// why there's no real AI photo recognition here) and reports it as no
+// longer sellable. Deliberately its own model, not folded into Activity:
+// this has a Product link + quantity + an automatic stock side-effect
+// that no other Activity category needs.
 // ---------------------------------------------------------------------
+enum ItemCondition {
+  EXPIRED
+  WASTED
+}
+
+// ---------------------------------------------------------------------
+// Attendance — worked hours are NOT a Task or Activity; they're a
+// separate concern entirely. Check-in/out, breaks, shift, day-off, and
+// reward/extra/penalty-hour tracking, imported from the company's
+// attendance system rather than entered by the employee (see
+// attendanceController.js for the CSV-import approach used in place of
+// a live fingerprint-device feed).
+// ---------------------------------------------------------------------
+enum Shift {
+  MORNING // 8:00 AM - 4:00 PM
+  EVENING // 4:00 PM - 12:00 AM
+  NIGHT   // 12:00 AM - 8:00 AM
+}
+
+enum AttendanceStatus {
+  PRESENT
+  LATE
+  ABSENT
+  DAY_OFF
+}
+
+enum DayOffType {
+  WEEKLY
+  MONTHLY
+  OTHER
+}
+
+// REWARD  -> reduces required hours for that day (e.g. earned an early leave)
+// EXTRA   -> additional hours worked beyond the scheduled shift
+// PENALTY -> additional hours required as a penalty
+enum AttendanceAdjustmentType {
+  REWARD
+  EXTRA
+  PENALTY
+}
 
 // ---------------------------------------------------------------------
 // Staff (Admin / Regional Manager / Supervisor) — logs in with email
@@ -147,9 +191,12 @@ model User {
   // Sudden Tasks this staff member has pushed to an employee.
   assignedSuddenTasks SuddenTask[] @relation("SuddenTaskAssigner")
 
-  // Attendance entries this staff member has recorded/adjusted for an employee.
-  recordedAttendance    AttendanceRecord[]    @relation("AttendanceRecorder")
-  adjustedAttendance    AttendanceAdjustment[] @relation("AttendanceAdjuster")
+  // Products this staff member added to a market's inventory.
+  createdProducts Product[] @relation("ProductCreator")
+
+  // Attendance rows this staff member imported / adjustments they made.
+  importedAttendance AttendanceRecord[]     @relation("AttendanceImporter")
+  adjustedAttendance AttendanceAdjustment[] @relation("AttendanceAdjuster")
 }
 
 // ---------------------------------------------------------------------
@@ -175,6 +222,8 @@ model Market {
   employees    Employee[]
   tasks        Task[]
   suddenTasks  SuddenTask[]
+  products     Product[]
+  itemReports  ItemReport[]
   createdAt    DateTime     @default(now())
 
   @@index([zoneId])
@@ -206,13 +255,9 @@ model Employee {
   performanceRate   Int?      // Placeholder for a future calculated score.
                                // Nothing writes to this yet — see Step 7.
 
-  // Required monthly hours for the Attendance module. Nullable and never
-  // defaulted to a guessed number — until a Supervisor/Admin sets this,
-  // the Attendance summary reports "not set" instead of assuming a value.
-  monthlyRequiredHours Int?
-
   activities Activity[]
   suddenTasks SuddenTask[]
+  itemReports ItemReport[]
   attendanceRecords     AttendanceRecord[]
   attendanceAdjustments AttendanceAdjustment[]
 
@@ -342,38 +387,109 @@ model SuddenTask {
 }
 
 // ---------------------------------------------------------------------
-// AttendanceRecord — one employee's worked hours for one day. This pass
-// has no clock-in/out UI; a staff member logs the hours (see
-// attendanceController.js). Real clock-in/out is a future upgrade that
-// would populate this same table without changing anything that reads it.
+// Product — a minimal per-market inventory catalog, just enough to back
+// the Expired/Wasted Items report-and-decrement flow. No real
+// Inventory/Indent Management system exists to integrate with, so this
+// is the system of record for stock quantity until one does.
+// ---------------------------------------------------------------------
+model Product {
+  id            String   @id @default(cuid())
+  barcode       String
+  name          String
+  stockQuantity Int      @default(0)
+
+  marketId String
+  market   Market @relation(fields: [marketId], references: [id])
+
+  createdById Int
+  createdBy   User @relation("ProductCreator", fields: [createdById], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  itemReports ItemReport[]
+
+  // Same barcode can be separate stock in different markets, so the
+  // uniqueness is per-market, not global.
+  @@unique([barcode, marketId])
+  @@index([marketId])
+}
+
+// ItemReport — an employee reporting a Product as expired or wasted.
+// Submitting one immediately decrements Product.stockQuantity in the
+// same transaction (see itemReportsController.js) — no manual inventory
+// adjustment from a supervisor required, per the spec. `status` exists
+// for audit/review purposes only; it does not gate the stock decrement.
+model ItemReport {
+  id          String         @id @default(cuid())
+  condition   ItemCondition
+  quantity    Int
+  status      ActivityStatus @default(PENDING)
+  notes       String?
+  imageUrl    String?
+
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id])
+  marketId   String
+  market     Market   @relation(fields: [marketId], references: [id])
+
+  reportedAt DateTime @default(now())
+
+  @@index([employeeId])
+  @@index([productId])
+  @@index([marketId])
+  @@index([reportedAt])
+}
+
+// ---------------------------------------------------------------------
+// AttendanceRecord — one employee's attendance for one day: status,
+// shift, check-in/out, and break times. Populated by importAttendanceRecords
+// (a staff-side CSV import — see attendanceController.js) rather than a
+// live fingerprint-device feed, which isn't reachable from this app.
+// Working hours are computed from checkIn/checkOut/break, not stored, so
+// there's no redundant derived value to drift out of sync.
 // ---------------------------------------------------------------------
 model AttendanceRecord {
-  id          String   @id @default(cuid())
-  date        DateTime // the day this record is for; time part is ignored
-  hoursWorked Float
+  id         String           @id @default(cuid())
+  date       DateTime // the day this record is for; time part is ignored
+  status     AttendanceStatus @default(PRESENT)
+  shift      Shift?
+  checkIn    DateTime?
+  checkOut   DateTime?
+  breakStart DateTime?
+  breakEnd   DateTime?
+  dayOffType DayOffType? // only meaningful when status = DAY_OFF
 
   employeeId String
   employee   Employee @relation(fields: [employeeId], references: [id])
 
-  recordedById Int
-  recordedBy   User @relation("AttendanceRecorder", fields: [recordedById], references: [id])
+  importedById Int?
+  importedBy   User? @relation("AttendanceImporter", fields: [importedById], references: [id])
 
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
+  // One record per employee per day — makes re-importing the same export
+  // file idempotent (upsert on this constraint) instead of duplicating rows.
+  @@unique([employeeId, date])
   @@index([employeeId])
   @@index([date])
 }
 
-// AttendanceAdjustment — a supervisor's manual +/- correction to an
-// employee's hours (e.g. "+1 hour, stayed late for inventory recount" or
-// "-1 hour, sent home early as a reward"). Kept as its own append-only
-// history table (never edited/deleted) rather than a mutable field on
+// AttendanceAdjustment — a supervisor's reward/extra/penalty hours tied
+// to a specific date, with a reason. Kept as its own append-only history
+// table (never edited/deleted) rather than a mutable field on
 // AttendanceRecord, so the reasoning behind every adjustment stays
 // visible to the employee instead of being overwritten.
 model AttendanceAdjustment {
-  id     String @id @default(cuid())
-  hours  Float // positive = extra hours credited, negative = hours deducted
+  id     String                   @id @default(cuid())
+  type   AttendanceAdjustmentType
+  hours  Float
   reason String
+  date   DateTime // the day this adjustment applies to
 
   employeeId String
   employee   Employee @relation(fields: [employeeId], references: [id])
@@ -384,4 +500,5 @@ model AttendanceAdjustment {
   createdAt DateTime @default(now())
 
   @@index([employeeId])
+  @@index([date])
 }

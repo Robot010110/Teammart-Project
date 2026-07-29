@@ -1,0 +1,28 @@
+import { apiRequest } from "./apiClient";
+
+// itemReportService.js — talks to /api/products (search only) and
+// /api/item-reports (the Expired/Wasted Items module). Mirrors
+// backend/src/controllers/productsController.js and
+// itemReportsController.js one function per endpoint, same pattern as
+// every other service file.
+
+export function searchProducts({ search, barcode } = {}) {
+  const params = new URLSearchParams();
+  if (search) params.set("search", search);
+  if (barcode) params.set("barcode", barcode);
+  const query = params.toString();
+  return apiRequest(`/products${query ? `?${query}` : ""}`);
+}
+
+// payload: { productId, condition, quantity, notes?, imageUrl? }
+export function createItemReport(payload) {
+  return apiRequest("/item-reports", { method: "POST", body: payload });
+}
+
+export function listItemReports({ year, month } = {}) {
+  const params = new URLSearchParams();
+  if (year) params.set("year", year);
+  if (month) params.set("month", month);
+  const query = params.toString();
+  return apiRequest(`/item-reports${query ? `?${query}` : ""}`);
+}

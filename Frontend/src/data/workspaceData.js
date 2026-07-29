@@ -12,8 +12,14 @@
 // backend, but it does have "Daily Cleaning" which the old list didn't).
 // This list was updated to match exactly what the backend will accept —
 // otherwise submitting would fail validation for half these buttons.
+//
+// EXPIRED_ITEMS is deliberately NOT listed here anymore — it's been
+// superseded by the dedicated Expired/Wasted Items module
+// (ItemReportSection.jsx, backed by the ItemReport model), which needs a
+// product link + quantity + automatic stock decrement that this simple
+// notes+photo Activity flow was never built for. The enum value stays in
+// the backend for DB compatibility; it's just not offered here anymore.
 export const ACTIVITY_SUBMISSION_OPTIONS = [
-  { category: "EXPIRED_ITEMS", label: "Report Expired Items" },
   { category: "SHELF_CLEANING", label: "Report Shelf Cleaning" },
   { category: "PRODUCT_CUSTOMIZATION", label: "Submit Product Customization" },
   { category: "DAILY_CLEANING", label: "Report Daily Cleaning" },

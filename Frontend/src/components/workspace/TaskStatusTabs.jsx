@@ -1,7 +1,8 @@
 import { useState } from "react";
-import { Clock3, ImageIcon, CheckCircle2, XCircle, HourglassIcon, FileEdit, Pencil, Trash2, Loader2 } from "lucide-react";
+import { Clock3, ImageIcon, Pencil, Trash2, Loader2 } from "lucide-react";
 import { CATEGORY_LABELS } from "../../data/workspaceData";
 import { canEditActivity, canDeleteActivity } from "../../data/activityRules";
+import ActivityStatusPill from "../common/ActivityStatusPill";
 
 // TaskStatusTabs.jsx — Draft / Pending / Completed / Approved / Rejected
 // filters over the employee's own Activity history (GET /api/activities).
@@ -28,13 +29,6 @@ import { canEditActivity, canDeleteActivity } from "../../data/activityRules";
 // SubmitTaskModal.jsx can't drift apart on what "editable" means.
 
 const TABS = ["Draft", "Pending", "Completed", "Approved", "Rejected"];
-
-const STATUS_STYLE = {
-  DRAFT: { icon: FileEdit, tone: "bg-white/5 text-[#9AA1B4] ring-white/10" },
-  PENDING: { icon: HourglassIcon, tone: "bg-amber-500/10 text-amber-400 ring-amber-500/20" },
-  APPROVED: { icon: CheckCircle2, tone: "bg-emerald-500/10 text-emerald-400 ring-emerald-500/20" },
-  REJECTED: { icon: XCircle, tone: "bg-red-500/10 text-red-400 ring-red-500/20" },
-};
 
 function matchesTab(activity, tab) {
   if (tab === "Draft") return activity.status === "DRAFT";
@@ -73,8 +67,6 @@ export default function TaskStatusTabs({ activities, onEdit, onDelete, deletingI
           <p className="text-sm text-[#4C5266] text-center py-8">No {tab.toLowerCase()} activities.</p>
         )}
         {filtered.map((activity) => {
-          const style = STATUS_STYLE[activity.status] || STATUS_STYLE.PENDING;
-          const Icon = style.icon;
           const canEdit = canEditActivity(activity);
           const canDelete = canDeleteActivity(activity);
           const isDeleting = deletingId === activity.id;
@@ -84,10 +76,7 @@ export default function TaskStatusTabs({ activities, onEdit, onDelete, deletingI
             <div key={activity.id} className="rounded-xl p-3.5 bg-[#1A1F33]/70 border border-white/[0.06]">
               <div className="flex items-start justify-between gap-3">
                 <span className="text-sm font-medium text-white">{CATEGORY_LABELS[activity.category] || activity.category}</span>
-                <span className={`shrink-0 inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-medium ring-1 ring-inset ${style.tone}`}>
-                  <Icon size={11} />
-                  {activity.status}
-                </span>
+                <ActivityStatusPill status={activity.status} />
               </div>
               <div className="mt-1.5 flex items-center gap-4 text-xs text-[#9AA1B4]">
                 <span className="flex items-center gap-1"><Clock3 size={12} /> {dateLabel} · {activity.time}</span>
