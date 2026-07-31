@@ -1,33 +1,32 @@
-import { useEffect, useRef, useState } from "react";
-import { ScanBarcode, Camera, Search, Loader2, CheckCircle2, ArrowLeft } from "lucide-react";
+import { useState } from "react";
 import Modal from "../common/Modal";
+import ChooseMethodStep from "./itemReport/ChooseMethodStep";
+import BarcodeScanStep from "./itemReport/BarcodeScanStep";
+import ProductSearchStep from "./itemReport/ProductSearchStep";
+import ItemDetailsStep from "./itemReport/ItemDetailsStep";
 import { searchProducts, createItemReport } from "../../services/itemReportService";
 import { prepareImageForUpload } from "../../services/activityService";
-import { startScanning, stopScanning } from "../../utils/barcodeScanner";
+import { stopScanning } from "../../utils/barcodeScanner";
 import { ApiError } from "../../services/apiClient";
 
-// ItemReportFlow.jsx — the Expired/Wasted Items multi-step submission
-// flow. Both entry paths (barcode scan, photo capture) end at the same
-// place: a searchable product picker. There is no real AI photo-based
-// product recognition here (no vision service exists) — a photo is
-// evidence only; the barcode path is the only one that can identify a
-// product automatically, and even it falls back to manual search if the
-// scanned code doesn't match anything in this market's catalog.
+// ItemReportFlow.jsx — orchestrator for the Expired/Wasted Items
+// multi-step submission flow. Both entry paths (barcode scan, photo
+// capture) end at the same place: a searchable product picker. There is
+// no real AI photo-based product recognition here (no vision service
+// exists) — a photo is evidence only; the barcode path is the only one
+// that can identify a product automatically, and even it falls back to
+// manual search if the scanned code doesn't match anything in this
+// market's catalog.
 //
-// Steps: "choose" -> "barcode" | "photo" -> "search" -> "details" -> submit.
-
-const CONDITIONS = [
-  { value: "EXPIRED", label: "Expired" },
-  { value: "WASTED", label: "Wasted" },
-];
+// Steps: "choose" -> "barcode" | (photo, no step) -> "search" -> "details" -> submit.
+// Split into one component per step (components/employee/itemReport/) —
+// this file now only owns cross-step state and the handlers each step
+// needs to call back into; each step owns its own step-local UI state
+// (e.g. the camera lifecycle lives entirely in BarcodeScanStep).
 
 export default function ItemReportFlow({ open, onClose, onSaved }) {
   const [step, setStep] = useState("choose");
-  const [products, setProducts] = useState([]);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [searching, setSearching] = useState(false);
-  const [scanError, setScanError] = useState(null);
-  const [manualBarcode, setManualBarcode] = useState("");
+  const [searchSeed, setSearchSeed] = useState(""); // seeds ProductSearchStep when a scanned barcode has no exact match
 
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [evidencePhoto, setEvidencePhoto] = useState(null); // { url, progress } | null
@@ -39,18 +38,14 @@ export default function ItemReportFlow({ open, onClose, onSaved }) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
 
-  const videoRef = useRef(null);
-
   const reset = () => {
     setStep("choose");
-    setProducts([]);
-    setSearchTerm("");
-    setScanError(null);
-    setManualBarcode("");
+    setSearchSeed("");
     setSelectedProduct(null);
     setEvidencePhoto(null);
     setCondition("EXPIRED");
     setQuantity("");
+    setQuantityInvalid(false);
     setNotes("");
     setError(null);
   };
@@ -61,49 +56,22 @@ export default function ItemReportFlow({ open, onClose, onSaved }) {
     onClose();
   };
 
-  // Camera lifecycle for the barcode step only.
-  useEffect(() => {
-    if (step !== "barcode") return;
-    setScanError(null);
-    startScanning(videoRef.current, (text) => {
-      stopScanning();
-      handleBarcodeDetected(text);
-    }).catch(() => {
-      setScanError("Could not access the camera. Enter the barcode manually below instead.");
-    });
-    return () => stopScanning();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step]);
-
-  const runSearch = async (query) => {
-    setSearching(true);
-    setError(null);
-    try {
-      const results = await searchProducts(query.barcode ? { barcode: query.barcode } : { search: query.search });
-      setProducts(results);
-      return results;
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Could not search products.");
-      return [];
-    } finally {
-      setSearching(false);
-    }
-  };
-
   const handleBarcodeDetected = async (barcode) => {
-    const results = await runSearch({ barcode });
-    if (results.length === 1) {
-      setSelectedProduct(results[0]);
-      setStep("details");
-    } else {
-      setSearchTerm(barcode);
+    try {
+      const results = await searchProducts({ barcode });
+      if (results.length === 1) {
+        setSelectedProduct(results[0]);
+        setStep("details");
+      } else {
+        setSearchSeed(barcode);
+        setStep("search");
+      }
+    } catch (err) {
+      // Fall through to manual search rather than getting stuck — the
+      // scanned code still seeds the search box.
+      setSearchSeed(barcode);
       setStep("search");
     }
-  };
-
-  const handleManualBarcodeSubmit = () => {
-    if (!manualBarcode.trim()) return;
-    handleBarcodeDetected(manualBarcode.trim());
   };
 
   const handleTakePicture = async (file) => {
@@ -116,6 +84,7 @@ export default function ItemReportFlow({ open, onClose, onSaved }) {
         onProgress: (progress) => setEvidencePhoto({ url: null, progress }),
       });
       setEvidencePhoto({ url, progress: 100 });
+      setSearchSeed("");
       setStep("search");
     } catch (err) {
       setError("Could not process that photo. Please try again.");
@@ -125,17 +94,9 @@ export default function ItemReportFlow({ open, onClose, onSaved }) {
     }
   };
 
-  useEffect(() => {
-    if (step !== "search") return;
-    const timer = setTimeout(() => {
-      if (searchTerm.trim()) runSearch({ search: searchTerm.trim() });
-    }, 300);
-    return () => clearTimeout(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchTerm, step]);
-
   const handleSelectProduct = (product) => {
     setSelectedProduct(product);
+    setError(null);
     setStep("details");
   };
 
@@ -175,179 +136,44 @@ export default function ItemReportFlow({ open, onClose, onSaved }) {
 
   return (
     <Modal open={open} onClose={handleClose} title={stepTitle}>
-      <div className="space-y-4">
-        {step === "choose" && (
-          <div className="grid grid-cols-2 gap-3">
-            <button
-              onClick={() => setStep("barcode")}
-              className="flex flex-col items-center gap-2 rounded-xl p-5 bg-[#1A1F33]/70 border border-white/[0.05] hover:border-[#F47A20]/35 hover:bg-[#1F2436] transition-all duration-200"
-            >
-              <ScanBarcode size={22} className="text-[#F47A20]" />
-              <span className="text-xs font-medium text-white">Scan Barcode</span>
-            </button>
-            <label className="flex flex-col items-center gap-2 rounded-xl p-5 bg-[#1A1F33]/70 border border-white/[0.05] hover:border-[#F47A20]/35 hover:bg-[#1F2436] transition-all duration-200 cursor-pointer">
-              <Camera size={22} className="text-[#F47A20]" />
-              <span className="text-xs font-medium text-white">Take Picture</span>
-              <input
-                type="file"
-                accept="image/*"
-                capture="environment"
-                className="hidden"
-                onChange={(e) => handleTakePicture(e.target.files[0])}
-              />
-            </label>
-          </div>
-        )}
+      {step === "choose" && (
+        <ChooseMethodStep
+          onScanBarcode={() => setStep("barcode")}
+          onTakePicture={handleTakePicture}
+          busy={photoBusy}
+          progress={evidencePhoto?.progress}
+          error={error}
+        />
+      )}
 
-        {step === "barcode" && (
-          <div className="space-y-3">
-            {/* Taller than a 16:9 aspect-video box — most phones hold the
-                camera in portrait, so a taller frame gives a bigger, more
-                natural scan target instead of a cramped landscape strip. */}
-            <div className="rounded-xl overflow-hidden bg-black h-72 sm:h-80">
-              <video ref={videoRef} className="h-full w-full object-cover" muted playsInline />
-            </div>
-            {scanError && (
-              <div className="space-y-2">
-                <p className="text-xs text-red-400">{scanError}</p>
-                <div className="flex gap-2">
-                  <input
-                    value={manualBarcode}
-                    onChange={(e) => setManualBarcode(e.target.value)}
-                    placeholder="Enter barcode number"
-                    inputMode="numeric"
-                    className="flex-1 min-w-0 rounded-lg bg-white/[0.04] border border-white/[0.06] px-3 py-3 text-base sm:text-sm text-white placeholder:text-[#4C5266] outline-none focus:border-[#F47A20]/50"
-                  />
-                  <button
-                    onClick={handleManualBarcodeSubmit}
-                    className="shrink-0 rounded-lg px-4 py-3 text-xs font-semibold text-white bg-[#F47A20] hover:bg-[#ff8b36] active:bg-[#e06f18]"
-                  >
-                    Search
-                  </button>
-                </div>
-              </div>
-            )}
-            <button
-              onClick={() => setStep("choose")}
-              className="flex items-center gap-1.5 py-2 text-xs text-[#9AA1B4] hover:text-white"
-            >
-              <ArrowLeft size={12} /> Back
-            </button>
-          </div>
-        )}
+      {step === "barcode" && (
+        <BarcodeScanStep onDetected={handleBarcodeDetected} onBack={() => setStep("choose")} />
+      )}
 
-        {step === "search" && (
-          <div className="space-y-3">
-            {evidencePhoto?.url && (
-              <div className="flex items-center gap-2 rounded-lg p-2 bg-white/[0.04]">
-                <img src={evidencePhoto.url} alt="" className="h-12 w-12 rounded-lg object-cover" />
-                <span className="text-xs text-[#9AA1B4]">Photo attached as evidence</span>
-              </div>
-            )}
-            <div className="relative">
-              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#4C5266]" />
-              <input
-                autoFocus
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Search product by name..."
-                className="w-full rounded-lg bg-white/[0.04] border border-white/[0.06] pl-9 pr-3 py-3 text-base sm:text-sm text-white placeholder:text-[#4C5266] outline-none focus:border-[#F47A20]/50"
-              />
-            </div>
-            <div className="space-y-2 max-h-[260px] overflow-y-auto">
-              {searching && <p className="text-xs text-[#4C5266] text-center py-4">Searching...</p>}
-              {!searching && searchTerm.trim() && products.length === 0 && (
-                <p className="text-xs text-[#4C5266] text-center py-4">No products found.</p>
-              )}
-              {!searching &&
-                products.map((product) => (
-                  <button
-                    key={product.id}
-                    onClick={() => handleSelectProduct(product)}
-                    className="w-full text-left rounded-lg p-3 bg-[#1A1F33]/70 border border-white/[0.06] hover:border-[#F47A20]/35 active:bg-[#1F2436] transition-colors duration-150"
-                  >
-                    <p className="text-sm text-white font-medium">{product.name}</p>
-                    <p className="text-[11px] text-[#8B93A8]">Barcode {product.barcode}</p>
-                  </button>
-                ))}
-            </div>
-            <button
-              onClick={() => setStep("choose")}
-              className="flex items-center gap-1.5 py-2 text-xs text-[#9AA1B4] hover:text-white"
-            >
-              <ArrowLeft size={12} /> Back
-            </button>
-          </div>
-        )}
+      {step === "search" && (
+        <ProductSearchStep
+          initialQuery={searchSeed}
+          evidencePhotoUrl={evidencePhoto?.url}
+          onSelect={handleSelectProduct}
+          onBack={() => setStep("choose")}
+        />
+      )}
 
-        {step === "details" && selectedProduct && (
-          <div className="space-y-4">
-            <div className="rounded-lg p-3 bg-white/[0.04]">
-              <p className="text-sm text-white font-medium">{selectedProduct.name}</p>
-              <p className="text-[11px] text-[#8B93A8]">Barcode {selectedProduct.barcode}</p>
-            </div>
-
-            <div>
-              <label className="block text-xs uppercase tracking-wide text-[#8B93A8] mb-1.5">Condition</label>
-              <div className="flex gap-2">
-                {CONDITIONS.map((c) => (
-                  <button
-                    key={c.value}
-                    onClick={() => setCondition(c.value)}
-                    className={`flex-1 rounded-lg py-3 text-sm font-medium transition-colors duration-150 ${
-                      condition === c.value ? "bg-[#F47A20] text-white" : "bg-white/[0.05] text-[#9AA1B4] active:bg-white/[0.09]"
-                    }`}
-                  >
-                    {c.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-xs uppercase tracking-wide text-[#8B93A8] mb-1.5">Quantity</label>
-              <input
-                type="number"
-                inputMode="numeric"
-                min="1"
-                value={quantity}
-                onChange={(e) => { setQuantity(e.target.value); setQuantityInvalid(false); }}
-                placeholder="Number of items"
-                aria-invalid={quantityInvalid}
-                className={`w-full rounded-lg bg-white/[0.04] border px-3 py-3 text-base sm:text-sm text-white placeholder:text-[#4C5266] outline-none transition-colors duration-200 ${
-                  quantityInvalid ? "border-red-500/60 focus:border-red-500/60" : "border-white/[0.06] focus:border-[#F47A20]/50"
-                }`}
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs uppercase tracking-wide text-[#8B93A8] mb-1.5">Notes (optional)</label>
-              <textarea
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                rows={2}
-                className="w-full rounded-lg bg-white/[0.04] border border-white/[0.06] px-3 py-3 text-base sm:text-sm text-white placeholder:text-[#4C5266] outline-none focus:border-[#F47A20]/50 resize-none"
-              />
-            </div>
-
-            {error && <p className="text-xs text-red-400">{error}</p>}
-
-            <button
-              onClick={handleSubmit}
-              disabled={submitting}
-              className="w-full rounded-xl py-3 text-sm font-semibold text-white bg-[#F47A20] hover:bg-[#ff8b36] active:bg-[#e06f18] disabled:bg-white/10 disabled:text-[#4C5266] transition-colors duration-200 flex items-center justify-center gap-2"
-            >
-              {submitting ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
-              {submitting ? "Submitting..." : "Submit Report"}
-            </button>
-          </div>
-        )}
-
-        {step === "choose" && error && <p className="text-xs text-red-400">{error}</p>}
-        {photoBusy && evidencePhoto && step === "choose" && (
-          <p className="text-xs text-[#9AA1B4]">Processing photo... {evidencePhoto.progress}%</p>
-        )}
-      </div>
+      {step === "details" && selectedProduct && (
+        <ItemDetailsStep
+          product={selectedProduct}
+          condition={condition}
+          onConditionChange={setCondition}
+          quantity={quantity}
+          onQuantityChange={(v) => { setQuantity(v); setQuantityInvalid(false); }}
+          quantityInvalid={quantityInvalid}
+          notes={notes}
+          onNotesChange={setNotes}
+          submitting={submitting}
+          error={error}
+          onSubmit={handleSubmit}
+        />
+      )}
     </Modal>
   );
 }

@@ -52,6 +52,11 @@ export const employeeLoginSchema = z.object({
   password: z.string().min(1),
 });
 
+export const cashierLoginSchema = z.object({
+  username: z.string().min(1),
+  password: z.string().min(1),
+});
+
 export const updatePasswordSchema = z.object({
   currentPassword: z.string().min(1),
   newPassword: z.string().min(8, "Password must be at least 8 characters"),
@@ -287,4 +292,31 @@ export const createAttendanceAdjustmentSchema = z.object({
 export const attendanceMonthQuerySchema = z.object({
   year: z.coerce.number().int().min(2000).max(2100).optional(),
   month: z.coerce.number().int().min(1).max(12).optional(),
+});
+
+// ---------------------------------------------------------------------
+// Cashier Cleaning — station-cleaning checklist, Morning-shift cashiers only.
+// ---------------------------------------------------------------------
+export const submitCleaningLogSchema = z.object({
+  items: z
+    .array(z.object({ label: z.string().min(1).max(100), checked: z.boolean() }))
+    .min(1)
+    .max(30),
+});
+
+// ---------------------------------------------------------------------
+// Price Reports — a cashier flagging a shelf-vs-POS price mismatch.
+// ---------------------------------------------------------------------
+export const createPriceReportSchema = z.object({
+  productName: z.string().min(1).max(200),
+  barcode: z.string().max(64).optional(),
+  shelfPrice: z.number().nonnegative(),
+  systemPrice: z.number().nonnegative(),
+  notes: z.string().max(1000).optional(),
+  photoUrl: z.string().url().optional(),
+});
+
+export const listPriceReportsQuerySchema = z.object({
+  status: z.enum(["DRAFT", "PENDING", "APPROVED", "REJECTED"]).optional(),
+  marketId: z.string().optional(),
 });

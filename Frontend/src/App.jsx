@@ -6,6 +6,7 @@ import ZonePage from "./pages/ZonePage";
 import MarketDashboard from "./pages/MarketDashboard";
 import EmployeeProfile from "./pages/EmployeeProfile";
 import EmployeeWorkspace from "./pages/EmployeeWorkspace";
+import CashierWorkspace from "./pages/CashierWorkspace";
 import { isAuthenticated, logout as clearEmployeeToken } from "./services/authService";
 import { getProfile } from "./services/profileService";
 import { onUnauthorized } from "./services/apiClient";
@@ -80,6 +81,7 @@ export default function App() {
         if (profile.kind === "employee") {
           setSession({
             role: "employee",
+            employeeRole: profile.role,
             employeeId: profile.id,
             marketId: profile.market.id,
             displayName: profile.name,
@@ -130,13 +132,18 @@ export default function App() {
   }
 
   if (session.role === "employee") {
+    const isCashier = session.employeeRole === "CASHIER";
     return (
       <div className="min-h-screen bg-[#1A1A1A] text-white font-sans antialiased">
         <Header
-          user={{ name: session.displayName, role: "Employee", avatarInitials: session.initials }}
+          user={{ name: session.displayName, role: isCashier ? "Cashier" : "Employee", avatarInitials: session.initials }}
           onLogout={handleLogout}
         />
-        <EmployeeWorkspace employeeId={session.employeeId} />
+        {isCashier ? (
+          <CashierWorkspace employeeId={session.employeeId} />
+        ) : (
+          <EmployeeWorkspace employeeId={session.employeeId} />
+        )}
       </div>
     );
   }

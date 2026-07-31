@@ -168,6 +168,34 @@ enum AttendanceAdjustmentType {
 }
 
 // ---------------------------------------------------------------------
+// Cashier role — a second, genuinely different kind of Employee (own
+// login identifier, own profile fields, own shift-gated feature set).
+// Both WORKER and CASHIER are still the same Employee model/JWT `kind`,
+// so every existing employee-scoped endpoint (Activities, Sudden Tasks,
+// Attendance, Item Reports) keeps working for a Cashier token unchanged
+// — only the two Cashier-only modules below (Cleaning, Price Report) are
+// new. See cashierCleaningController.js / priceReportsController.js.
+// ---------------------------------------------------------------------
+enum EmployeeRole {
+  WORKER
+  CASHIER
+}
+
+// Only two values for Cashiers (unlike the three-shift Shift enum used by
+// Attendance) — deliberately its own enum, not a reuse of `Shift`, since
+// Cashiers are never on a Night shift per the spec.
+enum CashierShift {
+  MORNING
+  EVENING
+}
+
+enum EmploymentStatus {
+  ACTIVE
+  INACTIVE
+  ON_LEAVE
+}
+
+// ---------------------------------------------------------------------
 // Staff (Admin / Regional Manager / Supervisor) — logs in with email
 // ---------------------------------------------------------------------
 model User {
@@ -224,6 +252,7 @@ model Market {
   suddenTasks  SuddenTask[]
   products     Product[]
   itemReports  ItemReport[]
+  priceReports PriceReport[]
   createdAt    DateTime     @default(now())
 
   @@index([zoneId])
@@ -232,17 +261,18 @@ model Market {
 // Employees log in with an employeeCode + password, not an email — this
 // matches the frontend's "find yourself" login flow for the Employee role.
 model Employee {
-  id            String   @id @default(cuid())
-  employeeCode  String   @unique
+  id            String       @id @default(cuid())
+  employeeCode  String       @unique
   name          String
   passwordHash  String
   position      String
   secondaryRole String?
   shift         String?
+  role          EmployeeRole @default(WORKER)
   marketId      String
-  market        Market   @relation(fields: [marketId], references: [id])
+  market        Market       @relation(fields: [marketId], references: [id])
   tasks         Task[]
-  createdAt     DateTime @default(now())
+  createdAt     DateTime     @default(now())
 
   // --- Employee Profile fields (Phase 1, Step 2) ---
   // All nullable/optional so existing employee rows don't break and none
@@ -255,11 +285,22 @@ model Employee {
   performanceRate   Int?      // Placeholder for a future calculated score.
                                // Nothing writes to this yet — see Step 7.
 
+  // --- Cashier-only profile fields (all null for a WORKER) ---
+  username         String?           @unique // Cashier login identifier — separate
+                                              // namespace from employeeCode; a Worker
+                                              // keeps logging in with employeeCode.
+  department       String?                   // e.g. "Snacks", "Cashier"
+  cashierShift     CashierShift?             // drives whether Cleaning is shown
+  employmentStatus EmploymentStatus @default(ACTIVE)
+  whatsappNumber   String?                   // tap-to-open wa.me link on the profile
+
   activities Activity[]
   suddenTasks SuddenTask[]
   itemReports ItemReport[]
   attendanceRecords     AttendanceRecord[]
   attendanceAdjustments AttendanceAdjustment[]
+  cashierCleaningLogs   CashierCleaningLog[]
+  priceReports          PriceReport[]
 
   @@index([marketId])
 }
@@ -501,4 +542,64 @@ model AttendanceAdjustment {
 
   @@index([employeeId])
   @@index([date])
+}
+
+// ---------------------------------------------------------------------
+// CashierCleaningLog — one row per cashier per day, station-cleaning
+// checklist. Deliberately NOT the same thing as Activity's SHELF_CLEANING
+// category: this always means "clean the cashier station", never shelf/
+// aisle/department cleaning, and only Morning-shift cashiers see this
+// page at all (see cashierCleaningController.js). `items` is a JSON
+// snapshot of the fixed checklist (label + checked) rather than a child
+// table — the checklist is a small, fixed set of labels defined on the
+// frontend, not independently queryable/reportable data.
+// ---------------------------------------------------------------------
+model CashierCleaningLog {
+  id          String    @id @default(cuid())
+  date        DateTime // the day this applies to; time part ignored
+  items       Json // [{ label: string, checked: boolean }]
+  completedAt DateTime?
+
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // One log per cashier per day — same idempotent-upsert idiom as
+  // AttendanceRecord.
+  @@unique([employeeId, date])
+  @@index([employeeId])
+}
+
+// ---------------------------------------------------------------------
+// PriceReport — a cashier flagging a shelf-price vs. POS-system-price
+// mismatch. Its own model, not ItemReport: no product/inventory link or
+// stock side-effect, just two prices, an optional photo, and a route to
+// the Supervisor for review (see priceReportsController.js — "send to
+// the Supervisor" means the report is immediately visible to any
+// Supervisor of this market, since no push-notification system exists
+// anywhere in this app).
+// ---------------------------------------------------------------------
+model PriceReport {
+  id          String         @id @default(cuid())
+  productName String
+  barcode     String?
+  shelfPrice  Float
+  systemPrice Float
+  notes       String?
+  photoUrl    String?
+  shift       CashierShift? // the cashier's shift at the time of reporting
+  status      ActivityStatus @default(PENDING)
+
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id])
+  marketId   String
+  market     Market   @relation(fields: [marketId], references: [id])
+
+  reportedAt DateTime @default(now())
+
+  @@index([employeeId])
+  @@index([marketId])
+  @@index([reportedAt])
 }

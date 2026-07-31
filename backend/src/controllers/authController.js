@@ -90,6 +90,47 @@ export async function employeeLogin(req, res, next) {
         name: employee.name,
         employeeCode: employee.employeeCode,
         marketId: employee.marketId,
+        role: employee.role,
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// POST /api/auth/cashier-login — same shape as employeeLogin, but looks
+// up by `username` instead of `employeeCode`. A separate endpoint rather
+// than a merged lookup so Worker login (employeeLogin above) stays
+// completely untouched — no shared "try employeeCode, fall back to
+// username" logic that could get subtly wrong for either side.
+export async function cashierLogin(req, res, next) {
+  try {
+    const { username, password } = req.body;
+
+    const employee = await prisma.employee.findUnique({ where: { username } });
+
+    // Same deliberately-vague error as every other login endpoint — don't
+    // let this be used to enumerate valid usernames.
+    if (!employee) {
+      return res.status(401).json({ error: "Invalid username or password" });
+    }
+
+    const passwordMatches = await bcrypt.compare(password, employee.passwordHash);
+    if (!passwordMatches) {
+      return res.status(401).json({ error: "Invalid username or password" });
+    }
+
+    const token = signEmployeeToken(employee);
+
+    res.json({
+      token,
+      employee: {
+        id: employee.id,
+        name: employee.name,
+        employeeCode: employee.employeeCode,
+        username: employee.username,
+        marketId: employee.marketId,
+        role: employee.role,
       },
     });
   } catch (err) {

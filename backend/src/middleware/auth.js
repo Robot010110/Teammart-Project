@@ -52,6 +52,27 @@ export function requireEmployeeAuth(req, res, next) {
 }
 
 // ---------------------------------------------------------------------
+// requireEmployeeRole("CASHIER") — the Employee-side counterpart to
+// requireStaffRole(...), for the two Cashier-only modules (Cleaning,
+// Price Report). Must run after requireEmployeeAuth. Worker-only routes
+// (Activities, Item Reports) deliberately do NOT get the mirror-image
+// requireEmployeeRole("WORKER") guard — hiding those from a Cashier is a
+// frontend concern (the Cashier UI never renders them), not a backend
+// lockdown that wasn't asked for.
+// ---------------------------------------------------------------------
+export function requireEmployeeRole(...allowedRoles) {
+  return (req, res, next) => {
+    if (!req.user || req.user.kind !== "employee") {
+      return res.status(403).json({ error: "This action requires an employee login" });
+    }
+    if (!allowedRoles.includes(req.user.role)) {
+      return res.status(403).json({ error: "Not authorized for this action" });
+    }
+    next();
+  };
+}
+
+// ---------------------------------------------------------------------
 // requireOwnZoneOrElevated — the IDOR-prevention check for zone-scoped
 // resources. ADMIN always passes. A REGIONAL_MANAGER may only touch the
 // zone their own token was issued for. `getZoneId(req)` returns the zone

@@ -1,8 +1,14 @@
 import { Router } from "express";
-import { register, staffLogin, employeeLogin } from "../controllers/authController.js";
+import { register, staffLogin, employeeLogin, cashierLogin } from "../controllers/authController.js";
 import { requireAuth, requireStaffRole } from "../middleware/auth.js";
 import { authLimiter } from "../middleware/rateLimit.js";
-import { validateBody, staffRegisterSchema, staffLoginSchema, employeeLoginSchema } from "../utils/validate.js";
+import {
+  validateBody,
+  staffRegisterSchema,
+  staffLoginSchema,
+  employeeLoginSchema,
+  cashierLoginSchema,
+} from "../utils/validate.js";
 
 const router = Router();
 
@@ -20,5 +26,6 @@ router.post(
 // (guessing a password/employee code), so they get the tight limit.
 router.post("/login", authLimiter, validateBody(staffLoginSchema), staffLogin);
 router.post("/employee-login", authLimiter, validateBody(employeeLoginSchema), employeeLogin);
+router.post("/cashier-login", authLimiter, validateBody(cashierLoginSchema), cashierLogin);
 
 export default router;

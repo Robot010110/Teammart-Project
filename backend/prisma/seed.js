@@ -122,6 +122,50 @@ async function main() {
     },
   });
 
+  // ---------------------------------------------------------------
+  // Two sample Cashier accounts (Cashier role module) — same market as
+  // the Worker employees above, so they're immediately usable with the
+  // existing Supervisor account. Cashiers log in with username+password,
+  // not employeeCode+password (see authController.cashierLogin).
+  // ---------------------------------------------------------------
+  const cashierPasswordHash = await bcrypt.hash("Market2026!", 10);
+
+  await prisma.employee.upsert({
+    where: { username: "cashier_morning01" },
+    update: {},
+    create: {
+      employeeCode: "TM-2001",
+      name: "Ahmed Karim",
+      username: "cashier_morning01",
+      passwordHash: cashierPasswordHash,
+      position: "Cashier",
+      role: "CASHIER",
+      cashierShift: "MORNING",
+      department: "Snacks",
+      employmentStatus: "ACTIVE",
+      whatsappNumber: "9647501234567",
+      marketId: market.id,
+    },
+  });
+
+  await prisma.employee.upsert({
+    where: { username: "cashier_evening01" },
+    update: {},
+    create: {
+      employeeCode: "TM-2002",
+      name: "Sara Ali",
+      username: "cashier_evening01",
+      passwordHash: cashierPasswordHash,
+      position: "Cashier",
+      role: "CASHIER",
+      cashierShift: "EVENING",
+      department: "Cashier",
+      employmentStatus: "ACTIVE",
+      whatsappNumber: "9647509876543",
+      marketId: market.id,
+    },
+  });
+
   // A couple of sample tasks so /api/dashboard and /api/reports have
   // something to show immediately after seeding.
   const existingTasks = await prisma.task.count({ where: { employeeId: employee.id } });
@@ -156,6 +200,8 @@ async function main() {
   console.log("  Manager:    ali.hassan@teammart.test / Manager123! (Zone 1)");
   console.log("  Supervisor: supervisor.qushtapa1@teammart.test / Supervisor123! (Qushtapa 1)");
   console.log("  Employee:   TM-1001 / Employee123! (Shalaw Naji, Qushtapa 1)");
+  console.log("  Cashier:    cashier_morning01 / Market2026! (Ahmed Karim, Morning, Snacks)");
+  console.log("  Cashier:    cashier_evening01 / Market2026! (Sara Ali, Evening, Cashier)");
 }
 
 main()

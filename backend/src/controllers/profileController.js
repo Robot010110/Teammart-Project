@@ -43,6 +43,14 @@ export async function getProfile(req, res, next) {
       profilePictureUrl: employee.profilePictureUrl,
       startDate: employee.startDate,
       performanceRate: employee.performanceRate,
+      // Cashier role + profile fields — role is WORKER for every existing
+      // employee (schema default), so this is purely additive for them.
+      role: employee.role,
+      username: employee.username,
+      department: employee.department,
+      cashierShift: employee.cashierShift,
+      employmentStatus: employee.employmentStatus,
+      whatsappNumber: employee.whatsappNumber,
     });
   } catch (err) {
     next(err);

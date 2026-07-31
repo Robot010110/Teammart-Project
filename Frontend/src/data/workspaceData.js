@@ -33,3 +33,18 @@ export const CATEGORY_LABELS = ACTIVITY_SUBMISSION_OPTIONS.reduce((map, o) => {
   map[o.category] = o.label;
   return map;
 }, {});
+
+// CLEANING_CHECKLIST_ITEMS — the fixed cashier-station cleaning checklist
+// (Cashier role, Morning shift only — see CashierCleaningSection.jsx).
+// Always "clean the cashier station" — deliberately NOT shelf/aisle/
+// department cleaning, which is what ACTIVITY_SUBMISSION_OPTIONS above
+// covers for Workers. A fixed list, same "static config, not mock data"
+// reasoning as ACTIVITY_SUBMISSION_OPTIONS.
+export const CLEANING_CHECKLIST_ITEMS = [
+  "Wipe down the counter",
+  "Clean the barcode scanner",
+  "Sanitize the card reader / PIN pad",
+  "Clean the touchscreen / monitor",
+  "Empty the trash bin",
+  "Restock receipt paper",
+];

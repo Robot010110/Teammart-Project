@@ -25,11 +25,18 @@ export function signStaffToken(user) {
   return jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: TOKEN_TTL });
 }
 
+// `role` (WORKER | CASHIER) is an additive claim — a Worker's token shape
+// is unchanged in practice (role defaults to WORKER on the Employee row),
+// and nothing read this claim before it existed, so this can't break any
+// existing check. requireEmployeeRole() in middleware/auth.js is the
+// first thing that reads it.
 export function signEmployeeToken(employee) {
   const payload = {
     kind: "employee",
     employeeId: employee.id,
     marketId: employee.marketId,
+    role: employee.role,
+    cashierShift: employee.cashierShift ?? null,
   };
   return jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: TOKEN_TTL });
 }
