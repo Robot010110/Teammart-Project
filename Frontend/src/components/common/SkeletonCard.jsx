@@ -1,9 +1,11 @@
-// SkeletonCard.jsx — pulse-loading placeholder, ready for real async data fetching.
+// SkeletonCard.jsx — pulse-loading placeholder matching the app's actual
+// card styling (bg-[#171C2E]/80), so every section's loading state uses
+// the same component instead of each hand-rolling its own pulse div.
 
 export function SkeletonCard({ className = "h-24" }) {
   return (
     <div
-      className={`rounded-2xl bg-white/[0.04] border border-white/[0.06] animate-pulse ${className}`}
+      className={`rounded-2xl bg-[#171C2E]/80 border border-white/[0.06] animate-pulse ${className}`}
     />
   );
 }

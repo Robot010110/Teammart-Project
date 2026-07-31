@@ -1,5 +1,5 @@
 import { prisma } from "../lib/prisma.js";
-import { staffCanAccessMarket } from "../middleware/auth.js";
+import { staffCanAccessMarket, requireAccessibleEmployee } from "../middleware/auth.js";
 
 // attendanceController.js — check-in/out, breaks, shift, day-off, and
 // reward/extra/penalty-hour tracking. No fingerprint device or Excel
@@ -37,44 +37,68 @@ function computeWorkingHours(record) {
 // row is resolved and applied independently so one bad row (unknown
 // employeeCode, wrong market) doesn't fail the whole batch — real
 // attendance exports routinely have a handful of bad rows.
+//
+// Performance: this used to do 2-3 sequential DB round trips PER ROW
+// (employee lookup, market-access check, upsert) — up to ~6000 round
+// trips for a full 2000-row import. Now: one findMany fetches every
+// employee the batch could reference, market-access checks are cached
+// per marketId (a real import file is almost always one market), and the
+// remaining per-row upserts run concurrently via Promise.allSettled
+// instead of one-at-a-time, so one row's Prisma error can't sink the
+// batch either.
 export async function importAttendanceRecords(req, res, next) {
   try {
     const { records } = req.body;
-    const results = [];
 
-    for (const row of records) {
-      const { employeeCode, date, status, shift, checkIn, checkOut, breakStart, breakEnd, dayOffType } = row;
+    const employeeCodes = [...new Set(records.map((r) => r.employeeCode))];
+    const employees = await prisma.employee.findMany({ where: { employeeCode: { in: employeeCodes } } });
+    const employeeByCode = new Map(employees.map((e) => [e.employeeCode, e]));
 
-      const employee = await prisma.employee.findUnique({ where: { employeeCode } });
-      if (!employee) {
-        results.push({ employeeCode, date, ok: false, error: "No employee with this employeeCode" });
-        continue;
+    const accessCache = new Map();
+    async function canAccess(marketId) {
+      if (!accessCache.has(marketId)) {
+        accessCache.set(marketId, await staffCanAccessMarket(req.user, marketId));
       }
-
-      const allowed = await staffCanAccessMarket(req.user, employee.marketId);
-      if (!allowed || allowed === "not-found") {
-        results.push({ employeeCode, date, ok: false, error: "You do not have access to this employee" });
-        continue;
-      }
-
-      const record = await prisma.attendanceRecord.upsert({
-        where: { employeeId_date: { employeeId: employee.id, date } },
-        update: { status, shift, checkIn, checkOut, breakStart, breakEnd, dayOffType, importedById: req.user.userId },
-        create: {
-          employeeId: employee.id,
-          date,
-          status,
-          shift,
-          checkIn,
-          checkOut,
-          breakStart,
-          breakEnd,
-          dayOffType,
-          importedById: req.user.userId,
-        },
-      });
-      results.push({ employeeCode, date, ok: true, id: record.id });
+      return accessCache.get(marketId);
     }
+
+    const settled = await Promise.allSettled(
+      records.map(async (row) => {
+        const { employeeCode, date, status, shift, checkIn, checkOut, breakStart, breakEnd, dayOffType } = row;
+
+        const employee = employeeByCode.get(employeeCode);
+        if (!employee) {
+          return { employeeCode, date, ok: false, error: "No employee with this employeeCode" };
+        }
+
+        const allowed = await canAccess(employee.marketId);
+        if (!allowed || allowed === "not-found") {
+          return { employeeCode, date, ok: false, error: "You do not have access to this employee" };
+        }
+
+        const record = await prisma.attendanceRecord.upsert({
+          where: { employeeId_date: { employeeId: employee.id, date } },
+          update: { status, shift, checkIn, checkOut, breakStart, breakEnd, dayOffType, importedById: req.user.userId },
+          create: {
+            employeeId: employee.id,
+            date,
+            status,
+            shift,
+            checkIn,
+            checkOut,
+            breakStart,
+            breakEnd,
+            dayOffType,
+            importedById: req.user.userId,
+          },
+        });
+        return { employeeCode, date, ok: true, id: record.id };
+      })
+    );
+
+    const results = settled.map((r) =>
+      r.status === "fulfilled" ? r.value : { ok: false, error: r.reason?.message || "Could not import this row" }
+    );
 
     res.status(201).json({ results });
   } catch (err) {
@@ -90,15 +114,7 @@ export async function createAttendanceAdjustment(req, res, next) {
   try {
     const { employeeId, type, hours, reason, date } = req.body;
 
-    const employee = await prisma.employee.findUnique({ where: { id: employeeId } });
-    if (!employee) {
-      return res.status(400).json({ error: "employeeId does not refer to an existing employee" });
-    }
-
-    const allowed = await staffCanAccessMarket(req.user, employee.marketId);
-    if (!allowed || allowed === "not-found") {
-      return res.status(403).json({ error: "You do not have access to this employee" });
-    }
+    await requireAccessibleEmployee(req.user, employeeId);
 
     const adjustment = await prisma.attendanceAdjustment.create({
       data: { employeeId, type, hours, reason, date, createdById: req.user.userId },

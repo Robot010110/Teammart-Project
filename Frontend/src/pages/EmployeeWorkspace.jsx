@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { BadgeCheck, Clock, Store, TrendingUp } from "lucide-react";
 import TaskSubmissionGrid from "../components/workspace/TaskSubmissionGrid";
 import SubmitTaskModal from "../components/workspace/SubmitTaskModal";
@@ -7,12 +7,16 @@ import SuddenTasksSection from "../components/employee/SuddenTasksSection";
 import ItemReportSection from "../components/employee/ItemReportSection";
 import AttendanceSection from "../components/employee/AttendanceSection";
 import ErrorBanner from "../components/common/ErrorBanner";
+import { SkeletonCard } from "../components/common/SkeletonCard";
+import Toast from "../components/common/Toast";
 import { ACTIVITY_SUBMISSION_OPTIONS } from "../data/workspaceData";
 import { getProfile } from "../services/profileService";
 import { listActivities, deleteActivity } from "../services/activityService";
 import { ApiError } from "../services/apiClient";
 import { initialsOf } from "../utils/initials";
 import { canEditActivity, canDeleteActivity } from "../data/activityRules";
+import { useAsync } from "../hooks/useAsync";
+import { useToast } from "../hooks/useToast";
 
 // EmployeeWorkspace.jsx — the entire dashboard for the Employee role. Per
 // the design principle ("interface should become simpler as permissions
@@ -20,57 +24,32 @@ import { canEditActivity, canDeleteActivity } from "../data/activityRules";
 // entirely: just this employee's own profile and daily work.
 //
 // Data comes from the backend: GET /api/profile for the header card,
-// GET /api/activities for the history list below. The two requests are
-// independent of each other, so they're kicked off together with
-// Promise.allSettled instead of one being awaited before the next starts
-// — that way a slow/failing profile load never delays the activity list
-// (or vice versa). Each keeps its own loading/error state so one failing
-// doesn't block the other from rendering.
+// GET /api/activities for the history list below. Each uses its own
+// useAsync() call, so they load independently (a slow/failing profile
+// load never delays the activity list, or vice versa) without needing an
+// explicit Promise.allSettled — two independent effects firing on mount
+// already run concurrently.
 
 export default function EmployeeWorkspace({ employeeId }) {
-  const [profile, setProfile] = useState(null);
-  const [profileError, setProfileError] = useState(null);
-  const [profileLoading, setProfileLoading] = useState(true);
+  const {
+    data: profile,
+    error: profileError,
+    loading: profileLoading,
+    reload: loadProfile,
+  } = useAsync(getProfile, { deps: [employeeId], fallbackError: "Could not load your profile." });
 
-  const [activities, setActivities] = useState([]);
-  const [activitiesError, setActivitiesError] = useState(null);
-  const [activitiesLoading, setActivitiesLoading] = useState(true);
+  const {
+    data: activities,
+    setData: setActivities,
+    error: activitiesError,
+    loading: activitiesLoading,
+    reload: loadActivities,
+  } = useAsync(listActivities, { deps: [employeeId], fallbackError: "Could not load your activities." });
 
   const [activeOption, setActiveOption] = useState(null); // creating a new activity
   const [editingActivity, setEditingActivity] = useState(null); // editing an existing one
   const [deletingId, setDeletingId] = useState(null); // activity currently being deleted, if any
-  const [toast, setToast] = useState(null);
-
-  // Each returns its own promise so the mount effect below can run them
-  // together with Promise.allSettled — see the file-level comment.
-  const loadProfile = () => {
-    setProfileLoading(true);
-    setProfileError(null);
-    return getProfile()
-      .then(setProfile)
-      .catch((err) => setProfileError(err instanceof ApiError ? err.message : "Could not load your profile."))
-      .finally(() => setProfileLoading(false));
-  };
-
-  const loadActivities = () => {
-    setActivitiesLoading(true);
-    setActivitiesError(null);
-    return listActivities()
-      .then(setActivities)
-      .catch((err) => setActivitiesError(err instanceof ApiError ? err.message : "Could not load your activities."))
-      .finally(() => setActivitiesLoading(false));
-  };
-
-  useEffect(() => {
-    Promise.allSettled([loadProfile(), loadActivities()]);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [employeeId]);
-
-  useEffect(() => {
-    if (!toast) return;
-    const timer = setTimeout(() => setToast(null), 3500);
-    return () => clearTimeout(timer);
-  }, [toast]);
+  const [toast, setToast] = useToast();
 
   // TODO(notifications): this toast is a local, in-memory "did it work"
   // message that disappears on its own — it is NOT a real notification
@@ -120,28 +99,26 @@ export default function EmployeeWorkspace({ employeeId }) {
   };
 
   return (
-    <div className="px-6 md:px-10 py-8 max-w-4xl mx-auto animate-fade-up">
+    <div className="px-4 sm:px-6 md:px-10 py-6 sm:py-8 max-w-4xl mx-auto animate-fade-up">
       {/* Profile */}
-      {profileLoading && (
-        <section className="rounded-2xl p-6 bg-[#171C2E]/80 border border-white/[0.06] animate-pulse h-[124px]" />
-      )}
+      {profileLoading && <SkeletonCard className="h-[124px]" />}
       {!profileLoading && profileError && (
         <ErrorBanner message={profileError} onRetry={loadProfile} />
       )}
       {!profileLoading && !profileError && profile && (
-        <section className="rounded-2xl p-6 bg-gradient-to-br from-[#1D2D5C]/50 to-[#171C2E]/80 border border-white/[0.06] backdrop-blur-xl">
-          <div className="flex items-center gap-5">
-            <div className="relative h-16 w-16 shrink-0 rounded-2xl bg-gradient-to-br from-[#F47A20] to-[#c95c10] grid place-items-center ring-4 ring-white/[0.06] overflow-hidden">
+        <section className="rounded-2xl p-5 sm:p-6 bg-gradient-to-br from-[#1D2D5C]/50 to-[#171C2E]/80 border border-white/[0.06] backdrop-blur-xl">
+          <div className="flex items-center gap-4 sm:gap-5">
+            <div className="relative h-14 w-14 sm:h-16 sm:w-16 shrink-0 rounded-2xl bg-gradient-to-br from-[#F47A20] to-[#c95c10] grid place-items-center ring-4 ring-white/[0.06] overflow-hidden">
               {profile.profilePictureUrl ? (
                 <img src={profile.profilePictureUrl} alt="" className="h-full w-full object-cover" />
               ) : (
-                <span className="text-lg font-display font-bold text-white">{initialsOf(profile.name)}</span>
+                <span className="text-base sm:text-lg font-display font-bold text-white">{initialsOf(profile.name)}</span>
               )}
             </div>
-            <div>
-              <h1 className="font-display text-xl font-bold text-white">{profile.name}</h1>
+            <div className="min-w-0">
+              <h1 className="font-display text-lg sm:text-xl font-bold text-white truncate">{profile.name}</h1>
               <p className="text-[#F47A20] text-sm font-medium">{profile.position}</p>
-              <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-[#9AA1B4]">
+              <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1.5 text-xs text-[#9AA1B4]">
                 <span className="flex items-center gap-1.5"><BadgeCheck size={13} /> {profile.employeeCode}</span>
                 {profile.shift && <span className="flex items-center gap-1.5"><Clock size={13} /> {profile.shift}</span>}
                 <span className="flex items-center gap-1.5"><Store size={13} /> {profile.market?.name}</span>
@@ -179,13 +156,11 @@ export default function EmployeeWorkspace({ employeeId }) {
       {/* Activity history */}
       <section className="mt-6">
         <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-[#8B93A8]">My Activities</h2>
-        {activitiesLoading && (
-          <div className="rounded-2xl p-5 bg-[#171C2E]/80 border border-white/[0.06] animate-pulse h-[220px]" />
-        )}
+        {activitiesLoading && <SkeletonCard className="h-[220px]" />}
         {!activitiesLoading && activitiesError && (
           <ErrorBanner message={activitiesError} onRetry={loadActivities} />
         )}
-        {!activitiesLoading && !activitiesError && (
+        {!activitiesLoading && !activitiesError && activities && (
           <TaskStatusTabs activities={activities} onEdit={handleEdit} onDelete={handleDelete} deletingId={deletingId} />
         )}
       </section>
@@ -199,11 +174,7 @@ export default function EmployeeWorkspace({ employeeId }) {
       <SubmitTaskModal option={activeOption} onClose={() => setActiveOption(null)} onSaved={handleSaved} />
       <SubmitTaskModal activity={editingActivity} onClose={() => setEditingActivity(null)} onSaved={handleSaved} />
 
-      {toast && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[60] rounded-xl px-4 py-2.5 bg-[#1F2436] border border-white/10 shadow-2xl text-sm text-white animate-fade-up">
-          {toast}
-        </div>
-      )}
+      <Toast message={toast} />
     </div>
   );
 }

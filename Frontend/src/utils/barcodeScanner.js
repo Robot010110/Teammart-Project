@@ -1,5 +1,3 @@
-import { BrowserMultiFormatReader } from "@zxing/browser";
-
 // barcodeScanner.js — thin wrapper around @zxing/browser so the rest of
 // the app never touches the library directly (same "keep the messy
 // browser-API detail behind one small function" pattern as
@@ -10,6 +8,15 @@ import { BrowserMultiFormatReader } from "@zxing/browser";
 // prepared for the returned promise to reject and fall back to manual
 // barcode entry. That fallback is not an edge case here, it's a first-
 // class path.
+//
+// @zxing/browser is dynamically imported instead of a static top-level
+// import — it's a sizeable dependency (see the vite build's chunk-size
+// warning) that only a fraction of app sessions ever need (opening the
+// barcode-scan step specifically). A static import would ship it in the
+// initial bundle for every employee on every page load, including ones
+// who only ever use the "take picture" path or never touch Expired/Wasted
+// Items at all — a real cost on the slower mobile connections this app is
+// primarily used on.
 
 let reader = null;
 let controls = null;
@@ -19,6 +26,7 @@ let controls = null;
 // running after that — call stopScanning() from onResult if you only
 // want the first hit). Rejects if camera access isn't available.
 export async function startScanning(videoEl, onResult) {
+  const { BrowserMultiFormatReader } = await import("@zxing/browser");
   reader = new BrowserMultiFormatReader();
   controls = await reader.decodeFromVideoDevice(undefined, videoEl, (result, err) => {
     if (result) onResult(result.getText());

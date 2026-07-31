@@ -47,7 +47,7 @@ export default function PasswordStep({ summary, hint, onSubmit, errorMessage }) 
           onChange={(e) => { setPassword(e.target.value); setError(false); }}
           placeholder="Enter password"
           autoFocus
-          className={`w-full rounded-lg bg-white/[0.04] border pl-9 pr-3 py-2.5 text-sm text-white placeholder:text-[#4C5266] outline-none transition-colors duration-200 ${
+          className={`w-full rounded-lg bg-white/[0.04] border pl-9 pr-3 py-3 text-base sm:text-sm text-white placeholder:text-[#4C5266] outline-none transition-colors duration-200 ${
             error ? "border-red-500/50 focus:border-red-500/70" : "border-white/[0.06] focus:border-[#F47A20]/50"
           }`}
         />
@@ -64,7 +64,7 @@ export default function PasswordStep({ summary, hint, onSubmit, errorMessage }) 
       <button
         type="submit"
         disabled={submitting}
-        className="mt-5 w-full rounded-xl py-2.5 text-sm font-semibold text-white bg-[#F47A20] hover:bg-[#ff8b36] disabled:bg-[#F47A20]/50 disabled:cursor-wait transition-colors duration-200 shadow-lg shadow-orange-900/20"
+        className="mt-5 w-full rounded-xl py-3 text-sm font-semibold text-white bg-[#F47A20] hover:bg-[#ff8b36] active:bg-[#e06f18] disabled:bg-[#F47A20]/50 disabled:cursor-wait transition-colors duration-200 shadow-lg shadow-orange-900/20"
       >
         {submitting ? "Logging in..." : "Log In"}
       </button>

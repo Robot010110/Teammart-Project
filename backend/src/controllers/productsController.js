@@ -1,5 +1,5 @@
 import { prisma } from "../lib/prisma.js";
-import { staffCanAccessMarket } from "../middleware/auth.js";
+import { assertMarketAccess } from "../middleware/auth.js";
 
 // productsController.js — a minimal per-market inventory catalog, just
 // enough to back the Expired/Wasted Items report-and-decrement flow (see
@@ -23,10 +23,7 @@ export async function createProduct(req, res, next) {
       return res.status(400).json({ error: "marketId is required" });
     }
 
-    const allowed = await staffCanAccessMarket(req.user, marketId);
-    if (!allowed || allowed === "not-found") {
-      return res.status(403).json({ error: "You do not have access to this market" });
-    }
+    await assertMarketAccess(req.user, marketId);
 
     const product = await prisma.product.create({
       data: { barcode, name, stockQuantity, marketId, createdById: req.user.userId },

@@ -91,3 +91,25 @@ a:focus-visible {
   outline: 2px solid var(--orange);
   outline-offset: 2px;
 }
+
+/* Inputs/textareas relied only on a border-color change on focus, which
+   is too subtle for keyboard/switch-device navigation — this adds the
+   same visible ring every other focusable element already gets. */
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: 2px solid var(--orange);
+  outline-offset: 1px;
+}
+
+/* Prevents iOS Safari from auto-zooming the page when a text input is
+   focused — the individual inputs already set a 16px base font size
+   (text-base) for this same reason; this is the belt-and-suspenders
+   global backstop for any input that doesn't. */
+@media (max-width: 640px) {
+  input,
+  textarea,
+  select {
+    font-size: 16px;
+  }
+}

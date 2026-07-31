@@ -9,7 +9,7 @@ function shapeZoneSummary(zone) {
     number: zone.number,
     manager: zone.manager?.name ?? "Unassigned",
     marketsCount: zone.markets.length,
-    employeesCount: zone.markets.reduce((sum, m) => sum + m.employees.length, 0),
+    employeesCount: zone.markets.reduce((sum, m) => sum + m._count.employees, 0),
   };
 }
 
@@ -24,7 +24,9 @@ export async function listZones(req, res, next) {
       where,
       include: {
         manager: { select: { id: true, name: true } },
-        markets: { include: { employees: true } },
+        // _count instead of `include: { employees: true }` — only the
+        // employee COUNT per market is ever used below, not the rows.
+        markets: { include: { _count: { select: { employees: true } } } },
       },
       orderBy: { number: "asc" },
     });
@@ -48,7 +50,9 @@ export async function getZone(req, res, next) {
       where: { id: zoneId },
       include: {
         manager: { select: { id: true, name: true } },
-        markets: { include: { employees: true } },
+        // _count instead of `include: { employees: true }` — only the
+        // employee COUNT per market is ever used below, not the rows.
+        markets: { include: { _count: { select: { employees: true } } } },
       },
     });
 
@@ -63,7 +67,7 @@ export async function getZone(req, res, next) {
       markets: zone.markets.map((m) => ({
         id: m.id,
         name: m.name,
-        employees: m.employees.length,
+        employees: m._count.employees,
         status: m.status.charAt(0) + m.status.slice(1).toLowerCase(),
       })),
     });
@@ -87,6 +91,9 @@ export async function createZone(req, res, next) {
 export async function assignZoneManager(req, res, next) {
   try {
     const zoneId = Number(req.params.id);
+    if (Number.isNaN(zoneId)) {
+      return res.status(400).json({ error: "Zone id must be a number" });
+    }
     const { managerId } = req.body;
 
     if (managerId !== null) {
@@ -110,7 +117,11 @@ export async function assignZoneManager(req, res, next) {
 // DELETE /api/zones/:id — ADMIN only.
 export async function deleteZone(req, res, next) {
   try {
-    await prisma.zone.delete({ where: { id: Number(req.params.id) } });
+    const zoneId = Number(req.params.id);
+    if (Number.isNaN(zoneId)) {
+      return res.status(400).json({ error: "Zone id must be a number" });
+    }
+    await prisma.zone.delete({ where: { id: zoneId } });
     res.status(204).send();
   } catch (err) {
     next(err);

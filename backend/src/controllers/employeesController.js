@@ -1,7 +1,7 @@
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
 import { prisma } from "../lib/prisma.js";
-import { staffCanAccessMarket } from "../middleware/auth.js";
+import { staffCanAccessMarket, assertMarketAccess } from "../middleware/auth.js";
 
 function publicEmployee(e) {
   // Never send passwordHash back to the client.
@@ -39,9 +39,7 @@ export async function listEmployees(req, res, next) {
     // ADMIN: no extra scoping.
 
     if (marketId) {
-      const allowed = await staffCanAccessMarket(req.user, String(marketId));
-      if (allowed === "not-found") return res.status(404).json({ error: "Market not found" });
-      if (!allowed) return res.status(403).json({ error: "You do not have access to this market" });
+      await assertMarketAccess(req.user, String(marketId));
     }
 
     const employees = await prisma.employee.findMany({
@@ -64,10 +62,7 @@ export async function getEmployee(req, res, next) {
     }
 
     if (req.user.kind === "staff") {
-      const allowed = await staffCanAccessMarket(req.user, employee.marketId);
-      if (!allowed || allowed === "not-found") {
-        return res.status(403).json({ error: "You do not have access to this employee" });
-      }
+      await assertMarketAccess(req.user, employee.marketId);
     } else if (req.user.kind === "employee" && req.user.employeeId !== employee.id) {
       return res.status(403).json({ error: "You do not have access to this employee" });
     }
@@ -113,18 +108,12 @@ export async function updateEmployee(req, res, next) {
     const employee = await prisma.employee.findUnique({ where: { id: req.params.id } });
     if (!employee) return res.status(404).json({ error: "Employee not found" });
 
-    const allowed = await staffCanAccessMarket(req.user, employee.marketId);
-    if (!allowed || allowed === "not-found") {
-      return res.status(403).json({ error: "You do not have access to this employee" });
-    }
+    await assertMarketAccess(req.user, employee.marketId);
 
     // If moving the employee to a different market, the caller must also
     // have access to the DESTINATION market.
     if (req.body.marketId && req.body.marketId !== employee.marketId) {
-      const allowedDestination = await staffCanAccessMarket(req.user, req.body.marketId);
-      if (!allowedDestination || allowedDestination === "not-found") {
-        return res.status(403).json({ error: "You do not have access to the destination market" });
-      }
+      await assertMarketAccess(req.user, req.body.marketId);
     }
 
     const updated = await prisma.employee.update({
@@ -144,10 +133,7 @@ export async function deleteEmployee(req, res, next) {
     const employee = await prisma.employee.findUnique({ where: { id: req.params.id } });
     if (!employee) return res.status(404).json({ error: "Employee not found" });
 
-    const allowed = await staffCanAccessMarket(req.user, employee.marketId);
-    if (!allowed || allowed === "not-found") {
-      return res.status(403).json({ error: "You do not have access to this employee" });
-    }
+    await assertMarketAccess(req.user, employee.marketId);
 
     await prisma.employee.delete({ where: { id: req.params.id } });
     res.status(204).send();

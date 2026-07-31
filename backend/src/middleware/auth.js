@@ -149,3 +149,45 @@ export function requireOwnEmployeeOrStaff(getEmployeeId) {
     return res.status(403).json({ error: "You do not have access to this employee's data" });
   };
 }
+
+// ---------------------------------------------------------------------
+// HttpError + assertMarketAccess/requireAccessibleEmployee — this exact
+// shape ("call staffCanAccessMarket, then 404 on not-found / 403 on
+// forbidden") was hand-written ~19 times across the controllers before
+// this. Throwing an HttpError instead of returning a response directly
+// means every call site can just `await` it inside its existing
+// try/catch — errorHandler.js already knows how to turn `err.status`
+// into the right response (see the `if (err.status)` branch there), so
+// no change to the error-handling convention was needed to add this.
+// ---------------------------------------------------------------------
+export class HttpError extends Error {
+  constructor(status, message) {
+    super(message);
+    this.status = status;
+  }
+}
+
+// Throws if `user` (a staff member) can't access `marketId`. Use this
+// wherever a controller already has a marketId in hand and just needs
+// the ownership check — the exact same 404/403 pair every call site used
+// to write out by hand.
+export async function assertMarketAccess(user, marketId) {
+  const allowed = await staffCanAccessMarket(user, marketId);
+  if (allowed === "not-found") throw new HttpError(404, "Market not found");
+  if (!allowed) throw new HttpError(403, "You do not have access to this market");
+}
+
+// Looks up an Employee by id and asserts the calling staff member can
+// access the market that employee belongs to — the "assign/adjust
+// something for this employee" pattern repeated across
+// tasksController.js, suddenTasksController.js, and
+// attendanceController.js. Returns the Employee row so the caller doesn't
+// need a second lookup.
+export async function requireAccessibleEmployee(user, employeeId) {
+  const employee = await prisma.employee.findUnique({ where: { id: employeeId } });
+  if (!employee) {
+    throw new HttpError(400, "employeeId does not refer to an existing employee");
+  }
+  await assertMarketAccess(user, employee.marketId);
+  return employee;
+}

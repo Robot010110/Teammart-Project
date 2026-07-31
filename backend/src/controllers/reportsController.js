@@ -1,5 +1,5 @@
 import { prisma } from "../lib/prisma.js";
-import { staffCanAccessMarket } from "../middleware/auth.js";
+import { assertMarketAccess } from "../middleware/auth.js";
 
 // GET /api/reports/tasks?from=&to=&marketId=&status=
 // A basic activity report: every task in a date range, scoped by role,
@@ -22,9 +22,7 @@ export async function tasksReport(req, res, next) {
     else if (req.user.role === "REGIONAL_MANAGER") where.market = { zoneId: req.user.zoneId };
 
     if (marketId) {
-      const allowed = await staffCanAccessMarket(req.user, String(marketId));
-      if (allowed === "not-found") return res.status(404).json({ error: "Market not found" });
-      if (!allowed) return res.status(403).json({ error: "You do not have access to this market" });
+      await assertMarketAccess(req.user, String(marketId));
     }
 
     const tasks = await prisma.task.findMany({
@@ -64,28 +62,32 @@ export async function employeeSummaryReport(req, res, next) {
         return res.status(403).json({ error: "You do not have access to this employee" });
       }
     } else {
-      const allowed = await staffCanAccessMarket(req.user, employee.marketId);
-      if (!allowed || allowed === "not-found") {
-        return res.status(403).json({ error: "You do not have access to this employee" });
-      }
+      await assertMarketAccess(req.user, employee.marketId);
     }
 
-    const tasks = await prisma.task.findMany({ where: { employeeId: employee.id } });
+    // Aggregated at the DB layer (groupBy) instead of fetching every Task
+    // row this employee has ever had just to count them in JS — same
+    // approach dashboardController.js already uses. Scales with the
+    // number of distinct statuses/types (fixed, small), not with how many
+    // tasks the employee has submitted over their whole history.
+    const [byStatusRaw, byTypeRaw] = await Promise.all([
+      prisma.task.groupBy({ by: ["status"], where: { employeeId: employee.id }, _count: { _all: true } }),
+      prisma.task.groupBy({ by: ["type"], where: { employeeId: employee.id }, _count: { _all: true } }),
+    ]);
 
-    const completedTasks = tasks.filter((t) => t.status === "APPROVED").length;
-    const rejectedTasks = tasks.filter((t) => t.status === "REJECTED").length;
-    const pendingTasks = tasks.filter((t) => t.status === "PENDING" || t.status === "ASSIGNED").length;
+    const countByStatus = Object.fromEntries(byStatusRaw.map((r) => [r.status, r._count._all]));
+    const byType = Object.fromEntries(byTypeRaw.map((r) => [r.type, r._count._all]));
+
+    const completedTasks = countByStatus.APPROVED ?? 0;
+    const rejectedTasks = countByStatus.REJECTED ?? 0;
+    const pendingTasks = (countByStatus.PENDING ?? 0) + (countByStatus.ASSIGNED ?? 0);
+    const totalTasks = byStatusRaw.reduce((sum, r) => sum + r._count._all, 0);
     const reviewed = completedTasks + rejectedTasks;
     const approvalRate = reviewed > 0 ? Math.round((completedTasks / reviewed) * 100) : null;
 
-    const byType = tasks.reduce((acc, t) => {
-      acc[t.type] = (acc[t.type] ?? 0) + 1;
-      return acc;
-    }, {});
-
     res.json({
       employee: { id: employee.id, name: employee.name, employeeCode: employee.employeeCode },
-      totalTasks: tasks.length,
+      totalTasks,
       completedTasks,
       rejectedTasks,
       pendingTasks,

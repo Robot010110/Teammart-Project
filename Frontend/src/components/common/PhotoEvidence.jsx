@@ -10,6 +10,7 @@ function Thumb({ label, onOpen }) {
   return (
     <button
       onClick={onOpen}
+      aria-label={`View ${label} photo`}
       className="group relative flex-1 aspect-video rounded-lg overflow-hidden bg-gradient-to-br from-[#2A3050] to-[#181C2C] border border-white/[0.06] grid place-items-center"
     >
       <Camera size={18} className="text-[#4C5266] group-hover:text-[#F47A20] transition-colors duration-200" />

@@ -34,6 +34,7 @@ export default function ItemReportFlow({ open, onClose, onSaved }) {
   const [photoBusy, setPhotoBusy] = useState(false);
   const [condition, setCondition] = useState("EXPIRED");
   const [quantity, setQuantity] = useState("");
+  const [quantityInvalid, setQuantityInvalid] = useState(false);
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
@@ -141,9 +142,11 @@ export default function ItemReportFlow({ open, onClose, onSaved }) {
   const handleSubmit = async () => {
     const qty = Number(quantity);
     if (!qty || qty <= 0) {
+      setQuantityInvalid(true);
       setError("Enter a quantity greater than 0.");
       return;
     }
+    setQuantityInvalid(false);
     setSubmitting(true);
     setError(null);
     try {
@@ -198,7 +201,10 @@ export default function ItemReportFlow({ open, onClose, onSaved }) {
 
         {step === "barcode" && (
           <div className="space-y-3">
-            <div className="rounded-xl overflow-hidden bg-black aspect-video">
+            {/* Taller than a 16:9 aspect-video box — most phones hold the
+                camera in portrait, so a taller frame gives a bigger, more
+                natural scan target instead of a cramped landscape strip. */}
+            <div className="rounded-xl overflow-hidden bg-black h-72 sm:h-80">
               <video ref={videoRef} className="h-full w-full object-cover" muted playsInline />
             </div>
             {scanError && (
@@ -209,11 +215,12 @@ export default function ItemReportFlow({ open, onClose, onSaved }) {
                     value={manualBarcode}
                     onChange={(e) => setManualBarcode(e.target.value)}
                     placeholder="Enter barcode number"
-                    className="flex-1 rounded-lg bg-white/[0.04] border border-white/[0.06] px-3 py-2 text-sm text-white placeholder:text-[#4C5266] outline-none focus:border-[#F47A20]/50"
+                    inputMode="numeric"
+                    className="flex-1 min-w-0 rounded-lg bg-white/[0.04] border border-white/[0.06] px-3 py-3 text-base sm:text-sm text-white placeholder:text-[#4C5266] outline-none focus:border-[#F47A20]/50"
                   />
                   <button
                     onClick={handleManualBarcodeSubmit}
-                    className="rounded-lg px-3 py-2 text-xs font-semibold text-white bg-[#F47A20] hover:bg-[#ff8b36]"
+                    className="shrink-0 rounded-lg px-4 py-3 text-xs font-semibold text-white bg-[#F47A20] hover:bg-[#ff8b36] active:bg-[#e06f18]"
                   >
                     Search
                   </button>
@@ -222,7 +229,7 @@ export default function ItemReportFlow({ open, onClose, onSaved }) {
             )}
             <button
               onClick={() => setStep("choose")}
-              className="flex items-center gap-1 text-xs text-[#9AA1B4] hover:text-white"
+              className="flex items-center gap-1.5 py-2 text-xs text-[#9AA1B4] hover:text-white"
             >
               <ArrowLeft size={12} /> Back
             </button>
@@ -244,7 +251,7 @@ export default function ItemReportFlow({ open, onClose, onSaved }) {
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder="Search product by name..."
-                className="w-full rounded-lg bg-white/[0.04] border border-white/[0.06] pl-9 pr-3 py-2.5 text-sm text-white placeholder:text-[#4C5266] outline-none focus:border-[#F47A20]/50"
+                className="w-full rounded-lg bg-white/[0.04] border border-white/[0.06] pl-9 pr-3 py-3 text-base sm:text-sm text-white placeholder:text-[#4C5266] outline-none focus:border-[#F47A20]/50"
               />
             </div>
             <div className="space-y-2 max-h-[260px] overflow-y-auto">
@@ -257,7 +264,7 @@ export default function ItemReportFlow({ open, onClose, onSaved }) {
                   <button
                     key={product.id}
                     onClick={() => handleSelectProduct(product)}
-                    className="w-full text-left rounded-lg p-3 bg-[#1A1F33]/70 border border-white/[0.06] hover:border-[#F47A20]/35 transition-colors duration-150"
+                    className="w-full text-left rounded-lg p-3 bg-[#1A1F33]/70 border border-white/[0.06] hover:border-[#F47A20]/35 active:bg-[#1F2436] transition-colors duration-150"
                   >
                     <p className="text-sm text-white font-medium">{product.name}</p>
                     <p className="text-[11px] text-[#8B93A8]">Barcode {product.barcode}</p>
@@ -266,7 +273,7 @@ export default function ItemReportFlow({ open, onClose, onSaved }) {
             </div>
             <button
               onClick={() => setStep("choose")}
-              className="flex items-center gap-1 text-xs text-[#9AA1B4] hover:text-white"
+              className="flex items-center gap-1.5 py-2 text-xs text-[#9AA1B4] hover:text-white"
             >
               <ArrowLeft size={12} /> Back
             </button>
@@ -287,8 +294,8 @@ export default function ItemReportFlow({ open, onClose, onSaved }) {
                   <button
                     key={c.value}
                     onClick={() => setCondition(c.value)}
-                    className={`flex-1 rounded-lg py-2 text-sm font-medium transition-colors duration-150 ${
-                      condition === c.value ? "bg-[#F47A20] text-white" : "bg-white/[0.05] text-[#9AA1B4]"
+                    className={`flex-1 rounded-lg py-3 text-sm font-medium transition-colors duration-150 ${
+                      condition === c.value ? "bg-[#F47A20] text-white" : "bg-white/[0.05] text-[#9AA1B4] active:bg-white/[0.09]"
                     }`}
                   >
                     {c.label}
@@ -301,11 +308,15 @@ export default function ItemReportFlow({ open, onClose, onSaved }) {
               <label className="block text-xs uppercase tracking-wide text-[#8B93A8] mb-1.5">Quantity</label>
               <input
                 type="number"
+                inputMode="numeric"
                 min="1"
                 value={quantity}
-                onChange={(e) => setQuantity(e.target.value)}
+                onChange={(e) => { setQuantity(e.target.value); setQuantityInvalid(false); }}
                 placeholder="Number of items"
-                className="w-full rounded-lg bg-white/[0.04] border border-white/[0.06] px-3 py-2.5 text-sm text-white placeholder:text-[#4C5266] outline-none focus:border-[#F47A20]/50"
+                aria-invalid={quantityInvalid}
+                className={`w-full rounded-lg bg-white/[0.04] border px-3 py-3 text-base sm:text-sm text-white placeholder:text-[#4C5266] outline-none transition-colors duration-200 ${
+                  quantityInvalid ? "border-red-500/60 focus:border-red-500/60" : "border-white/[0.06] focus:border-[#F47A20]/50"
+                }`}
               />
             </div>
 
@@ -315,7 +326,7 @@ export default function ItemReportFlow({ open, onClose, onSaved }) {
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
                 rows={2}
-                className="w-full rounded-lg bg-white/[0.04] border border-white/[0.06] px-3 py-2.5 text-sm text-white placeholder:text-[#4C5266] outline-none focus:border-[#F47A20]/50 resize-none"
+                className="w-full rounded-lg bg-white/[0.04] border border-white/[0.06] px-3 py-3 text-base sm:text-sm text-white placeholder:text-[#4C5266] outline-none focus:border-[#F47A20]/50 resize-none"
               />
             </div>
 
@@ -324,7 +335,7 @@ export default function ItemReportFlow({ open, onClose, onSaved }) {
             <button
               onClick={handleSubmit}
               disabled={submitting}
-              className="w-full rounded-xl py-2.5 text-sm font-semibold text-white bg-[#F47A20] hover:bg-[#ff8b36] disabled:bg-white/10 disabled:text-[#4C5266] transition-colors duration-200 flex items-center justify-center gap-2"
+              className="w-full rounded-xl py-3 text-sm font-semibold text-white bg-[#F47A20] hover:bg-[#ff8b36] active:bg-[#e06f18] disabled:bg-white/10 disabled:text-[#4C5266] transition-colors duration-200 flex items-center justify-center gap-2"
             >
               {submitting ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
               {submitting ? "Submitting..." : "Submit Report"}

@@ -13,9 +13,14 @@ export async function listMarkets(req, res, next) {
       where = { id: req.user.marketId };
     }
 
+    // _count instead of `include: { employees: true }` — this endpoint only
+    // ever needs the employee COUNT per market, not every employee row.
     const markets = await prisma.market.findMany({
       where,
-      include: { employees: true, supervisor: { select: { id: true, name: true } } },
+      include: {
+        supervisor: { select: { id: true, name: true } },
+        _count: { select: { employees: true } },
+      },
       orderBy: { name: "asc" },
     });
 
@@ -26,7 +31,7 @@ export async function listMarkets(req, res, next) {
         status: m.status,
         zoneId: m.zoneId,
         supervisor: m.supervisor?.name ?? "Unassigned",
-        employeesCount: m.employees.length,
+        employeesCount: m._count.employees,
       }))
     );
   } catch (err) {

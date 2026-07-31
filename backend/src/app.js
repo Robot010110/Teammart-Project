@@ -1,6 +1,10 @@
 import express from "express";
 import cors from "cors";
+import helmet from "helmet";
+import morgan from "morgan";
 
+import { prisma } from "./lib/prisma.js";
+import { apiLimiter } from "./middleware/rateLimit.js";
 import authRoutes from "./routes/auth.routes.js";
 import zonesRoutes from "./routes/zones.routes.js";
 import marketsRoutes from "./routes/markets.routes.js";
@@ -19,14 +23,43 @@ import { notFound } from "./middleware/notFound.js";
 
 export const app = express();
 
-// In dev this allows the Vite frontend (localhost:5173) to call the API.
-// Lock this down to your real frontend origin before deploying.
-app.use(cors());
-app.use(express.json());
+// Security headers (CSP, X-Frame-Options, etc.) — safe defaults for a
+// JSON-only API; this app serves no HTML from the backend.
+app.use(helmet());
 
-app.get("/api/health", (req, res) => {
-  res.json({ status: "ok" });
+// CORS_ORIGIN — comma-separated allowlist (e.g. "https://app.teammart.com").
+// Unset in dev so the Vite frontend (localhost:5173) keeps working without
+// extra setup; set it before deploying to production. Not enforced by
+// default so this change can't break an existing deployment that hasn't
+// set the env var yet.
+const corsOrigins = process.env.CORS_ORIGIN?.split(",").map((o) => o.trim());
+app.use(cors(corsOrigins ? { origin: corsOrigins } : undefined));
+
+// Explicit body size limit rather than relying on express's implicit
+// default — this is the one place a request body enters the app.
+app.use(express.json({ limit: "1mb" }));
+
+// Request logging — "dev" (concise, colored) locally, "combined" (Apache
+// common log + referrer/user-agent) once NODE_ENV=production so requests
+// are traceable in production logs.
+app.use(morgan(process.env.NODE_ENV === "production" ? "combined" : "dev"));
+
+// Registered before the rate limiter — a monitoring probe hitting this
+// every few seconds shouldn't ever be able to trip a limit meant for
+// user-facing endpoints.
+app.get("/api/health", async (req, res) => {
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    res.json({ status: "ok", db: "ok" });
+  } catch (err) {
+    res.status(503).json({ status: "error", db: "unreachable" });
+  }
 });
+
+// Defense-in-depth rate limit across the rest of the API; the tight limit
+// that actually matters for brute force lives on the login routes
+// themselves (see routes/auth.routes.js).
+app.use("/api", apiLimiter);
 
 app.use("/api/auth", authRoutes);
 app.use("/api/zones", zonesRoutes);

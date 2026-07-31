@@ -1,5 +1,5 @@
 import { prisma } from "../lib/prisma.js";
-import { staffCanAccessMarket } from "../middleware/auth.js";
+import { assertMarketAccess, requireAccessibleEmployee } from "../middleware/auth.js";
 
 // POST /api/tasks — an Employee submits a completed activity on their own
 // initiative (the common case: "Refilling Update", "Shelf Facing", etc.).
@@ -36,15 +36,7 @@ export async function assignTask(req, res, next) {
   try {
     const { employeeId, type, label, department, notes, requiresPhoto } = req.body;
 
-    const employee = await prisma.employee.findUnique({ where: { id: employeeId } });
-    if (!employee) {
-      return res.status(400).json({ error: "employeeId does not refer to an existing employee" });
-    }
-
-    const allowed = await staffCanAccessMarket(req.user, employee.marketId);
-    if (!allowed || allowed === "not-found") {
-      return res.status(403).json({ error: "You do not have access to this employee" });
-    }
+    const employee = await requireAccessibleEmployee(req.user, employeeId);
 
     const task = await prisma.task.create({
       data: {
@@ -125,9 +117,7 @@ export async function listTasks(req, res, next) {
     // actually see it (otherwise they'd learn whether it exists from a
     // 200-vs-empty-array response, a minor info leak).
     if (marketId && req.user.kind === "staff") {
-      const allowed = await staffCanAccessMarket(req.user, String(marketId));
-      if (allowed === "not-found") return res.status(404).json({ error: "Market not found" });
-      if (!allowed) return res.status(403).json({ error: "You do not have access to this market" });
+      await assertMarketAccess(req.user, String(marketId));
     }
 
     const tasks = await prisma.task.findMany({
@@ -156,10 +146,7 @@ export async function getTask(req, res, next) {
         return res.status(403).json({ error: "You do not have access to this task" });
       }
     } else {
-      const allowed = await staffCanAccessMarket(req.user, task.marketId);
-      if (!allowed || allowed === "not-found") {
-        return res.status(403).json({ error: "You do not have access to this task" });
-      }
+      await assertMarketAccess(req.user, task.marketId);
     }
 
     res.json(task);
@@ -174,10 +161,7 @@ export async function approveTask(req, res, next) {
     const task = await prisma.task.findUnique({ where: { id: req.params.id } });
     if (!task) return res.status(404).json({ error: "Task not found" });
 
-    const allowed = await staffCanAccessMarket(req.user, task.marketId);
-    if (!allowed || allowed === "not-found") {
-      return res.status(403).json({ error: "You do not have access to this task" });
-    }
+    await assertMarketAccess(req.user, task.marketId);
     if (task.status !== "PENDING") {
       return res.status(400).json({ error: `Only PENDING tasks can be approved (this one is ${task.status})` });
     }
@@ -201,10 +185,7 @@ export async function rejectTask(req, res, next) {
     const task = await prisma.task.findUnique({ where: { id: req.params.id } });
     if (!task) return res.status(404).json({ error: "Task not found" });
 
-    const allowed = await staffCanAccessMarket(req.user, task.marketId);
-    if (!allowed || allowed === "not-found") {
-      return res.status(403).json({ error: "You do not have access to this task" });
-    }
+    await assertMarketAccess(req.user, task.marketId);
     if (task.status !== "PENDING") {
       return res.status(400).json({ error: `Only PENDING tasks can be rejected (this one is ${task.status})` });
     }

@@ -42,6 +42,7 @@ export default function SubmitTaskModal({ option, activity, onClose, onSaved }) 
   const [existingImages, setExistingImages] = useState(activity?.images || []); // edit mode only
   const [submitting, setSubmitting] = useState(false);
   const [imageBusy, setImageBusy] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [error, setError] = useState(null);
 
   if (!open) return null;
@@ -73,28 +74,32 @@ export default function SubmitTaskModal({ option, activity, onClose, onSaved }) 
     if (files.length === 0) return;
 
     setImageBusy(true);
+    setUploadProgress(0);
     setError(null);
     try {
       if (isEdit) {
         // Edit mode: upload immediately so the image list on screen always
         // matches what's actually saved.
         for (const file of files) {
-          const url = await prepareImageForUpload(file);
+          const url = await prepareImageForUpload(file, { onProgress: setUploadProgress });
           const image = await addActivityImage(activity.id, url);
           setExistingImages((prev) => [...prev, image]);
         }
       } else {
         // Create mode: nothing to upload to yet (the activity doesn't
         // exist), so just hold the images in memory until Submit.
-        const converted = await Promise.all(
-          files.map(async (file) => ({ url: await prepareImageForUpload(file), name: file.name }))
-        );
+        const converted = [];
+        for (const file of files) {
+          const url = await prepareImageForUpload(file, { onProgress: setUploadProgress });
+          converted.push({ url, name: file.name });
+        }
         setNewImages((prev) => [...prev, ...converted]);
       }
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Could not attach that image. Please try again.");
     } finally {
       setImageBusy(false);
+      setUploadProgress(0);
     }
   };
 
@@ -155,7 +160,7 @@ export default function SubmitTaskModal({ option, activity, onClose, onSaved }) 
             onChange={(e) => setNotes(e.target.value)}
             rows={3}
             placeholder="Anything your supervisor should know..."
-            className="w-full rounded-lg bg-white/[0.04] border border-white/[0.06] px-3 py-2.5 text-sm text-white placeholder:text-[#4C5266] outline-none focus:border-[#F47A20]/50 transition-colors duration-200 resize-none"
+            className="w-full rounded-lg bg-white/[0.04] border border-white/[0.06] px-3 py-3 text-base sm:text-sm text-white placeholder:text-[#4C5266] outline-none focus:border-[#F47A20]/50 transition-colors duration-200 resize-none"
           />
         </div>
 
@@ -169,9 +174,10 @@ export default function SubmitTaskModal({ option, activity, onClose, onSaved }) 
                   type="button"
                   onClick={() => removeExistingImage(img.id)}
                   disabled={busy}
-                  className="absolute top-0.5 right-0.5 h-4 w-4 rounded-full bg-black/70 grid place-items-center"
+                  aria-label="Remove photo"
+                  className="absolute -top-1 -right-1 h-6 w-6 rounded-full bg-black/80 grid place-items-center"
                 >
-                  <X size={10} className="text-white" />
+                  <X size={12} className="text-white" />
                 </button>
               </div>
             ))}
@@ -182,9 +188,10 @@ export default function SubmitTaskModal({ option, activity, onClose, onSaved }) 
                   type="button"
                   onClick={() => removeNewImage(i)}
                   disabled={busy}
-                  className="absolute top-0.5 right-0.5 h-4 w-4 rounded-full bg-black/70 grid place-items-center"
+                  aria-label="Remove photo"
+                  className="absolute -top-1 -right-1 h-6 w-6 rounded-full bg-black/80 grid place-items-center"
                 >
-                  <X size={10} className="text-white" />
+                  <X size={12} className="text-white" />
                 </button>
               </div>
             ))}
@@ -194,7 +201,10 @@ export default function SubmitTaskModal({ option, activity, onClose, onSaved }) 
               } bg-gradient-to-br from-[#2A3050] to-[#181C2C] border-white/[0.06]`}
             >
               {imageBusy ? (
-                <Loader2 size={16} className="text-[#4C5266] animate-spin" />
+                <div className="flex flex-col items-center gap-1">
+                  <Loader2 size={16} className="text-[#4C5266] animate-spin" />
+                  <span className="text-[9px] text-[#4C5266]">{uploadProgress}%</span>
+                </div>
               ) : (
                 <Camera size={16} className="text-[#4C5266]" />
               )}
@@ -205,6 +215,7 @@ export default function SubmitTaskModal({ option, activity, onClose, onSaved }) 
                 disabled={busy}
                 onChange={(e) => { handleAddFiles(e.target.files); e.target.value = ""; }}
                 className="hidden"
+                aria-label="Add photo"
               />
             </label>
           </div>
@@ -217,7 +228,7 @@ export default function SubmitTaskModal({ option, activity, onClose, onSaved }) 
             <button
               onClick={() => handleSubmit(false)}
               disabled={busy}
-              className="flex-1 rounded-xl py-2.5 text-sm font-semibold text-[#9AA1B4] bg-white/[0.06] hover:bg-white/[0.1] disabled:opacity-50 transition-colors duration-200"
+              className="flex-1 rounded-xl py-3 text-sm font-semibold text-[#9AA1B4] bg-white/[0.06] hover:bg-white/[0.1] active:bg-white/[0.14] disabled:opacity-50 transition-colors duration-200"
             >
               {isEdit ? "Save Draft" : "Save as Draft"}
             </button>
@@ -225,7 +236,7 @@ export default function SubmitTaskModal({ option, activity, onClose, onSaved }) 
           <button
             onClick={() => handleSubmit(true)}
             disabled={busy}
-            className="flex-1 rounded-xl py-2.5 text-sm font-semibold text-white bg-[#F47A20] hover:bg-[#ff8b36] disabled:bg-white/10 disabled:text-[#4C5266] transition-colors duration-200 shadow-lg shadow-orange-900/20"
+            className="flex-1 rounded-xl py-3 text-sm font-semibold text-white bg-[#F47A20] hover:bg-[#ff8b36] active:bg-[#e06f18] disabled:bg-white/10 disabled:text-[#4C5266] transition-colors duration-200 shadow-lg shadow-orange-900/20"
           >
             {submitting ? "Submitting..." : isEdit && activity.status === "PENDING" ? "Save Changes" : "Submit for Review"}
           </button>

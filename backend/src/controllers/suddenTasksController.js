@@ -1,13 +1,14 @@
 import { prisma } from "../lib/prisma.js";
-import { staffCanAccessMarket } from "../middleware/auth.js";
+import { assertMarketAccess, requireAccessibleEmployee } from "../middleware/auth.js";
 
 // suddenTasksController.js — an urgent, ASAP task a Supervisor/Manager/
 // Admin pushes directly at an employee. Separate module from Activities
 // (employee logs their own work) and from the existing Task model
 // (activity-shaped submission workflow) — see the schema.prisma comment
 // on SuddenTask for why. Mirrors the access-control shape already used by
-// tasksController.js: staffCanAccessMarket() for staff writes,
-// req.user.employeeId scoping for everything an employee touches.
+// tasksController.js: assertMarketAccess()/requireAccessibleEmployee() for
+// staff writes, req.user.employeeId scoping for everything an employee
+// touches.
 
 // POST /api/sudden-tasks/assign — staff pushes an urgent task to a
 // specific employee.
@@ -15,15 +16,7 @@ export async function assignSuddenTask(req, res, next) {
   try {
     const { employeeId, title, description, priority } = req.body;
 
-    const employee = await prisma.employee.findUnique({ where: { id: employeeId } });
-    if (!employee) {
-      return res.status(400).json({ error: "employeeId does not refer to an existing employee" });
-    }
-
-    const allowed = await staffCanAccessMarket(req.user, employee.marketId);
-    if (!allowed || allowed === "not-found") {
-      return res.status(403).json({ error: "You do not have access to this employee" });
-    }
+    const employee = await requireAccessibleEmployee(req.user, employeeId);
 
     const suddenTask = await prisma.suddenTask.create({
       data: {
@@ -67,9 +60,7 @@ export async function listSuddenTasks(req, res, next) {
     }
 
     if (marketId && req.user.kind === "staff") {
-      const allowed = await staffCanAccessMarket(req.user, String(marketId));
-      if (allowed === "not-found") return res.status(404).json({ error: "Market not found" });
-      if (!allowed) return res.status(403).json({ error: "You do not have access to this market" });
+      await assertMarketAccess(req.user, String(marketId));
     }
 
     const suddenTasks = await prisma.suddenTask.findMany({
@@ -98,10 +89,7 @@ export async function getSuddenTask(req, res, next) {
         return res.status(403).json({ error: "You do not have access to this task" });
       }
     } else {
-      const allowed = await staffCanAccessMarket(req.user, suddenTask.marketId);
-      if (!allowed || allowed === "not-found") {
-        return res.status(403).json({ error: "You do not have access to this task" });
-      }
+      await assertMarketAccess(req.user, suddenTask.marketId);
     }
 
     res.json(suddenTask);
