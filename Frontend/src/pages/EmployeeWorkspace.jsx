@@ -1,11 +1,12 @@
 import { useState } from "react";
-import { BadgeCheck, Clock, Store, TrendingUp } from "lucide-react";
 import TaskSubmissionGrid from "../components/workspace/TaskSubmissionGrid";
 import SubmitTaskModal from "../components/workspace/SubmitTaskModal";
 import TaskStatusTabs from "../components/workspace/TaskStatusTabs";
 import SuddenTasksSection from "../components/employee/SuddenTasksSection";
 import ItemReportSection from "../components/employee/ItemReportSection";
 import AttendanceSection from "../components/employee/AttendanceSection";
+import LeaveRequestSection from "../components/employee/LeaveRequestSection";
+import ProfileHeaderCard from "../components/employee/ProfileHeaderCard";
 import ErrorBanner from "../components/common/ErrorBanner";
 import { SkeletonCard } from "../components/common/SkeletonCard";
 import Toast from "../components/common/Toast";
@@ -13,7 +14,6 @@ import { ACTIVITY_SUBMISSION_OPTIONS } from "../data/workspaceData";
 import { getProfile } from "../services/profileService";
 import { listActivities, deleteActivity } from "../services/activityService";
 import { ApiError } from "../services/apiClient";
-import { initialsOf } from "../utils/initials";
 import { canEditActivity, canDeleteActivity } from "../data/activityRules";
 import { useAsync } from "../hooks/useAsync";
 import { useToast } from "../hooks/useToast";
@@ -105,32 +105,7 @@ export default function EmployeeWorkspace({ employeeId }) {
       {!profileLoading && profileError && (
         <ErrorBanner message={profileError} onRetry={loadProfile} />
       )}
-      {!profileLoading && !profileError && profile && (
-        <section className="rounded-2xl p-5 sm:p-6 bg-gradient-to-br from-[#1D2D5C]/50 to-[#171C2E]/80 border border-white/[0.06] backdrop-blur-xl">
-          <div className="flex items-center gap-4 sm:gap-5">
-            <div className="relative h-14 w-14 sm:h-16 sm:w-16 shrink-0 rounded-2xl bg-gradient-to-br from-[#F47A20] to-[#c95c10] grid place-items-center ring-4 ring-white/[0.06] overflow-hidden">
-              {profile.profilePictureUrl ? (
-                <img src={profile.profilePictureUrl} alt="" className="h-full w-full object-cover" />
-              ) : (
-                <span className="text-base sm:text-lg font-display font-bold text-white">{initialsOf(profile.name)}</span>
-              )}
-            </div>
-            <div className="min-w-0">
-              <h1 className="font-display text-lg sm:text-xl font-bold text-white truncate">{profile.name}</h1>
-              <p className="text-[#F47A20] text-sm font-medium">{profile.position}</p>
-              <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1.5 text-xs text-[#9AA1B4]">
-                <span className="flex items-center gap-1.5"><BadgeCheck size={13} /> {profile.employeeCode}</span>
-                {profile.shift && <span className="flex items-center gap-1.5"><Clock size={13} /> {profile.shift}</span>}
-                <span className="flex items-center gap-1.5"><Store size={13} /> {profile.market?.name}</span>
-                <span className="flex items-center gap-1.5">
-                  <TrendingUp size={13} />
-                  {profile.performanceRate != null ? `Performance: ${profile.performanceRate}%` : "Performance: not yet available"}
-                </span>
-              </div>
-            </div>
-          </div>
-        </section>
-      )}
+      {!profileLoading && !profileError && profile && <ProfileHeaderCard profile={profile} />}
 
       {/* Sudden Tasks — urgent, supervisor-pushed, separate from Activities */}
       <section className="mt-6">
@@ -165,10 +140,16 @@ export default function EmployeeWorkspace({ employeeId }) {
         )}
       </section>
 
-      {/* Attendance — worked hours, not a task; reference info, so it sits last */}
+      {/* Attendance — worked hours, not a task */}
       <section className="mt-6">
         <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-[#8B93A8]">Attendance</h2>
         <AttendanceSection />
+      </section>
+
+      {/* Off Days / Leave — reference info, so it sits last */}
+      <section className="mt-6">
+        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-[#8B93A8]">Off Days / Leave</h2>
+        <LeaveRequestSection />
       </section>
 
       <SubmitTaskModal option={activeOption} onClose={() => setActiveOption(null)} onSaved={handleSaved} />

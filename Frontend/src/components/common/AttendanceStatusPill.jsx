@@ -1,21 +1,29 @@
-// AttendanceStatusPill.jsx — Present / Late / Absent / Day Off, the
-// AttendanceStatus enum (schema.prisma). Same pill shape as StatusPill.jsx
-// / ActivityStatusPill.jsx, but its own component since it's a distinct
-// value set with a different color mapping (Absent is a real problem,
-// not a "rejected" outcome — worth its own visual weight).
+// AttendanceStatusPill.jsx — the AttendanceStatus enum (schema.prisma).
+// Same pill shape as StatusPill.jsx / ActivityStatusPill.jsx, but its own
+// component since it's a distinct value set with its own color mapping
+// (Absent/Pending Review are real problems, not a "rejected" outcome —
+// worth their own visual weight).
 
 const STYLES = {
   PRESENT: "bg-emerald-500/10 text-emerald-400 ring-emerald-500/20",
   LATE: "bg-amber-500/10 text-amber-400 ring-amber-500/20",
+  EARLY_LEAVE: "bg-amber-500/10 text-amber-400 ring-amber-500/20",
   ABSENT: "bg-red-500/10 text-red-400 ring-red-500/20",
   DAY_OFF: "bg-white/5 text-[#9AA1B4] ring-white/10",
+  APPROVED_LEAVE: "bg-emerald-500/10 text-emerald-400 ring-emerald-500/20",
+  INCOMPLETE: "bg-amber-500/10 text-amber-400 ring-amber-500/20",
+  PENDING_REVIEW: "bg-amber-500/10 text-amber-400 ring-amber-500/20",
 };
 
 const LABELS = {
   PRESENT: "Present",
   LATE: "Late",
+  EARLY_LEAVE: "Early Leave",
   ABSENT: "Absent",
   DAY_OFF: "Day Off",
+  APPROVED_LEAVE: "Approved Leave",
+  INCOMPLETE: "Incomplete",
+  PENDING_REVIEW: "Pending Review",
 };
 
 export default function AttendanceStatusPill({ status }) {

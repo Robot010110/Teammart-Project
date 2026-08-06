@@ -43,8 +43,11 @@ export async function getProfile(req, res, next) {
       profilePictureUrl: employee.profilePictureUrl,
       startDate: employee.startDate,
       performanceRate: employee.performanceRate,
-      // Cashier role + profile fields — role is WORKER for every existing
-      // employee (schema default), so this is purely additive for them.
+      // role is WORKER for every existing employee (schema default), so
+      // this is purely additive for them. department now applies to every
+      // employee (management-assigned, see employeesController.assignDepartment
+      // — an employee can never set their own); username/cashierShift stay
+      // Cashier-only (null for a Worker).
       role: employee.role,
       username: employee.username,
       department: employee.department,

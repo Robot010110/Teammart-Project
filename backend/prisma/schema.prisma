@@ -148,8 +148,12 @@ enum Shift {
 enum AttendanceStatus {
   PRESENT
   LATE
+  EARLY_LEAVE
   ABSENT
   DAY_OFF
+  APPROVED_LEAVE
+  INCOMPLETE
+  PENDING_REVIEW
 }
 
 enum DayOffType {
@@ -158,13 +162,25 @@ enum DayOffType {
   OTHER
 }
 
-// REWARD  -> reduces required hours for that day (e.g. earned an early leave)
-// EXTRA   -> additional hours worked beyond the scheduled shift
-// PENALTY -> additional hours required as a penalty
-enum AttendanceAdjustmentType {
-  REWARD
-  EXTRA
-  PENALTY
+// IMPORT  -> written by the Excel attendance import
+// MANUAL  -> written directly by a staff member (no import row backing it)
+// SYSTEM  -> written by the app itself (e.g. a LeaveRequest approval)
+enum AttendanceSource {
+  IMPORT
+  MANUAL
+  SYSTEM
+}
+
+enum LeaveRequestType {
+  MONTHLY_OFF
+  PERSONAL_LEAVE
+}
+
+enum LeaveRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
 }
 
 // ---------------------------------------------------------------------
@@ -222,9 +238,15 @@ model User {
   // Products this staff member added to a market's inventory.
   createdProducts Product[] @relation("ProductCreator")
 
-  // Attendance rows this staff member imported / adjustments they made.
-  importedAttendance AttendanceRecord[]     @relation("AttendanceImporter")
-  adjustedAttendance AttendanceAdjustment[] @relation("AttendanceAdjuster")
+  // Attendance rows this staff member imported directly (legacy single-row
+  // path — the real Excel import now goes through AttendanceImportBatch).
+  importedAttendance AttendanceRecord[] @relation("AttendanceImporter")
+
+  requiredHoursAdjustments AttendanceAuditLog[]       @relation("AttendanceAuditor")
+  adjustedRequiredHours    RequiredHoursAdjustment[]  @relation("RequiredHoursAdjuster")
+  uploadedAttendanceImports AttendanceImportBatch[]   @relation("AttendanceImportUploader")
+  reviewedLeaveRequests    LeaveRequest[]             @relation("LeaveReviewer")
+  assignedDepartments      DepartmentAssignment[]     @relation("DepartmentAssigner")
 }
 
 // ---------------------------------------------------------------------
@@ -253,6 +275,8 @@ model Market {
   products     Product[]
   itemReports  ItemReport[]
   priceReports PriceReport[]
+  leaveRequests LeaveRequest[]
+  attendanceImportBatches AttendanceImportBatch[]
   createdAt    DateTime     @default(now())
 
   @@index([zoneId])
@@ -285,22 +309,29 @@ model Employee {
   performanceRate   Int?      // Placeholder for a future calculated score.
                                // Nothing writes to this yet — see Step 7.
 
-  // --- Cashier-only profile fields (all null for a WORKER) ---
-  username         String?           @unique // Cashier login identifier — separate
-                                              // namespace from employeeCode; a Worker
-                                              // keeps logging in with employeeCode.
-  department       String?                   // e.g. "Snacks", "Cashier"
-  cashierShift     CashierShift?             // drives whether Cleaning is shown
+  // username/cashierShift stay Cashier-only (null for a WORKER) — separate
+  // login identifier namespace, a Worker keeps logging in with employeeCode.
+  username     String?       @unique
+  cashierShift CashierShift? // drives whether Cleaning is shown
+
+  // department applies to EVERY employee now (Worker or Cashier) — kept
+  // as a fast denormalized "current department" cache, synced whenever a
+  // new DepartmentAssignment is created; that table is the historical
+  // source of truth (see DepartmentAssignment below).
+  department       String?
   employmentStatus EmploymentStatus @default(ACTIVE)
   whatsappNumber   String?                   // tap-to-open wa.me link on the profile
 
   activities Activity[]
   suddenTasks SuddenTask[]
   itemReports ItemReport[]
-  attendanceRecords     AttendanceRecord[]
-  attendanceAdjustments AttendanceAdjustment[]
-  cashierCleaningLogs   CashierCleaningLog[]
-  priceReports          PriceReport[]
+  attendanceRecords         AttendanceRecord[]
+  requiredHoursAdjustments  RequiredHoursAdjustment[]
+  cashierCleaningLogs       CashierCleaningLog[]
+  priceReports              PriceReport[]
+  leaveRequests             LeaveRequest[]
+  departmentAssignments     DepartmentAssignment[]
+  auditLogEntries           AttendanceAuditLog[]
 
   @@index([marketId])
 }
@@ -487,28 +518,40 @@ model ItemReport {
 
 // ---------------------------------------------------------------------
 // AttendanceRecord — one employee's attendance for one day: status,
-// shift, check-in/out, and break times. Populated by importAttendanceRecords
-// (a staff-side CSV import — see attendanceController.js) rather than a
-// live fingerprint-device feed, which isn't reachable from this app.
-// Working hours are computed from checkIn/checkOut/break, not stored, so
-// there's no redundant derived value to drift out of sync.
+// shift, check-in/out, break times, and required hours for that day.
+// Populated by importAttendanceRecords (a staff-side Excel import — see
+// attendanceController.js) rather than a live fingerprint-device feed,
+// which isn't reachable from this app. Working hours are computed from
+// checkIn/checkOut/break, not stored, so there's no redundant derived
+// value to drift out of sync — requiredHours IS stored (not computed)
+// because it's a real, independently-set value (default 8, overridable
+// per day by a RequiredHoursAdjustment), not derived from anything else.
 // ---------------------------------------------------------------------
 model AttendanceRecord {
-  id         String           @id @default(cuid())
-  date       DateTime // the day this record is for; time part is ignored
-  status     AttendanceStatus @default(PRESENT)
-  shift      Shift?
-  checkIn    DateTime?
-  checkOut   DateTime?
-  breakStart DateTime?
-  breakEnd   DateTime?
-  dayOffType DayOffType? // only meaningful when status = DAY_OFF
+  id            String           @id @default(cuid())
+  date          DateTime // the day this record is for; time part is ignored
+  status        AttendanceStatus @default(PRESENT)
+  shift         Shift?
+  checkIn       DateTime?
+  checkOut      DateTime?
+  breakStart    DateTime?
+  breakEnd      DateTime?
+  dayOffType    DayOffType? // only meaningful when status = DAY_OFF
+  requiredHours Int              @default(8) // 0-16, enforced in validate.js
+  source        AttendanceSource @default(MANUAL)
+  // The original imported row, preserved verbatim for audit purposes
+  // (spec: "Preserve the original imported data") — only set when
+  // source = IMPORT.
+  rawImportData Json?
 
   employeeId String
   employee   Employee @relation(fields: [employeeId], references: [id])
 
   importedById Int?
   importedBy   User? @relation("AttendanceImporter", fields: [importedById], references: [id])
+
+  importBatchId String?
+  importBatch   AttendanceImportBatch? @relation(fields: [importBatchId], references: [id])
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -520,28 +563,137 @@ model AttendanceRecord {
   @@index([date])
 }
 
-// AttendanceAdjustment — a supervisor's reward/extra/penalty hours tied
-// to a specific date, with a reason. Kept as its own append-only history
-// table (never edited/deleted) rather than a mutable field on
-// AttendanceRecord, so the reasoning behind every adjustment stays
-// visible to the employee instead of being overwritten.
-model AttendanceAdjustment {
-  id     String                   @id @default(cuid())
-  type   AttendanceAdjustmentType
-  hours  Float
-  reason String
-  date   DateTime // the day this adjustment applies to
+// RequiredHoursAdjustment — a supervisor's override of an employee's
+// required hours for one specific date (e.g. "8 -> 7, reward for
+// exceptional performance"). Kept as its own append-only history table
+// (never edited/deleted) so the full previous/new/reason/who/when trail
+// survives even though AttendanceRecord.requiredHours itself is mutable
+// (always reflects the CURRENT value). Replaces the earlier
+// REWARD/EXTRA/PENALTY hour-delta model — that shape never matched what
+// this spec actually needs (a direct override, not a delta), and nothing
+// depended on the old shape (no Supervisor UI ever created one).
+model RequiredHoursAdjustment {
+  id                    String   @id @default(cuid())
+  date                  DateTime // the day this adjustment applies to
+  previousRequiredHours Int
+  newRequiredHours      Int // 0-16, enforced in validate.js
+  reason                String
 
   employeeId String
   employee   Employee @relation(fields: [employeeId], references: [id])
 
-  createdById Int
-  createdBy   User @relation("AttendanceAdjuster", fields: [createdById], references: [id])
+  adjustedById Int
+  adjustedBy   User @relation("RequiredHoursAdjuster", fields: [adjustedById], references: [id])
 
   createdAt DateTime @default(now())
 
   @@index([employeeId])
   @@index([date])
+}
+
+// AttendanceImportBatch — one row per Excel attendance import, tracking
+// who/when/how-many so every import is auditable and repeat-safe (spec
+// §5/§16). AttendanceRecord.importBatchId links every record the batch
+// touched back to it.
+model AttendanceImportBatch {
+  id             String   @id @default(cuid())
+  fileName       String?
+  periodStart    DateTime
+  periodEnd      DateTime
+  totalRecords   Int
+  createdCount   Int
+  updatedCount   Int
+  unmatchedCount Int
+  rejectedCount  Int
+  errors         Json // [{ row, employeeCode?, message }]
+  importedAt     DateTime @default(now())
+
+  marketId String
+  market   Market @relation(fields: [marketId], references: [id])
+
+  uploadedById Int
+  uploadedBy   User @relation("AttendanceImportUploader", fields: [uploadedById], references: [id])
+
+  records AttendanceRecord[]
+
+  @@index([marketId])
+}
+
+// LeaveRequest — an employee requesting a Monthly Off day or Personal
+// Leave for a specific date, reviewed by their Supervisor. Approving one
+// upserts the matching AttendanceRecord (DAY_OFF or APPROVED_LEAVE) in
+// the same transaction, so the calendar never shows a conflicting
+// "Present" day for an approved leave (spec §11).
+model LeaveRequest {
+  id          String              @id @default(cuid())
+  date        DateTime
+  type        LeaveRequestType
+  reason      String? // required for PERSONAL_LEAVE, enforced in validate.js
+  status      LeaveRequestStatus  @default(PENDING)
+  submittedAt DateTime            @default(now())
+
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id])
+  marketId   String // denormalized for the Supervisor review-queue query
+  market     Market  @relation(fields: [marketId], references: [id])
+
+  reviewedById Int?
+  reviewedBy   User?     @relation("LeaveReviewer", fields: [reviewedById], references: [id])
+  reviewedAt   DateTime?
+  reviewNote   String?
+
+  // One request per employee per date — a second submission for the same
+  // day is a clean 409 (existing errorHandler.js P2002 handling), not a
+  // duplicate row.
+  @@unique([employeeId, date])
+  @@index([marketId])
+  @@index([status])
+}
+
+// AttendanceAuditLog — generic audit trail for attendance-adjacent
+// mutations (required-hours adjustments, leave approve/reject, imports,
+// future manual corrections). One row per action, append-only. Spec §13
+// asks for exactly this: who, what changed, previous value, new value,
+// reason, when.
+model AttendanceAuditLog {
+  id     String @id @default(cuid())
+  action String // "REQUIRED_HOURS_ADJUSTED" | "LEAVE_APPROVED" | "LEAVE_REJECTED" | "ATTENDANCE_IMPORTED" | ...
+
+  employeeId String?
+  employee   Employee? @relation(fields: [employeeId], references: [id])
+
+  performedById Int
+  performedBy   User @relation("AttendanceAuditor", fields: [performedById], references: [id])
+
+  previousValue Json?
+  newValue      Json?
+  reason        String?
+
+  createdAt DateTime @default(now())
+
+  @@index([employeeId])
+  @@index([createdAt])
+}
+
+// DepartmentAssignment — history of which department an employee belonged
+// to and when (spec §3: "store department assignment history"). Applies
+// to every employee (Worker or Cashier). Employee.department is kept as
+// a fast denormalized cache of whichever assignment has endDate = null
+// (the current one); this table is the source of truth for "what
+// department were they in on date X".
+model DepartmentAssignment {
+  id         String    @id @default(cuid())
+  department String
+  startDate  DateTime  @default(now())
+  endDate    DateTime? // set when the NEXT assignment starts; null = current
+
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id])
+
+  assignedById Int
+  assignedBy   User @relation("DepartmentAssigner", fields: [assignedById], references: [id])
+
+  @@index([employeeId])
 }
 
 // ---------------------------------------------------------------------

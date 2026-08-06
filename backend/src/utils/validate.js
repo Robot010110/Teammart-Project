@@ -260,12 +260,24 @@ export const listItemReportsQuerySchema = z.object({
 // ---------------------------------------------------------------------
 // Attendance — imported check-in/out records + supervisor adjustments.
 // ---------------------------------------------------------------------
-const ATTENDANCE_STATUSES = ["PRESENT", "LATE", "ABSENT", "DAY_OFF"];
+export const ATTENDANCE_STATUSES = [
+  "PRESENT",
+  "LATE",
+  "EARLY_LEAVE",
+  "ABSENT",
+  "DAY_OFF",
+  "APPROVED_LEAVE",
+  "INCOMPLETE",
+  "PENDING_REVIEW",
+];
 const SHIFTS = ["MORNING", "EVENING", "NIGHT"];
 const DAY_OFF_TYPES = ["WEEKLY", "MONTHLY", "OTHER"];
-const ATTENDANCE_ADJUSTMENT_TYPES = ["REWARD", "EXTRA", "PENALTY"];
 
-const attendanceImportRowSchema = z.object({
+// One parsed spreadsheet row, already normalized by
+// attendanceImport.js's parseAttendanceWorkbook() — validated per-row so
+// one bad row doesn't reject the whole file (see importAttendanceRecords
+// in attendanceController.js).
+export const attendanceImportRowSchema = z.object({
   employeeCode: z.string().min(1),
   date: z.coerce.date(),
   status: z.enum(ATTENDANCE_STATUSES).optional().default("PRESENT"),
@@ -277,21 +289,27 @@ const attendanceImportRowSchema = z.object({
   dayOffType: z.enum(DAY_OFF_TYPES).optional(),
 });
 
-export const importAttendanceRecordsSchema = z.object({
-  records: z.array(attendanceImportRowSchema).min(1).max(2000),
+export const attendanceImportQuerySchema = z.object({
+  periodStart: z.coerce.date().optional(),
+  periodEnd: z.coerce.date().optional(),
 });
 
-export const createAttendanceAdjustmentSchema = z.object({
+export const createRequiredHoursAdjustmentSchema = z.object({
   employeeId: z.string().min(1),
-  type: z.enum(ATTENDANCE_ADJUSTMENT_TYPES),
-  hours: z.number().positive(),
-  reason: z.string().min(2).max(500),
   date: z.coerce.date(),
+  newRequiredHours: z.number().int().min(0).max(16),
+  reason: z.string().min(2).max(500),
 });
 
 export const attendanceMonthQuerySchema = z.object({
   year: z.coerce.number().int().min(2000).max(2100).optional(),
   month: z.coerce.number().int().min(1).max(12).optional(),
+});
+
+export const attendanceReportQuerySchema = z.object({
+  marketId: z.string().min(1),
+  year: z.coerce.number().int().min(2000).max(2100),
+  month: z.coerce.number().int().min(1).max(12),
 });
 
 // ---------------------------------------------------------------------
@@ -319,4 +337,38 @@ export const createPriceReportSchema = z.object({
 export const listPriceReportsQuerySchema = z.object({
   status: z.enum(["DRAFT", "PENDING", "APPROVED", "REJECTED"]).optional(),
   marketId: z.string().optional(),
+});
+
+// ---------------------------------------------------------------------
+// Leave Requests — Off Day / Personal Leave, employee-submitted,
+// Supervisor-reviewed.
+// ---------------------------------------------------------------------
+export const createLeaveRequestSchema = z
+  .object({
+    date: z.coerce.date(),
+    type: z.enum(["MONTHLY_OFF", "PERSONAL_LEAVE"]),
+    reason: z.string().min(2).max(500).optional(),
+  })
+  // Reason is required for Personal Leave but not for a scheduled Monthly
+  // Off day — matches spec §10 exactly ("The employee must provide a
+  // written reason" only under Personal Leave / Other Reason).
+  .refine((data) => data.type !== "PERSONAL_LEAVE" || !!data.reason, {
+    message: "A reason is required for Personal Leave",
+    path: ["reason"],
+  });
+
+export const reviewLeaveRequestSchema = z.object({
+  reviewNote: z.string().max(500).optional(),
+});
+
+export const listLeaveRequestsQuerySchema = z.object({
+  status: z.enum(["PENDING", "APPROVED", "REJECTED", "CANCELLED"]).optional(),
+  marketId: z.string().optional(),
+});
+
+// ---------------------------------------------------------------------
+// Department assignment.
+// ---------------------------------------------------------------------
+export const assignDepartmentSchema = z.object({
+  department: z.string().min(1).max(100),
 });

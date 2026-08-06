@@ -5,9 +5,11 @@ import {
   createEmployee,
   updateEmployee,
   deleteEmployee,
+  assignDepartment,
+  getDepartmentHistory,
 } from "../controllers/employeesController.js";
 import { requireAuth, requireStaffRole } from "../middleware/auth.js";
-import { validateBody, createEmployeeSchema, updateEmployeeSchema } from "../utils/validate.js";
+import { validateBody, createEmployeeSchema, updateEmployeeSchema, assignDepartmentSchema } from "../utils/validate.js";
 
 const router = Router();
 
@@ -38,6 +40,23 @@ router.delete(
   requireAuth,
   requireStaffRole("ADMIN", "REGIONAL_MANAGER", "SUPERVISOR"),
   deleteEmployee
+);
+
+// Department assignment — staff-only, no employee-facing write path at
+// all (spec §3: employees must not be able to modify their own
+// department). No frontend caller yet (no Supervisor screen exists).
+router.post(
+  "/:id/department",
+  requireAuth,
+  requireStaffRole("ADMIN", "REGIONAL_MANAGER", "SUPERVISOR"),
+  validateBody(assignDepartmentSchema),
+  assignDepartment
+);
+router.get(
+  "/:id/department-history",
+  requireAuth,
+  requireStaffRole("ADMIN", "REGIONAL_MANAGER", "SUPERVISOR"),
+  getDepartmentHistory
 );
 
 export default router;

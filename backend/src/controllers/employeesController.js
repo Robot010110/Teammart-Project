@@ -141,3 +141,58 @@ export async function deleteEmployee(req, res, next) {
     next(err);
   }
 }
+
+// POST /api/employees/:id/department — staff-only. Department assignment
+// is management-controlled (spec §3: "Employees must not be able to
+// modify their own department") — there is no employee-facing write path
+// to this at all, only the read (GET /api/profile already returns
+// employee.department). Closes out the previous DepartmentAssignment's
+// endDate and creates a new open-ended one, then syncs the denormalized
+// Employee.department cache in the same transaction.
+export async function assignDepartment(req, res, next) {
+  try {
+    const employee = await prisma.employee.findUnique({ where: { id: req.params.id } });
+    if (!employee) return res.status(404).json({ error: "Employee not found" });
+
+    await assertMarketAccess(req.user, employee.marketId);
+
+    const { department } = req.body;
+    const now = new Date();
+
+    const [, assignment] = await prisma.$transaction([
+      prisma.departmentAssignment.updateMany({
+        where: { employeeId: employee.id, endDate: null },
+        data: { endDate: now },
+      }),
+      prisma.departmentAssignment.create({
+        data: { employeeId: employee.id, department, assignedById: req.user.userId, startDate: now },
+      }),
+      prisma.employee.update({ where: { id: employee.id }, data: { department } }),
+    ]);
+
+    res.status(201).json(assignment);
+  } catch (err) {
+    next(err);
+  }
+}
+
+// GET /api/employees/:id/department-history — staff-only. Newest first;
+// the row with endDate = null (if any) is the current assignment.
+export async function getDepartmentHistory(req, res, next) {
+  try {
+    const employee = await prisma.employee.findUnique({ where: { id: req.params.id } });
+    if (!employee) return res.status(404).json({ error: "Employee not found" });
+
+    await assertMarketAccess(req.user, employee.marketId);
+
+    const history = await prisma.departmentAssignment.findMany({
+      where: { employeeId: employee.id },
+      include: { assignedBy: { select: { id: true, name: true } } },
+      orderBy: { startDate: "desc" },
+    });
+
+    res.json(history);
+  } catch (err) {
+    next(err);
+  }
+}

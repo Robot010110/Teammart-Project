@@ -1,9 +1,12 @@
-import { CalendarCheck, CalendarOff, Clock3, Gift, TrendingUp, Gauge } from "lucide-react";
+import { CalendarCheck, CalendarOff, Clock3, ListChecks, Gauge } from "lucide-react";
 
 // AttendanceSummaryCards.jsx — the Monthly Attendance Summary tiles:
-// Working Days, Days Off, Total Hours Worked, Reward Hours, Extra Hours,
-// and Attendance Rate. Same stat-tile shell as PerformanceCards.jsx
-// (icon chip, big value, small label).
+// Working Days, Days Off, Total Hours Worked, Total Required Hours, and
+// Attendance Rate. Same stat-tile shell as PerformanceCards.jsx (icon
+// chip, big value, small label). The old Reward/Extra Hours tiles are
+// gone — that delta model was replaced by RequiredHoursAdjustment (a
+// direct per-day override, not a +/- amount to sum), see
+// AttendanceAdjustmentHistory.jsx for where that detail now lives.
 //
 // Attendance Rate thresholds per spec: 100 = perfect, 98-99 = excellent,
 // 95-97 = acceptable, below 95 = flagged for supervisor review. Reuses
@@ -19,14 +22,13 @@ function rateTone(rate) {
 const formatHours = (hours) => `${Number(hours).toFixed(1)}h`;
 
 export default function AttendanceSummaryCards({ summary }) {
-  const { totalWorkingDays, daysOff, totalHoursWorked, rewardHours, extraHours, attendanceRate } = summary;
+  const { totalWorkingDays, daysOff, totalHoursWorked, totalRequiredHours, attendanceRate } = summary;
 
   const items = [
     { icon: CalendarCheck, label: "Working Days", value: totalWorkingDays },
     { icon: CalendarOff, label: "Days Off", value: daysOff },
     { icon: Clock3, label: "Total Hours Worked", value: formatHours(totalHoursWorked) },
-    { icon: Gift, label: "Reward Hours", value: formatHours(rewardHours) },
-    { icon: TrendingUp, label: "Extra Hours", value: formatHours(extraHours) },
+    { icon: ListChecks, label: "Total Required Hours", value: formatHours(totalRequiredHours) },
     {
       icon: Gauge,
       label: "Attendance Rate",
