@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Lock, AlertCircle } from "lucide-react";
+import { Lock, AlertCircle, Eye, EyeOff } from "lucide-react";
 
 // PasswordStep.jsx — final login step. `summary` is an array of
 // {label, value} rows shown above the field so the person can confirm their
@@ -10,16 +10,24 @@ import { Lock, AlertCircle } from "lucide-react";
 // state while waiting and only re-enables the form once the backend
 // responds. `errorMessage` lets the caller show a real server error
 // ("Invalid employee code or password") instead of a generic one.
+//
+// `showRememberMe` opts a caller into the "Remember me on this device"
+// checkbox, passed through as onSubmit's second argument. Only the
+// Employee/Cashier path (LoginPage.jsx) sets this — that's the only path
+// with real backend support (a longer-lived JWT); RM/Supervisor's mock
+// login is unaffected by the extra argument since it just ignores it.
 
-export default function PasswordStep({ summary, hint, onSubmit, errorMessage }) {
+export default function PasswordStep({ summary, hint, onSubmit, errorMessage, showRememberMe = false }) {
   const [password, setPassword] = useState("");
   const [error, setError] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSubmitting(true);
-    const ok = await onSubmit(password);
+    const ok = await onSubmit(password, rememberMe);
     setSubmitting(false);
     if (!ok) {
       setError(true);
@@ -42,15 +50,24 @@ export default function PasswordStep({ summary, hint, onSubmit, errorMessage }) 
       <div className="relative">
         <Lock size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#4C5266]" />
         <input
-          type="password"
+          type={showPassword ? "text" : "password"}
           value={password}
           onChange={(e) => { setPassword(e.target.value); setError(false); }}
           placeholder="Enter password"
           autoFocus
-          className={`w-full rounded-lg bg-white/[0.04] border pl-9 pr-3 py-3 text-base sm:text-sm text-white placeholder:text-[#4C5266] outline-none transition-colors duration-200 ${
+          className={`w-full rounded-lg bg-white/[0.04] border pl-9 pr-10 py-3 text-base sm:text-sm text-white placeholder:text-[#4C5266] outline-none transition-colors duration-200 ${
             error ? "border-red-500/50 focus:border-red-500/70" : "border-white/[0.06] focus:border-[#F47A20]/50"
           }`}
         />
+        <button
+          type="button"
+          onClick={() => setShowPassword((v) => !v)}
+          tabIndex={-1}
+          className="absolute right-3 top-1/2 -translate-y-1/2 text-[#4C5266] hover:text-[#9AA1B4] p-1"
+          aria-label={showPassword ? "Hide password" : "Show password"}
+        >
+          {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+        </button>
       </div>
 
       {error && (
@@ -60,6 +77,18 @@ export default function PasswordStep({ summary, hint, onSubmit, errorMessage }) 
       )}
 
       {hint && <p className="mt-2 text-xs text-[#4C5266]">Demo password: <span className="text-[#8B93A8] font-mono">{hint}</span></p>}
+
+      {showRememberMe && (
+        <label className="mt-4 flex items-center gap-2.5 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={rememberMe}
+            onChange={(e) => setRememberMe(e.target.checked)}
+            className="w-4 h-4 rounded border-white/20 bg-white/[0.04] text-[#F47A20] focus:ring-0 focus:ring-offset-0 accent-[#F47A20]"
+          />
+          <span className="text-xs text-[#9AA1B4]">Remember me on this device</span>
+        </label>
+      )}
 
       <button
         type="submit"

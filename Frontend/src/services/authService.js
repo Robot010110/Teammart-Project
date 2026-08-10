@@ -7,11 +7,14 @@ import { apiRequest, setToken, clearToken, getToken } from "./apiClient";
 // this phase, see data/auth.js for that part which is untouched).
 
 // POST /api/auth/employee-login — on success, stores the JWT so future
-// apiRequest() calls are authenticated automatically.
-export async function employeeLogin(employeeCode, password) {
+// apiRequest() calls are authenticated automatically. `rememberMe`
+// requests a 30-day token instead of the default 8h (see
+// backend/src/utils/jwt.js) — not a second auth system, just a longer
+// TTL; session restoration (GET /api/profile on app mount) is unchanged.
+export async function employeeLogin(employeeCode, password, rememberMe = false) {
   const data = await apiRequest("/auth/employee-login", {
     method: "POST",
-    body: { employeeCode, password },
+    body: { employeeCode, password, rememberMe },
     auth: false, // logging in — there is no token yet to attach
   });
   setToken(data.token);
@@ -22,10 +25,10 @@ export async function employeeLogin(employeeCode, password) {
 // Cashier role (username, not employee code). A separate function/
 // endpoint rather than a merged lookup, so Worker login above stays
 // completely untouched.
-export async function cashierLogin(username, password) {
+export async function cashierLogin(username, password, rememberMe = false) {
   const data = await apiRequest("/auth/cashier-login", {
     method: "POST",
-    body: { username, password },
+    body: { username, password, rememberMe },
     auth: false,
   });
   setToken(data.token);

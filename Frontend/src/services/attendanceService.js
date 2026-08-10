@@ -13,3 +13,13 @@ export function getAttendanceMonth({ year, month } = {}) {
   const query = params.toString();
   return apiRequest(`/attendance/month${query ? `?${query}` : ""}`);
 }
+
+// getPerformanceHistory — Attendance Rate for each of the last `months`
+// *completed* calendar months (current month is never included; see
+// backend/src/controllers/attendanceController.js for why).
+export function getPerformanceHistory({ months } = {}) {
+  const params = new URLSearchParams();
+  if (months) params.set("months", months);
+  const query = params.toString();
+  return apiRequest(`/attendance/performance-history${query ? `?${query}` : ""}`);
+}

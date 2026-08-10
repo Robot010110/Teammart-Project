@@ -18,6 +18,13 @@ export function listSuddenTasks({ status, priority } = {}) {
   return apiRequest(`/sudden-tasks${query ? `?${query}` : ""}`);
 }
 
-export function completeSuddenTask(id) {
-  return apiRequest(`/sudden-tasks/${id}/complete`, { method: "PATCH" });
+export function getSuddenTask(id) {
+  return apiRequest(`/sudden-tasks/${id}`);
+}
+
+// evidenceUrl is optional — a task can still be completed without a
+// photo, but when the caller has one (see SuddenTaskDetailScreen), it's
+// attached here.
+export function completeSuddenTask(id, evidenceUrl) {
+  return apiRequest(`/sudden-tasks/${id}/complete`, { method: "PATCH", body: { evidenceUrl } });
 }

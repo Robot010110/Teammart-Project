@@ -69,12 +69,12 @@ export default function LoginPage({ onLogin }) {
     } else if (step === STEP_EMPLOYEE_TYPE) resetAll();
   };
 
-  const submitPassword = async (password) => {
+  const submitPassword = async (password, rememberMe = false) => {
     setLoginError(null);
 
     if (role === "employee" && employeeType === "worker") {
       try {
-        const employee = await employeeLogin(employeeCode, password);
+        const employee = await employeeLogin(employeeCode, password, rememberMe);
         onLogin({
           role,
           employeeRole: employee.role,
@@ -92,7 +92,7 @@ export default function LoginPage({ onLogin }) {
 
     if (role === "employee" && employeeType === "cashier") {
       try {
-        const employee = await cashierLogin(username, password);
+        const employee = await cashierLogin(username, password, rememberMe);
         onLogin({
           role,
           employeeRole: employee.role,
@@ -194,7 +194,13 @@ export default function LoginPage({ onLogin }) {
             <div className="text-center mb-6 animate-fade-up">
               <h2 className="font-display text-xl font-bold text-white">Enter your password</h2>
             </div>
-            <PasswordStep summary={summary} hint={hint} onSubmit={submitPassword} errorMessage={loginError} />
+            <PasswordStep
+              summary={summary}
+              hint={hint}
+              onSubmit={submitPassword}
+              errorMessage={loginError}
+              showRememberMe={role === "employee"}
+            />
           </>
         )}
       </div>

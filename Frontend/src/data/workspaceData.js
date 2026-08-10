@@ -19,12 +19,17 @@
 // product link + quantity + automatic stock decrement that this simple
 // notes+photo Activity flow was never built for. The enum value stays in
 // the backend for DB compatibility; it's just not offered here anymore.
+// SHELF_CLEANING and LABEL_CHECKING are deliberately NOT listed here
+// anymore — both got dedicated, more structured flows in the mobile
+// rebuild (DailyStatusFlow's Not Started/In Progress/Completed for
+// Cleaning Shelves; ShelfLabelFlow's scan->issue->Save for Later/Fix Now
+// for Shelf Labels), so this generic single-form modal is no longer the
+// entry point for either — the Activity rows they create still show up
+// in "My Activities" below like any other category.
 export const ACTIVITY_SUBMISSION_OPTIONS = [
-  { category: "SHELF_CLEANING", label: "Report Shelf Cleaning" },
   { category: "PRODUCT_CUSTOMIZATION", label: "Submit Product Customization" },
   { category: "DAILY_CLEANING", label: "Report Daily Cleaning" },
   { category: "ITEM_COUNTING", label: "Report Item Counting" },
-  { category: "LABEL_CHECKING", label: "Report Label Checking" },
 ];
 
 // Human-readable label for a category code, used anywhere an Activity is

@@ -96,6 +96,7 @@ export async function listMyConversations(req, res, next) {
         c.type === "MARKET_GROUP" ? "Market Group" :
         c.type === "WARNINGS" ? "Warnings" :
         nameById.get(c.participantAId === employeeId ? c.participantBId : c.participantAId) ?? "Employee",
+      otherEmployeeId: c.type === "DIRECT" ? (c.participantAId === employeeId ? c.participantBId : c.participantAId) : null,
       lastMessage: lastMessages[i] ? { body: lastMessages[i].body, createdAt: lastMessages[i].createdAt } : null,
       unreadCount: unreadCounts[i],
     }));

@@ -138,11 +138,12 @@ export default function App() {
         <Header
           user={{ name: session.displayName, role: isCashier ? "Cashier" : "Employee", avatarInitials: session.initials }}
           onLogout={handleLogout}
+          notificationCount={0}
         />
         {isCashier ? (
-          <CashierWorkspace employeeId={session.employeeId} />
+          <CashierWorkspace employeeId={session.employeeId} onLogout={handleLogout} />
         ) : (
-          <EmployeeWorkspace employeeId={session.employeeId} />
+          <EmployeeWorkspace employeeId={session.employeeId} onLogout={handleLogout} />
         )}
       </div>
     );

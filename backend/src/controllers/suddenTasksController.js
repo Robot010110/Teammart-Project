@@ -90,7 +90,7 @@ export async function getSuddenTask(req, res, next) {
   try {
     const suddenTask = await prisma.suddenTask.findUnique({
       where: { id: req.params.id },
-      include: { employee: true },
+      include: { employee: true, assignedBy: { select: { id: true, name: true } } },
     });
     if (!suddenTask) return res.status(404).json({ error: "Sudden task not found" });
 
