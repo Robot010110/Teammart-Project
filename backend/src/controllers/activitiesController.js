@@ -56,7 +56,7 @@ export async function getActivity(req, res, next) {
 // to DRAFT (not submitted yet) unless the caller explicitly sets PENDING.
 export async function createActivity(req, res, next) {
   try {
-    const { category, date, time, notes, status, imageUrls } = req.body;
+    const { category, date, time, notes, status, imageUrls, productId, labelIssueType } = req.body;
 
     const activity = await prisma.activity.create({
       data: {
@@ -65,6 +65,8 @@ export async function createActivity(req, res, next) {
         time,
         notes,
         status,
+        productId,
+        labelIssueType,
         employeeId: req.user.employeeId,
         images: imageUrls?.length ? { create: imageUrls.map((url) => ({ url })) } : undefined,
       },

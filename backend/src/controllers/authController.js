@@ -68,7 +68,7 @@ export async function staffLogin(req, res, next) {
 // POST /api/auth/employee-login
 export async function employeeLogin(req, res, next) {
   try {
-    const { employeeCode, password } = req.body;
+    const { employeeCode, password, rememberMe } = req.body;
 
     const employee = await prisma.employee.findUnique({ where: { employeeCode } });
 
@@ -81,7 +81,7 @@ export async function employeeLogin(req, res, next) {
       return res.status(401).json({ error: "Invalid employee code or password" });
     }
 
-    const token = signEmployeeToken(employee);
+    const token = signEmployeeToken(employee, { rememberMe });
 
     res.json({
       token,
@@ -105,7 +105,7 @@ export async function employeeLogin(req, res, next) {
 // username" logic that could get subtly wrong for either side.
 export async function cashierLogin(req, res, next) {
   try {
-    const { username, password } = req.body;
+    const { username, password, rememberMe } = req.body;
 
     const employee = await prisma.employee.findUnique({ where: { username } });
 
@@ -120,7 +120,7 @@ export async function cashierLogin(req, res, next) {
       return res.status(401).json({ error: "Invalid username or password" });
     }
 
-    const token = signEmployeeToken(employee);
+    const token = signEmployeeToken(employee, { rememberMe });
 
     res.json({
       token,

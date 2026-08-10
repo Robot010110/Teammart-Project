@@ -79,6 +79,16 @@ enum ActivityCategory {
   DAILY_CLEANING
   ITEM_COUNTING
   LABEL_CHECKING
+  FACING
+  REFILLING
+}
+
+// Only meaningful when Activity.category = LABEL_CHECKING — what's wrong
+// with the label the employee found (spec: Missing/Incorrect/Damaged).
+enum LabelIssueType {
+  MISSING
+  INCORRECT
+  DAMAGED
 }
 
 // Deliberately only these four values (Step 4 spec). Note this is a
@@ -212,6 +222,35 @@ enum EmploymentStatus {
 }
 
 // ---------------------------------------------------------------------
+// Notifications — a real, generic feed (previously just a TODO comment
+// in EmployeeWorkspace.jsx: "this toast is NOT a real notification
+// system"). Written by the concrete actions that already exist: Sudden
+// Task assignment, Leave request review, a new Chat message. Not wired
+// into review steps that don't exist yet (e.g. Item Reports have no
+// review endpoint) — no invented triggers.
+// ---------------------------------------------------------------------
+enum NotificationType {
+  SUDDEN_TASK
+  LEAVE_REVIEWED
+  CHAT_MESSAGE
+  ANNOUNCEMENT
+}
+
+// ---------------------------------------------------------------------
+// Chat — market-scoped: one Market Group conversation, one Warnings
+// (supervisor-announcement, employee-read-only) conversation, and any
+// number of Direct 1:1 conversations between two employees in the same
+// market. Polling-based (no WebSocket dependency — see
+// chatController.js's listMessages ?after= param), consistent with the
+// rest of this app's REST-only architecture.
+// ---------------------------------------------------------------------
+enum ConversationType {
+  MARKET_GROUP
+  WARNINGS
+  DIRECT
+}
+
+// ---------------------------------------------------------------------
 // Staff (Admin / Regional Manager / Supervisor) — logs in with email
 // ---------------------------------------------------------------------
 model User {
@@ -247,6 +286,8 @@ model User {
   uploadedAttendanceImports AttendanceImportBatch[]   @relation("AttendanceImportUploader")
   reviewedLeaveRequests    LeaveRequest[]             @relation("LeaveReviewer")
   assignedDepartments      DepartmentAssignment[]     @relation("DepartmentAssigner")
+
+  sentMessages Message[] @relation("MessageSenderUser")
 }
 
 // ---------------------------------------------------------------------
@@ -277,6 +318,7 @@ model Market {
   priceReports PriceReport[]
   leaveRequests LeaveRequest[]
   attendanceImportBatches AttendanceImportBatch[]
+  conversations Conversation[]
   createdAt    DateTime     @default(now())
 
   @@index([zoneId])
@@ -332,6 +374,12 @@ model Employee {
   leaveRequests             LeaveRequest[]
   departmentAssignments     DepartmentAssignment[]
   auditLogEntries           AttendanceAuditLog[]
+
+  notifications         Notification[]
+  sentMessages          Message[]          @relation("MessageSenderEmployee")
+  conversationReads     ConversationRead[]
+  directConversationsAsA Conversation[]    @relation("ConversationParticipantA")
+  directConversationsAsB Conversation[]    @relation("ConversationParticipantB")
 
   @@index([marketId])
 }
@@ -401,6 +449,13 @@ model Activity {
   notes    String?
   status   ActivityStatus @default(DRAFT)
 
+  // Only meaningful for category = LABEL_CHECKING — the scanned/searched
+  // Product the label issue was found on (same product-search flow as
+  // ItemReport), and what's wrong with it. Null for every other category.
+  productId      String?
+  product        Product?        @relation(fields: [productId], references: [id])
+  labelIssueType LabelIssueType?
+
   employeeId String
   employee   Employee @relation(fields: [employeeId], references: [id])
 
@@ -441,6 +496,10 @@ model SuddenTask {
   description String
   priority    SuddenTaskPriority @default(NORMAL)
   status      SuddenTaskStatus   @default(ASSIGNED)
+  // Set by completeSuddenTask when the supervisor requires photo evidence
+  // — previously completion was a bare status flip with nowhere to put
+  // the photo the spec explicitly asks for.
+  evidenceUrl String?
 
   employeeId String
   employee   Employee @relation(fields: [employeeId], references: [id])
@@ -480,6 +539,7 @@ model Product {
   updatedAt DateTime @updatedAt
 
   itemReports ItemReport[]
+  labelActivities Activity[]
 
   // Same barcode can be separate stock in different markets, so the
   // uniqueness is per-market, not global.
@@ -754,4 +814,95 @@ model PriceReport {
   @@index([employeeId])
   @@index([marketId])
   @@index([reportedAt])
+}
+
+// ---------------------------------------------------------------------
+// Notification — a real feed, replacing what used to be just a
+// TODO comment ("this toast is NOT a real notification system") in
+// EmployeeWorkspace.jsx. See the NotificationType comment above for
+// which concrete actions write one.
+// ---------------------------------------------------------------------
+model Notification {
+  id    String           @id @default(cuid())
+  type  NotificationType
+  title String
+  body  String
+  read  Boolean          @default(false)
+
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id])
+
+  // Lets the frontend route to the right screen on tap without parsing
+  // `body` — e.g. linkType "SUDDEN_TASK" + linkId = that task's id.
+  linkType String?
+  linkId   String?
+
+  createdAt DateTime @default(now())
+
+  @@index([employeeId, read])
+}
+
+// ---------------------------------------------------------------------
+// Conversation — one per Market Group, one per Warnings channel, and one
+// per Direct pair of employees. Group/Warnings are found-or-created in
+// chatController.js (see the ConversationType comment above for why that
+// can't be a bare DB constraint); Direct relies on the unique index below
+// with participantAId/participantBId always stored in a consistent order
+// (enforced in the controller) so the same pair never gets two rows.
+// ---------------------------------------------------------------------
+model Conversation {
+  id   String           @id @default(cuid())
+  type ConversationType
+
+  marketId String
+  market   Market @relation(fields: [marketId], references: [id])
+
+  participantAId String?
+  participantA   Employee? @relation("ConversationParticipantA", fields: [participantAId], references: [id])
+  participantBId String?
+  participantB   Employee? @relation("ConversationParticipantB", fields: [participantBId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  messages Message[]
+  reads    ConversationRead[]
+
+  @@unique([marketId, type, participantAId, participantBId])
+  @@index([marketId])
+}
+
+// Message — sender is EITHER an Employee OR a staff User (Warnings
+// broadcasts come from staff), never both; enforced in chatController.js,
+// not at the DB layer, since Prisma has no native "exactly one of two
+// nullable FKs" constraint.
+model Message {
+  id             String       @id @default(cuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id])
+
+  body     String
+  imageUrl String?
+
+  senderEmployeeId String?
+  senderEmployee   Employee? @relation("MessageSenderEmployee", fields: [senderEmployeeId], references: [id])
+  senderUserId     Int?
+  senderUser       User?     @relation("MessageSenderUser", fields: [senderUserId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@index([conversationId, createdAt])
+}
+
+// ConversationRead — one row per (conversation, employee), tracking read
+// position. Unread count = messages in that conversation created after
+// lastReadAt (or every message, if no row exists yet — never opened).
+model ConversationRead {
+  id             String       @id @default(cuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id])
+  employeeId     String
+  employee       Employee     @relation(fields: [employeeId], references: [id])
+  lastReadAt     DateTime     @default(now())
+
+  @@unique([conversationId, employeeId])
 }

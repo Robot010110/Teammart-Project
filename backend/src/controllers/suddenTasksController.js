@@ -1,5 +1,6 @@
 import { prisma } from "../lib/prisma.js";
 import { assertMarketAccess, requireAccessibleEmployee } from "../middleware/auth.js";
+import { createNotification } from "../utils/notifications.js";
 
 // suddenTasksController.js — an urgent, ASAP task a Supervisor/Manager/
 // Admin pushes directly at an employee. Separate module from Activities
@@ -28,6 +29,15 @@ export async function assignSuddenTask(req, res, next) {
         marketId: employee.marketId,
         assignedById: req.user.userId,
       },
+    });
+
+    await createNotification({
+      employeeId,
+      type: "SUDDEN_TASK",
+      title: "New sudden task assigned",
+      body: title,
+      linkType: "SUDDEN_TASK",
+      linkId: suddenTask.id,
     });
 
     res.status(201).json(suddenTask);
@@ -112,9 +122,10 @@ export async function completeSuddenTask(req, res, next) {
       return res.status(400).json({ error: `Task is already ${suddenTask.status.toLowerCase()}` });
     }
 
+    const { evidenceUrl } = req.body;
     const updated = await prisma.suddenTask.update({
       where: { id: req.params.id },
-      data: { status: "COMPLETED", completedAt: new Date() },
+      data: { status: "COMPLETED", completedAt: new Date(), evidenceUrl },
     });
 
     res.json(updated);

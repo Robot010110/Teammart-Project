@@ -251,6 +251,20 @@ export async function createRequiredHoursAdjustment(req, res, next) {
   }
 }
 
+// Shared by getAttendanceMonth (the month currently being viewed) and
+// getPerformanceHistory (every completed month) so the Attendance Rate
+// formula lives in exactly one place.
+function computeMonthSummary(records, daysElapsed) {
+  const daysOff = records.filter((r) => r.status === "DAY_OFF" || r.status === "APPROVED_LEAVE").length;
+  const totalWorkingDays = Math.max(daysElapsed - daysOff, 0);
+  const presentDays = records.filter((r) => r.status === "PRESENT" || r.status === "LATE" || r.status === "EARLY_LEAVE").length;
+  const totalHoursWorked = records.reduce((total, r) => total + (computeWorkingHours(r) ?? 0), 0);
+  const totalRequiredHours = records.reduce((total, r) => total + r.requiredHours, 0);
+  const attendanceRate = totalWorkingDays > 0 ? Math.min((presentDays / totalWorkingDays) * 100, 100) : null;
+
+  return { totalWorkingDays, daysOff, totalHoursWorked, totalRequiredHours, attendanceRate };
+}
+
 // GET /api/attendance/month?year=&month= — the current employee's own
 // attendance for one calendar month (defaults to the current month):
 // each day's record merged with that day's required-hours adjustments,
@@ -287,26 +301,48 @@ export async function getAttendanceMonth(req, res, next) {
     const isCurrentMonth = year === now.getFullYear() && month === now.getMonth() + 1;
     const daysElapsed = isCurrentMonth ? now.getDate() : daysInMonth(year, month);
 
-    const daysOff = records.filter((r) => r.status === "DAY_OFF" || r.status === "APPROVED_LEAVE").length;
-    const totalWorkingDays = Math.max(daysElapsed - daysOff, 0);
-    const presentDays = records.filter((r) => r.status === "PRESENT" || r.status === "LATE" || r.status === "EARLY_LEAVE").length;
-    const totalHoursWorked = days.reduce((total, d) => total + (d.workingHours ?? 0), 0);
-    const totalRequiredHours = records.reduce((total, r) => total + r.requiredHours, 0);
-    const attendanceRate = totalWorkingDays > 0 ? Math.min((presentDays / totalWorkingDays) * 100, 100) : null;
-
     res.json({
       year,
       month,
       days,
       adjustments,
-      summary: {
-        totalWorkingDays,
-        daysOff,
-        totalHoursWorked,
-        totalRequiredHours,
-        attendanceRate,
-      },
+      summary: computeMonthSummary(records, daysElapsed),
     });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// GET /api/attendance/performance-history?months=6 — the current
+// employee's Attendance Rate for each of the last N *completed* calendar
+// months (default 6). The current in-progress month is always excluded —
+// there is no real "performance" metric in this app beyond Attendance
+// Rate (Employee.performanceRate is an unused field), and showing a
+// partial current month as if it were final would misrepresent it.
+export async function getPerformanceHistory(req, res, next) {
+  try {
+    const months = Math.min(Number(req.query.months) || 6, 24);
+    const now = new Date();
+
+    // Walk backward from last month (the most recent *completed* one).
+    const monthRanges = [];
+    for (let i = 1; i <= months; i += 1) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      monthRanges.push({ year: d.getFullYear(), month: d.getMonth() + 1 });
+    }
+
+    const history = await Promise.all(
+      monthRanges.map(async ({ year, month }) => {
+        const monthStart = new Date(year, month - 1, 1);
+        const monthEnd = new Date(year, month, 1);
+        const records = await prisma.attendanceRecord.findMany({
+          where: { employeeId: req.user.employeeId, date: { gte: monthStart, lt: monthEnd } },
+        });
+        return { year, month, summary: computeMonthSummary(records, daysInMonth(year, month)) };
+      })
+    );
+
+    res.json(history);
   } catch (err) {
     next(err);
   }

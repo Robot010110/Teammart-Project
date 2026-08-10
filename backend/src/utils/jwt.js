@@ -8,6 +8,7 @@ import jwt from "jsonwebtoken";
 // without an extra DB lookup per request.
 
 const TOKEN_TTL = "8h";
+const REMEMBER_ME_TTL = "30d";
 
 // Staff = Admin / Regional Manager / Supervisor. `scope` carries the one
 // piece of ownership info relevant to their role:
@@ -30,7 +31,14 @@ export function signStaffToken(user) {
 // and nothing read this claim before it existed, so this can't break any
 // existing check. requireEmployeeRole() in middleware/auth.js is the
 // first thing that reads it.
-export function signEmployeeToken(employee) {
+//
+// rememberMe — session *restoration* already worked before this (App.jsx
+// already re-validates a saved token against GET /api/profile on every
+// relaunch instead of forcing a fresh login); the only real gap was the
+// fixed 8h token lifetime forcing a re-login mid-shift or the next day.
+// A checked "Remember me" just requests a 30-day token instead — same
+// verifyToken() path, no second auth system.
+export function signEmployeeToken(employee, { rememberMe = false } = {}) {
   const payload = {
     kind: "employee",
     employeeId: employee.id,
@@ -38,7 +46,7 @@ export function signEmployeeToken(employee) {
     role: employee.role,
     cashierShift: employee.cashierShift ?? null,
   };
-  return jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: TOKEN_TTL });
+  return jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: rememberMe ? REMEMBER_ME_TTL : TOKEN_TTL });
 }
 
 export function verifyToken(token) {

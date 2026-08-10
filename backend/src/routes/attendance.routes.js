@@ -4,6 +4,7 @@ import {
   importAttendanceRecords,
   createRequiredHoursAdjustment,
   getAttendanceMonth,
+  getPerformanceHistory,
   exportAttendanceReport,
 } from "../controllers/attendanceController.js";
 import { requireAuth, requireStaffRole, requireEmployeeAuth } from "../middleware/auth.js";
@@ -27,6 +28,7 @@ const router = Router();
 router.use(requireAuth);
 
 router.get("/month", requireEmployeeAuth, validateQuery(attendanceMonthQuerySchema), getAttendanceMonth);
+router.get("/performance-history", requireEmployeeAuth, getPerformanceHistory);
 
 // Staff-only. No frontend caller yet (no Supervisor/import UI) — prepared
 // for that module the same way Sudden Task assignment was.

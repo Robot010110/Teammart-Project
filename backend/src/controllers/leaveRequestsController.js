@@ -1,5 +1,6 @@
 import { prisma } from "../lib/prisma.js";
 import { assertMarketAccess } from "../middleware/auth.js";
+import { createNotification } from "../utils/notifications.js";
 
 // leaveRequestsController.js — Off Day / Personal Leave requests (spec
 // §10/§11). An employee submits one for a specific date; their
@@ -107,6 +108,15 @@ async function reviewLeaveRequest(req, res, next, { status, action }) {
         newValue: { status },
         reason: reviewNote,
       },
+    });
+
+    await createNotification({
+      employeeId: request.employeeId,
+      type: "LEAVE_REVIEWED",
+      title: status === "APPROVED" ? "Leave request approved" : "Leave request rejected",
+      body: reviewNote || `Your ${request.type === "MONTHLY_OFF" ? "off day" : "leave"} request for ${request.date.toISOString().slice(0, 10)} was ${status.toLowerCase()}.`,
+      linkType: "LEAVE_REQUEST",
+      linkId: request.id,
     });
 
     res.json(updated);

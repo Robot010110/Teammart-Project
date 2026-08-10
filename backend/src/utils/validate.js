@@ -50,11 +50,13 @@ export const staffLoginSchema = z.object({
 export const employeeLoginSchema = z.object({
   employeeCode: z.string().min(1),
   password: z.string().min(1),
+  rememberMe: z.boolean().optional(),
 });
 
 export const cashierLoginSchema = z.object({
   username: z.string().min(1),
   password: z.string().min(1),
+  rememberMe: z.boolean().optional(),
 });
 
 export const updatePasswordSchema = z.object({
@@ -169,7 +171,11 @@ const ACTIVITY_CATEGORIES = [
   "DAILY_CLEANING",
   "ITEM_COUNTING",
   "LABEL_CHECKING",
+  "FACING",
+  "REFILLING",
 ];
+
+const LABEL_ISSUE_TYPES = ["MISSING", "INCORRECT", "DAMAGED"];
 
 // An employee may only ever put their own activity into DRAFT or PENDING —
 // APPROVED/REJECTED are review outcomes, and no review endpoint exists yet
@@ -185,6 +191,10 @@ export const createActivitySchema = z.object({
   // Optional list of image URLs to attach right away. No upload service
   // exists yet, so this only accepts URLs a client already has.
   imageUrls: z.array(z.string().url()).max(20).optional(),
+  // Only meaningful when category === "LABEL_CHECKING" (Shelf Labels
+  // flow: scan a product, flag what's wrong with its label).
+  productId: z.string().optional(),
+  labelIssueType: z.enum(LABEL_ISSUE_TYPES).optional(),
 });
 
 export const updateActivitySchema = z.object({
@@ -193,6 +203,8 @@ export const updateActivitySchema = z.object({
   time: z.string().min(1).max(20).optional(),
   notes: z.string().max(1000).nullable().optional(),
   status: z.enum(EMPLOYEE_SETTABLE_ACTIVITY_STATUSES).optional(),
+  productId: z.string().nullable().optional(),
+  labelIssueType: z.enum(LABEL_ISSUE_TYPES).nullable().optional(),
 });
 
 export const addActivityImageSchema = z.object({
