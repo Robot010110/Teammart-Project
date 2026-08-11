@@ -7,6 +7,8 @@ import {
   deleteActivity,
   addActivityImage,
   deleteActivityImage,
+  getPerformanceSummary,
+  getActivityPerformanceHistory,
 } from "../controllers/activitiesController.js";
 import { requireAuth, requireEmployeeAuth } from "../middleware/auth.js";
 import {
@@ -26,6 +28,10 @@ router.use(requireAuth, requireEmployeeAuth);
 
 router.get("/", validateQuery(listActivitiesQuerySchema), listActivities);
 router.post("/", validateBody(createActivitySchema), createActivity);
+
+// Registered before /:id so these fixed paths aren't swallowed as an id.
+router.get("/performance", getPerformanceSummary);
+router.get("/performance-history", getActivityPerformanceHistory);
 
 router.get("/:id", getActivity);
 router.patch("/:id", validateBody(updateActivitySchema), updateActivity);

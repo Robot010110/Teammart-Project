@@ -1,22 +1,48 @@
 import { prisma } from "../lib/prisma.js";
-import { assertMarketAccess } from "../middleware/auth.js";
+import { assertMarketAccess, HttpError } from "../middleware/auth.js";
 import { createNotification } from "../utils/notifications.js";
+import { computeExtraHoursBalance, EXTRA_HOURS_PER_DAY_OFF } from "./attendanceController.js";
 
-// leaveRequestsController.js — Off Day / Personal Leave requests (spec
-// §10/§11). An employee submits one for a specific date; their
-// Supervisor approves or rejects it. Approving upserts the matching
-// AttendanceRecord (DAY_OFF for a Monthly Off day, APPROVED_LEAVE for
+// leaveRequestsController.js — Off Day / Personal Leave / Earned Day Off
+// requests. An employee submits one for a specific date; their Supervisor
+// approves or rejects it. Approving upserts the matching AttendanceRecord
+// (DAY_OFF for Monthly Off or an Earned Day Off, APPROVED_LEAVE for
 // Personal Leave) in the same transaction, so the calendar never shows a
 // conflicting "Present" day for an approved leave — the AttendanceRecord
 // is always the single source of truth the calendar reads from.
+//
+// EARNED_DAY_OFF spends the employee's extra-hours balance (see
+// computeExtraHoursBalance in attendanceController.js — there is no
+// ledger table, the balance is always derived from AttendanceRecord vs.
+// already-APPROVED EARNED_DAY_OFF requests). The balance is checked here
+// too (early, friendly rejection) but the authoritative check happens at
+// approval time inside a Serializable transaction (see reviewLeaveRequest
+// below) — that's the only point that can actually prevent two pending
+// requests from double-spending the same hours.
 
 // POST /api/leave-requests — employee-only.
 export async function createLeaveRequest(req, res, next) {
   try {
     const { date, type, reason } = req.body;
 
+    if (type === "EARNED_DAY_OFF") {
+      const balance = await computeExtraHoursBalance(prisma, req.user.employeeId);
+      if (balance < EXTRA_HOURS_PER_DAY_OFF) {
+        return res.status(400).json({
+          error: `Not enough extra hours yet — you have ${balance}h, a day off requires ${EXTRA_HOURS_PER_DAY_OFF}h.`,
+        });
+      }
+    }
+
     const request = await prisma.leaveRequest.create({
-      data: { date, type, reason, employeeId: req.user.employeeId, marketId: req.user.marketId },
+      data: {
+        date,
+        type,
+        reason,
+        hoursSpent: type === "EARNED_DAY_OFF" ? EXTRA_HOURS_PER_DAY_OFF : undefined,
+        employeeId: req.user.employeeId,
+        marketId: req.user.marketId,
+      },
     });
 
     res.status(201).json(request);
@@ -78,26 +104,47 @@ async function reviewLeaveRequest(req, res, next, { status, action }) {
     }
 
     const { reviewNote } = req.body;
-    const operations = [
-      prisma.leaveRequest.update({
-        where: { id: request.id },
-        data: { status, reviewedById: req.user.userId, reviewedAt: new Date(), reviewNote },
-      }),
-    ];
 
-    if (status === "APPROVED") {
-      const attendanceStatus = request.type === "MONTHLY_OFF" ? "DAY_OFF" : "APPROVED_LEAVE";
-      const dayOffType = request.type === "MONTHLY_OFF" ? "MONTHLY" : undefined;
-      operations.push(
-        prisma.attendanceRecord.upsert({
-          where: { employeeId_date: { employeeId: request.employeeId, date: request.date } },
-          update: { status: attendanceStatus, dayOffType, source: "SYSTEM" },
-          create: { employeeId: request.employeeId, date: request.date, status: attendanceStatus, dayOffType, source: "SYSTEM" },
-        })
-      );
-    }
+    // Interactive transaction (rather than the array form used elsewhere)
+    // because EARNED_DAY_OFF needs to read the current balance and decide
+    // whether to proceed *inside* the transaction — Serializable isolation
+    // so two concurrent approvals of two different pending requests can't
+    // both read the same balance and both succeed (the second one's
+    // recompute is guaranteed to see the first one's write, or the
+    // transaction fails and can be retried/reported instead of silently
+    // over-spending the balance).
+    const updated = await prisma.$transaction(
+      async (tx) => {
+        if (status === "APPROVED" && request.type === "EARNED_DAY_OFF") {
+          const balance = await computeExtraHoursBalance(tx, request.employeeId);
+          if (balance < request.hoursSpent) {
+            throw new HttpError(
+              400,
+              `Cannot approve — this employee's extra-hours balance (${balance}h) is now less than the ${request.hoursSpent}h this request needs.`
+            );
+          }
+        }
 
-    const [updated] = await prisma.$transaction(operations);
+        const updatedRequest = await tx.leaveRequest.update({
+          where: { id: request.id },
+          data: { status, reviewedById: req.user.userId, reviewedAt: new Date(), reviewNote },
+        });
+
+        if (status === "APPROVED") {
+          const attendanceStatus = request.type === "PERSONAL_LEAVE" ? "APPROVED_LEAVE" : "DAY_OFF";
+          const dayOffType =
+            request.type === "MONTHLY_OFF" ? "MONTHLY" : request.type === "EARNED_DAY_OFF" ? "OTHER" : undefined;
+          await tx.attendanceRecord.upsert({
+            where: { employeeId_date: { employeeId: request.employeeId, date: request.date } },
+            update: { status: attendanceStatus, dayOffType, source: "SYSTEM" },
+            create: { employeeId: request.employeeId, date: request.date, status: attendanceStatus, dayOffType, source: "SYSTEM" },
+          });
+        }
+
+        return updatedRequest;
+      },
+      { isolationLevel: "Serializable" }
+    );
 
     await prisma.attendanceAuditLog.create({
       data: {

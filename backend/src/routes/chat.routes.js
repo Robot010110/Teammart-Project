@@ -11,6 +11,7 @@ import {
   postWarningBroadcast,
 } from "../controllers/chatController.js";
 import { requireAuth, requireEmployeeAuth, requireStaffRole } from "../middleware/auth.js";
+import { validateBody, sendMessageSchema } from "../utils/validate.js";
 
 const router = Router();
 
@@ -30,7 +31,7 @@ router.get("/market-group", getMarketGroup);
 router.get("/warnings", getWarnings);
 router.get("/direct/:employeeId", getOrCreateDirect);
 router.get("/:id/messages", listMessages);
-router.post("/:id/messages", sendMessage);
+router.post("/:id/messages", validateBody(sendMessageSchema), sendMessage);
 router.post("/:id/read", markConversationRead);
 
 export default router;

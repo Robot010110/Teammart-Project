@@ -208,10 +208,27 @@ export async function sendMessage(req, res, next) {
       return res.status(403).json({ error: "Only a supervisor can post to Warnings" });
     }
 
-    const { body, imageUrl } = req.body;
+    const { body, imageUrl, attachmentType, attachmentUrl, attachmentName, attachmentSize, attachmentDurationSec } = req.body;
     const message = await prisma.message.create({
-      data: { conversationId: conversation.id, body, imageUrl, senderEmployeeId: req.user.employeeId },
+      data: {
+        conversationId: conversation.id,
+        body,
+        imageUrl,
+        attachmentType,
+        attachmentUrl,
+        attachmentName,
+        attachmentSize,
+        attachmentDurationSec,
+        senderEmployeeId: req.user.employeeId,
+      },
     });
+
+    const ATTACHMENT_LABEL = { FILE: "Sent a file", AUDIO: "Sent an audio clip", VOICE: "Sent a voice message" };
+    const notificationPreview = body.trim()
+      ? (body.length > 120 ? `${body.slice(0, 117)}...` : body)
+      : imageUrl
+      ? "Sent a photo"
+      : ATTACHMENT_LABEL[attachmentType] ?? "Sent a message";
 
     // Notify every other participant.
     let recipientIds = [];
@@ -233,7 +250,7 @@ export async function sendMessage(req, res, next) {
           employeeId: id,
           type: "CHAT_MESSAGE",
           title: conversation.type === "MARKET_GROUP" ? "New message in Market Group" : `New message from ${sender.name}`,
-          body: body.length > 120 ? `${body.slice(0, 117)}...` : body,
+          body: notificationPreview,
           linkType: "CONVERSATION",
           linkId: conversation.id,
         })

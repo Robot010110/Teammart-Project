@@ -251,6 +251,16 @@ export async function createRequiredHoursAdjustment(req, res, next) {
   }
 }
 
+// Extra hours worked on one day, beyond that day's requiredHours — never
+// stored (same "derive, don't duplicate" convention as workingHours
+// itself), so it can never drift out of sync with the underlying
+// checkIn/checkOut/requiredHours values.
+function computeExtraHours(record) {
+  const worked = computeWorkingHours(record);
+  if (worked == null) return 0;
+  return Math.max(worked - record.requiredHours, 0);
+}
+
 // Shared by getAttendanceMonth (the month currently being viewed) and
 // getPerformanceHistory (every completed month) so the Attendance Rate
 // formula lives in exactly one place.
@@ -260,9 +270,85 @@ function computeMonthSummary(records, daysElapsed) {
   const presentDays = records.filter((r) => r.status === "PRESENT" || r.status === "LATE" || r.status === "EARLY_LEAVE").length;
   const totalHoursWorked = records.reduce((total, r) => total + (computeWorkingHours(r) ?? 0), 0);
   const totalRequiredHours = records.reduce((total, r) => total + r.requiredHours, 0);
+  const extraHours = records.reduce((total, r) => total + computeExtraHours(r), 0);
+  const punishmentHours = records.reduce((total, r) => total + (r.punishmentHours ?? 0), 0);
   const attendanceRate = totalWorkingDays > 0 ? Math.min((presentDays / totalWorkingDays) * 100, 100) : null;
 
-  return { totalWorkingDays, daysOff, totalHoursWorked, totalRequiredHours, attendanceRate };
+  return { totalWorkingDays, daysOff, totalHoursWorked, totalRequiredHours, extraHours, punishmentHours, attendanceRate };
+}
+
+// The number of banked extra-work hours that fund one full day off (spec:
+// "8 extra work hours = 1 full 8-hour day off").
+export const EXTRA_HOURS_PER_DAY_OFF = 8;
+
+// The employee's current extra-hours balance: every extra hour they've
+// ever earned, minus every hour already spent on an APPROVED
+// EARNED_DAY_OFF request. Computed fresh from AttendanceRecord +
+// LeaveRequest every time rather than cached anywhere — there is no
+// ledger table, same "never store what can be recomputed" convention as
+// workingHours/attendanceRate. Called both by the read-only balance
+// endpoint and, authoritatively, inside the day-off approval transaction.
+export async function computeExtraHoursBalance(tx, employeeId) {
+  const [records, spentRequests] = await Promise.all([
+    tx.attendanceRecord.findMany({ where: { employeeId } }),
+    tx.leaveRequest.findMany({
+      where: { employeeId, type: "EARNED_DAY_OFF", status: "APPROVED" },
+      select: { hoursSpent: true },
+    }),
+  ]);
+  const earned = records.reduce((total, r) => total + computeExtraHours(r), 0);
+  const spent = spentRequests.reduce((total, r) => total + (r.hoursSpent ?? 0), 0);
+  return Math.max(earned - spent, 0);
+}
+
+// GET /api/attendance/extra-hours-balance — employee-only. Backs the
+// "Request Day Off" screen's available-balance display.
+export async function getExtraHoursBalance(req, res, next) {
+  try {
+    const balanceHours = await computeExtraHoursBalance(prisma, req.user.employeeId);
+    res.json({ balanceHours, hoursRequiredPerDayOff: EXTRA_HOURS_PER_DAY_OFF });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// POST /api/attendance/punishment-hours — staff-only, sets (does not
+// add to) a specific day's punishment hours. Mirrors
+// createRequiredHoursAdjustment's shape (append-only audit trail +
+// upserted current value) so punishment hours follow the exact same
+// pattern this codebase already established for required-hours overrides.
+export async function setPunishmentHours(req, res, next) {
+  try {
+    const { employeeId, date, hours, reason } = req.body;
+
+    await requireAccessibleEmployee(req.user, employeeId);
+
+    const existing = await prisma.attendanceRecord.findUnique({
+      where: { employeeId_date: { employeeId, date } },
+    });
+    const previousPunishmentHours = existing?.punishmentHours ?? 0;
+
+    const record = await prisma.attendanceRecord.upsert({
+      where: { employeeId_date: { employeeId, date } },
+      update: { punishmentHours: hours },
+      create: { employeeId, date, punishmentHours: hours, source: "MANUAL" },
+    });
+
+    await prisma.attendanceAuditLog.create({
+      data: {
+        action: "PUNISHMENT_HOURS_SET",
+        employeeId,
+        performedById: req.user.userId,
+        previousValue: { punishmentHours: previousPunishmentHours },
+        newValue: { punishmentHours: hours },
+        reason,
+      },
+    });
+
+    res.status(201).json({ record });
+  } catch (err) {
+    next(err);
+  }
 }
 
 // GET /api/attendance/month?year=&month= — the current employee's own
@@ -292,6 +378,7 @@ export async function getAttendanceMonth(req, res, next) {
     const days = records.map((record) => ({
       ...record,
       workingHours: computeWorkingHours(record),
+      extraHours: computeExtraHours(record),
       adjustments: adjustments.filter((a) => sameDay(a.date, record.date)),
     }));
 

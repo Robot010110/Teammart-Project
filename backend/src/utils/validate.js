@@ -64,6 +64,21 @@ export const updatePasswordSchema = z.object({
   newPassword: z.string().min(8, "Password must be at least 8 characters"),
 });
 
+// WhatsApp number — normalized to digits-only (an optional leading "+"
+// stripped along with spaces/dashes/parens) before validation, so a
+// malformed value can never reach the DB or later break a wa.me link
+// (ProfileHeaderCard builds `https://wa.me/<digits>` directly from this).
+export const updateMyProfileSchema = z.object({
+  whatsappNumber: z
+    .string()
+    .trim()
+    .transform((v) => v.replace(/[\s\-().]/g, "").replace(/^\+/, ""))
+    .refine((v) => /^\d{8,15}$/.test(v), {
+      message: "Enter a valid WhatsApp number, digits only (8-15 digits, country code included)",
+    })
+    .nullable(),
+});
+
 // ---------------------------------------------------------------------
 // Zones
 // ---------------------------------------------------------------------
@@ -264,6 +279,68 @@ export const createItemReportSchema = z.object({
   imageUrl: z.string().url().optional(),
 });
 
+// ---------------------------------------------------------------------
+// Wasted Overall — Worker-reported wasted produce, one of a fixed list
+// of 5 items (not tied to a Product catalog entry — see the
+// WastedOverallReport schema comment for why this isn't ItemReport).
+// ---------------------------------------------------------------------
+const WASTED_ITEMS = ["EGGS", "TOMATO", "POTATO", "CUCUMBER", "ONION"];
+
+export const createWastedOverallReportSchema = z.object({
+  item: z.enum(WASTED_ITEMS),
+  // Positive, capped at a sane maximum (a single report claiming several
+  // tonnes of onions is almost certainly bad input, not a real waste
+  // event) — rejects 0, negative, and unreasonably large values alike.
+  quantityKg: z.number().positive().max(1000),
+  photoUrl: z.string().url().optional(),
+  notes: z.string().max(1000).optional(),
+});
+
+// ---------------------------------------------------------------------
+// Chat — text + optional attachment (image via the pre-existing imageUrl
+// path, or file/audio/voice via the new attachment* fields). At least one
+// of body/imageUrl/attachmentUrl must be present — an entirely empty
+// message is rejected. attachmentSize/attachmentDurationSec are
+// self-reported (see prepareImageForUpload's own doc comment: there is no
+// real upload endpoint anywhere in this app yet, so nothing server-side
+// can independently confirm a declared byte size or duration) — the caps
+// here are defense-in-depth against obviously-bad values, not a
+// substitute for real server-side file inspection once a real upload
+// endpoint exists.
+// ---------------------------------------------------------------------
+export const sendMessageSchema = z
+  .object({
+    body: z.string().max(4000).optional().default(""),
+    imageUrl: z.string().url().optional(),
+    attachmentType: z.enum(["FILE", "AUDIO", "VOICE"]).optional(),
+    attachmentUrl: z.string().url().optional(),
+    attachmentName: z.string().max(255).optional(),
+    attachmentSize: z
+      .number()
+      .int()
+      .positive()
+      .max(15 * 1024 * 1024, "Attachment is too large (15MB max)")
+      .optional(),
+    attachmentDurationSec: z.number().int().positive().max(600).optional(),
+  })
+  .refine((data) => data.body.trim().length > 0 || !!data.imageUrl || !!data.attachmentUrl, {
+    message: "A message needs text, an image, or an attachment",
+    path: ["body"],
+  })
+  .refine((data) => !data.attachmentUrl || !!data.attachmentType, {
+    message: "attachmentType is required when attachmentUrl is set",
+    path: ["attachmentType"],
+  })
+  .refine((data) => !data.attachmentType || !!data.attachmentUrl, {
+    message: "attachmentUrl is required when attachmentType is set",
+    path: ["attachmentUrl"],
+  });
+
+export const listWastedOverallQuerySchema = z.object({
+  marketId: z.string().min(1).optional(),
+  status: z.enum(["DRAFT", "PENDING", "APPROVED", "REJECTED"]).optional(),
+});
+
 export const listItemReportsQuerySchema = z.object({
   year: z.coerce.number().int().min(2000).max(2100).optional(),
   month: z.coerce.number().int().min(1).max(12).optional(),
@@ -313,6 +390,13 @@ export const createRequiredHoursAdjustmentSchema = z.object({
   reason: z.string().min(2).max(500),
 });
 
+export const setPunishmentHoursSchema = z.object({
+  employeeId: z.string().min(1),
+  date: z.coerce.date(),
+  hours: z.number().min(0).max(24),
+  reason: z.string().min(2).max(500),
+});
+
 export const attendanceMonthQuerySchema = z.object({
   year: z.coerce.number().int().min(2000).max(2100).optional(),
   month: z.coerce.number().int().min(1).max(12).optional(),
@@ -358,7 +442,7 @@ export const listPriceReportsQuerySchema = z.object({
 export const createLeaveRequestSchema = z
   .object({
     date: z.coerce.date(),
-    type: z.enum(["MONTHLY_OFF", "PERSONAL_LEAVE"]),
+    type: z.enum(["MONTHLY_OFF", "PERSONAL_LEAVE", "EARNED_DAY_OFF"]),
     reason: z.string().min(2).max(500).optional(),
   })
   // Reason is required for Personal Leave but not for a scheduled Monthly

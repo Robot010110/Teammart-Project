@@ -184,6 +184,15 @@ enum AttendanceSource {
 enum LeaveRequestType {
   MONTHLY_OFF
   PERSONAL_LEAVE
+  // A day off funded by an employee's accumulated extra-work-hours
+  // balance (8 banked extra hours = 1 day off), instead of an
+  // employer-granted monthly off day or unpaid personal leave. See
+  // LeaveRequest.hoursSpent and attendanceController's balance
+  // computation — there is no separate ledger table; the balance is
+  // always derived from AttendanceRecord vs. already-APPROVED
+  // EARNED_DAY_OFF requests, same "never store what can be computed"
+  // convention as workingHours/attendanceRate.
+  EARNED_DAY_OFF
 }
 
 enum LeaveRequestStatus {
@@ -234,6 +243,7 @@ enum NotificationType {
   LEAVE_REVIEWED
   CHAT_MESSAGE
   ANNOUNCEMENT
+  WASTED_OVERALL
 }
 
 // ---------------------------------------------------------------------
@@ -248,6 +258,16 @@ enum ConversationType {
   MARKET_GROUP
   WARNINGS
   DIRECT
+}
+
+// FILE/AUDIO/VOICE only — an image attachment is still represented by
+// Message.imageUrl (pre-existing, already wired end to end); this enum
+// exists so the frontend can pick the right playback/preview UI for the
+// other three kinds without sniffing a raw MIME string.
+enum MessageAttachmentType {
+  FILE
+  AUDIO
+  VOICE
 }
 
 // ---------------------------------------------------------------------
@@ -286,6 +306,8 @@ model User {
   uploadedAttendanceImports AttendanceImportBatch[]   @relation("AttendanceImportUploader")
   reviewedLeaveRequests    LeaveRequest[]             @relation("LeaveReviewer")
   assignedDepartments      DepartmentAssignment[]     @relation("DepartmentAssigner")
+  reviewedWastedOverallReports WastedOverallReport[]  @relation("WastedOverallReviewer")
+  notifications                Notification[]         @relation("NotificationRecipientUser")
 
   sentMessages Message[] @relation("MessageSenderUser")
 }
@@ -316,6 +338,7 @@ model Market {
   products     Product[]
   itemReports  ItemReport[]
   priceReports PriceReport[]
+  wastedOverallReports WastedOverallReport[]
   leaveRequests LeaveRequest[]
   attendanceImportBatches AttendanceImportBatch[]
   conversations Conversation[]
@@ -371,6 +394,7 @@ model Employee {
   requiredHoursAdjustments  RequiredHoursAdjustment[]
   cashierCleaningLogs       CashierCleaningLog[]
   priceReports              PriceReport[]
+  wastedOverallReports      WastedOverallReport[]
   leaveRequests             LeaveRequest[]
   departmentAssignments     DepartmentAssignment[]
   auditLogEntries           AttendanceAuditLog[]
@@ -598,6 +622,12 @@ model AttendanceRecord {
   breakEnd      DateTime?
   dayOffType    DayOffType? // only meaningful when status = DAY_OFF
   requiredHours Int              @default(8) // 0-16, enforced in validate.js
+  // Explicit penalty hours for this day, set only by staff (see
+  // attendanceController.setPunishmentHours) — unlike extra hours (always
+  // derived as max(workingHours - requiredHours, 0), never stored, same
+  // as workingHours itself), a penalty has no computable source of truth
+  // and must be recorded directly.
+  punishmentHours Float          @default(0)
   source        AttendanceSource @default(MANUAL)
   // The original imported row, preserved verbatim for audit purposes
   // (spec: "Preserve the original imported data") — only set when
@@ -689,6 +719,12 @@ model LeaveRequest {
   date        DateTime
   type        LeaveRequestType
   reason      String? // required for PERSONAL_LEAVE, enforced in validate.js
+  // Only set (and only meaningful) for type = EARNED_DAY_OFF — how many
+  // extra-hours-balance hours this request spends. Re-validated against
+  // the employee's current balance at both create and approve time (see
+  // leaveRequestsController) — approve time is authoritative since the
+  // balance can change between request and review.
+  hoursSpent  Int?
   status      LeaveRequestStatus  @default(PENDING)
   submittedAt DateTime            @default(now())
 
@@ -816,12 +852,68 @@ model PriceReport {
   @@index([reportedAt])
 }
 
+// The five produce items this feature supports — a fixed enum, not a
+// Product catalog reference. Deliberately NOT reusing ItemReport: that
+// model has a required, non-nullable productId hard-FK'd to a real
+// market-scoped Product row and unconditionally decrements its
+// stockQuantity in the same transaction — neither of those is meaningful
+// for a fixed produce list with no catalog entry. This model mirrors
+// PriceReport's shape instead (no product/inventory link, just fields +
+// an optional photo + a route to the Supervisor for review) for the same
+// reason PriceReport itself isn't ItemReport.
+enum WastedItem {
+  EGGS
+  TOMATO
+  POTATO
+  CUCUMBER
+  ONION
+}
+
+// ---------------------------------------------------------------------
+// WastedOverallReport — a Worker reporting wasted produce (one of the
+// five WastedItem values) with a photo and a kilogram quantity. Routed
+// automatically to the Supervisor of the reporting employee's market
+// (Employee.marketId -> Market.supervisorId), who is notified via the
+// existing Notification system (type WASTED_OVERALL) — the worker never
+// picks a Supervisor themselves.
+// ---------------------------------------------------------------------
+model WastedOverallReport {
+  id         String         @id @default(cuid())
+  item       WastedItem
+  quantityKg Float // > 0, enforced in validate.js
+  photoUrl   String?
+  notes      String?
+  status     ActivityStatus @default(PENDING)
+
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id])
+  marketId   String
+  market     Market   @relation(fields: [marketId], references: [id])
+
+  reviewedById Int?
+  reviewedBy   User?     @relation("WastedOverallReviewer", fields: [reviewedById], references: [id])
+  reviewedAt   DateTime?
+
+  reportedAt DateTime @default(now())
+
+  @@index([employeeId])
+  @@index([marketId])
+  @@index([reportedAt])
+}
+
 // ---------------------------------------------------------------------
 // Notification — a real feed, replacing what used to be just a
 // TODO comment ("this toast is NOT a real notification system") in
 // EmployeeWorkspace.jsx. See the NotificationType comment above for
 // which concrete actions write one.
 // ---------------------------------------------------------------------
+// Recipient is EITHER an Employee OR a staff User, never both — same
+// dual-nullable-FK pattern already used by Message's
+// senderEmployeeId/senderUserId (enforced in the controller, not the DB,
+// per that model's own comment on why). Added for WASTED_OVERALL: a
+// Worker's report notifies their market's Supervisor, who is staff, not
+// an Employee — every notification before this one only ever had an
+// Employee recipient, so this couldn't be represented before.
 model Notification {
   id    String           @id @default(cuid())
   type  NotificationType
@@ -829,8 +921,10 @@ model Notification {
   body  String
   read  Boolean          @default(false)
 
-  employeeId String
-  employee   Employee @relation(fields: [employeeId], references: [id])
+  employeeId String?
+  employee   Employee? @relation(fields: [employeeId], references: [id])
+  userId     Int?
+  user       User?     @relation("NotificationRecipientUser", fields: [userId], references: [id])
 
   // Lets the frontend route to the right screen on tap without parsing
   // `body` — e.g. linkType "SUDDEN_TASK" + linkId = that task's id.
@@ -840,6 +934,7 @@ model Notification {
   createdAt DateTime @default(now())
 
   @@index([employeeId, read])
+  @@index([userId, read])
 }
 
 // ---------------------------------------------------------------------
@@ -880,8 +975,17 @@ model Message {
   conversationId String
   conversation   Conversation @relation(fields: [conversationId], references: [id])
 
-  body     String
-  imageUrl String?
+  body     String // may be "" for an attachment-only message (image/file/audio/voice with no caption)
+  imageUrl String? // existing image-attachment path, left as-is — see attachmentType for file/audio/voice
+
+  // Generic attachment path added for file/audio/voice — image sending
+  // already worked via imageUrl before this, so that field/UI is left
+  // untouched rather than folded into this generic shape too.
+  attachmentType        MessageAttachmentType?
+  attachmentUrl         String?
+  attachmentName        String? // original filename, for FILE
+  attachmentSize        Int? // bytes
+  attachmentDurationSec Int? // AUDIO / VOICE playback duration
 
   senderEmployeeId String?
   senderEmployee   Employee? @relation("MessageSenderEmployee", fields: [senderEmployeeId], references: [id])

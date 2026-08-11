@@ -60,6 +60,30 @@ export async function getProfile(req, res, next) {
   }
 }
 
+// PATCH /api/profile — employee-only self-service profile update.
+// Currently only WhatsApp number — name is already covered by
+// Employee.name (no duplicate identity field), and every other profile
+// field (department, position, etc.) is management-assigned, not
+// self-service. Validation/normalization (digits only, no "+", no
+// spaces) happens in validate.js's updateMyProfileSchema so a malformed
+// value can never reach the DB or later break a wa.me link.
+export async function updateMyProfile(req, res, next) {
+  try {
+    if (req.user.kind !== "employee") {
+      return res.status(403).json({ error: "This action requires an employee login" });
+    }
+
+    const employee = await prisma.employee.update({
+      where: { id: req.user.employeeId },
+      data: { whatsappNumber: req.body.whatsappNumber },
+    });
+
+    res.json({ whatsappNumber: employee.whatsappNumber });
+  } catch (err) {
+    next(err);
+  }
+}
+
 // PATCH /api/profile/password — change your own password (staff or
 // employee). Requires the current password so a stolen/lingering session
 // can't be used to lock the real owner out.

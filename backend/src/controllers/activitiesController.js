@@ -13,6 +13,89 @@ import { prisma } from "../lib/prisma.js";
 // Supervisor review feature is added later.
 const EDITABLE_STATUSES = ["DRAFT", "PENDING"];
 
+// Performance = approved reviewed work / all reviewed work. "Reviewed"
+// means APPROVED or REJECTED only — a DRAFT or PENDING activity hasn't
+// been judged yet and must not count either way (an employee who's just
+// been busy submitting drafts shouldn't see their rate swing on unreviewed
+// volume). Deterministic, documented, and computed in this one place so
+// the "current" figure and every history bucket use the exact same rule.
+function computeActivityPerformance(activities) {
+  const approved = activities.filter((a) => a.status === "APPROVED").length;
+  const rejected = activities.filter((a) => a.status === "REJECTED").length;
+  const pending = activities.filter((a) => a.status === "PENDING").length;
+  const totalReviewed = approved + rejected;
+  const rate = totalReviewed > 0 ? (approved / totalReviewed) * 100 : null;
+  return { approved, rejected, pending, totalReviewed, rate };
+}
+
+function startOfWeek(date) {
+  // Monday-start week, matching how most of this app's date logic treats
+  // a "week" elsewhere (attendance calendars render Mon-first rows).
+  const d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const day = d.getDay(); // 0 = Sunday
+  const diff = (day === 0 ? -6 : 1) - day;
+  d.setDate(d.getDate() + diff);
+  return d;
+}
+
+// GET /api/activities/performance — the current employee's lifetime
+// Performance figure (spec: a real number from real reviewed-activity
+// data, never a hardcoded percentage; a graceful "no data yet" state
+// when there's nothing reviewed).
+export async function getPerformanceSummary(req, res, next) {
+  try {
+    const activities = await prisma.activity.findMany({
+      where: { employeeId: req.user.employeeId },
+      select: { status: true },
+    });
+    res.json(computeActivityPerformance(activities));
+  } catch (err) {
+    next(err);
+  }
+}
+
+// GET /api/activities/performance-history?weeks=4&months=6 — Performance
+// per recent calendar week and per recent calendar month, current
+// (in-progress) period included and labeled as such — unlike Attendance
+// Rate, which explicitly never shows the current month as final, this
+// screen's own spec explicitly asks for a live "This Week"/current-month
+// figure alongside history, so it's included rather than withheld.
+export async function getActivityPerformanceHistory(req, res, next) {
+  try {
+    const weeks = Math.min(Number(req.query.weeks) || 4, 12);
+    const months = Math.min(Number(req.query.months) || 6, 24);
+    const now = new Date();
+
+    const activities = await prisma.activity.findMany({
+      where: { employeeId: req.user.employeeId },
+      select: { status: true, date: true },
+    });
+
+    const weekly = [];
+    for (let i = 0; i < weeks; i += 1) {
+      const weekStart = new Date(startOfWeek(now));
+      weekStart.setDate(weekStart.getDate() - i * 7);
+      const weekEnd = new Date(weekStart);
+      weekEnd.setDate(weekEnd.getDate() + 7);
+      const inWeek = activities.filter((a) => a.date >= weekStart && a.date < weekEnd);
+      weekly.push({ weekStart, weekEnd, ...computeActivityPerformance(inWeek) });
+    }
+
+    const monthly = [];
+    for (let i = 0; i < months; i += 1) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const monthStart = new Date(d.getFullYear(), d.getMonth(), 1);
+      const monthEnd = new Date(d.getFullYear(), d.getMonth() + 1, 1);
+      const inMonth = activities.filter((a) => a.date >= monthStart && a.date < monthEnd);
+      monthly.push({ year: d.getFullYear(), month: d.getMonth() + 1, ...computeActivityPerformance(inMonth) });
+    }
+
+    res.json({ weekly, monthly });
+  } catch (err) {
+    next(err);
+  }
+}
+
 // GET /api/activities?category=&status= — the current employee's own
 // activity log only.
 export async function listActivities(req, res, next) {

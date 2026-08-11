@@ -13,6 +13,17 @@ export function createNotification({ employeeId, type, title, body, linkType, li
   });
 }
 
+// Staff-recipient counterpart to createNotification — for the one case
+// where the recipient is a User, not an Employee (a Worker's Wasted
+// Overall report notifying their market's Supervisor). See the
+// Notification model comment for why both employeeId and userId exist,
+// dual-nullable, exactly one ever set.
+export function createNotificationForUser({ userId, type, title, body, linkType, linkId }) {
+  return prisma.notification.create({
+    data: { userId, type, title, body, linkType, linkId },
+  });
+}
+
 // Fan-out version for market-wide events (a Warnings broadcast, or any
 // future "notify everyone in this market" action) — one row per employee
 // rather than a single shared row, so read state is per-employee like

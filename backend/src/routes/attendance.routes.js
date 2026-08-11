@@ -5,6 +5,8 @@ import {
   createRequiredHoursAdjustment,
   getAttendanceMonth,
   getPerformanceHistory,
+  getExtraHoursBalance,
+  setPunishmentHours,
   exportAttendanceReport,
 } from "../controllers/attendanceController.js";
 import { requireAuth, requireStaffRole, requireEmployeeAuth } from "../middleware/auth.js";
@@ -12,6 +14,7 @@ import {
   validateBody,
   validateQuery,
   createRequiredHoursAdjustmentSchema,
+  setPunishmentHoursSchema,
   attendanceMonthQuerySchema,
   attendanceReportQuerySchema,
 } from "../utils/validate.js";
@@ -29,6 +32,7 @@ router.use(requireAuth);
 
 router.get("/month", requireEmployeeAuth, validateQuery(attendanceMonthQuerySchema), getAttendanceMonth);
 router.get("/performance-history", requireEmployeeAuth, getPerformanceHistory);
+router.get("/extra-hours-balance", requireEmployeeAuth, getExtraHoursBalance);
 
 // Staff-only. No frontend caller yet (no Supervisor/import UI) — prepared
 // for that module the same way Sudden Task assignment was.
@@ -43,6 +47,12 @@ router.post(
   requireStaffRole("ADMIN", "REGIONAL_MANAGER", "SUPERVISOR"),
   validateBody(createRequiredHoursAdjustmentSchema),
   createRequiredHoursAdjustment
+);
+router.post(
+  "/punishment-hours",
+  requireStaffRole("ADMIN", "REGIONAL_MANAGER", "SUPERVISOR"),
+  validateBody(setPunishmentHoursSchema),
+  setPunishmentHours
 );
 router.get(
   "/report/export",
