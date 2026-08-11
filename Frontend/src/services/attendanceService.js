@@ -23,3 +23,10 @@ export function getPerformanceHistory({ months } = {}) {
   const query = params.toString();
   return apiRequest(`/attendance/performance-history${query ? `?${query}` : ""}`);
 }
+
+// getExtraHoursBalance — the current employee's banked extra-work-hours
+// balance (see attendanceController.computeExtraHoursBalance for how
+// it's derived — never a stored/cached number).
+export function getExtraHoursBalance() {
+  return apiRequest("/attendance/extra-hours-balance");
+}

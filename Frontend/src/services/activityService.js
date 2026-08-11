@@ -63,6 +63,24 @@ export function deleteActivity(id) {
   return apiRequest(`/activities/${id}`, { method: "DELETE" });
 }
 
+// getPerformanceSummary / getActivityPerformanceHistory — the real
+// Performance figure (approved / (approved+rejected) reviewed
+// Activities, never a hardcoded percentage — see
+// activitiesController.computeActivityPerformance). Named distinctly
+// from attendanceService's getPerformanceHistory (Attendance Rate) —
+// these are two different, real metrics, not the same thing renamed.
+export function getPerformanceSummary() {
+  return apiRequest("/activities/performance");
+}
+
+export function getActivityPerformanceHistory({ weeks, months } = {}) {
+  const params = new URLSearchParams();
+  if (weeks) params.set("weeks", weeks);
+  if (months) params.set("months", months);
+  const query = params.toString();
+  return apiRequest(`/activities/performance-history${query ? `?${query}` : ""}`);
+}
+
 export function addActivityImage(activityId, url) {
   return apiRequest(`/activities/${activityId}/images`, { method: "POST", body: { url } });
 }

@@ -15,7 +15,7 @@ import { useToast } from "../../hooks/useToast";
 // (Worker) and CashierWorkspace.jsx (Cashier) — same component, no
 // duplication, since the feature is identical for both roles.
 
-const TYPE_LABEL = { MONTHLY_OFF: "Monthly Off Day", PERSONAL_LEAVE: "Personal Leave" };
+const TYPE_LABEL = { MONTHLY_OFF: "Monthly Off Day", PERSONAL_LEAVE: "Personal Leave", EARNED_DAY_OFF: "Earned Day Off" };
 
 const dateLabel = (isoString) =>
   new Date(isoString).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });

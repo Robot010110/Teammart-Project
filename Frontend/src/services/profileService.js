@@ -9,3 +9,11 @@ import { apiRequest } from "./apiClient";
 export async function getProfile() {
   return apiRequest("/profile");
 }
+
+// updateMyWhatsApp — the only self-service profile field today (see
+// profileController.updateMyProfile). Pass null to clear it. Server-side
+// normalization/validation (digits only, 8-15 digits) means this can
+// still reject a malformed value — callers should surface ApiError.
+export function updateMyWhatsApp(whatsappNumber) {
+  return apiRequest("/profile", { method: "PATCH", body: { whatsappNumber } });
+}

@@ -4,17 +4,13 @@ import { CATEGORY_LABELS } from "../../data/workspaceData";
 import { canEditActivity, canDeleteActivity } from "../../data/activityRules";
 import ActivityStatusPill from "../common/ActivityStatusPill";
 
-// TaskStatusTabs.jsx — Draft / Pending / Completed / Approved / Rejected
-// filters over the employee's own Activity history (GET /api/activities).
-//
-// Only "Draft", "Pending", "Approved", "Rejected" are real backend
-// statuses (ActivityStatus in schema.prisma) — those four and only those
-// four ever come back from the API. "Completed" is NOT a status: it is a
-// purely client-side filter that groups Approved + Rejected together
-// ("the review cycle is over, one way or the other"). It never gets sent
-// to the backend and no Activity object ever has status "Completed" — see
-// matchesTab() below, where it's the only tab computed from an OR of two
-// real statuses instead of an equality check against one.
+// TaskStatusTabs.jsx — Draft / Pending / Approved / Rejected filters over
+// the employee's own Activity history (GET /api/activities). These four
+// tabs map 1:1 onto the real backend ActivityStatus enum
+// (schema.prisma) — there is deliberately no synthetic "Completed" tab
+// grouping Approved+Rejected: the Worker Activity status model reflects
+// the actual backend lifecycle exactly, nothing derived/invented on top
+// of it.
 //
 // TODO(supervisor-review): today nothing in this app ever sets an
 // Activity to Approved/Rejected — there is no review endpoint yet (see
@@ -28,12 +24,11 @@ import ActivityStatusPill from "../common/ActivityStatusPill";
 // live in data/activityRules.js so this file, EmployeeWorkspace.jsx, and
 // SubmitTaskModal.jsx can't drift apart on what "editable" means.
 
-const TABS = ["Draft", "Pending", "Completed", "Approved", "Rejected"];
+const TABS = ["Draft", "Pending", "Approved", "Rejected"];
 
 function matchesTab(activity, tab) {
   if (tab === "Draft") return activity.status === "DRAFT";
   if (tab === "Pending") return activity.status === "PENDING";
-  if (tab === "Completed") return activity.status === "APPROVED" || activity.status === "REJECTED";
   if (tab === "Approved") return activity.status === "APPROVED";
   if (tab === "Rejected") return activity.status === "REJECTED";
   return false;

@@ -32,8 +32,19 @@ export function listMessages(conversationId, { after } = {}) {
   return apiRequest(`/conversations/${conversationId}/messages${query ? `?${query}` : ""}`);
 }
 
-export function sendMessage(conversationId, { body, imageUrl } = {}) {
-  return apiRequest(`/conversations/${conversationId}/messages`, { method: "POST", body: { body, imageUrl } });
+// body may be "" for an attachment-only message. imageUrl keeps the
+// pre-existing image path; attachmentType/attachmentUrl/attachmentName/
+// attachmentSize/attachmentDurationSec are the new generic
+// file/audio/voice path (see backend sendMessageSchema — exactly one of
+// body/imageUrl/attachmentUrl must be present, enforced server-side).
+export function sendMessage(
+  conversationId,
+  { body, imageUrl, attachmentType, attachmentUrl, attachmentName, attachmentSize, attachmentDurationSec } = {}
+) {
+  return apiRequest(`/conversations/${conversationId}/messages`, {
+    method: "POST",
+    body: { body, imageUrl, attachmentType, attachmentUrl, attachmentName, attachmentSize, attachmentDurationSec },
+  });
 }
 
 export function markConversationRead(conversationId) {

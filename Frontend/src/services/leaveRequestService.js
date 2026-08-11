@@ -8,7 +8,9 @@ import { apiRequest } from "./apiClient";
 // as several other backend-ready endpoints in this app. Shared by both
 // EmployeeWorkspace.jsx (Worker) and CashierWorkspace.jsx (Cashier).
 
-// payload: { date, type: "MONTHLY_OFF" | "PERSONAL_LEAVE", reason? }
+// payload: { date, type: "MONTHLY_OFF" | "PERSONAL_LEAVE" | "EARNED_DAY_OFF", reason? }
+// hoursSpent for EARNED_DAY_OFF is always set server-side (fixed 8h
+// exchange rate) — never accepted from here, see leaveRequestsController.
 export function createLeaveRequest(payload) {
   return apiRequest("/leave-requests", { method: "POST", body: payload });
 }

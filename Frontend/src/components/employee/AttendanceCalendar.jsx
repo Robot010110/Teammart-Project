@@ -66,6 +66,8 @@ export default function AttendanceCalendar({ days }) {
                   <span>Out {timeLabel(day.checkOut)}</span>
                   {day.workingHours != null && <span>{day.workingHours.toFixed(1)}h worked</span>}
                   <span>{day.requiredHours}h required</span>
+                  {day.extraHours > 0 && <span className="text-emerald-400">+{day.extraHours.toFixed(1)}h extra</span>}
+                  {day.punishmentHours > 0 && <span className="text-red-400">-{day.punishmentHours.toFixed(1)}h penalty</span>}
                 </div>
               )}
               {day.status === "DAY_OFF" && day.dayOffType && (

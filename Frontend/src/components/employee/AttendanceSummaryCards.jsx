@@ -1,4 +1,4 @@
-import { CalendarCheck, CalendarOff, Clock3, ListChecks, Gauge } from "lucide-react";
+import { CalendarCheck, CalendarOff, Clock3, ListChecks, Gauge, Zap, AlertTriangle } from "lucide-react";
 
 // AttendanceSummaryCards.jsx — the Monthly Attendance Summary tiles:
 // Working Days, Days Off, Total Hours Worked, Total Required Hours, and
@@ -22,13 +22,25 @@ function rateTone(rate) {
 const formatHours = (hours) => `${Number(hours).toFixed(1)}h`;
 
 export default function AttendanceSummaryCards({ summary }) {
-  const { totalWorkingDays, daysOff, totalHoursWorked, totalRequiredHours, attendanceRate } = summary;
+  const { totalWorkingDays, daysOff, totalHoursWorked, totalRequiredHours, extraHours, punishmentHours, attendanceRate } = summary;
 
   const items = [
     { icon: CalendarCheck, label: "Working Days", value: totalWorkingDays },
     { icon: CalendarOff, label: "Days Off", value: daysOff },
     { icon: Clock3, label: "Total Hours Worked", value: formatHours(totalHoursWorked) },
     { icon: ListChecks, label: "Total Required Hours", value: formatHours(totalRequiredHours) },
+    {
+      icon: Zap,
+      label: "Extra Hours",
+      value: formatHours(extraHours ?? 0),
+      valueClass: extraHours > 0 ? "text-emerald-400" : undefined,
+    },
+    {
+      icon: AlertTriangle,
+      label: "Punishment Hours",
+      value: formatHours(punishmentHours ?? 0),
+      valueClass: punishmentHours > 0 ? "text-red-400" : undefined,
+    },
     {
       icon: Gauge,
       label: "Attendance Rate",

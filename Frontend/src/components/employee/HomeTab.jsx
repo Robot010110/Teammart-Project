@@ -1,13 +1,35 @@
 import { useState } from "react";
-import { Bell, BellOff, CheckCheck, ClipboardList, TrendingUp, ChevronRight } from "lucide-react";
+import { Bell, BellOff, CheckCheck, MessageCircle, PackageX, ClipboardList, ChevronRight } from "lucide-react";
 import { useAsync } from "../../hooks/useAsync";
 import ProfileHeaderCard from "./ProfileHeaderCard";
+import PerformanceCircle from "./PerformanceCircle";
+import PerformanceHistoryScreen from "./PerformanceHistoryScreen";
+import AttendanceSection from "./AttendanceSection";
 import ErrorBanner from "../common/ErrorBanner";
 import { SkeletonCard } from "../common/SkeletonCard";
 import { getProfile } from "../../services/profileService";
-import { getPerformanceHistory } from "../../services/attendanceService";
+import { getPerformanceSummary } from "../../services/activityService";
 import { listSuddenTasks } from "../../services/suddenTaskService";
 import { listMyNotifications, markNotificationRead, markAllNotificationsRead } from "../../services/notificationService";
+
+function TaskCountTile({ count, onClick }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex-1 min-w-0 flex flex-col items-center justify-center gap-2 rounded-2xl p-4 bg-[#171C2E]/80 border border-white/[0.06] backdrop-blur-xl active:bg-[#1A1F33] transition-colors"
+    >
+      <span className="w-11 h-11 rounded-full bg-[#F47A20]/10 flex items-center justify-center text-[#F47A20]">
+        <ClipboardList size={18} />
+      </span>
+      <span className="flex items-center gap-1 text-lg font-bold text-white">
+        {count == null ? "—" : count}
+        <ChevronRight size={14} className="text-[#4C5266]" />
+      </span>
+      <span className="text-xs font-medium text-[#9AA1B4]">Active Tasks</span>
+    </button>
+  );
+}
 
 function timeAgo(iso) {
   const diffMs = Date.now() - new Date(iso).getTime();
@@ -17,34 +39,6 @@ function timeAgo(iso) {
   const hours = Math.floor(minutes / 60);
   if (hours < 24) return `${hours}h ago`;
   return `${Math.floor(hours / 24)}d ago`;
-}
-
-// The most recent *completed* month with data — Home never presents the
-// in-progress current month as a final Attendance Rate (see
-// backend/src/controllers/attendanceController.js's getPerformanceHistory
-// for why current month is excluded entirely).
-function useLastCompletedAttendanceRate() {
-  return useAsync(() => getPerformanceHistory({ months: 1 }), { deps: [] });
-}
-
-function StatTile({ icon: Icon, label, value, sublabel, onClick }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="flex-1 min-w-0 text-left rounded-2xl p-4 bg-[#171C2E]/80 border border-white/[0.06] backdrop-blur-xl active:bg-[#1A1F33] transition-colors"
-    >
-      <div className="flex items-center justify-between mb-2">
-        <span className="w-8 h-8 rounded-lg bg-[#F47A20]/10 flex items-center justify-center text-[#F47A20]">
-          <Icon size={16} />
-        </span>
-        <ChevronRight size={16} className="text-[#4C5266]" />
-      </div>
-      <p className="text-xl font-bold text-white truncate">{value}</p>
-      <p className="text-xs text-[#8B93A8] mt-0.5">{label}</p>
-      {sublabel ? <p className="text-[11px] text-[#4C5266] mt-1">{sublabel}</p> : null}
-    </button>
-  );
 }
 
 function NotificationRow({ notification, onRead }) {
@@ -70,13 +64,32 @@ function NotificationRow({ notification, onRead }) {
   );
 }
 
-// HomeTab.jsx — profile header + Attendance-rate / Sudden-Tasks tiles
-// (tap-through, via onNavigate) + a notifications preview with "View All".
-// `onNavigate(tabKey)` switches the bottom-nav tab from EmployeeWorkspace/
-// CashierWorkspace's lifted activeTab state (AppShell.jsx).
+function QuickAction({ icon: Icon, label, onClick }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex-1 flex items-center justify-center gap-2 rounded-xl py-3 text-sm font-medium text-[#9AA1B4] bg-white/[0.05] hover:bg-white/[0.09] active:bg-white/[0.12] transition-colors"
+    >
+      <Icon size={16} /> {label}
+    </button>
+  );
+}
+
+// HomeTab.jsx — the Worker/Cashier personal dashboard:
+// Profile header (identity, department, WhatsApp)
+//   -> Performance (real circular indicator, tap for history)
+//   -> Attendance (the full monthly summary + calendar + day-off request,
+//      visible right here rather than requiring navigation elsewhere)
+//   -> Notifications preview + quick links to Chat / Wasted Overall.
+//
+// The old prominent Sudden Tasks section is deliberately gone from this
+// page (spec: Home should no longer be dominated by tasks) — Sudden
+// Tasks are still fully available via the bottom-nav Tasks tab, nothing
+// about that feature was removed, only its Home-page prominence.
 export default function HomeTab({ onNavigate }) {
   const { data: profile, error: profileError, loading: profileLoading, reload: reloadProfile } = useAsync(getProfile, { deps: [] });
-  const { data: history } = useLastCompletedAttendanceRate();
+  const { data: performance } = useAsync(getPerformanceSummary, { deps: [] });
   const { data: suddenTasks } = useAsync(() => listSuddenTasks({ status: "ASSIGNED" }), { deps: [] });
   const {
     data: notificationsData,
@@ -87,12 +100,7 @@ export default function HomeTab({ onNavigate }) {
   } = useAsync(() => listMyNotifications({ limit: 30 }), { deps: [] });
 
   const [showAll, setShowAll] = useState(false);
-
-  const lastMonth = history?.[0];
-  const rate = lastMonth?.summary?.attendanceRate;
-  const rateLabel = rate == null ? "—" : `${Math.round(rate)}%`;
-
-  const activeTaskCount = suddenTasks?.length ?? null;
+  const [showPerformanceHistory, setShowPerformanceHistory] = useState(false);
 
   const notifications = notificationsData?.notifications ?? [];
   const unreadCount = notificationsData?.unreadCount ?? 0;
@@ -125,6 +133,14 @@ export default function HomeTab({ onNavigate }) {
     }
   }
 
+  if (showPerformanceHistory) {
+    return (
+      <div className="min-h-full bg-[#1A1A1A]">
+        <PerformanceHistoryScreen onBack={() => setShowPerformanceHistory(false)} />
+      </div>
+    );
+  }
+
   return (
     <div className="px-4 sm:px-6 py-6 max-w-4xl mx-auto animate-fade-up">
       {profileLoading ? (
@@ -135,22 +151,26 @@ export default function HomeTab({ onNavigate }) {
         <ProfileHeaderCard profile={profile} />
       )}
 
-      <div className="mt-4 flex gap-3">
-        <StatTile
-          icon={TrendingUp}
-          label="Attendance Rate"
-          value={rateLabel}
-          sublabel={lastMonth ? "Last completed month" : "No data yet"}
-          onClick={() => onNavigate?.("profile")}
-        />
-        <StatTile
-          icon={ClipboardList}
-          label="Sudden Tasks"
-          value={activeTaskCount == null ? "—" : activeTaskCount}
-          sublabel="Active right now"
-          onClick={() => onNavigate?.("tasks")}
-        />
+      <div className="mt-4 flex gap-3 items-stretch">
+        {profile?.role !== "CASHIER" && (
+          <PerformanceCircle rate={performance?.rate} onClick={() => setShowPerformanceHistory(true)} />
+        )}
+        <TaskCountTile count={suddenTasks?.length ?? null} onClick={() => onNavigate?.("tasks")} />
       </div>
+
+      <section className="mt-6">
+        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-[#8B93A8]">Attendance</h2>
+        <AttendanceSection />
+      </section>
+
+      <section className="mt-6">
+        <div className="flex gap-3">
+          <QuickAction icon={MessageCircle} label="Chat" onClick={() => onNavigate?.("chat")} />
+          {profile?.role !== "CASHIER" && (
+            <QuickAction icon={PackageX} label="Wasted Overall" onClick={() => onNavigate?.("activity")} />
+          )}
+        </div>
+      </section>
 
       <section className="mt-6">
         <div className="flex items-center justify-between mb-3">
