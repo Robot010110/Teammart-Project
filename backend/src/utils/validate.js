@@ -231,6 +231,13 @@ export const listActivitiesQuerySchema = z.object({
   status: z.enum(["DRAFT", "PENDING", "APPROVED", "REJECTED"]).optional(),
 });
 
+export const listActivitiesMarketQuerySchema = z.object({
+  marketId: z.string().min(1).optional(),
+  employeeId: z.string().min(1).optional(),
+  category: z.enum(ACTIVITY_CATEGORIES).optional(),
+  status: z.enum(["DRAFT", "PENDING", "APPROVED", "REJECTED"]).optional(),
+});
+
 // ---------------------------------------------------------------------
 // Sudden Tasks — a Supervisor/Manager/Admin pushing an urgent task at an
 // employee. Separate module from both Tasks and Activities.
@@ -346,6 +353,13 @@ export const listItemReportsQuerySchema = z.object({
   month: z.coerce.number().int().min(1).max(12).optional(),
 });
 
+export const listItemReportsMarketQuerySchema = z.object({
+  marketId: z.string().min(1).optional(),
+  employeeId: z.string().min(1).optional(),
+  condition: z.enum(ITEM_CONDITIONS).optional(),
+  status: z.enum(["DRAFT", "PENDING", "APPROVED", "REJECTED"]).optional(),
+});
+
 // ---------------------------------------------------------------------
 // Attendance — imported check-in/out records + supervisor adjustments.
 // ---------------------------------------------------------------------
@@ -383,10 +397,12 @@ export const attendanceImportQuerySchema = z.object({
   periodEnd: z.coerce.date().optional(),
 });
 
+// Required hours: 4-16/day (Supervisor Mode spec — default 8, must never
+// go below 4 or above 16).
 export const createRequiredHoursAdjustmentSchema = z.object({
   employeeId: z.string().min(1),
   date: z.coerce.date(),
-  newRequiredHours: z.number().int().min(0).max(16),
+  newRequiredHours: z.number().int().min(4).max(16),
   reason: z.string().min(2).max(500),
 });
 

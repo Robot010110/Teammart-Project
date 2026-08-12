@@ -4,8 +4,10 @@ import {
   importAttendanceRecords,
   createRequiredHoursAdjustment,
   getAttendanceMonth,
+  getEmployeeAttendanceMonth,
   getPerformanceHistory,
   getExtraHoursBalance,
+  getEmployeeExtraHoursBalance,
   setPunishmentHours,
   exportAttendanceReport,
 } from "../controllers/attendanceController.js";
@@ -33,6 +35,20 @@ router.use(requireAuth);
 router.get("/month", requireEmployeeAuth, validateQuery(attendanceMonthQuerySchema), getAttendanceMonth);
 router.get("/performance-history", requireEmployeeAuth, getPerformanceHistory);
 router.get("/extra-hours-balance", requireEmployeeAuth, getExtraHoursBalance);
+
+// Staff-only, Supervisor Mode's Employee Attendance screen — an arbitrary
+// employee's month/balance instead of the caller's own.
+router.get(
+  "/employee/:employeeId/month",
+  requireStaffRole("ADMIN", "REGIONAL_MANAGER", "SUPERVISOR"),
+  validateQuery(attendanceMonthQuerySchema),
+  getEmployeeAttendanceMonth
+);
+router.get(
+  "/employee/:employeeId/extra-hours-balance",
+  requireStaffRole("ADMIN", "REGIONAL_MANAGER", "SUPERVISOR"),
+  getEmployeeExtraHoursBalance
+);
 
 // Staff-only. No frontend caller yet (no Supervisor/import UI) — prepared
 // for that module the same way Sudden Task assignment was.

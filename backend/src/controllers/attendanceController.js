@@ -351,6 +351,42 @@ export async function setPunishmentHours(req, res, next) {
   }
 }
 
+// Shared by the employee-facing getAttendanceMonth and the staff-facing
+// getEmployeeAttendanceMonth (Supervisor Mode) — same shape, only the
+// caller differs (req.user.employeeId vs. a :employeeId route param
+// already ownership-checked by the caller).
+async function buildMonthResponse(employeeId, year, month) {
+  const now = new Date();
+  const monthStart = new Date(year, month - 1, 1);
+  const monthEnd = new Date(year, month, 1); // exclusive upper bound
+
+  const [records, adjustments] = await Promise.all([
+    prisma.attendanceRecord.findMany({
+      where: { employeeId, date: { gte: monthStart, lt: monthEnd } },
+      orderBy: { date: "asc" },
+    }),
+    prisma.requiredHoursAdjustment.findMany({
+      where: { employeeId, date: { gte: monthStart, lt: monthEnd } },
+      orderBy: { date: "asc" },
+    }),
+  ]);
+
+  const days = records.map((record) => ({
+    ...record,
+    workingHours: computeWorkingHours(record),
+    extraHours: computeExtraHours(record),
+    adjustments: adjustments.filter((a) => sameDay(a.date, record.date)),
+  }));
+
+  // Only count days elapsed so far when looking at the current month in
+  // progress — otherwise the rest of this month would count as expected
+  // working days with no data yet, unfairly tanking the rate.
+  const isCurrentMonth = year === now.getFullYear() && month === now.getMonth() + 1;
+  const daysElapsed = isCurrentMonth ? now.getDate() : daysInMonth(year, month);
+
+  return { year, month, days, adjustments, summary: computeMonthSummary(records, daysElapsed) };
+}
+
 // GET /api/attendance/month?year=&month= — the current employee's own
 // attendance for one calendar month (defaults to the current month):
 // each day's record merged with that day's required-hours adjustments,
@@ -360,41 +396,36 @@ export async function getAttendanceMonth(req, res, next) {
     const now = new Date();
     const year = req.query.year ?? now.getFullYear();
     const month = req.query.month ?? now.getMonth() + 1; // 1-12
+    res.json(await buildMonthResponse(req.user.employeeId, year, month));
+  } catch (err) {
+    next(err);
+  }
+}
 
-    const monthStart = new Date(year, month - 1, 1);
-    const monthEnd = new Date(year, month, 1); // exclusive upper bound
+// GET /api/attendance/employee/:employeeId/month?year=&month= —
+// staff-only (Supervisor Mode's Employee Attendance screen). Same
+// response shape as getAttendanceMonth above, just for an arbitrary
+// employee the caller has market access to, instead of themselves.
+export async function getEmployeeAttendanceMonth(req, res, next) {
+  try {
+    await requireAccessibleEmployee(req.user, req.params.employeeId);
+    const now = new Date();
+    const year = req.query.year ?? now.getFullYear();
+    const month = req.query.month ?? now.getMonth() + 1;
+    res.json(await buildMonthResponse(req.params.employeeId, year, month));
+  } catch (err) {
+    next(err);
+  }
+}
 
-    const [records, adjustments] = await Promise.all([
-      prisma.attendanceRecord.findMany({
-        where: { employeeId: req.user.employeeId, date: { gte: monthStart, lt: monthEnd } },
-        orderBy: { date: "asc" },
-      }),
-      prisma.requiredHoursAdjustment.findMany({
-        where: { employeeId: req.user.employeeId, date: { gte: monthStart, lt: monthEnd } },
-        orderBy: { date: "asc" },
-      }),
-    ]);
-
-    const days = records.map((record) => ({
-      ...record,
-      workingHours: computeWorkingHours(record),
-      extraHours: computeExtraHours(record),
-      adjustments: adjustments.filter((a) => sameDay(a.date, record.date)),
-    }));
-
-    // Only count days elapsed so far when looking at the current month in
-    // progress — otherwise the rest of this month would count as expected
-    // working days with no data yet, unfairly tanking the rate.
-    const isCurrentMonth = year === now.getFullYear() && month === now.getMonth() + 1;
-    const daysElapsed = isCurrentMonth ? now.getDate() : daysInMonth(year, month);
-
-    res.json({
-      year,
-      month,
-      days,
-      adjustments,
-      summary: computeMonthSummary(records, daysElapsed),
-    });
+// GET /api/attendance/employee/:employeeId/extra-hours-balance —
+// staff-only counterpart to getExtraHoursBalance, for Supervisor Mode's
+// employee attendance screen.
+export async function getEmployeeExtraHoursBalance(req, res, next) {
+  try {
+    await requireAccessibleEmployee(req.user, req.params.employeeId);
+    const balanceHours = await computeExtraHoursBalance(prisma, req.params.employeeId);
+    res.json({ balanceHours, hoursRequiredPerDayOff: EXTRA_HOURS_PER_DAY_OFF });
   } catch (err) {
     next(err);
   }

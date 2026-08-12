@@ -621,7 +621,7 @@ model AttendanceRecord {
   breakStart    DateTime?
   breakEnd      DateTime?
   dayOffType    DayOffType? // only meaningful when status = DAY_OFF
-  requiredHours Int              @default(8) // 0-16, enforced in validate.js
+  requiredHours Int              @default(8) // 4-16, enforced in validate.js
   // Explicit penalty hours for this day, set only by staff (see
   // attendanceController.setPunishmentHours) — unlike extra hours (always
   // derived as max(workingHours - requiredHours, 0), never stored, same
@@ -666,7 +666,7 @@ model RequiredHoursAdjustment {
   id                    String   @id @default(cuid())
   date                  DateTime // the day this adjustment applies to
   previousRequiredHours Int
-  newRequiredHours      Int // 0-16, enforced in validate.js
+  newRequiredHours      Int // 4-16, enforced in validate.js
   reason                String
 
   employeeId String

@@ -1,4 +1,5 @@
 import { prisma } from "../lib/prisma.js";
+import { assertMarketAccess } from "../middleware/auth.js";
 
 // activitiesController.js — Phase 1, Step 3/4/5: an Employee's own daily
 // activity log (EXPIRED_ITEMS, SHELF_CLEANING, etc.), separate from the
@@ -108,6 +109,37 @@ export async function listActivities(req, res, next) {
     const activities = await prisma.activity.findMany({
       where,
       include: { images: true },
+      orderBy: { date: "desc" },
+    });
+
+    res.json(activities);
+  } catch (err) {
+    next(err);
+  }
+}
+
+// GET /api/activities/market?marketId=&employeeId=&category=&status= —
+// staff-only, scoped to a market they can access (Supervisor: only their
+// own market). Powers Supervisor Mode's "Today's Activity" feed and an
+// employee's Activity History — mirrors the exact pattern already used
+// for wasted-overall/market, price-reports/market, item-reports/market.
+export async function listActivitiesForMarket(req, res, next) {
+  try {
+    const { employeeId, category, status } = req.query;
+    const marketId = req.query.marketId ?? req.user.marketId;
+    if (!marketId) {
+      return res.status(400).json({ error: "marketId is required" });
+    }
+    await assertMarketAccess(req.user, marketId);
+
+    const where = { employee: { marketId } };
+    if (employeeId) where.employeeId = employeeId;
+    if (category) where.category = category;
+    if (status) where.status = status;
+
+    const activities = await prisma.activity.findMany({
+      where,
+      include: { images: true, employee: { select: { id: true, name: true, employeeCode: true } } },
       orderBy: { date: "desc" },
     });
 

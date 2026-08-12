@@ -9,8 +9,9 @@ import {
   deleteActivityImage,
   getPerformanceSummary,
   getActivityPerformanceHistory,
+  listActivitiesForMarket,
 } from "../controllers/activitiesController.js";
-import { requireAuth, requireEmployeeAuth } from "../middleware/auth.js";
+import { requireAuth, requireEmployeeAuth, requireStaffRole } from "../middleware/auth.js";
 import {
   validateBody,
   validateQuery,
@@ -18,13 +19,25 @@ import {
   updateActivitySchema,
   addActivityImageSchema,
   listActivitiesQuerySchema,
+  listActivitiesMarketQuerySchema,
 } from "../utils/validate.js";
 
 const router = Router();
 
-// Every activity route is employee-only — this module is just the
-// employee's own daily activity log, not a Supervisor review surface.
-router.use(requireAuth, requireEmployeeAuth);
+router.use(requireAuth);
+
+// Staff-only market-scoped view — for Supervisor Mode. Registered before
+// the employee-only gate below since it needs a different auth guard.
+router.get(
+  "/market",
+  requireStaffRole("ADMIN", "REGIONAL_MANAGER", "SUPERVISOR"),
+  validateQuery(listActivitiesMarketQuerySchema),
+  listActivitiesForMarket
+);
+
+// Everything else here is employee-only — the employee's own daily
+// activity log, not a Supervisor review surface.
+router.use(requireEmployeeAuth);
 
 router.get("/", validateQuery(listActivitiesQuerySchema), listActivities);
 router.post("/", validateBody(createActivitySchema), createActivity);

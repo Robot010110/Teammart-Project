@@ -1,4 +1,5 @@
 import { prisma } from "../lib/prisma.js";
+import { assertMarketAccess } from "../middleware/auth.js";
 
 // itemReportsController.js — the Expired/Wasted Items module. An employee
 // identifies a Product (barcode scan or photo -> manual search on the
@@ -64,6 +65,41 @@ export async function listItemReports(req, res, next) {
         reportedAt: { gte: monthStart, lt: monthEnd },
       },
       include: { product: { select: { id: true, name: true, barcode: true } } },
+      orderBy: { reportedAt: "desc" },
+    });
+
+    res.json(reports);
+  } catch (err) {
+    next(err);
+  }
+}
+
+// GET /api/item-reports/market?marketId=&employeeId=&condition=&status= —
+// staff-only, scoped to a market they can access (Supervisor: only their
+// own market). Powers the Supervisor "Today's Activity" feed and an
+// employee's Activity History — mirrors the exact pattern already used by
+// wastedOverallController.listWastedOverallReportsForMarket /
+// priceReportsController's market-scoped listing.
+export async function listItemReportsForMarket(req, res, next) {
+  try {
+    const { employeeId, condition, status } = req.query;
+    const marketId = req.query.marketId ?? req.user.marketId;
+    if (!marketId) {
+      return res.status(400).json({ error: "marketId is required" });
+    }
+    await assertMarketAccess(req.user, marketId);
+
+    const where = { marketId };
+    if (employeeId) where.employeeId = employeeId;
+    if (condition) where.condition = condition;
+    if (status) where.status = status;
+
+    const reports = await prisma.itemReport.findMany({
+      where,
+      include: {
+        employee: { select: { id: true, name: true, employeeCode: true } },
+        product: { select: { id: true, name: true, barcode: true } },
+      },
       orderBy: { reportedAt: "desc" },
     });
 
