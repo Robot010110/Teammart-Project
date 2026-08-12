@@ -7,8 +7,10 @@ import MarketDashboard from "./pages/MarketDashboard";
 import EmployeeProfile from "./pages/EmployeeProfile";
 import EmployeeWorkspace from "./pages/EmployeeWorkspace";
 import CashierWorkspace from "./pages/CashierWorkspace";
+import SupervisorWorkspace from "./pages/SupervisorWorkspace";
 import { isAuthenticated, logout as clearEmployeeToken } from "./services/authService";
 import { getProfile } from "./services/profileService";
+import { listMarkets } from "./services/marketService";
 import { onUnauthorized } from "./services/apiClient";
 import { initialsOf } from "./utils/initials";
 
@@ -51,11 +53,11 @@ export default function App() {
     if (newSession.role === "regionalManager") {
       setSelectedZoneId(newSession.zoneId);
       setPage("zone");
-    } else if (newSession.role === "supervisor") {
-      setSelectedMarketId(newSession.marketId);
-      setPage("market");
     }
-    // Employee role bypasses this page state machine entirely.
+    // Employee and Supervisor roles bypass this page state machine
+    // entirely — both are mobile bottom-nav shells with their own
+    // internal tab state (AppShell.jsx), not the RM's zone/market/
+    // employee drill-down.
   };
 
   const handleLogout = () => {
@@ -77,13 +79,36 @@ export default function App() {
       return;
     }
     getProfile()
-      .then((profile) => {
+      .then(async (profile) => {
         if (profile.kind === "employee") {
           setSession({
             role: "employee",
             employeeRole: profile.role,
             employeeId: profile.id,
             marketId: profile.market.id,
+            displayName: profile.name,
+            initials: initialsOf(profile.name),
+          });
+        } else if (profile.kind === "staff" && profile.role === "SUPERVISOR") {
+          // Shift ("Supervisor"/"Overlooking") isn't persisted anywhere
+          // (User has no shift column — see LoginPage.jsx) so a refresh
+          // can't recover which one was chosen; defaults back to
+          // Supervisor/Morning rather than asking again mid-session.
+          let marketName = null;
+          try {
+            const [market] = await listMarkets();
+            marketName = market?.name ?? null;
+          } catch {
+            // Non-fatal — see the same fallback in LoginPage.jsx.
+          }
+          setSession({
+            role: "supervisor",
+            staffId: profile.id,
+            marketId: profile.marketId,
+            zoneId: profile.zoneId,
+            marketName,
+            shift: "MORNING",
+            title: "Supervisor",
             displayName: profile.name,
             initials: initialsOf(profile.name),
           });
@@ -108,12 +133,11 @@ export default function App() {
   const openMarket = (marketId) => { setSelectedMarketId(marketId); setPage("market"); };
   const openEmployee = (employeeId) => { setSelectedEmployeeId(employeeId); setPage("employee"); };
 
-  // "Home" is scoped per role: a Regional Manager's home is their own zone;
-  // a Supervisor's home is their own market. Neither role has an unscoped
-  // "all zones" home to return to — that's the point of role-based access.
+  // "Home" is scoped per role — a Regional Manager's home is their own
+  // zone. Neither RM nor Supervisor has an unscoped "all zones/markets"
+  // home to return to — that's the point of role-based access.
   const goHome = () => {
     if (session?.role === "regionalManager") { setSelectedZoneId(session.zoneId); setPage("zone"); }
-    else if (session?.role === "supervisor") { setSelectedMarketId(session.marketId); setPage("market"); }
   };
 
   // While checking a saved token against the backend, show nothing but a
@@ -147,6 +171,10 @@ export default function App() {
         )}
       </div>
     );
+  }
+
+  if (session.role === "supervisor") {
+    return <SupervisorWorkspace session={session} onLogout={handleLogout} />;
   }
 
   return (

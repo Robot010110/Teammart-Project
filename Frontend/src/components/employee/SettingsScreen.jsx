@@ -11,16 +11,22 @@ const ENTRIES = [
 // SettingsScreen.jsx — minimal placeholder per spec: a static list of
 // entries (Account/Notifications/Security/Language/Appearance) with no
 // behavior behind them yet (defined later), plus a working Log Out.
+// `onBack` is optional — used when this screen is reached by drilling
+// into Profile (Worker/Cashier); omitted when it's a top-level bottom-nav
+// tab on its own (Supervisor Mode's Settings tab), where a "back" arrow
+// wouldn't go anywhere.
 export default function SettingsScreen({ onBack, onLogout }) {
   return (
     <div className="px-4 sm:px-6 py-6 max-w-4xl mx-auto animate-fade-up">
-      <button
-        type="button"
-        onClick={onBack}
-        className="flex items-center gap-1.5 text-sm text-[#9AA1B4] hover:text-white mb-4 -ml-1 py-1.5 px-1"
-      >
-        <ArrowLeft size={16} /> Back to Profile
-      </button>
+      {onBack && (
+        <button
+          type="button"
+          onClick={onBack}
+          className="flex items-center gap-1.5 text-sm text-[#9AA1B4] hover:text-white mb-4 -ml-1 py-1.5 px-1"
+        >
+          <ArrowLeft size={16} /> Back to Profile
+        </button>
+      )}
 
       <h1 className="text-lg font-semibold text-white mb-4">Settings</h1>
 

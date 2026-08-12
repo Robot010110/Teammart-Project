@@ -13,3 +13,12 @@ export function createWastedOverallReport(payload) {
 export function listMyWastedOverallReports() {
   return apiRequest("/wasted-overall");
 }
+
+// --- Staff-only (Supervisor Mode) ---
+export function listWastedOverallReportsForMarket({ marketId, status } = {}) {
+  const params = new URLSearchParams();
+  if (marketId) params.set("marketId", marketId);
+  if (status) params.set("status", status);
+  const query = params.toString();
+  return apiRequest(`/wasted-overall/market${query ? `?${query}` : ""}`);
+}

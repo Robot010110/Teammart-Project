@@ -50,3 +50,14 @@ export function sendMessage(
 export function markConversationRead(conversationId) {
   return apiRequest(`/conversations/${conversationId}/read`, { method: "POST" });
 }
+
+// --- Staff-only (Supervisor Mode) ---
+// This is the ONLY chat capability a staff token can use today — every
+// other endpoint above is gated requireEmployeeAuth (see
+// chatController.js). Fire-and-forget: a Supervisor can broadcast into a
+// market's Warnings channel but can't read it back (no staff GET path
+// exists yet) — Supervisor Mode's Chat tab keeps its own local view of
+// what it sent for that reason, see SupervisorChatTab.jsx.
+export function postWarningBroadcast(marketId, body) {
+  return apiRequest("/conversations/warnings/broadcast", { method: "POST", body: { marketId, body } });
+}

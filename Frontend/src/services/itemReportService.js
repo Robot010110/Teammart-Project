@@ -26,3 +26,14 @@ export function listItemReports({ year, month } = {}) {
   const query = params.toString();
   return apiRequest(`/item-reports${query ? `?${query}` : ""}`);
 }
+
+// --- Staff-only (Supervisor Mode) ---
+export function listItemReportsForMarket({ marketId, employeeId, condition, status } = {}) {
+  const params = new URLSearchParams();
+  if (marketId) params.set("marketId", marketId);
+  if (employeeId) params.set("employeeId", employeeId);
+  if (condition) params.set("condition", condition);
+  if (status) params.set("status", status);
+  const query = params.toString();
+  return apiRequest(`/item-reports/market${query ? `?${query}` : ""}`);
+}

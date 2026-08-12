@@ -30,3 +30,28 @@ export function getPerformanceHistory({ months } = {}) {
 export function getExtraHoursBalance() {
   return apiRequest("/attendance/extra-hours-balance");
 }
+
+// --- Staff-only (Supervisor Mode) — same data, for an arbitrary
+// employee the caller has market access to instead of themselves. ---
+
+export function getEmployeeAttendanceMonth(employeeId, { year, month } = {}) {
+  const params = new URLSearchParams();
+  if (year) params.set("year", year);
+  if (month) params.set("month", month);
+  const query = params.toString();
+  return apiRequest(`/attendance/employee/${employeeId}/month${query ? `?${query}` : ""}`);
+}
+
+export function getEmployeeExtraHoursBalance(employeeId) {
+  return apiRequest(`/attendance/employee/${employeeId}/extra-hours-balance`);
+}
+
+// payload: { employeeId, date, newRequiredHours: 4-16, reason }
+export function createRequiredHoursAdjustment(payload) {
+  return apiRequest("/attendance/required-hours-adjustments", { method: "POST", body: payload });
+}
+
+// payload: { employeeId, date, hours: 0-24, reason }
+export function setPunishmentHours(payload) {
+  return apiRequest("/attendance/punishment-hours", { method: "POST", body: payload });
+}

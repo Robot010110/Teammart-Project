@@ -4,16 +4,12 @@ import { apiRequest } from "./apiClient";
 // Supervisor pushes at an employee). Mirrors
 // backend/src/controllers/suddenTasksController.js one function per
 // endpoint, same as activityService.js does for /api/activities.
-//
-// No create/assign function here on purpose — assigning a Sudden Task is
-// a staff action (POST /api/sudden-tasks/assign) with no Supervisor UI
-// yet. The endpoint exists and is tested; add the wrapper here once that
-// module is built.
 
-export function listSuddenTasks({ status, priority } = {}) {
+export function listSuddenTasks({ status, priority, employeeId } = {}) {
   const params = new URLSearchParams();
   if (status) params.set("status", status);
   if (priority) params.set("priority", priority);
+  if (employeeId) params.set("employeeId", employeeId);
   const query = params.toString();
   return apiRequest(`/sudden-tasks${query ? `?${query}` : ""}`);
 }
@@ -27,4 +23,16 @@ export function getSuddenTask(id) {
 // attached here.
 export function completeSuddenTask(id, evidenceUrl) {
   return apiRequest(`/sudden-tasks/${id}/complete`, { method: "PATCH", body: { evidenceUrl } });
+}
+
+// --- Staff-only (Supervisor Mode) ---
+// listSuddenTasks above already works for a staff caller too — the
+// backend force-scopes a SUPERVISOR token to their own market regardless
+// of any marketId passed, so no separate "for market" wrapper is needed,
+// unlike leave-requests/wasted-overall/etc. (those have a genuinely
+// different staff-only route+response shape; this one doesn't).
+
+// payload: { employeeId, title, description, priority? }
+export function assignSuddenTask(payload) {
+  return apiRequest("/sudden-tasks/assign", { method: "POST", body: payload });
 }

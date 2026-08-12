@@ -3,28 +3,34 @@ import { ArrowLeft } from "lucide-react";
 import Logo from "../components/common/Logo";
 import RoleCard from "../components/auth/RoleCard";
 import ZonePicker from "../components/auth/ZonePicker";
-import MarketPicker from "../components/auth/MarketPicker";
 import EmployeeTypeStep from "../components/auth/EmployeeTypeStep";
+import SupervisorShiftStep from "../components/auth/SupervisorShiftStep";
+import SupervisorEmailStep from "../components/auth/SupervisorEmailStep";
 import EmployeeCodeStep from "../components/auth/EmployeeCodeStep";
 import CashierUsernameStep from "../components/auth/CashierUsernameStep";
 import PasswordStep from "../components/auth/PasswordStep";
-import { ROLE_OPTIONS, regionalManagerPassword, validateLogin, SUPERVISOR_DEMO_PASSWORD } from "../data/auth";
-import { employeeLogin, cashierLogin } from "../services/authService";
+import { ROLE_OPTIONS, regionalManagerPassword, validateLogin } from "../data/auth";
+import { employeeLogin, cashierLogin, staffLogin } from "../services/authService";
+import { listMarkets } from "../services/marketService";
 import { ApiError } from "../services/apiClient";
 import { initialsOf } from "../utils/initials";
 
-// LoginPage.jsx — role -> (employee type, if "Employee") -> location/identifier -> password -> session.
+// LoginPage.jsx — role -> (sub-step depending on role) -> identifier -> password -> session.
 //
-// Regional Manager and Supervisor still use the prototype's hardcoded
-// passwords (see data/auth.js) — that's Manager/Supervisor work, out of
-// scope for this phase. Employee login is real for both Worker
-// (POST /api/auth/employee-login) and Cashier (POST /api/auth/cashier-login)
-// — same "Employee" top-level role, split by a Worker/Cashier sub-step
-// since they're two different login identifiers, not two different roles
-// at this level (see EmployeeTypeStep.jsx).
+// Regional Manager still uses the prototype's hardcoded zone password
+// (see data/auth.js) — RM has no real frontend login path yet, out of
+// scope for Supervisor Mode. Employee (Worker/Cashier) and Supervisor
+// login are both real backend auth: Employee via
+// POST /api/auth/employee-login / employee-login, Supervisor via the
+// same POST /api/auth/login every other staff role already uses
+// (backend has always supported it — this UI just never called it for
+// Supervisor before). Supervisor/Overlooking are the same backend
+// SUPERVISOR account; "Overlooking" is purely a shift label chosen here
+// (User has no shift column) — see SupervisorShiftStep.jsx.
 
 const STEP_ROLE = "role";
 const STEP_EMPLOYEE_TYPE = "employeeType";
+const STEP_SHIFT = "shift"; // Supervisor only
 const STEP_LOCATION = "location";
 const STEP_PASSWORD = "password";
 
@@ -32,8 +38,9 @@ export default function LoginPage({ onLogin }) {
   const [step, setStep] = useState(STEP_ROLE);
   const [role, setRole] = useState(null);
   const [employeeType, setEmployeeType] = useState(null); // "worker" | "cashier"
+  const [supervisorShift, setSupervisorShift] = useState(null); // "MORNING" | "EVENING"
   const [zone, setZone] = useState(null);
-  const [market, setMarket] = useState(null);
+  const [email, setEmail] = useState(null); // Supervisor
   const [employeeCode, setEmployeeCode] = useState(null);
   const [username, setUsername] = useState(null);
   const [loginError, setLoginError] = useState(null);
@@ -42,12 +49,15 @@ export default function LoginPage({ onLogin }) {
 
   const chooseRole = (key) => {
     setRole(key);
-    setStep(key === "employee" ? STEP_EMPLOYEE_TYPE : STEP_LOCATION);
+    if (key === "employee") setStep(STEP_EMPLOYEE_TYPE);
+    else if (key === "supervisor") setStep(STEP_SHIFT);
+    else setStep(STEP_LOCATION);
   };
 
   const chooseEmployeeType = (type) => { setEmployeeType(type); setStep(STEP_LOCATION); };
+  const chooseSupervisorShift = (shift) => { setSupervisorShift(shift); setStep(STEP_LOCATION); };
   const chooseZone = (z) => { setZone(z); setStep(STEP_PASSWORD); };
-  const chooseMarket = (m) => { setMarket(m); setStep(STEP_PASSWORD); };
+  const chooseEmail = (e) => { setEmail(e); setStep(STEP_PASSWORD); };
   const chooseEmployeeCode = (code) => { setEmployeeCode(code); setStep(STEP_PASSWORD); };
   const chooseUsername = (u) => { setUsername(u); setStep(STEP_PASSWORD); };
 
@@ -55,8 +65,9 @@ export default function LoginPage({ onLogin }) {
     setStep(STEP_ROLE);
     setRole(null);
     setEmployeeType(null);
+    setSupervisorShift(null);
     setZone(null);
-    setMarket(null);
+    setEmail(null);
     setEmployeeCode(null);
     setUsername(null);
   };
@@ -65,8 +76,10 @@ export default function LoginPage({ onLogin }) {
     if (step === STEP_PASSWORD) setStep(STEP_LOCATION);
     else if (step === STEP_LOCATION) {
       if (role === "employee") { setStep(STEP_EMPLOYEE_TYPE); setEmployeeCode(null); setUsername(null); }
+      else if (role === "supervisor") { setStep(STEP_SHIFT); setEmail(null); }
       else resetAll();
-    } else if (step === STEP_EMPLOYEE_TYPE) resetAll();
+    } else if (step === STEP_SHIFT) resetAll();
+    else if (step === STEP_EMPLOYEE_TYPE) resetAll();
   };
 
   const submitPassword = async (password, rememberMe = false) => {
@@ -108,34 +121,62 @@ export default function LoginPage({ onLogin }) {
       }
     }
 
-    // Regional Manager / Supervisor — unchanged prototype flow.
-    const ok = validateLogin({
-      role,
-      zoneId: zone?.id,
-      marketId: market?.id,
-      password,
-    });
+    if (role === "supervisor") {
+      try {
+        const user = await staffLogin(email, password);
+        if (user.role !== "SUPERVISOR") {
+          setLoginError("This account isn't a Supervisor account.");
+          return false;
+        }
+        // The account's managed market determines everything downstream
+        // (employees, activities, attendance) — never picked in the UI.
+        // Market name isn't in the login response, so one extra call
+        // (staff-scoped, always resolves to just this account's market).
+        let marketName = null;
+        try {
+          const [market] = await listMarkets();
+          marketName = market?.name ?? null;
+        } catch {
+          // Non-fatal — the workspace can still function without a
+          // display name for the market; it'll just show a fallback.
+        }
+        onLogin({
+          role,
+          staffId: user.id,
+          marketId: user.marketId,
+          zoneId: user.zoneId,
+          marketName,
+          shift: supervisorShift,
+          title: supervisorShift === "EVENING" ? "Overlooking" : "Supervisor",
+          displayName: user.name,
+          initials: initialsOf(user.name),
+        });
+        return true;
+      } catch (err) {
+        setLoginError(err instanceof ApiError ? err.message : "Could not log in. Please try again.");
+        return false;
+      }
+    }
+
+    // Regional Manager — unchanged prototype flow (no real backend login
+    // path for this role yet).
+    const ok = validateLogin({ role, zoneId: zone?.id, password });
     if (!ok) return false;
 
-    if (role === "regionalManager") {
-      onLogin({ role, zoneId: zone.id, displayName: zone.manager, initials: initialsOf(zone.manager) });
-    } else if (role === "supervisor") {
-      onLogin({ role, marketId: market.id, zoneId: market.zoneId, displayName: `${market.name} Supervisor`, initials: initialsOf(market.name) });
-    }
+    onLogin({ role, zoneId: zone.id, displayName: zone.manager, initials: initialsOf(zone.manager) });
     return true;
   };
 
   const summary = [
     { label: "Role", value: roleLabel },
     ...(role === "regionalManager" ? [{ label: "Zone", value: `Zone ${zone?.number}` }] : []),
-    ...(role === "supervisor" ? [{ label: "Market", value: market?.name }] : []),
+    ...(role === "supervisor" ? [{ label: "Shift", value: supervisorShift === "EVENING" ? "Overlooking (Evening)" : "Supervisor (Morning)" }] : []),
+    ...(role === "supervisor" ? [{ label: "Email", value: email }] : []),
     ...(role === "employee" && employeeType === "worker" ? [{ label: "Employee Code", value: employeeCode }] : []),
     ...(role === "employee" && employeeType === "cashier" ? [{ label: "Username", value: username }] : []),
   ];
 
-  const hint =
-    role === "regionalManager" && zone ? regionalManagerPassword(zone.number) :
-    role === "supervisor" ? SUPERVISOR_DEMO_PASSWORD : null;
+  const hint = role === "regionalManager" && zone ? regionalManagerPassword(zone.number) : null;
 
   return (
     <div className="min-h-screen bg-[#1A1A1A] flex flex-col items-center justify-center px-6 py-12">
@@ -172,18 +213,28 @@ export default function LoginPage({ onLogin }) {
           </>
         )}
 
+        {step === STEP_SHIFT && (
+          <>
+            <div className="text-center mb-6 animate-fade-up">
+              <h2 className="font-display text-xl font-bold text-white">Supervisor or Overlooking?</h2>
+              <p className="mt-2 text-[#9AA1B4] text-sm">Same account, different shift — this just sets your label in the app.</p>
+            </div>
+            <SupervisorShiftStep onSelect={chooseSupervisorShift} />
+          </>
+        )}
+
         {step === STEP_LOCATION && (
           <>
             <div className="text-center mb-6 animate-fade-up">
               <h2 className="font-display text-xl font-bold text-white">
                 {role === "regionalManager" && "Which zone do you manage?"}
-                {role === "supervisor" && "Which market are you responsible for?"}
+                {role === "supervisor" && "Enter your email"}
                 {role === "employee" && employeeType === "worker" && "Enter your employee code"}
                 {role === "employee" && employeeType === "cashier" && "Enter your username"}
               </h2>
             </div>
             {role === "regionalManager" && <ZonePicker onSelect={chooseZone} />}
-            {role === "supervisor" && <MarketPicker onSelect={chooseMarket} />}
+            {role === "supervisor" && <SupervisorEmailStep onSelect={chooseEmail} />}
             {role === "employee" && employeeType === "worker" && <EmployeeCodeStep onSelect={chooseEmployeeCode} />}
             {role === "employee" && employeeType === "cashier" && <CashierUsernameStep onSelect={chooseUsername} />}
           </>

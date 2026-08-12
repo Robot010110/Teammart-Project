@@ -49,6 +49,17 @@ export function getActivity(id) {
   return apiRequest(`/activities/${id}`);
 }
 
+// --- Staff-only (Supervisor Mode) ---
+export function listActivitiesForMarket({ marketId, employeeId, category, status } = {}) {
+  const params = new URLSearchParams();
+  if (marketId) params.set("marketId", marketId);
+  if (employeeId) params.set("employeeId", employeeId);
+  if (category) params.set("category", category);
+  if (status) params.set("status", status);
+  const query = params.toString();
+  return apiRequest(`/activities/market${query ? `?${query}` : ""}`);
+}
+
 // payload: { category, date, time, notes?, status?, imageUrls? }
 export function createActivity(payload) {
   return apiRequest("/activities", { method: "POST", body: payload });

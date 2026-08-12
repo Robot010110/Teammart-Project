@@ -18,3 +18,21 @@ export function createLeaveRequest(payload) {
 export function listMyLeaveRequests() {
   return apiRequest("/leave-requests");
 }
+
+// --- Staff-only (Supervisor Mode) ---
+
+export function listLeaveRequestsForMarket({ marketId, status } = {}) {
+  const params = new URLSearchParams();
+  if (marketId) params.set("marketId", marketId);
+  if (status) params.set("status", status);
+  const query = params.toString();
+  return apiRequest(`/leave-requests/market${query ? `?${query}` : ""}`);
+}
+
+export function approveLeaveRequest(id, reviewNote) {
+  return apiRequest(`/leave-requests/${id}/approve`, { method: "PATCH", body: { reviewNote } });
+}
+
+export function rejectLeaveRequest(id, reviewNote) {
+  return apiRequest(`/leave-requests/${id}/reject`, { method: "PATCH", body: { reviewNote } });
+}
