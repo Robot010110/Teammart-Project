@@ -288,20 +288,44 @@ export const createItemReportSchema = z.object({
 
 // ---------------------------------------------------------------------
 // Wasted Overall — Worker-reported wasted produce, one of a fixed list
-// of 5 items (not tied to a Product catalog entry — see the
+// plus "Other" (not tied to a Product catalog entry — see the
 // WastedOverallReport schema comment for why this isn't ItemReport).
+//
+// Quantity unit depends on the item: EGGS is reported as a whole-number
+// count of eggs, never kilograms; every other item (including OTHER)
+// stays kg-based. Exactly one of quantityKg/quantityCount is required,
+// matching which one applies to `item` — enforced below, not left as a
+// frontend-only convention.
 // ---------------------------------------------------------------------
-const WASTED_ITEMS = ["EGGS", "TOMATO", "POTATO", "CUCUMBER", "ONION"];
+const WASTED_ITEMS = ["EGGS", "TOMATO", "POTATO", "CUCUMBER", "ONION", "OTHER"];
 
-export const createWastedOverallReportSchema = z.object({
-  item: z.enum(WASTED_ITEMS),
-  // Positive, capped at a sane maximum (a single report claiming several
-  // tonnes of onions is almost certainly bad input, not a real waste
-  // event) — rejects 0, negative, and unreasonably large values alike.
-  quantityKg: z.number().positive().max(1000),
-  photoUrl: z.string().url().optional(),
-  notes: z.string().max(1000).optional(),
-});
+export const createWastedOverallReportSchema = z
+  .object({
+    item: z.enum(WASTED_ITEMS),
+    // Positive, capped at a sane maximum (a single report claiming several
+    // tonnes of onions is almost certainly bad input, not a real waste
+    // event) — rejects 0, negative, and unreasonably large values alike.
+    quantityKg: z.number().positive().max(1000).optional(),
+    // Whole eggs, capped generously above any plausible single-report count.
+    quantityCount: z.number().int().positive().max(1000).optional(),
+    // Required identifying text when item = OTHER — reporting just the
+    // literal word "Other" isn't useful on its own.
+    otherItemName: z.string().min(1).max(100).optional(),
+    photoUrl: z.string().url().optional(),
+    notes: z.string().max(1000).optional(),
+  })
+  .refine((data) => (data.item === "EGGS" ? data.quantityCount != null && data.quantityKg == null : true), {
+    message: "Eggs must be reported as a count (quantityCount), not kilograms",
+    path: ["quantityCount"],
+  })
+  .refine((data) => (data.item !== "EGGS" ? data.quantityKg != null && data.quantityCount == null : true), {
+    message: "quantityKg is required for this item",
+    path: ["quantityKg"],
+  })
+  .refine((data) => (data.item === "OTHER" ? !!data.otherItemName?.trim() : true), {
+    message: "Specify what this item is",
+    path: ["otherItemName"],
+  });
 
 // ---------------------------------------------------------------------
 // Chat — text + optional attachment (image via the pre-existing imageUrl

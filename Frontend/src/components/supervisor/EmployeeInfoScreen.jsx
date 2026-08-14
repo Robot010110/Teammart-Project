@@ -1,13 +1,9 @@
 import { useState } from "react";
 import { ArrowLeft, BadgeCheck, Briefcase, Clock, CircleDot, Pencil, Check, Loader2, CalendarDays, History, ClipboardList } from "lucide-react";
-import { useAsync } from "../../hooks/useAsync";
 import ErrorBanner from "../common/ErrorBanner";
 import { SkeletonCard } from "../common/SkeletonCard";
-import { getEmployee, assignDepartment } from "../../services/staffEmployeeService";
+import { assignDepartment } from "../../services/staffEmployeeService";
 import { initialsOf } from "../../utils/initials";
-import EmployeeAttendanceScreen from "./EmployeeAttendanceScreen";
-import EmployeeActivityHistoryScreen from "./EmployeeActivityHistoryScreen";
-import EmployeeTasksSection from "./EmployeeTasksSection";
 
 const EMPLOYMENT_STATUS_LABEL = { ACTIVE: "Active", INACTIVE: "Inactive", ON_LEAVE: "On Leave" };
 
@@ -61,28 +57,13 @@ function DepartmentField({ employeeId, department, onSaved }) {
   );
 }
 
-// SupervisorEmployeeProfile.jsx — the Supervisor's view of one employee.
-// Read-only identity info (spec: reuse the existing Employee Profile
-// design language, not a second unrelated layout) plus the management
-// controls a Worker/Cashier's own profile never has: Department
-// (editable), Attendance administration, Activity History, Tasks.
-export default function SupervisorEmployeeProfile({ employeeId, onBack }) {
-  const { data: employee, setData: setEmployee, error, loading, reload } = useAsync(
-    () => getEmployee(employeeId),
-    { deps: [employeeId], fallbackError: "Could not load this employee." }
-  );
-  const [screen, setScreen] = useState("info"); // info | attendance | history | tasks
-
-  if (screen === "attendance") {
-    return <EmployeeAttendanceScreen employeeId={employeeId} onBack={() => setScreen("info")} />;
-  }
-  if (screen === "history") {
-    return <EmployeeActivityHistoryScreen employeeId={employeeId} onBack={() => setScreen("info")} />;
-  }
-  if (screen === "tasks") {
-    return <EmployeeTasksSection employeeId={employeeId} employeeName={employee?.name} onBack={() => setScreen("info")} />;
-  }
-
+// EmployeeInfoScreen.jsx — the Supervisor's read-only identity view of
+// one employee (reuses the existing Employee Profile design language)
+// plus the management controls a Worker/Cashier's own profile never has.
+// employee/setEmployee/loading/error/reload are owned by the parent
+// (SupervisorEmployeeProfileRoute.jsx) and shared with the Attendance/
+// Tasks/History sub-routes so all four only ever fetch the employee once.
+export default function EmployeeInfoScreen({ employee, setEmployee, loading, error, reload, onBack, onOpenAttendance, onOpenTasks, onOpenHistory }) {
   return (
     <div className="px-4 sm:px-6 py-6 max-w-4xl mx-auto animate-fade-up">
       <button type="button" onClick={onBack} className="flex items-center gap-1.5 text-sm text-[#9AA1B4] hover:text-white mb-4 -ml-1 py-1.5 px-1">
@@ -124,22 +105,22 @@ export default function SupervisorEmployeeProfile({ employeeId, onBack }) {
 
           <div className="mt-4">
             <DepartmentField
-              employeeId={employeeId}
+              employeeId={employee.id}
               department={employee.department}
               onSaved={(department) => setEmployee((prev) => ({ ...prev, department }))}
             />
           </div>
 
           <div className="mt-4 rounded-2xl bg-[#171C2E]/80 border border-white/[0.06] backdrop-blur-xl overflow-hidden divide-y divide-white/[0.06]">
-            <button type="button" onClick={() => setScreen("attendance")} className="w-full flex items-center gap-3 px-4 py-3.5 text-left hover:bg-white/[0.03] transition-colors">
+            <button type="button" onClick={onOpenAttendance} className="w-full flex items-center gap-3 px-4 py-3.5 text-left hover:bg-white/[0.03] transition-colors">
               <CalendarDays size={17} className="text-[#8B93A8]" />
               <span className="flex-1 text-sm text-white">Attendance</span>
             </button>
-            <button type="button" onClick={() => setScreen("tasks")} className="w-full flex items-center gap-3 px-4 py-3.5 text-left hover:bg-white/[0.03] transition-colors">
+            <button type="button" onClick={onOpenTasks} className="w-full flex items-center gap-3 px-4 py-3.5 text-left hover:bg-white/[0.03] transition-colors">
               <ClipboardList size={17} className="text-[#8B93A8]" />
               <span className="flex-1 text-sm text-white">Tasks</span>
             </button>
-            <button type="button" onClick={() => setScreen("history")} className="w-full flex items-center gap-3 px-4 py-3.5 text-left hover:bg-white/[0.03] transition-colors">
+            <button type="button" onClick={onOpenHistory} className="w-full flex items-center gap-3 px-4 py-3.5 text-left hover:bg-white/[0.03] transition-colors">
               <History size={17} className="text-[#8B93A8]" />
               <span className="flex-1 text-sm text-white">Activity History</span>
             </button>

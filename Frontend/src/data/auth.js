@@ -1,10 +1,11 @@
 import { zones } from "./mockData";
 
 // auth.js — hardcoded, prototype-only authentication for Regional Manager
-// and Supervisor (Manager/Supervisor login is out of scope for this phase,
-// so it's untouched). Employee login is real now — see
-// services/authService.js — so the employee-specific pieces that used to
-// live here (a fake directory + one shared demo password) were removed.
+// only. Employee (Worker/Cashier) and Supervisor login are both real
+// backend auth now (see LoginPage.jsx's own comment) — the Supervisor
+// mock branch and its per-market picker were removed once Supervisor
+// Mode was connected to the real backend; LoginPage never reaches this
+// module for that role anymore.
 
 export const ROLE_OPTIONS = [
   {
@@ -33,27 +34,10 @@ export function regionalManagerPassword(zoneNumber) {
   return `RM${zoneNumber}12`;
 }
 
-// Supervisor demo password is the single example given in the spec, used
-// universally in this prototype (any market will accept it) — swap for
-// per-account credentials once Supervisor login is connected to the
-// backend (out of scope here).
-export const SUPERVISOR_DEMO_PASSWORD = "SP201";
-
-export function validateLogin({ role, zoneId, marketId, password }) {
+export function validateLogin({ role, zoneId, password }) {
   if (role === "regionalManager") {
     const zone = zones.find((z) => z.id === zoneId);
     return !!zone && password === regionalManagerPassword(zone.number);
   }
-  if (role === "supervisor") {
-    return !!marketId && password === SUPERVISOR_DEMO_PASSWORD;
-  }
   return false;
-}
-
-// Flat list of every market across every zone — used by the Supervisor
-// market picker.
-export function getAllMarkets() {
-  return zones.flatMap((zone) =>
-    zone.markets.map((market) => ({ ...market, zoneId: zone.id, zoneNumber: zone.number }))
-  );
 }

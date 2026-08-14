@@ -1,10 +1,10 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { ChevronRight, Clock3 } from "lucide-react";
 import PriorityPill from "../common/PriorityPill";
 import ErrorBanner from "../common/ErrorBanner";
 import { SkeletonCard } from "../common/SkeletonCard";
-import SuddenTaskDetailScreen from "./SuddenTaskDetailScreen";
-import { listSuddenTasks, getSuddenTask } from "../../services/suddenTaskService";
+import { listSuddenTasks } from "../../services/suddenTaskService";
 import { useAsync } from "../../hooks/useAsync";
 
 const TABS = ["Active", "Completed"];
@@ -39,45 +39,20 @@ function TaskRow({ task, onOpen }) {
   );
 }
 
-// SuddenTaskListScreen.jsx — the Tasks tab's content: a real list->detail
-// flow (replacing the old inline-card SuddenTasksSection for the mobile
-// shell) driven entirely by local `selectedTask` state, no router.
-export default function SuddenTaskListScreen() {
-  const { data: tasks, setData: setTasks, error, loading, reload } = useAsync(listSuddenTasks, {
+// SuddenTaskListScreen.jsx — the Tasks tab's list. Opening a task
+// navigates to a real route (:taskId) instead of flipping local state, so
+// Back from a task's detail returns here as a real history entry — see
+// the "tasks/:taskId" route in EmployeeWorkspace.jsx/CashierWorkspace.jsx
+// and SuddenTaskDetailRoute.jsx for the other half of this flow. Uses an
+// absolute path (basePath, "/me" or "/cashier") rather than a relative
+// one — "tasks" and "tasks/:taskId" are sibling routes, not nested, so
+// relative resolution can't be relied on here.
+export default function SuddenTaskListScreen({ basePath }) {
+  const { data: tasks, error, loading, reload } = useAsync(listSuddenTasks, {
     fallbackError: "Could not load your sudden tasks.",
   });
   const [tab, setTab] = useState("Active");
-  const [selectedTask, setSelectedTask] = useState(null);
-  const [detailLoading, setDetailLoading] = useState(false);
-
-  // The list only carries the fields SuddenTasksSection needs — fetch the
-  // full record (including who assigned it) when opening the detail view.
-  async function handleOpen(task) {
-    setDetailLoading(true);
-    try {
-      const full = await getSuddenTask(task.id);
-      setSelectedTask(full);
-    } catch {
-      setSelectedTask(task);
-    } finally {
-      setDetailLoading(false);
-    }
-  }
-
-  function handleCompleted(updated) {
-    setTasks((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
-    setSelectedTask(updated);
-  }
-
-  if (selectedTask) {
-    return (
-      <SuddenTaskDetailScreen
-        task={selectedTask}
-        onBack={() => setSelectedTask(null)}
-        onCompleted={handleCompleted}
-      />
-    );
-  }
+  const navigate = useNavigate();
 
   return (
     <div className="px-4 sm:px-6 py-6 max-w-4xl mx-auto animate-fade-up">
@@ -111,9 +86,8 @@ export default function SuddenTaskListScreen() {
               <p className="text-sm text-[#4C5266] text-center py-10">No {tab.toLowerCase()} sudden tasks.</p>
             )}
             {tasks.filter((t) => matchesTab(t, tab)).map((task) => (
-              <TaskRow key={task.id} task={task} onOpen={handleOpen} />
+              <TaskRow key={task.id} task={task} onOpen={() => navigate(`${basePath}/tasks/${task.id}`)} />
             ))}
-            {detailLoading && <p className="text-center text-xs text-[#4C5266] py-2">Loading task...</p>}
           </div>
         </>
       )}

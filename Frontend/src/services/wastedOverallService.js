@@ -5,7 +5,10 @@ import { apiRequest } from "./apiClient";
 // endpoint the Worker UI actually calls — the staff review queue has no
 // frontend caller yet (no Supervisor screen exists anywhere in this app).
 
-// payload: { item, quantityKg, photoUrl?, notes? }
+// payload: { item, quantityKg?, quantityCount?, otherItemName?, photoUrl?, notes? }
+// quantityCount for EGGS, quantityKg for everything else; otherItemName
+// required when item === "OTHER". See validate.js's schema for the
+// exact rules enforced server-side.
 export function createWastedOverallReport(payload) {
   return apiRequest("/wasted-overall", { method: "POST", body: payload });
 }

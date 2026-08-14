@@ -15,12 +15,12 @@ import { createNotificationForUser } from "../utils/notifications.js";
 // employee or market.
 export async function createWastedOverallReport(req, res, next) {
   try {
-    const { item, quantityKg, photoUrl, notes } = req.body;
+    const { item, quantityKg, quantityCount, otherItemName, photoUrl, notes } = req.body;
     const employeeId = req.user.employeeId;
     const marketId = req.user.marketId;
 
     const report = await prisma.wastedOverallReport.create({
-      data: { item, quantityKg, photoUrl, notes, employeeId, marketId },
+      data: { item, quantityKg, quantityCount, otherItemName, photoUrl, notes, employeeId, marketId },
     });
 
     // Route to the market's Supervisor automatically — the employee never
@@ -30,11 +30,13 @@ export async function createWastedOverallReport(req, res, next) {
     const market = await prisma.market.findUnique({ where: { id: marketId }, select: { supervisorId: true } });
     if (market?.supervisorId) {
       const employee = await prisma.employee.findUnique({ where: { id: employeeId }, select: { name: true } });
+      const itemLabel = item === "OTHER" ? otherItemName : item.toLowerCase();
+      const quantityLabel = item === "EGGS" ? `${quantityCount} egg${quantityCount === 1 ? "" : "s"}` : `${quantityKg}kg`;
       await createNotificationForUser({
         userId: market.supervisorId,
         type: "WASTED_OVERALL",
         title: "Wasted Overall Report",
-        body: `${employee.name} reported ${quantityKg}kg of ${item.toLowerCase()} wasted.`,
+        body: `${employee.name} reported ${quantityLabel} of ${itemLabel} wasted.`,
         linkType: "WASTED_OVERALL",
         linkId: report.id,
       });

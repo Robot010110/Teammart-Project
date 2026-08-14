@@ -867,23 +867,38 @@ enum WastedItem {
   POTATO
   CUCUMBER
   ONION
+  // A produce item not on the fixed list — see otherItemName below for
+  // the required free-text identifying it.
+  OTHER
 }
 
 // ---------------------------------------------------------------------
 // WastedOverallReport — a Worker reporting wasted produce (one of the
-// five WastedItem values) with a photo and a kilogram quantity. Routed
-// automatically to the Supervisor of the reporting employee's market
+// WastedItem values) with a photo and a quantity. Routed automatically
+// to the Supervisor of the reporting employee's market
 // (Employee.marketId -> Market.supervisorId), who is notified via the
 // existing Notification system (type WASTED_OVERALL) — the worker never
 // picks a Supervisor themselves.
+//
+// Quantity unit varies by item: EGGS is counted in whole pieces
+// (quantityCount), every other item (including OTHER) is weighed in kg
+// (quantityKg) — exactly one of the two is set, enforced in validate.js.
+// Both fields are nullable rather than one being repurposed, so existing
+// rows (all kg-based, including pre-existing EGGS rows reported in kg
+// before this change) are never reinterpreted: an old EGGS row keeps its
+// original quantityKg value untouched, quantityCount stays null on it.
 // ---------------------------------------------------------------------
 model WastedOverallReport {
-  id         String         @id @default(cuid())
-  item       WastedItem
-  quantityKg Float // > 0, enforced in validate.js
-  photoUrl   String?
-  notes      String?
-  status     ActivityStatus @default(PENDING)
+  id            String         @id @default(cuid())
+  item          WastedItem
+  quantityKg    Float? // > 0 when set, enforced in validate.js
+  quantityCount Int? // > 0 when set (pieces, EGGS only going forward), enforced in validate.js
+  // Required identifying text when item = OTHER (what the worker actually
+  // wasted, since "Other" alone isn't useful) — null for every other item.
+  otherItemName String?
+  photoUrl      String?
+  notes         String?
+  status        ActivityStatus @default(PENDING)
 
   employeeId String
   employee   Employee @relation(fields: [employeeId], references: [id])

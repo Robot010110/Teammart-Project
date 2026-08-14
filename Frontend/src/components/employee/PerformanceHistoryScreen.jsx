@@ -1,8 +1,15 @@
 import { ArrowLeft, TrendingUp, CheckCircle2, XCircle, HourglassIcon } from "lucide-react";
 import ErrorBanner from "../common/ErrorBanner";
 import { SkeletonCard } from "../common/SkeletonCard";
-import { getPerformanceSummary, getActivityPerformanceHistory } from "../../services/activityService";
+import Toast from "../common/Toast";
+import TaskStatusTabs from "../workspace/TaskStatusTabs";
+import SubmitTaskModal from "../workspace/SubmitTaskModal";
+import { getPerformanceSummary, getActivityPerformanceHistory, listActivities, deleteActivity } from "../../services/activityService";
+import { ApiError } from "../../services/apiClient";
+import { canEditActivity, canDeleteActivity } from "../../data/activityRules";
 import { useAsync } from "../../hooks/useAsync";
+import { useToast } from "../../hooks/useToast";
+import { useState } from "react";
 
 const MONTH_NAMES = [
   "January", "February", "March", "April", "May", "June",
@@ -48,6 +55,13 @@ function HistoryRow({ label, rate, sublabel }) {
 // unlike Attendance Rate (which never shows the current month as final),
 // this screen's own spec explicitly wants a live "This Week"/current
 // figure alongside history.
+//
+// Also hosts "My Activities" — the employee's own Draft/Pending/Approved/
+// Rejected activity history, relocated here from the Activity tab (which
+// is now focused on submitting activities, not reviewing past ones).
+// Same TaskStatusTabs component, same edit/delete rules
+// (data/activityRules.js) and endpoints as before — nothing was
+// duplicated or rebuilt, just moved.
 export default function PerformanceHistoryScreen({ onBack }) {
   const { data: summary, error: summaryError, loading: summaryLoading, reload: reloadSummary } = useAsync(
     getPerformanceSummary,
@@ -57,6 +71,52 @@ export default function PerformanceHistoryScreen({ onBack }) {
     () => getActivityPerformanceHistory({ weeks: 4, months: 6 }),
     { deps: [] }
   );
+  const {
+    data: activities,
+    setData: setActivities,
+    error: activitiesError,
+    loading: activitiesLoading,
+    reload: loadActivities,
+  } = useAsync(listActivities, { fallbackError: "Could not load your activities." });
+
+  const [editingActivity, setEditingActivity] = useState(null);
+  const [deletingId, setDeletingId] = useState(null);
+  const [toast, setToast] = useToast();
+
+  const handleSaved = (activity, message) => {
+    setActivities((prev) => {
+      const exists = prev.some((a) => a.id === activity.id);
+      return exists ? prev.map((a) => (a.id === activity.id ? activity : a)) : [activity, ...prev];
+    });
+    setToast(message);
+  };
+
+  const handleDelete = async (activity) => {
+    if (!canDeleteActivity(activity)) {
+      setToast(`This activity is ${activity.status.toLowerCase()} and can no longer be deleted.`);
+      return;
+    }
+    if (!window.confirm("Delete this draft activity? This cannot be undone.")) return;
+
+    setDeletingId(activity.id);
+    try {
+      await deleteActivity(activity.id);
+      setActivities((prev) => prev.filter((a) => a.id !== activity.id));
+      setToast("Draft deleted.");
+    } catch (err) {
+      setToast(err instanceof ApiError ? err.message : "Could not delete this activity.");
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  const handleEdit = (activity) => {
+    if (!canEditActivity(activity)) {
+      setToast(`This activity is already ${activity.status.toLowerCase()} and can no longer be edited.`);
+      return;
+    }
+    setEditingActivity(activity);
+  };
 
   const loading = summaryLoading || historyLoading;
   const error = summaryError || historyError;
@@ -138,8 +198,20 @@ export default function PerformanceHistoryScreen({ onBack }) {
               ))}
             </div>
           </section>
+
+          <section className="mt-6">
+            <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-[#8B93A8]">My Activities</h2>
+            {activitiesLoading && <SkeletonCard className="h-[220px]" />}
+            {!activitiesLoading && activitiesError && <ErrorBanner message={activitiesError} onRetry={loadActivities} />}
+            {!activitiesLoading && !activitiesError && activities && (
+              <TaskStatusTabs activities={activities} onEdit={handleEdit} onDelete={handleDelete} deletingId={deletingId} />
+            )}
+          </section>
         </>
       )}
+
+      <SubmitTaskModal activity={editingActivity} onClose={() => setEditingActivity(null)} onSaved={handleSaved} />
+      <Toast message={toast} />
     </div>
   );
 }

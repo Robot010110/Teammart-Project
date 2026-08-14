@@ -7,7 +7,15 @@ import Modal from "../common/Modal";
 import ActivityStatusPill from "../common/ActivityStatusPill";
 import { listWastedOverallReportsForMarket } from "../../services/wastedOverallService";
 
-const ITEM_LABEL = { EGGS: "Eggs", TOMATO: "Tomato", POTATO: "Potato", CUCUMBER: "Cucumber", ONION: "Onion" };
+const ITEM_LABEL = { EGGS: "Eggs", TOMATO: "Tomato", POTATO: "Potato", CUCUMBER: "Cucumber", ONION: "Onion", OTHER: "Other" };
+
+function itemLabel(report) {
+  if (report.item === "OTHER" && report.otherItemName) return report.otherItemName;
+  return ITEM_LABEL[report.item] || report.item;
+}
+function quantityLabel(report) {
+  return report.item === "EGGS" ? `${report.quantityCount} egg${report.quantityCount === 1 ? "" : "s"}` : `${report.quantityKg}kg`;
+}
 
 function isToday(iso) {
   const d = new Date(iso);
@@ -59,7 +67,7 @@ export default function WastedItemsSection({ marketId }) {
             </span>
             <div className="min-w-0 flex-1">
               <div className="flex items-center justify-between gap-2">
-                <p className="text-sm font-medium text-white">{ITEM_LABEL[r.item] || r.item} — {r.quantityKg}kg</p>
+                <p className="text-sm font-medium text-white">{itemLabel(r)} — {quantityLabel(r)}</p>
                 <ActivityStatusPill status={r.status} />
               </div>
               <p className="text-xs text-[#8B93A8] mt-0.5">Reported by {r.employee?.name}{r.photoUrl ? " · Photo attached" : ""}</p>
@@ -69,11 +77,11 @@ export default function WastedItemsSection({ marketId }) {
         ))}
       </div>
 
-      <Modal open={!!selected} onClose={() => setSelected(null)} title={selected ? `${ITEM_LABEL[selected.item] || selected.item}` : ""}>
+      <Modal open={!!selected} onClose={() => setSelected(null)} title={selected ? itemLabel(selected) : ""}>
         {selected && (
           <div className="space-y-1.5 text-sm">
             <div className="flex justify-between py-1.5 border-b border-white/[0.05]"><span className="text-[#8B93A8]">Employee</span><span className="text-white">{selected.employee?.name}</span></div>
-            <div className="flex justify-between py-1.5 border-b border-white/[0.05]"><span className="text-[#8B93A8]">Amount</span><span className="text-white">{selected.quantityKg} kg</span></div>
+            <div className="flex justify-between py-1.5 border-b border-white/[0.05]"><span className="text-[#8B93A8]">Amount</span><span className="text-white">{quantityLabel(selected)}</span></div>
             <div className="flex justify-between py-1.5 border-b border-white/[0.05]"><span className="text-[#8B93A8]">Time</span><span className="text-white">{timeLabel(selected.reportedAt)}</span></div>
             {selected.notes && <p className="pt-2 text-[#9AA1B4]">{selected.notes}</p>}
             {selected.photoUrl && <img src={selected.photoUrl} alt="" className="mt-3 rounded-lg w-full max-h-64 object-cover" />}

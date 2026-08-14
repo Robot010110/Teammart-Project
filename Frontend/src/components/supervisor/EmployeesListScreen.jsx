@@ -1,11 +1,10 @@
-import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { ChevronRight, Users } from "lucide-react";
 import { useAsync } from "../../hooks/useAsync";
 import ErrorBanner from "../common/ErrorBanner";
 import { SkeletonCard } from "../common/SkeletonCard";
 import { listEmployeesByMarket } from "../../services/staffEmployeeService";
 import { initialsOf } from "../../utils/initials";
-import SupervisorEmployeeProfile from "./SupervisorEmployeeProfile";
 
 const ROLE_LABEL = { WORKER: "Worker", CASHIER: "Cashier" };
 const STATUS_TONE = { ACTIVE: "text-emerald-400", INACTIVE: "text-[#9AA1B4]", ON_LEAVE: "text-amber-400" };
@@ -15,17 +14,15 @@ const STATUS_LABEL = { ACTIVE: "Active", INACTIVE: "Inactive", ON_LEAVE: "On Lea
 // to the Supervisor's assigned market, real data (GET /api/employees,
 // force-scoped server-side to the caller's own market for a SUPERVISOR
 // token — never another market's employees, enforced backend-side, not
-// just hidden in this UI). Tapping opens the full profile.
-export default function EmployeesListScreen({ session }) {
+// just hidden in this UI). Tapping navigates to a real route
+// (employees/:employeeId) instead of flipping local state — see
+// SupervisorEmployeeProfileRoute.jsx for the other half of this flow.
+export default function EmployeesListScreen({ session, basePath }) {
   const { data: employees, error, loading, reload } = useAsync(
     () => listEmployeesByMarket(session.marketId),
     { deps: [session.marketId], fallbackError: "Could not load employees." }
   );
-  const [selectedId, setSelectedId] = useState(null);
-
-  if (selectedId) {
-    return <SupervisorEmployeeProfile employeeId={selectedId} session={session} onBack={() => setSelectedId(null)} />;
-  }
+  const navigate = useNavigate();
 
   return (
     <div className="px-4 sm:px-6 py-6 max-w-4xl mx-auto animate-fade-up">
@@ -46,7 +43,7 @@ export default function EmployeesListScreen({ session }) {
             <button
               key={e.id}
               type="button"
-              onClick={() => setSelectedId(e.id)}
+              onClick={() => navigate(`${basePath}/employees/${e.id}`)}
               className="w-full flex items-center gap-3 rounded-xl p-3.5 bg-[#1A1F33]/70 border border-white/[0.06] hover:border-[#F47A20]/25 transition-colors"
             >
               <div className="relative h-11 w-11 shrink-0 rounded-xl bg-gradient-to-br from-[#F47A20] to-[#c95c10] grid place-items-center ring-2 ring-white/[0.06] overflow-hidden">

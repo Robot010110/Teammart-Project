@@ -14,7 +14,15 @@ const CATEGORY_LABEL = {
   DAILY_CLEANING: "daily cleaning", ITEM_COUNTING: "item counting", LABEL_CHECKING: "a label issue",
   FACING: "facing", REFILLING: "refilling",
 };
-const WASTED_LABEL = { EGGS: "eggs", TOMATO: "tomato", POTATO: "potato", CUCUMBER: "cucumber", ONION: "onion" };
+const WASTED_LABEL = { EGGS: "eggs", TOMATO: "tomato", POTATO: "potato", CUCUMBER: "cucumber", ONION: "onion", OTHER: "other" };
+
+function wastedItemLabel(w) {
+  if (w.item === "OTHER" && w.otherItemName) return w.otherItemName;
+  return WASTED_LABEL[w.item] ?? w.item.toLowerCase();
+}
+function wastedQuantityLabel(w) {
+  return w.item === "EGGS" ? `${w.quantityCount} egg${w.quantityCount === 1 ? "" : "s"}` : `${w.quantityKg}kg`;
+}
 
 function timeLabel(iso) {
   return new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
@@ -70,7 +78,7 @@ export default function TodayActivityFeed({ marketId }) {
           icon: PackageX,
           employeeName: w.employee?.name ?? "Unknown",
           title: "submitted a waste report",
-          subtitle: `${WASTED_LABEL[w.item] ?? w.item.toLowerCase()} — ${w.quantityKg}kg`,
+          subtitle: `${wastedItemLabel(w)} — ${wastedQuantityLabel(w)}`,
           timestamp: w.reportedAt,
           raw: w,
         })),
@@ -175,8 +183,8 @@ function FeedItemDetail({ item }) {
       )}
       {kind === "WASTED_OVERALL" && (
         <>
-          {row("Item", WASTED_LABEL[raw.item] ?? raw.item)}
-          {row("Quantity", `${raw.quantityKg} kg`)}
+          {row("Item", wastedItemLabel(raw))}
+          {row("Quantity", wastedQuantityLabel(raw))}
           {row("Status", raw.status)}
           {row("Notes", raw.notes)}
         </>

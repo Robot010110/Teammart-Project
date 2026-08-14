@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
 import { Users2, ShieldAlert, MessageCircle, ChevronRight } from "lucide-react";
 import { useAsync } from "../../hooks/useAsync";
 import ErrorBanner from "../common/ErrorBanner";
@@ -16,6 +17,7 @@ import {
 import { initialsOf } from "../../utils/initials";
 
 const CHANNEL_ICON = { ZONE_MANAGER_GROUP: Users2, MARKET_GROUP: Users2, WARNINGS: ShieldAlert, ZONE_MANAGER_DIRECT: MessageCircle, OVERLOOKING_DIRECT: MessageCircle };
+const EMPLOYEE_CHANNEL_PREFIX = "employee-";
 
 function ChannelRow({ conversation, onOpen }) {
   const Icon = CHANNEL_ICON[conversation.type] || MessageCircle;
@@ -51,48 +53,68 @@ function ChannelRow({ conversation, onOpen }) {
 // SupervisorChatTab.jsx — the Chat tab: 5 structurally-separate channel
 // types (spec §13/§14) plus individual employee chats. Only Warnings has
 // a real backend send path today (postWarningBroadcast) — everything
-// else is local mock state clearly scoped to this session, per
-// data/supervisorMockData.js's own doc comment on why (no messaging
-// backend exists yet for Zone Manager / Overlooking / Market Group reads
-// from a staff token — see chatController.js, gated requireEmployeeAuth).
-export default function SupervisorChatTab({ session }) {
+// else is local mock state (data/supervisorMockData.js). Opening a
+// channel navigates to a real route (chat/:channelId) instead of
+// flipping local state — channelId is either a fixed channel's id or
+// "employee-<employeeId>" (matching the mock module's own id format for
+// on-demand employee conversations).
+export default function SupervisorChatTab({ session, basePath }) {
   const { data: conversations, setData: setConversations, error, loading, reload } = useAsync(listMockConversations, { deps: [] });
   const { data: employees } = useAsync(() => listEmployeesByMarket(session.marketId), { deps: [session.marketId] });
+  const { channelId } = useParams();
+  const navigate = useNavigate();
 
-  const [openChannel, setOpenChannel] = useState(null); // { kind: "channel", conversation } | { kind: "employee", employeeId, name }
-  const [employeeConvo, setEmployeeConvo] = useState(null);
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState(null);
+  const [employeeConvo, setEmployeeConvo] = useState(null);
+
+  const chatBase = `${basePath}/chat`;
+  const isEmployeeChannel = channelId?.startsWith(EMPLOYEE_CHANNEL_PREFIX);
+  const employeeId = isEmployeeChannel ? channelId.slice(EMPLOYEE_CHANNEL_PREFIX.length) : null;
+  const fixedConversation = channelId && !isEmployeeChannel ? conversations?.find((c) => c.id === channelId) : null;
+
+  // Loading an employee conversation directly (refresh/deep link) needs
+  // the employee's name, which the mock module only has once you've
+  // asked for it — resolve it from the already-loaded employees list.
+  useEffect(() => {
+    if (!isEmployeeChannel || !employees) return;
+    setEmployeeConvo(null);
+    const employee = employees.find((e) => e.id === employeeId);
+    if (!employee) return;
+    let cancelled = false;
+    getOrCreateEmployeeConversation(employee.id, employee.name).then((convo) => {
+      if (!cancelled) setEmployeeConvo(convo);
+    });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isEmployeeChannel, employeeId, employees]);
 
   async function openEmployeeChat(employee) {
-    const convo = await getOrCreateEmployeeConversation(employee.id, employee.name);
-    setEmployeeConvo(convo);
-    setOpenChannel({ kind: "employee", employeeId: employee.id });
+    await getOrCreateEmployeeConversation(employee.id, employee.name);
+    navigate(`${chatBase}/${EMPLOYEE_CHANNEL_PREFIX}${employee.id}`);
   }
 
   async function handleSend(body) {
     setSending(true);
     setSendError(null);
     try {
-      if (openChannel.kind === "employee") {
-        await sendEmployeeMessage(openChannel.employeeId, body);
-        const fresh = await getOrCreateEmployeeConversation(openChannel.employeeId, employeeConvo.title);
+      if (isEmployeeChannel) {
+        await sendEmployeeMessage(employeeId, body);
+        const fresh = await getOrCreateEmployeeConversation(employeeId, employeeConvo.title);
         setEmployeeConvo(fresh);
         return true;
       }
-      const conversation = openChannel.conversation;
-      if (conversation.type === "WARNINGS") {
+      if (fixedConversation.type === "WARNINGS") {
         await postWarningBroadcast(session.marketId, body);
         // No staff read-back exists (chatController is employee-only for
         // GET) — reflect what was just sent locally so the Supervisor
         // sees confirmation, honestly labeled as "sent" not "synced".
-        conversation.messages = [...conversation.messages, { id: `m-${Date.now()}`, from: "Me", body, createdAt: new Date().toISOString(), fromMe: true }];
-        setConversations((prev) => prev.map((c) => (c.id === conversation.id ? { ...conversation } : c)));
+        fixedConversation.messages = [...fixedConversation.messages, { id: `m-${Date.now()}`, from: "Me", body, createdAt: new Date().toISOString(), fromMe: true }];
+        setConversations((prev) => prev.map((c) => (c.id === fixedConversation.id ? { ...fixedConversation } : c)));
       } else {
-        await sendMockMessage(conversation.id, body);
+        await sendMockMessage(fixedConversation.id, body);
         const fresh = await listMockConversations();
         setConversations(fresh);
-        setOpenChannel({ kind: "channel", conversation: fresh.find((c) => c.id === conversation.id) });
       }
       return true;
     } catch (err) {
@@ -103,20 +125,10 @@ export default function SupervisorChatTab({ session }) {
     }
   }
 
-  if (openChannel?.kind === "channel") {
-    return (
-      <SupervisorConversationScreen
-        title={openChannel.conversation.title}
-        isWarnings={openChannel.conversation.type === "WARNINGS"}
-        messages={openChannel.conversation.messages}
-        onSend={handleSend}
-        sending={sending}
-        sendError={sendError}
-        onBack={() => { setOpenChannel(null); setSendError(null); }}
-      />
-    );
-  }
-  if (openChannel?.kind === "employee" && employeeConvo) {
+  if (isEmployeeChannel) {
+    if (!employeeConvo) {
+      return <div className="px-4 sm:px-6 py-6 max-w-4xl mx-auto"><SkeletonCard className="h-40" /></div>;
+    }
     return (
       <SupervisorConversationScreen
         title={employeeConvo.title}
@@ -125,7 +137,29 @@ export default function SupervisorChatTab({ session }) {
         onSend={handleSend}
         sending={sending}
         sendError={sendError}
-        onBack={() => { setOpenChannel(null); setSendError(null); }}
+        onBack={() => { setEmployeeConvo(null); setSendError(null); navigate(chatBase); }}
+      />
+    );
+  }
+
+  if (channelId) {
+    if (loading) return <div className="px-4 sm:px-6 py-6 max-w-4xl mx-auto"><SkeletonCard className="h-40" /></div>;
+    if (!fixedConversation) {
+      return (
+        <div className="px-4 sm:px-6 py-6 max-w-4xl mx-auto">
+          <ErrorBanner message="This conversation could not be found." onRetry={() => navigate(chatBase)} />
+        </div>
+      );
+    }
+    return (
+      <SupervisorConversationScreen
+        title={fixedConversation.title}
+        isWarnings={fixedConversation.type === "WARNINGS"}
+        messages={fixedConversation.messages}
+        onSend={handleSend}
+        sending={sending}
+        sendError={sendError}
+        onBack={() => { setSendError(null); navigate(chatBase); }}
       />
     );
   }
@@ -141,7 +175,7 @@ export default function SupervisorChatTab({ session }) {
       ) : (
         <div className="space-y-2">
           {conversations.map((c) => (
-            <ChannelRow key={c.id} conversation={c} onOpen={(conversation) => setOpenChannel({ kind: "channel", conversation })} />
+            <ChannelRow key={c.id} conversation={c} onOpen={(conversation) => navigate(`${chatBase}/${conversation.id}`)} />
           ))}
         </div>
       )}

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { Routes, Route, Navigate, useNavigate } from "react-router-dom";
 import { CalendarDays, TrendingUp, CalendarOff, Settings as SettingsIcon, ChevronRight } from "lucide-react";
 import ProfileHeaderCard from "./ProfileHeaderCard";
 import AttendanceSection from "./AttendanceSection";
@@ -17,47 +17,9 @@ const MENU = [
   { key: "settings", label: "Settings", icon: SettingsIcon },
 ];
 
-function ArrowLeftMenu({ label, onBack, children }) {
-  return (
-    <div className="px-4 sm:px-6 py-6 max-w-4xl mx-auto animate-fade-up">
-      <button type="button" onClick={onBack} className="text-sm text-[#9AA1B4] hover:text-white mb-4 -ml-1 py-1.5 px-1">
-        ← Back to Profile
-      </button>
-      <h1 className="text-lg font-semibold text-white mb-4">{label}</h1>
-      {children}
-    </div>
-  );
-}
-
-// ProfileTab.jsx — the Profile tab's content: header + a menu into
-// Attendance (unchanged AttendanceSection), Performance History (new),
-// Off Days/Leave (unchanged LeaveRequestSection), Settings (new
-// placeholder). Local `screen` state drives which sub-screen shows, same
-// no-router convention as everything else in this shell.
-export default function ProfileTab({ onLogout }) {
+function ProfileMenu({ basePath }) {
   const { data: profile, error, loading, reload } = useAsync(getProfile, { deps: [] });
-  const [screen, setScreen] = useState("menu");
-
-  if (screen === "performance") {
-    return <PerformanceHistoryScreen onBack={() => setScreen("menu")} />;
-  }
-  if (screen === "settings") {
-    return <SettingsScreen onBack={() => setScreen("menu")} onLogout={onLogout} />;
-  }
-  if (screen === "attendance") {
-    return (
-      <ArrowLeftMenu label="Attendance" onBack={() => setScreen("menu")}>
-        <AttendanceSection />
-      </ArrowLeftMenu>
-    );
-  }
-  if (screen === "leave") {
-    return (
-      <ArrowLeftMenu label="Off Days / Leave" onBack={() => setScreen("menu")}>
-        <LeaveRequestSection />
-      </ArrowLeftMenu>
-    );
-  }
+  const navigate = useNavigate();
 
   return (
     <div className="px-4 sm:px-6 py-6 max-w-4xl mx-auto animate-fade-up">
@@ -74,7 +36,7 @@ export default function ProfileTab({ onLogout }) {
           <button
             key={key}
             type="button"
-            onClick={() => setScreen(key)}
+            onClick={() => navigate(`${basePath}/${key}`)}
             className="w-full flex items-center gap-3 px-4 py-3.5 text-left hover:bg-white/[0.03] transition-colors"
           >
             <Icon size={17} className="text-[#8B93A8]" />
@@ -84,5 +46,54 @@ export default function ProfileTab({ onLogout }) {
         ))}
       </div>
     </div>
+  );
+}
+
+function ArrowLeftMenu({ label, onBack, children }) {
+  return (
+    <div className="px-4 sm:px-6 py-6 max-w-4xl mx-auto animate-fade-up">
+      <button type="button" onClick={onBack} className="text-sm text-[#9AA1B4] hover:text-white mb-4 -ml-1 py-1.5 px-1">
+        ← Back to Profile
+      </button>
+      <h1 className="text-lg font-semibold text-white mb-4">{label}</h1>
+      {children}
+    </div>
+  );
+}
+
+// ProfileTab.jsx — the Profile tab's content: menu -> Attendance
+// (unchanged AttendanceSection), Performance History (also hosts "My
+// Activities" — see PerformanceHistoryScreen.jsx), Off Days/Leave
+// (unchanged LeaveRequestSection), Settings. Each entry is now a real
+// route under `basePath` (e.g. /me/profile/performance) instead of local
+// `screen` state, so Back from any of these returns to the Profile menu
+// as a real history entry.
+export default function ProfileTab({ onLogout, basePath }) {
+  const navigate = useNavigate();
+  const goToMenu = () => navigate(basePath);
+
+  return (
+    <Routes>
+      <Route index element={<ProfileMenu basePath={basePath} />} />
+      <Route path="performance/*" element={<PerformanceHistoryScreen onBack={goToMenu} basePath={`${basePath}/performance`} />} />
+      <Route path="settings" element={<SettingsScreen onBack={goToMenu} onLogout={onLogout} />} />
+      <Route
+        path="attendance"
+        element={
+          <ArrowLeftMenu label="Attendance" onBack={goToMenu}>
+            <AttendanceSection />
+          </ArrowLeftMenu>
+        }
+      />
+      <Route
+        path="leave"
+        element={
+          <ArrowLeftMenu label="Off Days / Leave" onBack={goToMenu}>
+            <LeaveRequestSection />
+          </ArrowLeftMenu>
+        }
+      />
+      <Route path="*" element={<Navigate to={basePath} replace />} />
+    </Routes>
   );
 }

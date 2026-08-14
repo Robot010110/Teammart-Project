@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { Routes, Route, useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, ChevronRight, PackageX, Sparkles, Hash, CheckCircle2, Tag, Layers } from "lucide-react";
 import ActivityCalendarScreen from "./ActivityCalendarScreen";
 import { listActivitiesForMarket } from "../../services/activityService";
@@ -154,25 +154,9 @@ function CATEGORIES(employeeId) {
   ];
 }
 
-// EmployeeActivityHistoryScreen.jsx — category picker feeding the one
-// reusable ActivityCalendarScreen (spec §11/§12). Labeled "Activity
-// History" here (not "My Activities" — that label is reserved for the
-// employee's own first-person view elsewhere in the app).
-export default function EmployeeActivityHistoryScreen({ employeeId, onBack }) {
-  const [activeCategory, setActiveCategory] = useState(null);
+function CategoryPicker({ employeeId, onBack, basePath }) {
   const categories = CATEGORIES(employeeId);
-
-  if (activeCategory) {
-    const cat = categories.find((c) => c.key === activeCategory);
-    return (
-      <ActivityCalendarScreen
-        title={cat.label}
-        onBack={() => setActiveCategory(null)}
-        fetchMonth={cat.fetchMonth}
-        renderDetail={cat.renderDetail}
-      />
-    );
-  }
+  const navigate = useNavigate();
 
   return (
     <div className="px-4 sm:px-6 py-6 max-w-4xl mx-auto animate-fade-up">
@@ -186,7 +170,7 @@ export default function EmployeeActivityHistoryScreen({ employeeId, onBack }) {
           <button
             key={key}
             type="button"
-            onClick={() => setActiveCategory(key)}
+            onClick={() => navigate(`${basePath}/${key}`)}
             className="w-full flex items-center gap-3 px-4 py-3.5 text-left hover:bg-white/[0.03] transition-colors"
           >
             <Icon size={17} className="text-[#8B93A8]" />
@@ -196,5 +180,37 @@ export default function EmployeeActivityHistoryScreen({ employeeId, onBack }) {
         ))}
       </div>
     </div>
+  );
+}
+
+function CategoryCalendarRoute({ employeeId, basePath }) {
+  const { category } = useParams();
+  const navigate = useNavigate();
+  const cat = CATEGORIES(employeeId).find((c) => c.key === category);
+  if (!cat) return null;
+
+  return (
+    <ActivityCalendarScreen
+      title={cat.label}
+      onBack={() => navigate(basePath)}
+      fetchMonth={cat.fetchMonth}
+      renderDetail={cat.renderDetail}
+    />
+  );
+}
+
+// EmployeeActivityHistoryScreen.jsx — category picker feeding the one
+// reusable ActivityCalendarScreen (spec §11/§12). Labeled "Activity
+// History" here (not "My Activities" — that label is reserved for the
+// employee's own first-person view elsewhere in the app). Category
+// selection is a real route (:category) under `basePath`, not local
+// state, so Back from a category's calendar returns to the picker as a
+// real history entry.
+export default function EmployeeActivityHistoryScreen({ employeeId, onBack, basePath }) {
+  return (
+    <Routes>
+      <Route index element={<CategoryPicker employeeId={employeeId} onBack={onBack} basePath={basePath} />} />
+      <Route path=":category" element={<CategoryCalendarRoute employeeId={employeeId} basePath={basePath} />} />
+    </Routes>
   );
 }

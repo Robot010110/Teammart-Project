@@ -5,35 +5,50 @@ import EvidenceCapture from "./EvidenceCapture";
 import { createWastedOverallReport } from "../../services/wastedOverallService";
 import { ApiError } from "../../services/apiClient";
 
-// The five supported items, fixed — matches the backend WastedItem enum
-// exactly (Eggs/Tomato/Potato/Cucumber/Onion, all five, none omitted).
+// Matches the backend WastedItem enum exactly — the five fixed produce
+// items plus Other, for anything not on the list.
 const ITEMS = [
   { value: "EGGS", label: "Eggs" },
   { value: "TOMATO", label: "Tomato" },
   { value: "POTATO", label: "Potato" },
   { value: "CUCUMBER", label: "Cucumber" },
   { value: "ONION", label: "Onion" },
+  { value: "OTHER", label: "Other" },
 ];
 
-// WastedOverallFlow.jsx — item -> photo -> kg -> submit. employeeId and
-// marketId are never sent from here at all — the backend derives both
+// WastedOverallFlow.jsx — item -> photo -> quantity -> submit. employeeId
+// and marketId are never sent from here at all — the backend derives both
 // from the authenticated token (see wastedOverallController.js), so
 // there's nothing for this form to even get wrong on that front.
+//
+// Quantity unit is item-dependent, not just a label swap: Eggs is a
+// whole-number count of eggs (quantityCount), sent and validated as such
+// end to end (see validate.js/schema.prisma) — never coerced into
+// kilograms. Every other item, including Other, stays kg-based
+// (quantityKg). Selecting Other also requires a short "Specify item" name
+// so the report is useful, not just the literal word "Other".
 export default function WastedOverallFlow({ open, onClose, onSaved }) {
   const [step, setStep] = useState("item");
   const [item, setItem] = useState(null);
+  const [otherItemName, setOtherItemName] = useState("");
   const [photo, setPhoto] = useState(null);
   const [quantity, setQuantity] = useState("");
   const [quantityInvalid, setQuantityInvalid] = useState(false);
+  const [otherNameInvalid, setOtherNameInvalid] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
+
+  const isEggs = item === "EGGS";
+  const isOther = item === "OTHER";
 
   const reset = () => {
     setStep("item");
     setItem(null);
+    setOtherItemName("");
     setPhoto(null);
     setQuantity("");
     setQuantityInvalid(false);
+    setOtherNameInvalid(false);
     setError(null);
   };
 
@@ -48,15 +63,27 @@ export default function WastedOverallFlow({ open, onClose, onSaved }) {
   };
 
   async function handleSubmit() {
+    if (isOther && !otherItemName.trim()) {
+      setOtherNameInvalid(true);
+      setError("Specify what this item is.");
+      return;
+    }
+    setOtherNameInvalid(false);
+
     const qty = Number(quantity);
     if (!quantity || Number.isNaN(qty) || qty <= 0) {
       setQuantityInvalid(true);
-      setError("Enter a quantity greater than 0.");
+      setError(isEggs ? "Enter a number of eggs greater than 0." : "Enter a quantity greater than 0.");
+      return;
+    }
+    if (isEggs && !Number.isInteger(qty)) {
+      setQuantityInvalid(true);
+      setError("Enter a whole number of eggs.");
       return;
     }
     if (qty > 1000) {
       setQuantityInvalid(true);
-      setError("That quantity looks too large — enter kilograms, not grams.");
+      setError(isEggs ? "That count looks too large." : "That quantity looks too large — enter kilograms, not grams.");
       return;
     }
     setQuantityInvalid(false);
@@ -65,7 +92,8 @@ export default function WastedOverallFlow({ open, onClose, onSaved }) {
     try {
       const report = await createWastedOverallReport({
         item,
-        quantityKg: qty,
+        ...(isEggs ? { quantityCount: qty } : { quantityKg: qty }),
+        ...(isOther ? { otherItemName: otherItemName.trim() } : {}),
         photoUrl: photo || undefined,
       });
       onSaved(report, "Wasted Overall report submitted.");
@@ -103,16 +131,35 @@ export default function WastedOverallFlow({ open, onClose, onSaved }) {
             <EvidenceCapture photo={photo} onPhotoChange={setPhoto} />
           </div>
 
+          {isOther && (
+            <div>
+              <label className="block text-xs uppercase tracking-wide text-[#8B93A8] mb-1.5">Specify Item</label>
+              <input
+                type="text"
+                value={otherItemName}
+                onChange={(e) => { setOtherItemName(e.target.value); setOtherNameInvalid(false); }}
+                placeholder="e.g. Bread, Milk"
+                maxLength={100}
+                aria-invalid={otherNameInvalid}
+                className={`w-full rounded-lg bg-white/[0.04] border px-3 py-3 text-base sm:text-sm text-white placeholder:text-[#4C5266] outline-none transition-colors duration-200 ${
+                  otherNameInvalid ? "border-red-500/60 focus:border-red-500/60" : "border-white/[0.06] focus:border-[#F47A20]/50"
+                }`}
+              />
+            </div>
+          )}
+
           <div>
-            <label className="block text-xs uppercase tracking-wide text-[#8B93A8] mb-1.5">Quantity Wasted (kg)</label>
+            <label className="block text-xs uppercase tracking-wide text-[#8B93A8] mb-1.5">
+              {isEggs ? "Quantity Wasted (eggs)" : "Quantity Wasted (kg)"}
+            </label>
             <input
               type="number"
-              inputMode="decimal"
-              step="0.1"
+              inputMode={isEggs ? "numeric" : "decimal"}
+              step={isEggs ? "1" : "0.1"}
               min="0"
               value={quantity}
               onChange={(e) => { setQuantity(e.target.value); setQuantityInvalid(false); }}
-              placeholder="0.0"
+              placeholder={isEggs ? "0" : "0.0"}
               aria-invalid={quantityInvalid}
               className={`w-full rounded-lg bg-white/[0.04] border px-3 py-3 text-base sm:text-sm text-white placeholder:text-[#4C5266] outline-none transition-colors duration-200 ${
                 quantityInvalid ? "border-red-500/60 focus:border-red-500/60" : "border-white/[0.06] focus:border-[#F47A20]/50"

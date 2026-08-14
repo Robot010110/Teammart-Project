@@ -1,6 +1,6 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Users2, ShieldAlert, MessageCircle, ChevronRight } from "lucide-react";
-import ConversationScreen from "./ConversationScreen";
 import ErrorBanner from "../common/ErrorBanner";
 import { SkeletonCard } from "../common/SkeletonCard";
 import { listMyConversations, listCoworkers, getOrCreateDirect } from "../../services/chatService";
@@ -53,16 +53,15 @@ function ConversationRow({ conversation, onOpen }) {
 
 // ChatListScreen.jsx — the Chat tab's content: Market Group + Warnings
 // (visually distinct, amber) pinned at the top, then any Direct
-// conversations, then a coworker list to start a new one. Polling-based
-// (12s) same as ConversationScreen — no WebSocket in this app.
-export default function ChatListScreen({ currentEmployeeId }) {
-  const { data: conversations, setData: setConversations, error, loading, reload } = useAsync(
-    listMyConversations,
-    { deps: [] }
-  );
+// conversations, then a coworker list to start a new one. Opening a
+// conversation navigates to a real route (:conversationId) instead of
+// flipping local state — see ConversationRoute.jsx for the other half.
+// Polling-based (12s) — no WebSocket in this app.
+export default function ChatListScreen({ currentEmployeeId, basePath }) {
+  const { data: conversations, error, loading, reload } = useAsync(listMyConversations, { deps: [] });
   const { data: coworkers } = useAsync(listCoworkers, { deps: [] });
-  const [selected, setSelected] = useState(null);
   const [startingId, setStartingId] = useState(null);
+  const navigate = useNavigate();
 
   usePolling(() => reload(), LIST_POLL_MS, []);
 
@@ -70,24 +69,10 @@ export default function ChatListScreen({ currentEmployeeId }) {
     setStartingId(coworker.id);
     try {
       const conversation = await getOrCreateDirect(coworker.id);
-      setSelected({ ...conversation, title: coworker.name, unreadCount: 0, lastMessage: null });
-      reload();
+      navigate(`${basePath}/chat/${conversation.id}`);
     } finally {
       setStartingId(null);
     }
-  }
-
-  if (selected) {
-    return (
-      <ConversationScreen
-        conversation={selected}
-        currentEmployeeId={currentEmployeeId}
-        onBack={() => {
-          setSelected(null);
-          reload();
-        }}
-      />
-    );
   }
 
   const directs = conversations?.filter((c) => c.type === "DIRECT") ?? [];
@@ -106,10 +91,10 @@ export default function ChatListScreen({ currentEmployeeId }) {
         <>
           <div className="space-y-2">
             {pinned.map((c) => (
-              <ConversationRow key={c.id} conversation={c} onOpen={setSelected} />
+              <ConversationRow key={c.id} conversation={c} onOpen={(conv) => navigate(`${basePath}/chat/${conv.id}`)} />
             ))}
             {directs.map((c) => (
-              <ConversationRow key={c.id} conversation={c} onOpen={setSelected} />
+              <ConversationRow key={c.id} conversation={c} onOpen={(conv) => navigate(`${basePath}/chat/${conv.id}`)} />
             ))}
           </div>
 
