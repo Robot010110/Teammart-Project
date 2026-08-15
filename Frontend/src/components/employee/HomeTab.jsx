@@ -147,9 +147,7 @@ export default function HomeTab({ onNavigate }) {
       )}
 
       <div className="mt-4 flex gap-3 items-stretch">
-        {profile?.role !== "CASHIER" && (
-          <PerformanceCircle rate={performance?.rate} onClick={() => setShowPerformanceHistory(true)} />
-        )}
+        <PerformanceCircle rate={performance?.rate} onClick={() => setShowPerformanceHistory(true)} />
         <TaskCountTile count={suddenTasks?.length ?? null} onClick={() => onNavigate?.("tasks")} />
       </div>
 

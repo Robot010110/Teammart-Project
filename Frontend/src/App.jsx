@@ -227,25 +227,25 @@ function AppRoutes() {
   }
 
   if (session.role === "employee") {
+    // No outer <Header/> here — AppShell (rendered inside
+    // EmployeeWorkspace/CashierWorkspace) is this role's actual shell and
+    // already renders its own top bar with the real, working notification
+    // bell (see AppShell.jsx). This block used to also render the
+    // desktop-style <Header/> (a second TEAMMART logo + a permanently
+    // non-functional bell, notificationCount hardcoded to 0) on top of
+    // it, producing two stacked headers on every Employee/Cashier screen.
     const isCashier = session.employeeRole === "CASHIER";
     return (
-      <div className="min-h-screen bg-[#1A1A1A] text-white font-sans antialiased">
-        <Header
-          user={{ name: session.displayName, role: isCashier ? "Cashier" : "Employee", avatarInitials: session.initials }}
-          onLogout={handleLogout}
-          notificationCount={0}
-        />
-        <Routes>
-          <Route path="/" element={<Navigate to={isCashier ? "/cashier" : "/me"} replace />} />
-          <Route path="/login" element={<Navigate to={isCashier ? "/cashier" : "/me"} replace />} />
-          {isCashier ? (
-            <Route path="/cashier/*" element={<CashierWorkspace employeeId={session.employeeId} onLogout={handleLogout} />} />
-          ) : (
-            <Route path="/me/*" element={<EmployeeWorkspace employeeId={session.employeeId} onLogout={handleLogout} />} />
-          )}
-          <Route path="*" element={<Navigate to={isCashier ? "/cashier" : "/me"} replace />} />
-        </Routes>
-      </div>
+      <Routes>
+        <Route path="/" element={<Navigate to={isCashier ? "/cashier" : "/me"} replace />} />
+        <Route path="/login" element={<Navigate to={isCashier ? "/cashier" : "/me"} replace />} />
+        {isCashier ? (
+          <Route path="/cashier/*" element={<CashierWorkspace employeeId={session.employeeId} onLogout={handleLogout} />} />
+        ) : (
+          <Route path="/me/*" element={<EmployeeWorkspace employeeId={session.employeeId} onLogout={handleLogout} />} />
+        )}
+        <Route path="*" element={<Navigate to={isCashier ? "/cashier" : "/me"} replace />} />
+      </Routes>
     );
   }
 
