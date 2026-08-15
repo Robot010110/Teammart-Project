@@ -244,6 +244,10 @@ enum NotificationType {
   CHAT_MESSAGE
   ANNOUNCEMENT
   WASTED_OVERALL
+  // A Supervisor approved/rejected an employee's Activity or Wasted
+  // Overall report — one shared type for both, same as LEAVE_REVIEWED
+  // covers both leave outcomes.
+  SUBMISSION_REVIEWED
 }
 
 // ---------------------------------------------------------------------
@@ -258,6 +262,13 @@ enum ConversationType {
   MARKET_GROUP
   WARNINGS
   DIRECT
+  // A real, backend-persisted 1:1 conversation between one Employee and
+  // their market's Supervisor (a staff User) — DIRECT above only ever
+  // connects two Employees (participantAId/participantBId are both
+  // Employee FKs), so it structurally cannot represent an Employee<->
+  // Supervisor DM. This type uses participantAId (the Employee) +
+  // staffParticipantId (the Supervisor's User id) instead.
+  SUPERVISOR_DIRECT
 }
 
 // FILE/AUDIO/VOICE only — an image attachment is still represented by
@@ -310,6 +321,8 @@ model User {
   notifications                Notification[]         @relation("NotificationRecipientUser")
 
   sentMessages Message[] @relation("MessageSenderUser")
+  supervisorConversations Conversation[] @relation("ConversationStaffParticipant")
+  reviewedActivities Activity[] @relation("ActivityReviewer")
 }
 
 // ---------------------------------------------------------------------
@@ -473,6 +486,15 @@ model Activity {
   notes    String?
   status   ActivityStatus @default(DRAFT)
 
+  // Set by a Supervisor's review (approve/reject) — mirrors Task's own
+  // reviewedById/rejectionReason/reviewedAt shape exactly, since this is
+  // the same "submit -> approve/reject" lifecycle, just for a
+  // self-initiated Activity instead of a supervisor-assigned Task.
+  reviewedById    Int?
+  reviewedBy      User?     @relation("ActivityReviewer", fields: [reviewedById], references: [id])
+  rejectionReason String?
+  reviewedAt      DateTime?
+
   // Only meaningful for category = LABEL_CHECKING — the scanned/searched
   // Product the label issue was found on (same product-search flow as
   // ItemReport), and what's wrong with it. Null for every other category.
@@ -628,6 +650,13 @@ model AttendanceRecord {
   // as workingHours itself), a penalty has no computable source of truth
   // and must be recorded directly.
   punishmentHours Float          @default(0)
+  // Why the penalty was applied — was previously only written to
+  // AttendanceAuditLog (audit-only, never fetched by the employee-facing
+  // endpoint), so the employee had no way to see it even though the
+  // supervisor entered one. Stored directly on the record now, exactly
+  // like RequiredHoursAdjustment.reason for extra/reward hours, so both
+  // behave the same way to the employee.
+  punishmentReason String?
   source        AttendanceSource @default(MANUAL)
   // The original imported row, preserved verbatim for audit purposes
   // (spec: "Preserve the original imported data") — only set when
@@ -899,6 +928,9 @@ model WastedOverallReport {
   photoUrl      String?
   notes         String?
   status        ActivityStatus @default(PENDING)
+  // Set on a Supervisor's REJECTED review — mirrors Activity/Task's own
+  // rejectionReason shape.
+  rejectionReason String?
 
   employeeId String
   employee   Employee @relation(fields: [employeeId], references: [id])
@@ -967,17 +999,23 @@ model Conversation {
   marketId String
   market   Market @relation(fields: [marketId], references: [id])
 
-  participantAId String?
+  participantAId String? // DIRECT: one of the two Employees. SUPERVISOR_DIRECT: the Employee.
   participantA   Employee? @relation("ConversationParticipantA", fields: [participantAId], references: [id])
-  participantBId String?
+  participantBId String? // DIRECT only: the other Employee.
   participantB   Employee? @relation("ConversationParticipantB", fields: [participantBId], references: [id])
+  // SUPERVISOR_DIRECT only: the Supervisor's User id (fixed at creation
+  // to Market.supervisorId) — nullable and distinct from participantB
+  // rather than repurposing it, since a DIRECT participant is always an
+  // Employee and a SUPERVISOR_DIRECT one is always staff.
+  staffParticipantId Int?
+  staffParticipant   User? @relation("ConversationStaffParticipant", fields: [staffParticipantId], references: [id])
 
   createdAt DateTime @default(now())
 
   messages Message[]
   reads    ConversationRead[]
 
-  @@unique([marketId, type, participantAId, participantBId])
+  @@unique([marketId, type, participantAId, participantBId, staffParticipantId])
   @@index([marketId])
 }
 

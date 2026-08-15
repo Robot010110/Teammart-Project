@@ -1,19 +1,15 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Users2, ShieldAlert, MessageCircle, ChevronRight } from "lucide-react";
 import { useAsync } from "../../hooks/useAsync";
 import ErrorBanner from "../common/ErrorBanner";
 import { SkeletonCard } from "../common/SkeletonCard";
 import SupervisorConversationScreen from "./SupervisorConversationScreen";
+import StaffEmployeeConversationRoute from "./StaffEmployeeConversationRoute";
 import { listEmployeesByMarket } from "../../services/staffEmployeeService";
 import { postWarningBroadcast } from "../../services/chatService";
 import { ApiError } from "../../services/apiClient";
-import {
-  listMockConversations,
-  getOrCreateEmployeeConversation,
-  sendMockMessage,
-  sendEmployeeMessage,
-} from "../../data/supervisorMockData";
+import { listMockConversations, sendMockMessage } from "../../data/supervisorMockData";
 import { initialsOf } from "../../utils/initials";
 
 const CHANNEL_ICON = { ZONE_MANAGER_GROUP: Users2, MARKET_GROUP: Users2, WARNINGS: ShieldAlert, ZONE_MANAGER_DIRECT: MessageCircle, OVERLOOKING_DIRECT: MessageCircle };
@@ -50,14 +46,16 @@ function ChannelRow({ conversation, onOpen }) {
   );
 }
 
-// SupervisorChatTab.jsx — the Chat tab: 5 structurally-separate channel
-// types (spec §13/§14) plus individual employee chats. Only Warnings has
-// a real backend send path today (postWarningBroadcast) — everything
-// else is local mock state (data/supervisorMockData.js). Opening a
-// channel navigates to a real route (chat/:channelId) instead of
-// flipping local state — channelId is either a fixed channel's id or
-// "employee-<employeeId>" (matching the mock module's own id format for
-// on-demand employee conversations).
+// SupervisorChatTab.jsx — the Chat tab. Individual employee conversations
+// are real (StaffEmployeeConversationRoute, same backend + same
+// ConversationScreen component the Employee Chat tab uses — see that
+// file's own comment). The Zone-Manager-facing channels (spec §13/§14)
+// have no backend yet (Regional Manager module is still mock throughout
+// this app) and stay on local mock state (data/supervisorMockData.js);
+// Warnings sends for real via postWarningBroadcast. Opening a channel
+// navigates to a real route (chat/:channelId) instead of flipping local
+// state — channelId is either a fixed channel's id or
+// "employee-<employeeId>" for on-demand employee conversations.
 export default function SupervisorChatTab({ session, basePath }) {
   const { data: conversations, setData: setConversations, error, loading, reload } = useAsync(listMockConversations, { deps: [] });
   const { data: employees } = useAsync(() => listEmployeesByMarket(session.marketId), { deps: [session.marketId] });
@@ -66,31 +64,13 @@ export default function SupervisorChatTab({ session, basePath }) {
 
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState(null);
-  const [employeeConvo, setEmployeeConvo] = useState(null);
 
   const chatBase = `${basePath}/chat`;
   const isEmployeeChannel = channelId?.startsWith(EMPLOYEE_CHANNEL_PREFIX);
   const employeeId = isEmployeeChannel ? channelId.slice(EMPLOYEE_CHANNEL_PREFIX.length) : null;
   const fixedConversation = channelId && !isEmployeeChannel ? conversations?.find((c) => c.id === channelId) : null;
 
-  // Loading an employee conversation directly (refresh/deep link) needs
-  // the employee's name, which the mock module only has once you've
-  // asked for it — resolve it from the already-loaded employees list.
-  useEffect(() => {
-    if (!isEmployeeChannel || !employees) return;
-    setEmployeeConvo(null);
-    const employee = employees.find((e) => e.id === employeeId);
-    if (!employee) return;
-    let cancelled = false;
-    getOrCreateEmployeeConversation(employee.id, employee.name).then((convo) => {
-      if (!cancelled) setEmployeeConvo(convo);
-    });
-    return () => { cancelled = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isEmployeeChannel, employeeId, employees]);
-
-  async function openEmployeeChat(employee) {
-    await getOrCreateEmployeeConversation(employee.id, employee.name);
+  function openEmployeeChat(employee) {
     navigate(`${chatBase}/${EMPLOYEE_CHANNEL_PREFIX}${employee.id}`);
   }
 
@@ -98,12 +78,6 @@ export default function SupervisorChatTab({ session, basePath }) {
     setSending(true);
     setSendError(null);
     try {
-      if (isEmployeeChannel) {
-        await sendEmployeeMessage(employeeId, body);
-        const fresh = await getOrCreateEmployeeConversation(employeeId, employeeConvo.title);
-        setEmployeeConvo(fresh);
-        return true;
-      }
       if (fixedConversation.type === "WARNINGS") {
         await postWarningBroadcast(session.marketId, body);
         // No staff read-back exists (chatController is employee-only for
@@ -126,18 +100,11 @@ export default function SupervisorChatTab({ session, basePath }) {
   }
 
   if (isEmployeeChannel) {
-    if (!employeeConvo) {
-      return <div className="px-4 sm:px-6 py-6 max-w-4xl mx-auto"><SkeletonCard className="h-40" /></div>;
-    }
     return (
-      <SupervisorConversationScreen
-        title={employeeConvo.title}
-        isWarnings={false}
-        messages={employeeConvo.messages}
-        onSend={handleSend}
-        sending={sending}
-        sendError={sendError}
-        onBack={() => { setEmployeeConvo(null); setSendError(null); navigate(chatBase); }}
+      <StaffEmployeeConversationRoute
+        employeeId={employeeId}
+        currentStaffUserId={session.staffId}
+        onBack={() => navigate(chatBase)}
       />
     );
   }

@@ -25,3 +25,9 @@ export function listWastedOverallReportsForMarket({ marketId, status } = {}) {
   const query = params.toString();
   return apiRequest(`/wasted-overall/market${query ? `?${query}` : ""}`);
 }
+
+// Staff-only: approve/reject a PENDING report.
+// payload: { status: "APPROVED" | "REJECTED", rejectionReason? }
+export function reviewWastedOverallReport(id, payload) {
+  return apiRequest(`/wasted-overall/${id}/review`, { method: "POST", body: payload });
+}

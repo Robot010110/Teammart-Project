@@ -1,16 +1,20 @@
-import { Sparkles, Palette, ClipboardList, Tag, PackagePlus } from "lucide-react";
+import { Sparkles, Rows3, Boxes, Palette, ClipboardList, Tag, PackagePlus } from "lucide-react";
 
 // SimpleActivityTile.jsx — one cube/tile for a category whose submission
 // is just the generic notes+photo form (SubmitTaskModal), same visual
-// markup as TaskSubmissionGrid's buttons — extracted so
-// WorkerActivityTab.jsx can render these interleaved with
-// DailyStatusTile.jsx (Cleaning Shelves/Facing/Refilling) in ONE grid
-// instead of two separate grid containers, per the Activity-page
-// unification. TaskSubmissionGrid.jsx itself is left unchanged (still
-// used as a self-contained grid wherever a caller wants exactly that).
+// markup as TaskSubmissionGrid's buttons. Every category in
+// ACTIVITY_SUBMISSION_OPTIONS (including Cleaning Shelves/Facing/
+// Refilling, which used to have their own special Start/Complete
+// workflow — see the removed DailyStatusTile.jsx) renders through this
+// one tile, per the "same UI, same interaction, same submission
+// architecture" consistency fix. TaskSubmissionGrid.jsx itself is left
+// unchanged (still used as a self-contained grid wherever a caller wants
+// exactly that).
 
 const ICONS = {
   SHELF_CLEANING: Sparkles,
+  FACING: Rows3,
+  REFILLING: Boxes,
   PRODUCT_CUSTOMIZATION: Palette,
   DAILY_CLEANING: PackagePlus,
   ITEM_COUNTING: ClipboardList,

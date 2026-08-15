@@ -33,7 +33,7 @@ export default function EmployeeWorkspace({ employeeId, onLogout }) {
 
   return (
     <Routes>
-      <Route element={<AppShell tabs={tabs} basePath={BASE_PATH} />}>
+      <Route element={<AppShell tabs={tabs} basePath={BASE_PATH} showNotificationBell />}>
         <Route index element={<Navigate to="home" replace />} />
         <Route path="home" element={<HomeTab onNavigate={(tab) => navigate(`${BASE_PATH}/${tab}`)} />} />
         <Route path="tasks" element={<SuddenTaskListScreen basePath={BASE_PATH} />} />

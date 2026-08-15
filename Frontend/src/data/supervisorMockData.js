@@ -1,9 +1,13 @@
 // supervisorMockData.js — realistic local/mock data for the parts of
 // Supervisor Mode that have no backend model yet: Zone Manager
 // announcements, market physical structure/sections, daily section
-// checks, market problem reports, and 5 of the 6 chat channel types
-// (Warnings/"Management -> Employees" is the one real one — see
-// chatService.postWarningBroadcast).
+// checks, market problem reports, and the Zone-Manager-facing chat
+// channels (Zone Manager Group/Direct, Overlooking Direct — the Regional
+// Manager module these connect to is still mock throughout this app).
+// Warnings ("Management -> Employees") sends for real
+// (chatService.postWarningBroadcast). Individual Employee chats are also
+// real now (SUPERVISOR_DIRECT conversations — see chatController.js and
+// StaffEmployeeConversationRoute.jsx), no longer backed by this file.
 //
 // Every function here returns a Promise, deliberately — this is the
 // exact "service -> UI" shape every *real* service file in this app
@@ -144,13 +148,14 @@ export function updateMarketProblemStatus(id, status) {
 }
 
 // ---------------------------------------------------------------------
-// Chat — 5 of the 6 channel types with no backend messaging model yet
-// (Zone Manager Group, Zone Manager Direct, Supervisor<->Overlooking,
-// Individual Employee chats, Market Employee Group read-back — a
-// Supervisor token can't read Market Group either, see
-// chatController.js). Warnings/"Management -> Employees" sending is
-// real (chatService.postWarningBroadcast); its local history here is
-// just what THIS session has sent, since there's no staff read-back.
+// Chat — the remaining channel types with no backend messaging model yet
+// (Zone Manager Group, Zone Manager Direct, Supervisor<->Overlooking —
+// all Regional-Manager-module-facing, still mock throughout this app;
+// Market Employee Group read-back is also still local-only here, since
+// there's no dedicated screen for it yet). Warnings/"Management ->
+// Employees" sending is real (chatService.postWarningBroadcast); its
+// local history here is just what THIS session has sent, since there's
+// no staff read-back for it specifically.
 //
 // Same Conversation shape as the spec asks for:
 // { type, title, participants, lastMessage, unreadCount, messages }
@@ -221,32 +226,5 @@ export function sendMockMessage(conversationId, body) {
   const message = { id: `m-${Date.now()}`, from: "Me", body, createdAt: new Date().toISOString(), fromMe: true };
   convo.messages = [...convo.messages, message];
   convo.unreadCount = 0;
-  return Promise.resolve(message);
-}
-
-// Individual employee conversations are created on demand (one per
-// employee, keyed by employeeId) rather than pre-seeded like the fixed
-// channels above.
-const employeeConversations = new Map();
-
-export function getOrCreateEmployeeConversation(employeeId, employeeName) {
-  if (!employeeConversations.has(employeeId)) {
-    employeeConversations.set(employeeId, {
-      id: `employee-${employeeId}`,
-      type: "EMPLOYEE_DIRECT",
-      title: employeeName,
-      participants: [employeeName],
-      unreadCount: 0,
-      messages: [],
-    });
-  }
-  return Promise.resolve(employeeConversations.get(employeeId));
-}
-
-export function sendEmployeeMessage(employeeId, body) {
-  const convo = employeeConversations.get(employeeId);
-  if (!convo) return Promise.reject(new Error("Conversation not found"));
-  const message = { id: `m-${Date.now()}`, from: "Me", body, createdAt: new Date().toISOString(), fromMe: true };
-  convo.messages = [...convo.messages, message];
   return Promise.resolve(message);
 }

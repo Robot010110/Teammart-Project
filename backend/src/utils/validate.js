@@ -231,6 +231,18 @@ export const listActivitiesQuerySchema = z.object({
   status: z.enum(["DRAFT", "PENDING", "APPROVED", "REJECTED"]).optional(),
 });
 
+// Staff approving/rejecting a PENDING Activity — mirrors rejectTaskSchema's
+// shape (rejectionReason required only for REJECTED, enforced below).
+export const reviewActivitySchema = z
+  .object({
+    status: z.enum(["APPROVED", "REJECTED"]),
+    rejectionReason: z.string().min(2).max(500).optional(),
+  })
+  .refine((data) => data.status !== "REJECTED" || !!data.rejectionReason, {
+    message: "A rejection reason is required",
+    path: ["rejectionReason"],
+  });
+
 export const listActivitiesMarketQuerySchema = z.object({
   marketId: z.string().min(1).optional(),
   employeeId: z.string().min(1).optional(),
@@ -365,6 +377,18 @@ export const sendMessageSchema = z
   .refine((data) => !data.attachmentType || !!data.attachmentUrl, {
     message: "attachmentUrl is required when attachmentType is set",
     path: ["attachmentUrl"],
+  });
+
+// Staff approving/rejecting a PENDING Wasted Overall report — same shape
+// as reviewActivitySchema.
+export const reviewWastedOverallReportSchema = z
+  .object({
+    status: z.enum(["APPROVED", "REJECTED"]),
+    rejectionReason: z.string().min(2).max(500).optional(),
+  })
+  .refine((data) => data.status !== "REJECTED" || !!data.rejectionReason, {
+    message: "A rejection reason is required",
+    path: ["rejectionReason"],
   });
 
 export const listWastedOverallQuerySchema = z.object({

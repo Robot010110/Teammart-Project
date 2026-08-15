@@ -100,6 +100,12 @@ export function deleteActivityImage(activityId, imageId) {
   return apiRequest(`/activities/${activityId}/images/${imageId}`, { method: "DELETE" });
 }
 
+// Staff-only: approve/reject a PENDING activity.
+// payload: { status: "APPROVED" | "REJECTED", rejectionReason? }
+export function reviewActivity(id, payload) {
+  return apiRequest(`/activities/${id}/review`, { method: "POST", body: payload });
+}
+
 // Takes a File selected from an <input type="file"> and resolves to
 // whatever string the backend should store as the ActivityImage url.
 // Deliberately named around what it's FOR ("prepare this image so it can

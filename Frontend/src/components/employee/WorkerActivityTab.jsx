@@ -1,8 +1,7 @@
 import { useState } from "react";
-import { Sparkles, Rows3, PackagePlus, Tag, ChevronRight, PackageX } from "lucide-react";
+import { Tag, ChevronRight, PackageX } from "lucide-react";
 import SubmitTaskModal from "../workspace/SubmitTaskModal";
 import ItemReportSection from "./ItemReportSection";
-import DailyStatusTile from "./DailyStatusTile";
 import SimpleActivityTile from "./SimpleActivityTile";
 import ShelfLabelFlow from "./ShelfLabelFlow";
 import WastedOverallFlow from "./WastedOverallFlow";
@@ -34,16 +33,13 @@ function dateLabel(iso) {
 // moved to Profile -> Performance History (see PerformanceHistoryScreen.jsx)
 // — it isn't gone, just relocated, per the Activity-page unification.
 //
-// "Today's Department Tasks" (Cleaning Shelves/Facing/Refilling) and
-// "Other Daily Activities" (Product Customization/Daily Cleaning/Item
-// Counting) used to be two visually separate sections — a row of large
-// full-width status cards, then a grid of small cube tiles. They're now
-// ONE "Other Daily Activities" section, one grid, all cube/tile style
-// (DailyStatusTile.jsx for the three that track a Not Started/In
-// Progress/Completed state, SimpleActivityTile.jsx for the rest) — same
-// backend calls, same permissions, same Start/Mark Complete behavior,
-// only the presentation changed. See DailyStatusTile.jsx's own comment
-// for exactly what moved where.
+// Every category (Cleaning Shelves/Facing/Refilling included) renders as
+// the same cube/tile (SimpleActivityTile.jsx) and opens the same
+// notes+photo SubmitTaskModal — Cleaning Shelves/Facing/Refilling used to
+// have their own separate Not Started/In Progress/Completed Start/
+// Complete workflow (DailyStatusTile.jsx), which has been removed so
+// every activity in this grid has one consistent UI and one consistent
+// submission architecture (see data/workspaceData.js's own comment).
 export default function WorkerActivityTab() {
   const {
     data: wastedReports,
@@ -137,9 +133,6 @@ export default function WorkerActivityTab() {
       <section className="mt-6">
         <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-[#8B93A8]">Other Daily Activities</h2>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <DailyStatusTile category="SHELF_CLEANING" label="Cleaning Shelves" icon={Sparkles} />
-          <DailyStatusTile category="FACING" label="Facing" icon={Rows3} description="Bring products to the front of the shelf" />
-          <DailyStatusTile category="REFILLING" label="Refilling" icon={PackagePlus} description="Restock empty shelf spots" />
           {ACTIVITY_SUBMISSION_OPTIONS.map((option) => (
             <SimpleActivityTile key={option.category} option={option} onSelect={setActiveOption} />
           ))}

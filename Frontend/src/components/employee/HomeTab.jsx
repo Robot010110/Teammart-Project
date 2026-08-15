@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Bell, BellOff, CheckCheck, MessageCircle, PackageX, ClipboardList, ChevronRight } from "lucide-react";
+import { Bell, BellOff, CheckCheck, ClipboardList, ChevronRight } from "lucide-react";
 import { useAsync } from "../../hooks/useAsync";
 import ProfileHeaderCard from "./ProfileHeaderCard";
 import PerformanceCircle from "./PerformanceCircle";
@@ -64,24 +64,19 @@ function NotificationRow({ notification, onRead }) {
   );
 }
 
-function QuickAction({ icon: Icon, label, onClick }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="flex-1 flex items-center justify-center gap-2 rounded-xl py-3 text-sm font-medium text-[#9AA1B4] bg-white/[0.05] hover:bg-white/[0.09] active:bg-white/[0.12] transition-colors"
-    >
-      <Icon size={16} /> {label}
-    </button>
-  );
-}
-
 // HomeTab.jsx — the Worker/Cashier personal dashboard:
 // Profile header (identity, department, WhatsApp)
 //   -> Performance (real circular indicator, tap for history)
 //   -> Attendance (the full monthly summary + calendar + day-off request,
 //      visible right here rather than requiring navigation elsewhere)
-//   -> Notifications preview + quick links to Chat / Wasted Overall.
+//   -> Notifications preview.
+//
+// Chat and Wasted Overall shortcuts used to live here as a quick-action
+// row — removed per the homepage cleanup pass (Home was getting
+// cluttered with entry points that duplicate the bottom-nav Chat tab and
+// the Activity tab's own Wasted Overall button). Neither feature was
+// touched: Chat is still the Chat tab, Wasted Overall is still on the
+// Activity tab exactly as before — only this second shortcut is gone.
 //
 // The old prominent Sudden Tasks section is deliberately gone from this
 // page (spec: Home should no longer be dominated by tasks) — Sudden
@@ -161,15 +156,6 @@ export default function HomeTab({ onNavigate }) {
       <section className="mt-6">
         <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-[#8B93A8]">Attendance</h2>
         <AttendanceSection />
-      </section>
-
-      <section className="mt-6">
-        <div className="flex gap-3">
-          <QuickAction icon={MessageCircle} label="Chat" onClick={() => onNavigate?.("chat")} />
-          {profile?.role !== "CASHIER" && (
-            <QuickAction icon={PackageX} label="Wasted Overall" onClick={() => onNavigate?.("activity")} />
-          )}
-        </div>
       </section>
 
       <section className="mt-6">

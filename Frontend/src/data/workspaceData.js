@@ -19,14 +19,21 @@
 // product link + quantity + automatic stock decrement that this simple
 // notes+photo Activity flow was never built for. The enum value stays in
 // the backend for DB compatibility; it's just not offered here anymore.
-// SHELF_CLEANING and LABEL_CHECKING are deliberately NOT listed here
-// anymore — both got dedicated, more structured flows in the mobile
-// rebuild (DailyStatusFlow's Not Started/In Progress/Completed for
-// Cleaning Shelves; ShelfLabelFlow's scan->issue->Save for Later/Fix Now
-// for Shelf Labels), so this generic single-form modal is no longer the
-// entry point for either — the Activity rows they create still show up
-// in "My Activities" below like any other category.
+// LABEL_CHECKING is deliberately NOT listed here — it has its own
+// dedicated, more structured flow (ShelfLabelFlow's scan->issue->Save for
+// Later/Fix Now), so this generic single-form modal is not its entry
+// point; the Activity rows it creates still show up in "My Activities"
+// like any other category.
+//
+// SHELF_CLEANING/FACING/REFILLING (Cleaning Shelves/Facing/Refilling) WERE
+// listed separately with their own Not Started/In Progress/Completed
+// Start/Complete workflow (DailyStatusTile.jsx, now removed) — per the UI
+// consistency fix pass, they now use this exact same notes+photo submit
+// flow as everything else here instead of a special-cased one.
 export const ACTIVITY_SUBMISSION_OPTIONS = [
+  { category: "SHELF_CLEANING", label: "Cleaning Shelves" },
+  { category: "FACING", label: "Facing" },
+  { category: "REFILLING", label: "Refilling" },
   { category: "PRODUCT_CUSTOMIZATION", label: "Submit Product Customization" },
   { category: "DAILY_CLEANING", label: "Report Daily Cleaning" },
   { category: "ITEM_COUNTING", label: "Report Item Counting" },

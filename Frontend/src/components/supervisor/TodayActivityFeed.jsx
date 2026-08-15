@@ -1,13 +1,21 @@
 import { useMemo, useState } from "react";
-import { CheckCircle2, PackageX, ClipboardList, Sparkles } from "lucide-react";
+import { CheckCircle2, PackageX, ClipboardList, Sparkles, XCircle, Loader2 } from "lucide-react";
 import { useAsync } from "../../hooks/useAsync";
 import ErrorBanner from "../common/ErrorBanner";
 import { SkeletonCard } from "../common/SkeletonCard";
 import Modal from "../common/Modal";
-import { listActivitiesForMarket } from "../../services/activityService";
+import { listActivitiesForMarket, reviewActivity } from "../../services/activityService";
 import { listItemReportsForMarket } from "../../services/itemReportService";
-import { listWastedOverallReportsForMarket } from "../../services/wastedOverallService";
+import { listWastedOverallReportsForMarket, reviewWastedOverallReport } from "../../services/wastedOverallService";
 import { listSuddenTasks } from "../../services/suddenTaskService";
+import { ApiError } from "../../services/apiClient";
+
+// Only these two submission kinds have a real staff review endpoint today
+// (Activity, Wasted Overall) — Item Reports and Sudden Tasks don't, so no
+// Approve/Reject is rendered for those (a real gap, not hidden: showing
+// non-functional buttons would be exactly the "fake frontend-only button"
+// this fix pass explicitly rules out).
+const REVIEWABLE_KINDS = { ACTIVITY: reviewActivity, WASTED_OVERALL: reviewWastedOverallReport };
 
 const CATEGORY_LABEL = {
   EXPIRED_ITEMS: "expired items", SHELF_CLEANING: "shelf cleaning", PRODUCT_CUSTOMIZATION: "product customization",
@@ -143,14 +151,27 @@ export default function TodayActivityFeed({ marketId }) {
       </div>
 
       <Modal open={!!selected} onClose={() => setSelected(null)} title={selected ? `${selected.employeeName}` : ""}>
-        {selected && <FeedItemDetail item={selected} />}
+        {selected && (
+          <FeedItemDetail
+            item={selected}
+            onReviewed={() => {
+              setSelected(null);
+              reload();
+            }}
+          />
+        )}
       </Modal>
     </>
   );
 }
 
-function FeedItemDetail({ item }) {
+function FeedItemDetail({ item, onReviewed }) {
   const { raw, kind } = item;
+  const [reasonDraft, setReasonDraft] = useState("");
+  const [rejecting, setRejecting] = useState(false);
+  const [busy, setBusy] = useState(null); // "APPROVED" | "REJECTED" | null
+  const [reviewError, setReviewError] = useState(null);
+
   const row = (label, value) =>
     value != null && value !== "" ? (
       <div className="flex items-start justify-between gap-3 text-sm py-1.5 border-b border-white/[0.05] last:border-0">
@@ -158,6 +179,30 @@ function FeedItemDetail({ item }) {
         <span className="text-white text-right">{value}</span>
       </div>
     ) : null;
+
+  const reviewFn = REVIEWABLE_KINDS[kind];
+  const canReview = !!reviewFn && raw.status === "PENDING";
+
+  async function handleReview(status) {
+    if (status === "REJECTED" && !rejecting) {
+      setRejecting(true);
+      return;
+    }
+    if (status === "REJECTED" && !reasonDraft.trim()) {
+      setReviewError("A rejection reason is required.");
+      return;
+    }
+    setBusy(status);
+    setReviewError(null);
+    try {
+      await reviewFn(raw.id, status === "REJECTED" ? { status, rejectionReason: reasonDraft.trim() } : { status });
+      onReviewed();
+    } catch (err) {
+      setReviewError(err instanceof ApiError ? err.message : "Could not submit this review. Please try again.");
+    } finally {
+      setBusy(null);
+    }
+  }
 
   return (
     <div>
@@ -169,6 +214,7 @@ function FeedItemDetail({ item }) {
           {row("Category", CATEGORY_LABEL[raw.category] ?? raw.category)}
           {row("Status", raw.status)}
           {row("Notes", raw.notes)}
+          {row("Rejection reason", raw.rejectionReason)}
         </>
       )}
       {kind === "ITEM_REPORT" && (
@@ -187,6 +233,7 @@ function FeedItemDetail({ item }) {
           {row("Quantity", wastedQuantityLabel(raw))}
           {row("Status", raw.status)}
           {row("Notes", raw.notes)}
+          {row("Rejection reason", raw.rejectionReason)}
         </>
       )}
       {kind === "SUDDEN_TASK" && (
@@ -204,6 +251,42 @@ function FeedItemDetail({ item }) {
           {raw.images.map((img) => (
             <img key={img.id} src={img.url} alt="" className="rounded-lg aspect-square object-cover" />
           ))}
+        </div>
+      )}
+
+      {canReview && (
+        <div className="mt-4 pt-4 border-t border-white/[0.06]">
+          {rejecting && (
+            <textarea
+              value={reasonDraft}
+              onChange={(e) => setReasonDraft(e.target.value)}
+              placeholder="Reason for rejecting..."
+              rows={2}
+              autoFocus
+              className="w-full mb-2 resize-none rounded-lg bg-white/[0.04] border border-white/[0.06] px-3 py-2 text-sm text-white placeholder:text-[#4C5266] outline-none focus:border-red-500/50"
+            />
+          )}
+          {reviewError && <p className="mb-2 text-xs text-red-400">{reviewError}</p>}
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => handleReview("APPROVED")}
+              disabled={busy != null || rejecting}
+              className="flex-1 flex items-center justify-center gap-1.5 rounded-xl py-2.5 text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 transition-colors"
+            >
+              {busy === "APPROVED" ? <Loader2 size={15} className="animate-spin" /> : <CheckCircle2 size={15} />}
+              Approve
+            </button>
+            <button
+              type="button"
+              onClick={() => handleReview("REJECTED")}
+              disabled={busy != null}
+              className="flex-1 flex items-center justify-center gap-1.5 rounded-xl py-2.5 text-sm font-semibold text-white bg-red-600 hover:bg-red-500 disabled:opacity-50 transition-colors"
+            >
+              {busy === "REJECTED" ? <Loader2 size={15} className="animate-spin" /> : <XCircle size={15} />}
+              {rejecting ? "Confirm Reject" : "Reject"}
+            </button>
+          </div>
         </div>
       )}
     </div>

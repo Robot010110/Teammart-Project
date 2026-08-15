@@ -1,4 +1,4 @@
-import { Sunrise, Sunset, Moon, SlidersHorizontal, AlertTriangle } from "lucide-react";
+import { Sunrise, Sunset, Moon, SlidersHorizontal, AlertTriangle, MinusCircle } from "lucide-react";
 import AttendanceStatusPill from "../common/AttendanceStatusPill";
 
 // AttendanceCalendar.jsx — one row per day this month that has an
@@ -29,6 +29,22 @@ function AdjustmentCallout({ adjustment }) {
         {adjustment.previousRequiredHours}h → {adjustment.newRequiredHours}h
       </p>
       <p className="opacity-90">Reason: {adjustment.reason}</p>
+    </div>
+  );
+}
+
+// A day's penalty hours — same treatment as AdjustmentCallout above (the
+// reward/extra side), so a penalty's reason is exactly as visible to the
+// employee as an adjustment's reason is. Previously the reason was
+// entered by the supervisor but only ever written to the backend audit
+// log, never returned to the employee — this is the fix for that.
+function PenaltyCallout({ hours, reason }) {
+  return (
+    <div className="mt-2 rounded-lg border px-2.5 py-2 text-[11px] text-red-400 bg-red-500/5 border-red-500/15">
+      <p className="flex items-center gap-1.5 font-medium">
+        <MinusCircle size={11} /> Penalty: -{hours.toFixed(1)}h
+      </p>
+      {reason && <p className="mt-1 opacity-90">Reason: {reason}</p>}
     </div>
   );
 }
@@ -90,6 +106,9 @@ export default function AttendanceCalendar({ days }) {
               {day.adjustments.map((adj) => (
                 <AdjustmentCallout key={adj.id} adjustment={adj} />
               ))}
+              {day.punishmentHours > 0 && (
+                <PenaltyCallout hours={day.punishmentHours} reason={day.punishmentReason} />
+              )}
             </div>
           );
         })}

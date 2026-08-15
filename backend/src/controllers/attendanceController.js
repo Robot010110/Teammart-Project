@@ -317,6 +317,9 @@ export async function getExtraHoursBalance(req, res, next) {
 // createRequiredHoursAdjustment's shape (append-only audit trail +
 // upserted current value) so punishment hours follow the exact same
 // pattern this codebase already established for required-hours overrides.
+// `reason` is stored directly on the AttendanceRecord (punishmentReason),
+// not just in the audit log, so the employee-facing endpoint can return
+// it — same as RequiredHoursAdjustment.reason for extra/reward hours.
 export async function setPunishmentHours(req, res, next) {
   try {
     const { employeeId, date, hours, reason } = req.body;
@@ -330,8 +333,8 @@ export async function setPunishmentHours(req, res, next) {
 
     const record = await prisma.attendanceRecord.upsert({
       where: { employeeId_date: { employeeId, date } },
-      update: { punishmentHours: hours },
-      create: { employeeId, date, punishmentHours: hours, source: "MANUAL" },
+      update: { punishmentHours: hours, punishmentReason: reason },
+      create: { employeeId, date, punishmentHours: hours, punishmentReason: reason, source: "MANUAL" },
     });
 
     await prisma.attendanceAuditLog.create({

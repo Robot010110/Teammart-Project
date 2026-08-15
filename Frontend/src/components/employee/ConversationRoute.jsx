@@ -35,7 +35,8 @@ export default function ConversationRoute({ currentEmployeeId, basePath }) {
   return (
     <ConversationScreen
       conversation={conversation}
-      currentEmployeeId={currentEmployeeId}
+      currentUserId={currentEmployeeId}
+      currentUserKind="employee"
       onBack={() => navigate(`${basePath}/chat`)}
     />
   );

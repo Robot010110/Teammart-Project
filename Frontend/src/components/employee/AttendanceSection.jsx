@@ -1,7 +1,6 @@
 import { useState } from "react";
 import AttendanceSummaryCards from "./AttendanceSummaryCards";
 import AttendanceCalendar from "./AttendanceCalendar";
-import AttendanceAdjustmentHistory from "./AttendanceAdjustmentHistory";
 import ErrorBanner from "../common/ErrorBanner";
 import { SkeletonCard } from "../common/SkeletonCard";
 import MonthPager from "../common/MonthPager";
@@ -10,10 +9,17 @@ import { useAsync } from "../../hooks/useAsync";
 
 // AttendanceSection.jsx — worked hours, not a task. Fetches
 // GET /api/attendance/month for the selected month (defaults to current)
-// and composes the summary tiles, day-by-day calendar, and adjustment
-// history below it. No mutation UI here — importing records and adding
-// adjustments are staff actions (see attendanceController.js), not
-// something an employee does to themselves.
+// and composes the summary tiles and day-by-day calendar below it. No
+// mutation UI here — importing records and adding adjustments are staff
+// actions (see attendanceController.js), not something an employee does
+// to themselves.
+//
+// Adjustment/penalty reasons are shown once, inline per-day inside
+// AttendanceCalendar (AdjustmentCallout/PenaltyCallout) — a separate
+// AttendanceAdjustmentHistory section used to repeat the same data again
+// in its own card directly below the calendar; removed as a duplicate
+// vertical section, since every adjustment it listed was already visible
+// on its own day in the calendar immediately above it.
 
 export default function AttendanceSection() {
   const now = new Date();
@@ -37,7 +43,6 @@ export default function AttendanceSection() {
         <>
           <AttendanceSummaryCards summary={data.summary} />
           <AttendanceCalendar days={data.days} />
-          <AttendanceAdjustmentHistory adjustments={data.adjustments} />
         </>
       )}
     </div>

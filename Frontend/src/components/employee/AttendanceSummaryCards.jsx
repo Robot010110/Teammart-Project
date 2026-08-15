@@ -5,8 +5,8 @@ import { CalendarCheck, CalendarOff, Clock3, ListChecks, Gauge, Zap, AlertTriang
 // Attendance Rate. Same stat-tile shell as PerformanceCards.jsx (icon
 // chip, big value, small label). The old Reward/Extra Hours tiles are
 // gone — that delta model was replaced by RequiredHoursAdjustment (a
-// direct per-day override, not a +/- amount to sum), see
-// AttendanceAdjustmentHistory.jsx for where that detail now lives.
+// direct per-day override, not a +/- amount to sum) — see it rendered
+// inline per-day in AttendanceCalendar.jsx (AdjustmentCallout).
 //
 // Attendance Rate thresholds per spec: 100 = perfect, 98-99 = excellent,
 // 95-97 = acceptable, below 95 = flagged for supervisor review. Reuses

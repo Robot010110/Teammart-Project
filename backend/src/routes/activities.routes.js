@@ -10,6 +10,7 @@ import {
   getPerformanceSummary,
   getActivityPerformanceHistory,
   listActivitiesForMarket,
+  reviewActivity,
 } from "../controllers/activitiesController.js";
 import { requireAuth, requireEmployeeAuth, requireStaffRole } from "../middleware/auth.js";
 import {
@@ -20,6 +21,7 @@ import {
   addActivityImageSchema,
   listActivitiesQuerySchema,
   listActivitiesMarketQuerySchema,
+  reviewActivitySchema,
 } from "../utils/validate.js";
 
 const router = Router();
@@ -33,6 +35,16 @@ router.get(
   requireStaffRole("ADMIN", "REGIONAL_MANAGER", "SUPERVISOR"),
   validateQuery(listActivitiesMarketQuerySchema),
   listActivitiesForMarket
+);
+
+// Staff-only approve/reject — also registered before the employee-only
+// gate below. Market scoping happens inside reviewActivity itself
+// (against the activity's own employee), not here.
+router.post(
+  "/:id/review",
+  requireStaffRole("ADMIN", "REGIONAL_MANAGER", "SUPERVISOR"),
+  validateBody(reviewActivitySchema),
+  reviewActivity
 );
 
 // Everything else here is employee-only — the employee's own daily

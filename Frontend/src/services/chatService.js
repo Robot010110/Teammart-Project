@@ -25,6 +25,12 @@ export function getOrCreateDirect(employeeId) {
   return apiRequest(`/conversations/direct/${employeeId}`);
 }
 
+// Employee-only: the conversation with the employee's own market
+// Supervisor (also auto-included in listMyConversations()).
+export function getOrCreateSupervisorConversation() {
+  return apiRequest(`/conversations/supervisor`);
+}
+
 export function listMessages(conversationId, { after } = {}) {
   const params = new URLSearchParams();
   if (after) params.set("after", after);
@@ -60,4 +66,18 @@ export function markConversationRead(conversationId) {
 // what it sent for that reason, see SupervisorChatTab.jsx.
 export function postWarningBroadcast(marketId, body) {
   return apiRequest("/conversations/warnings/broadcast", { method: "POST", body: { marketId, body } });
+}
+
+// listMyStaffConversations/getOrCreateEmployeeConversationForSupervisor —
+// the real, backend-persisted counterpart to the employee's own
+// listMyConversations/getOrCreateDirect, for a Supervisor's Chat tab
+// (SUPERVISOR_DIRECT with each employee, real Market Group/Warnings
+// previews). Restricted server-side to the market's actual Supervisor
+// account (see chatController.js).
+export function listMyStaffConversations() {
+  return apiRequest(`/conversations/staff`);
+}
+
+export function getOrCreateEmployeeConversationForSupervisor(employeeId) {
+  return apiRequest(`/conversations/staff/employee/${employeeId}`);
 }

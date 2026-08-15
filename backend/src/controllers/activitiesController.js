@@ -1,5 +1,6 @@
 import { prisma } from "../lib/prisma.js";
 import { assertMarketAccess } from "../middleware/auth.js";
+import { createNotification } from "../utils/notifications.js";
 
 // activitiesController.js — Phase 1, Step 3/4/5: an Employee's own daily
 // activity log (EXPIRED_ITEMS, SHELF_CLEANING, etc.), separate from the
@@ -144,6 +145,58 @@ export async function listActivitiesForMarket(req, res, next) {
     });
 
     res.json(activities);
+  } catch (err) {
+    next(err);
+  }
+}
+
+// POST /api/activities/:id/review — staff-only. Approve or reject a
+// PENDING activity. Access is scoped via the activity's OWN employee's
+// market — assertMarketAccess runs against activity.employee.marketId,
+// which is looked up fresh from the database, never trusted from the
+// request — so a Supervisor cannot approve/reject an activity outside
+// their market just by changing the :id in the URL (Regional Manager:
+// scoped to their zone; Admin: any, same as every other staff-scoped
+// endpoint in this app).
+export async function reviewActivity(req, res, next) {
+  try {
+    const { status, rejectionReason } = req.body;
+    const activity = await prisma.activity.findUnique({
+      where: { id: req.params.id },
+      include: { employee: { select: { id: true, marketId: true } } },
+    });
+    if (!activity) return res.status(404).json({ error: "Activity not found" });
+    await assertMarketAccess(req.user, activity.employee.marketId);
+
+    if (activity.status !== "PENDING") {
+      return res.status(400).json({ error: `This activity is ${activity.status.toLowerCase()}, not pending review` });
+    }
+
+    const updated = await prisma.activity.update({
+      where: { id: activity.id },
+      data: {
+        status,
+        rejectionReason: status === "REJECTED" ? rejectionReason : null,
+        reviewedById: req.user.userId,
+        reviewedAt: new Date(),
+      },
+      include: { images: true },
+    });
+
+    const categoryLabel = activity.category.toLowerCase().replace(/_/g, " ");
+    await createNotification({
+      employeeId: activity.employee.id,
+      type: "SUBMISSION_REVIEWED",
+      title: status === "APPROVED" ? "Activity Approved" : "Activity Rejected",
+      body:
+        status === "APPROVED"
+          ? `Your ${categoryLabel} activity was approved.`
+          : `Your ${categoryLabel} activity was rejected${rejectionReason ? `: ${rejectionReason}` : "."}`,
+      linkType: "ACTIVITY",
+      linkId: activity.id,
+    });
+
+    res.json(updated);
   } catch (err) {
     next(err);
   }

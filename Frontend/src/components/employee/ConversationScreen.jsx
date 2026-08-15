@@ -60,7 +60,15 @@ function MessageAttachment({ message }) {
 // the same "temporary base64 data-URL stand-in" convention documented on
 // prepareImageForUpload — there is no real upload endpoint anywhere in
 // this backend yet.
-export default function ConversationScreen({ conversation, currentEmployeeId, onBack }) {
+//
+// currentUserKind/currentUserId — generalized so the exact same component
+// backs both the Employee Chat tab (kind="employee") and the Supervisor
+// Chat tab's individual-employee conversations (kind="staff"), instead of
+// the Supervisor side maintaining a separate, simplified message-list
+// component backed by mock data. A message is "mine" when its sender
+// matches the caller's own kind+id — a SUPERVISOR_DIRECT conversation has
+// exactly one Employee sender and one staff sender, so this is unambiguous.
+export default function ConversationScreen({ conversation, currentUserId, currentUserKind = "employee", onBack }) {
   const [messages, setMessages] = useState([]);
   const [loadingInitial, setLoadingInitial] = useState(true);
   const [draft, setDraft] = useState("");
@@ -208,7 +216,7 @@ export default function ConversationScreen({ conversation, currentEmployeeId, on
           <p className="text-center text-xs text-[#4C5266] py-10">No messages yet.</p>
         ) : (
           messages.map((m) => {
-            const isMine = m.senderEmployeeId === currentEmployeeId;
+            const isMine = currentUserKind === "staff" ? m.senderUserId === currentUserId : m.senderEmployeeId === currentUserId;
             const senderName = m.senderEmployee?.name || m.senderUser?.name;
             return (
               <div key={m.id} className={`flex ${isMine ? "justify-end" : "justify-start"}`}>
