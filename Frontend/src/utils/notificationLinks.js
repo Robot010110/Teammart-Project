@@ -1,0 +1,28 @@
+// notificationLinks.js — maps a Notification's { linkType, linkId } (see
+// backend/src/utils/notifications.js — every notification-creating
+// action already sets these) to a real route under the caller's
+// basePath, so tapping a notification actually goes somewhere instead of
+// being a dead end. Exactly the 5 linkType values the backend ever
+// writes are handled here (grep-verified against every createNotification
+// call site) — anything else falls back to no navigation rather than a
+// guessed/broken route.
+export function notificationDestination(notification, basePath) {
+  const { linkType, linkId } = notification;
+  switch (linkType) {
+    case "SUDDEN_TASK":
+      return linkId ? `${basePath}/tasks/${linkId}` : `${basePath}/tasks`;
+    case "CONVERSATION":
+      return linkId ? `${basePath}/chat/${linkId}` : `${basePath}/chat`;
+    case "ACTIVITY":
+    case "WASTED_OVERALL":
+      // Neither has a single-item detail screen — both live in "My
+      // Activities" (Profile -> Performance History) / the Activity tab
+      // respectively; route to the screen that shows it rather than a
+      // route that doesn't exist.
+      return linkType === "ACTIVITY" ? `${basePath}/profile/performance` : `${basePath}/activity`;
+    case "LEAVE_REQUEST":
+      return `${basePath}/profile/attendance`;
+    default:
+      return null;
+  }
+}

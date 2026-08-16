@@ -10,11 +10,22 @@ import {
   getOrCreateEmployeeConversationForSupervisor,
   listMessages,
   sendMessage,
+  editMessage,
+  deleteMessage,
+  reactToMessage,
   markConversationRead,
+  setConversationPreference,
+  searchConversations,
   postWarningBroadcast,
 } from "../controllers/chatController.js";
 import { requireAuth, requireEmployeeAuth, requireStaffRole } from "../middleware/auth.js";
-import { validateBody, sendMessageSchema } from "../utils/validate.js";
+import {
+  validateBody,
+  sendMessageSchema,
+  editMessageSchema,
+  reactToMessageSchema,
+  conversationPreferenceSchema,
+} from "../utils/validate.js";
 
 const router = Router();
 
@@ -32,13 +43,19 @@ router.get("/market-group", requireEmployeeAuth, getMarketGroup);
 router.get("/warnings", requireEmployeeAuth, getWarnings);
 router.get("/direct/:employeeId", requireEmployeeAuth, getOrCreateDirect);
 router.get("/supervisor", requireEmployeeAuth, getOrCreateSupervisorConversation);
+router.get("/search", requireEmployeeAuth, searchConversations);
+router.patch("/:id/preference", requireEmployeeAuth, validateBody(conversationPreferenceSchema), setConversationPreference);
 
-// Shared by both account kinds — access to the specific conversation is
-// checked inside the controller (conversationAccessFor), not by route-
-// level role gating, since a SUPERVISOR_DIRECT conversation legitimately
-// has one Employee participant and one staff participant.
+// Shared by both account kinds — access to the specific conversation (and,
+// for edit/delete, sender ownership of the specific message) is checked
+// inside the controller, not by route-level role gating, since a
+// SUPERVISOR_DIRECT conversation legitimately has one Employee
+// participant and one staff participant.
 router.get("/:id/messages", listMessages);
 router.post("/:id/messages", validateBody(sendMessageSchema), sendMessage);
+router.patch("/:id/messages/:messageId", validateBody(editMessageSchema), editMessage);
+router.delete("/:id/messages/:messageId", deleteMessage);
+router.post("/:id/messages/:messageId/reactions", validateBody(reactToMessageSchema), reactToMessage);
 router.post("/:id/read", markConversationRead);
 
 export default router;

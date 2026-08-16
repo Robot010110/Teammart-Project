@@ -365,6 +365,10 @@ export const sendMessageSchema = z
       .max(15 * 1024 * 1024, "Attachment is too large (15MB max)")
       .optional(),
     attachmentDurationSec: z.number().int().positive().max(600).optional(),
+    // The message being replied to, if any — existence/ownership of this
+    // id within the same conversation is re-checked server-side in
+    // chatController.sendMessage, never trusted from this shape alone.
+    replyToId: z.string().min(1).optional(),
   })
   .refine((data) => data.body.trim().length > 0 || !!data.imageUrl || !!data.attachmentUrl, {
     message: "A message needs text, an image, or an attachment",
@@ -377,6 +381,27 @@ export const sendMessageSchema = z
   .refine((data) => !data.attachmentType || !!data.attachmentUrl, {
     message: "attachmentUrl is required when attachmentType is set",
     path: ["attachmentUrl"],
+  });
+
+export const editMessageSchema = z.object({
+  body: z.string().trim().min(1, "Message can't be empty").max(4000),
+});
+
+// Fixed reaction set (spec §10) — kept small and workplace-appropriate on
+// purpose, not an open-ended emoji picker on the backend.
+export const ALLOWED_REACTIONS = ["👍", "❤️", "😂", "😮", "😢", "👏"];
+
+export const reactToMessageSchema = z.object({
+  emoji: z.enum(ALLOWED_REACTIONS),
+});
+
+export const conversationPreferenceSchema = z
+  .object({
+    pinned: z.boolean().optional(),
+    muted: z.boolean().optional(),
+  })
+  .refine((data) => data.pinned !== undefined || data.muted !== undefined, {
+    message: "Provide pinned and/or muted",
   });
 
 // Staff approving/rejecting a PENDING Wasted Overall report — same shape

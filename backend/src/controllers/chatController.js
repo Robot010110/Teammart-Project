@@ -66,6 +66,45 @@ function lastReadOrEpoch(read) {
   return read?.lastReadAt ?? new Date(0);
 }
 
+// A soft-deleted message's real content is stripped here — the ONE place
+// this happens — so every response shape (listMessages, sendMessage,
+// editMessage) enforces it server-side rather than trusting the frontend
+// to hide a deletedAt row correctly. The row itself, sender, and
+// timestamp are kept (spec: preserve auditability); body/attachments and
+// reactions/replies-to-it are not meaningful once deleted, so they're
+// blanked instead of returned.
+function shapeMessage(m) {
+  if (!m.deletedAt) return m;
+  return {
+    ...m,
+    body: "",
+    imageUrl: null,
+    attachmentType: null,
+    attachmentUrl: null,
+    attachmentName: null,
+    attachmentSize: null,
+    attachmentDurationSec: null,
+    reactions: [],
+  };
+}
+
+const MESSAGE_INCLUDE = {
+  senderEmployee: { select: { id: true, name: true } },
+  senderUser: { select: { id: true, name: true } },
+  replyTo: {
+    select: {
+      id: true,
+      body: true,
+      deletedAt: true,
+      senderEmployee: { select: { name: true } },
+      senderUser: { select: { name: true } },
+    },
+  },
+  reactions: {
+    select: { id: true, emoji: true, employeeId: true, userId: true, employee: { select: { name: true } }, user: { select: { name: true } } },
+  },
+};
+
 // Finds (or creates) the SUPERVISOR_DIRECT conversation between one
 // employee and their market's Supervisor — shared by listMyConversations
 // (employee side, below) and getOrCreateSupervisorConversation. Returns
@@ -134,20 +173,60 @@ export async function listMyConversations(req, res, next) {
       ? (await prisma.user.findUnique({ where: { id: supervisorConvo.staffParticipantId }, select: { name: true } }))?.name
       : null;
 
-    const shaped = conversations.map((c, i) => ({
-      id: c.id,
-      type: c.type,
-      title:
-        c.type === "MARKET_GROUP" ? "Market Group" :
-        c.type === "WARNINGS" ? "Warnings" :
-        c.type === "SUPERVISOR_DIRECT" ? (supervisorName ?? "Supervisor") :
-        nameById.get(c.participantAId === employeeId ? c.participantBId : c.participantAId) ?? "Employee",
-      otherEmployeeId: c.type === "DIRECT" ? (c.participantAId === employeeId ? c.participantBId : c.participantAId) : null,
-      lastMessage: lastMessages[i] ? { body: lastMessages[i].body, createdAt: lastMessages[i].createdAt } : null,
-      unreadCount: unreadCounts[i],
-    }));
+    const shaped = conversations.map((c, i) => {
+      const read = readByConversation.get(c.id);
+      const last = lastMessages[i];
+      return {
+        id: c.id,
+        type: c.type,
+        title:
+          c.type === "MARKET_GROUP" ? "Market Group" :
+          c.type === "WARNINGS" ? "Warnings" :
+          c.type === "SUPERVISOR_DIRECT" ? (supervisorName ?? "Supervisor") :
+          nameById.get(c.participantAId === employeeId ? c.participantBId : c.participantAId) ?? "Employee",
+        otherEmployeeId: c.type === "DIRECT" ? (c.participantAId === employeeId ? c.participantBId : c.participantAId) : null,
+        lastMessage: last ? { body: last.deletedAt ? "" : last.body, deleted: !!last.deletedAt, createdAt: last.createdAt } : null,
+        unreadCount: unreadCounts[i],
+        pinned: read?.pinned ?? false,
+        muted: read?.muted ?? false,
+      };
+    });
+
+    // Pinned conversations float to the top; within each group, most
+    // recent activity first.
+    shaped.sort((a, b) => {
+      if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
+      const at = a.lastMessage?.createdAt ? new Date(a.lastMessage.createdAt).getTime() : 0;
+      const bt = b.lastMessage?.createdAt ? new Date(b.lastMessage.createdAt).getTime() : 0;
+      return bt - at;
+    });
 
     res.json(shaped);
+  } catch (err) {
+    next(err);
+  }
+}
+
+// PATCH /api/conversations/:id/preference — employee-only. Body: any
+// subset of { pinned, muted }. Uses the same ConversationRead row as
+// mark-as-read (this employee's one "my relationship to this
+// conversation" row) rather than a new table.
+export async function setConversationPreference(req, res, next) {
+  try {
+    if (req.user.kind !== "employee") {
+      return res.status(403).json({ error: "This action requires an employee login" });
+    }
+    const conversation = await conversationAccessFor(req.user, req.params.id);
+    if (!conversation) return res.status(404).json({ error: "Conversation not found" });
+
+    const { pinned, muted } = req.body;
+    const read = await prisma.conversationRead.upsert({
+      where: { conversationId_employeeId: { conversationId: conversation.id, employeeId: req.user.employeeId } },
+      update: { ...(pinned !== undefined ? { pinned } : {}), ...(muted !== undefined ? { muted } : {}) },
+      create: { conversationId: conversation.id, employeeId: req.user.employeeId, pinned: pinned ?? false, muted: muted ?? false },
+    });
+
+    res.json(read);
   } catch (err) {
     next(err);
   }
@@ -307,31 +386,103 @@ export async function getOrCreateEmployeeConversationForSupervisor(req, res, nex
   }
 }
 
-// GET /api/conversations/:id/messages?after= — ?after is an ISO
-// timestamp; only messages strictly newer are returned, so a poll loop
-// only ever pulls the delta instead of the whole history each time.
-// Works for both an Employee and a staff (Supervisor) token — see
-// conversationAccessFor.
+// GET /api/conversations/:id/messages?after=&before=&search= — ?after is
+// an ISO timestamp; only messages strictly newer are returned, so a poll
+// loop only ever pulls the delta instead of the whole history each time.
+// ?before is the pagination counterpart — older messages than a given
+// timestamp, for "load older messages" on scroll-up (take 50, oldest
+// requested first). ?search does a case-insensitive substring match on
+// body, scoped to this one conversation (not a global cross-conversation
+// search — see searchConversations for that). Works for both an Employee
+// and a staff (Supervisor) token — see conversationAccessFor.
 export async function listMessages(req, res, next) {
   try {
     const conversation = await conversationAccessFor(req.user, req.params.id);
     if (!conversation) return res.status(404).json({ error: "Conversation not found" });
 
-    const { after } = req.query;
+    const { after, before, search } = req.query;
     const where = { conversationId: conversation.id };
     if (after) where.createdAt = { gt: new Date(after) };
+    if (before) where.createdAt = { ...(where.createdAt ?? {}), lt: new Date(before) };
+    if (search) where.body = { contains: search, mode: "insensitive" };
 
     const messages = await prisma.message.findMany({
       where,
-      include: {
-        senderEmployee: { select: { id: true, name: true } },
-        senderUser: { select: { id: true, name: true } },
-      },
-      orderBy: { createdAt: "asc" },
+      include: MESSAGE_INCLUDE,
+      orderBy: { createdAt: before ? "desc" : "asc" },
       take: 200,
     });
+    // ?before pages backward from the newest match, so the raw query is
+    // sorted desc to LIMIT the right end of the range — flip it back to
+    // chronological order before returning.
+    if (before) messages.reverse();
 
-    res.json(messages);
+    const shaped = messages.map(shapeMessage);
+
+    // "Seen" indicator: only meaningful for a real 1:1 (one specific
+    // other person), never for a group — real data from ConversationRead,
+    // not a fabricated tick. Computed on every non-paginating call
+    // (initial load AND each incremental `after` poll) so the frontend
+    // can keep it current without a separate request; skipped only when
+    // paging backward through history, where it isn't relevant.
+    let theirLastReadAt = null;
+    if (!before && (conversation.type === "DIRECT" || conversation.type === "SUPERVISOR_DIRECT")) {
+      if (req.user.kind === "employee") {
+        const otherEmployeeId =
+          conversation.type === "SUPERVISOR_DIRECT"
+            ? null // the other side is staff, which has no ConversationRead row yet
+            : conversation.participantAId === req.user.employeeId ? conversation.participantBId : conversation.participantAId;
+        if (otherEmployeeId) {
+          const read = await prisma.conversationRead.findUnique({
+            where: { conversationId_employeeId: { conversationId: conversation.id, employeeId: otherEmployeeId } },
+          });
+          theirLastReadAt = read?.lastReadAt ?? null;
+        }
+      } else if (conversation.type === "SUPERVISOR_DIRECT") {
+        // Staff viewer: "seen" means the employee's own read row is at or
+        // past this thread's latest message.
+        const read = await prisma.conversationRead.findUnique({
+          where: { conversationId_employeeId: { conversationId: conversation.id, employeeId: conversation.participantAId } },
+        });
+        theirLastReadAt = read?.lastReadAt ?? null;
+      }
+    }
+
+    res.json({ messages: shaped, theirLastReadAt });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// GET /api/conversations/search?q= — employee-only. Searches this
+// employee's own conversations by title/last-message and, for a short
+// query, message bodies across conversations they can access — backend-
+// side so a large history is never pulled into the browser just to
+// filter it client-side.
+export async function searchConversations(req, res, next) {
+  try {
+    const q = (req.query.q || "").trim();
+    if (!q) return res.json({ conversations: [], messages: [] });
+
+    const employeeId = req.user.employeeId;
+    const marketId = req.user.marketId;
+
+    const [directs, supervisorConvo] = await Promise.all([
+      prisma.conversation.findMany({ where: { type: "DIRECT", OR: [{ participantAId: employeeId }, { participantBId: employeeId }] } }),
+      findOrCreateSupervisorConversation(marketId, employeeId),
+    ]);
+    const marketGroup = await findOrCreateChannel(marketId, "MARKET_GROUP");
+    const warnings = await findOrCreateChannel(marketId, "WARNINGS");
+    const conversationIds = [marketGroup.id, warnings.id, ...(supervisorConvo ? [supervisorConvo.id] : []), ...directs.map((c) => c.id)];
+
+    const matchingMessages = await prisma.message.findMany({
+      where: { conversationId: { in: conversationIds }, body: { contains: q, mode: "insensitive" }, deletedAt: null },
+      include: MESSAGE_INCLUDE,
+      orderBy: { createdAt: "desc" },
+      take: 30,
+    });
+
+    res.json({ messages: matchingMessages.map(shapeMessage) });
   } catch (err) {
     next(err);
   }
@@ -352,7 +503,19 @@ export async function sendMessage(req, res, next) {
     }
 
     const isStaff = req.user.kind === "staff";
-    const { body, imageUrl, attachmentType, attachmentUrl, attachmentName, attachmentSize, attachmentDurationSec } = req.body;
+    const { body, imageUrl, attachmentType, attachmentUrl, attachmentName, attachmentSize, attachmentDurationSec, replyToId } = req.body;
+
+    // A reply must point at a real, non-deleted message in THIS same
+    // conversation — never trust a client-supplied id blindly (it could
+    // otherwise be used to probe/reference a message from a conversation
+    // this caller has no access to).
+    if (replyToId) {
+      const target = await prisma.message.findUnique({ where: { id: replyToId }, select: { conversationId: true, deletedAt: true } });
+      if (!target || target.conversationId !== conversation.id || target.deletedAt) {
+        return res.status(400).json({ error: "The message being replied to could not be found in this conversation" });
+      }
+    }
+
     const message = await prisma.message.create({
       data: {
         conversationId: conversation.id,
@@ -363,13 +526,11 @@ export async function sendMessage(req, res, next) {
         attachmentName,
         attachmentSize,
         attachmentDurationSec,
+        replyToId: replyToId || null,
         senderEmployeeId: isStaff ? null : req.user.employeeId,
         senderUserId: isStaff ? req.user.userId : null,
       },
-      include: {
-        senderEmployee: { select: { id: true, name: true } },
-        senderUser: { select: { id: true, name: true } },
-      },
+      include: MESSAGE_INCLUDE,
     });
 
     const ATTACHMENT_LABEL = { FILE: "Sent a file", AUDIO: "Sent an audio clip", VOICE: "Sent a voice message" };
@@ -381,27 +542,41 @@ export async function sendMessage(req, res, next) {
 
     const senderName = isStaff ? message.senderUser?.name : message.senderEmployee?.name;
 
+    // Muting a conversation (§25 — real, not cosmetic) means its
+    // ConversationRead.muted is true; those recipients simply don't get a
+    // notification row for this message. They still see it the moment
+    // they open the conversation — muting only affects the notification
+    // side, never the message itself.
+    async function notifyEmployeesUnlessMuted(employeeIds, payload) {
+      if (employeeIds.length === 0) return;
+      const reads = await prisma.conversationRead.findMany({
+        where: { conversationId: conversation.id, employeeId: { in: employeeIds } },
+        select: { employeeId: true, muted: true },
+      });
+      const mutedIds = new Set(reads.filter((r) => r.muted).map((r) => r.employeeId));
+      await Promise.all(
+        employeeIds
+          .filter((id) => !mutedIds.has(id))
+          .map((id) => createNotification({ employeeId: id, ...payload }))
+      );
+    }
+
     // Notify every other participant — employee recipients via
-    // createNotification, staff recipients (SUPERVISOR_DIRECT sent by an
-    // employee) via createNotificationForUser.
+    // createNotification (unless muted), staff recipients
+    // (SUPERVISOR_DIRECT sent by an employee) via createNotificationForUser
+    // (staff has no mute concept yet — ConversationRead is employee-only).
     if (conversation.type === "DIRECT") {
       const recipientIds = [conversation.participantAId, conversation.participantBId].filter((id) => id !== req.user.employeeId);
-      await Promise.all(
-        recipientIds.map((id) =>
-          createNotification({
-            employeeId: id,
-            type: "CHAT_MESSAGE",
-            title: `New message from ${senderName}`,
-            body: notificationPreview,
-            linkType: "CONVERSATION",
-            linkId: conversation.id,
-          })
-        )
-      );
+      await notifyEmployeesUnlessMuted(recipientIds, {
+        type: "CHAT_MESSAGE",
+        title: `New message from ${senderName}`,
+        body: notificationPreview,
+        linkType: "CONVERSATION",
+        linkId: conversation.id,
+      });
     } else if (conversation.type === "SUPERVISOR_DIRECT") {
       if (isStaff) {
-        await createNotification({
-          employeeId: conversation.participantAId,
+        await notifyEmployeesUnlessMuted([conversation.participantAId], {
           type: "CHAT_MESSAGE",
           title: `New message from ${senderName}`,
           body: notificationPreview,
@@ -424,21 +599,121 @@ export async function sendMessage(req, res, next) {
         where: { marketId: conversation.marketId, id: isStaff ? undefined : { not: req.user.employeeId } },
         select: { id: true },
       });
-      await Promise.all(
-        others.map((e) =>
-          createNotification({
-            employeeId: e.id,
-            type: "CHAT_MESSAGE",
-            title: "New message in Market Group",
-            body: notificationPreview,
-            linkType: "CONVERSATION",
-            linkId: conversation.id,
-          })
-        )
-      );
+      await notifyEmployeesUnlessMuted(others.map((e) => e.id), {
+        type: "CHAT_MESSAGE",
+        title: "New message in Market Group",
+        body: notificationPreview,
+        linkType: "CONVERSATION",
+        linkId: conversation.id,
+      });
     }
 
     res.status(201).json(message);
+  } catch (err) {
+    next(err);
+  }
+}
+
+// Shared by editMessage/deleteMessage/reactToMessage — loads the message,
+// confirms it belongs to a conversation this caller can access, and
+// returns both. Access to react is "can I see this conversation"; access
+// to edit/delete is further narrowed to "am I the sender" by the caller.
+async function loadOwnMessageContext(user, conversationId, messageId) {
+  const conversation = await conversationAccessFor(user, conversationId);
+  if (!conversation) return { conversation: null, message: null };
+  const message = await prisma.message.findUnique({ where: { id: messageId } });
+  if (!message || message.conversationId !== conversation.id) return { conversation, message: null };
+  return { conversation, message };
+}
+
+function isSender(user, message) {
+  return user.kind === "staff" ? message.senderUserId === user.userId : message.senderEmployeeId === user.employeeId;
+}
+
+// PATCH /api/conversations/:id/messages/:messageId — sender-only. Only a
+// plain text message can be edited (an attachment's content isn't
+// editable) — enforced here, not just hidden in the UI.
+export async function editMessage(req, res, next) {
+  try {
+    const { conversation, message } = await loadOwnMessageContext(req.user, req.params.id, req.params.messageId);
+    if (!conversation) return res.status(404).json({ error: "Conversation not found" });
+    if (!message) return res.status(404).json({ error: "Message not found" });
+    if (message.deletedAt) return res.status(400).json({ error: "This message was deleted" });
+    if (!isSender(req.user, message)) return res.status(403).json({ error: "You can only edit your own messages" });
+    if (message.attachmentType || message.imageUrl) {
+      return res.status(400).json({ error: "Attachments can't be edited" });
+    }
+
+    const updated = await prisma.message.update({
+      where: { id: message.id },
+      data: { body: req.body.body, editedAt: new Date() },
+      include: MESSAGE_INCLUDE,
+    });
+
+    res.json(shapeMessage(updated));
+  } catch (err) {
+    next(err);
+  }
+}
+
+// DELETE /api/conversations/:id/messages/:messageId — sender-only, soft
+// delete (see shapeMessage's own comment on why the row is kept).
+export async function deleteMessage(req, res, next) {
+  try {
+    const { conversation, message } = await loadOwnMessageContext(req.user, req.params.id, req.params.messageId);
+    if (!conversation) return res.status(404).json({ error: "Conversation not found" });
+    if (!message) return res.status(404).json({ error: "Message not found" });
+    if (!isSender(req.user, message)) return res.status(403).json({ error: "You can only delete your own messages" });
+
+    const updated = await prisma.message.update({
+      where: { id: message.id },
+      data: { deletedAt: new Date() },
+      include: MESSAGE_INCLUDE,
+    });
+
+    res.json(shapeMessage(updated));
+  } catch (err) {
+    next(err);
+  }
+}
+
+// POST /api/conversations/:id/messages/:messageId/reactions — toggles:
+// same emoji again removes it, a different emoji replaces it, matching
+// "react / remove / change" from the spec with one endpoint instead of
+// three. Anyone with access to the conversation may react (not sender-
+// restricted) — reacting to someone else's message is the whole point.
+export async function reactToMessage(req, res, next) {
+  try {
+    const { conversation, message } = await loadOwnMessageContext(req.user, req.params.id, req.params.messageId);
+    if (!conversation) return res.status(404).json({ error: "Conversation not found" });
+    if (!message || message.deletedAt) return res.status(404).json({ error: "Message not found" });
+
+    const { emoji } = req.body;
+    const isStaff = req.user.kind === "staff";
+    const mine = await prisma.messageReaction.findFirst({
+      where: isStaff ? { messageId: message.id, userId: req.user.userId } : { messageId: message.id, employeeId: req.user.employeeId },
+    });
+
+    if (mine && mine.emoji === emoji) {
+      await prisma.messageReaction.delete({ where: { id: mine.id } });
+    } else if (mine) {
+      await prisma.messageReaction.update({ where: { id: mine.id }, data: { emoji } });
+    } else {
+      await prisma.messageReaction.create({
+        data: {
+          messageId: message.id,
+          emoji,
+          employeeId: isStaff ? null : req.user.employeeId,
+          userId: isStaff ? req.user.userId : null,
+        },
+      });
+    }
+
+    const reactions = await prisma.messageReaction.findMany({
+      where: { messageId: message.id },
+      select: { id: true, emoji: true, employeeId: true, userId: true, employee: { select: { name: true } }, user: { select: { name: true } } },
+    });
+    res.json({ reactions });
   } catch (err) {
     next(err);
   }

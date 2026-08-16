@@ -1,37 +1,80 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
-import { Bell, BellOff, CheckCheck, X } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import {
+  Bell, BellOff, CheckCheck, X, ClipboardList, MessageCircle, ShieldAlert,
+  PackageX, CalendarOff, CheckCircle2, XCircle, Megaphone,
+} from "lucide-react";
 import { useAsync } from "../../hooks/useAsync";
 import ErrorBanner from "../common/ErrorBanner";
 import { SkeletonCard } from "../common/SkeletonCard";
 import { listMyNotifications, markNotificationRead, markAllNotificationsRead } from "../../services/notificationService";
+import { notificationDestination } from "../../utils/notificationLinks";
 
-function timeAgo(iso) {
-  const diffMs = Date.now() - new Date(iso).getTime();
-  const minutes = Math.floor(diffMs / 60000);
-  if (minutes < 1) return "Just now";
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  return `${Math.floor(hours / 24)}d ago`;
+function timeLabel(iso) {
+  return new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
 }
 
-function NotificationRow({ notification, onRead }) {
+// One notification's icon + tone — every real NotificationType this
+// backend ever writes (grep-verified against
+// backend/prisma/schema.prisma's NotificationType enum), not a guessed
+// superset.
+const TYPE_STYLE = {
+  SUDDEN_TASK: { icon: ClipboardList, tone: "text-[#F47A20] bg-[#F47A20]/10" },
+  LEAVE_REVIEWED: { icon: CalendarOff, tone: "text-sky-400 bg-sky-500/10" },
+  CHAT_MESSAGE: { icon: MessageCircle, tone: "text-[#F47A20] bg-[#F47A20]/10" },
+  ANNOUNCEMENT: { icon: Megaphone, tone: "text-amber-400 bg-amber-500/10" },
+  WASTED_OVERALL: { icon: PackageX, tone: "text-[#F47A20] bg-[#F47A20]/10" },
+  SUBMISSION_REVIEWED: { icon: CheckCircle2, tone: "text-emerald-400 bg-emerald-500/10" },
+};
+
+function iconFor(notification) {
+  if (notification.type === "SUBMISSION_REVIEWED" && /reject/i.test(notification.title)) {
+    return { icon: XCircle, tone: "text-red-400 bg-red-500/10" };
+  }
+  return TYPE_STYLE[notification.type] ?? { icon: Bell, tone: "text-[#9AA1B4] bg-white/[0.06]" };
+}
+
+function isSameDay(a, b) {
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+}
+
+// Groups newest-first notifications into Today / Yesterday / Earlier —
+// the same three buckets regardless of how far back the list goes, so
+// the center never needs a "This Week" edge case for a 30-row page.
+function groupByDay(notifications) {
+  const now = new Date();
+  const yesterday = new Date(now); yesterday.setDate(now.getDate() - 1);
+  const groups = { Today: [], Yesterday: [], Earlier: [] };
+  for (const n of notifications) {
+    const d = new Date(n.createdAt);
+    if (isSameDay(d, now)) groups.Today.push(n);
+    else if (isSameDay(d, yesterday)) groups.Yesterday.push(n);
+    else groups.Earlier.push(n);
+  }
+  return groups;
+}
+
+function NotificationRow({ notification, onOpen }) {
+  const { icon: Icon, tone } = iconFor(notification);
   return (
     <button
       type="button"
-      onClick={() => !notification.read && onRead(notification.id)}
-      className={`w-full text-left rounded-xl p-3.5 border transition-colors ${
+      onClick={() => onOpen(notification)}
+      className={`w-full text-left flex items-start gap-3 rounded-xl p-3.5 border transition-colors ${
         notification.read ? "bg-[#1A1F33]/40 border-white/[0.05]" : "bg-[#1A1F33]/70 border-[#F47A20]/20"
       }`}
     >
-      <div className="flex items-start gap-2.5">
-        {!notification.read ? <span className="mt-1.5 w-2 h-2 rounded-full bg-[#F47A20] shrink-0" /> : <span className="mt-1.5 w-2 h-2 shrink-0" />}
-        <div className="min-w-0 flex-1">
+      <span className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${tone}`}>
+        <Icon size={16} />
+      </span>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-start justify-between gap-2">
           <p className="text-sm font-medium text-white truncate">{notification.title}</p>
-          <p className="text-xs text-[#9AA1B4] mt-0.5 line-clamp-2">{notification.body}</p>
-          <p className="text-[11px] text-[#4C5266] mt-1">{timeAgo(notification.createdAt)}</p>
+          {!notification.read && <span className="mt-1.5 w-2 h-2 rounded-full bg-[#F47A20] shrink-0" />}
         </div>
+        <p className="text-xs text-[#9AA1B4] mt-0.5 line-clamp-2">{notification.body}</p>
+        <p className="text-[11px] text-[#4C5266] mt-1">{timeLabel(notification.createdAt)}</p>
       </div>
     </button>
   );
@@ -41,31 +84,24 @@ function NotificationRow({ notification, onRead }) {
 // comment): this bell sits inside the top bar's backdrop-blur-xl
 // container, which would otherwise silently break its popup's
 // `fixed inset-0` positioning.
-// NotificationBell.jsx — a real, working notification bell for the
-// Employee/Cashier mobile top bar (previously there was none at all in
-// the mobile shell; the only bell icon in this codebase, in
-// layout/Header.jsx, is decorative and only ever rendered for the
-// Regional Manager's desktop view, which has no real notifications
-// backend). This connects to the exact same real backend
-// notifications system HomeTab.jsx's own notifications section already
-// uses (GET /api/notifications, PATCH .../read, PATCH .../read-all) — no
-// second notification architecture, just a second, always-reachable
-// entry point into the same data, appropriate for a bell that should
-// work from anywhere in the app, not only the Home tab.
-export default function NotificationBell() {
+//
+// NotificationBell.jsx — the Notification Center: grouped by Today/
+// Yesterday/Earlier and actionable (tapping a notification navigates to
+// what it's about — a task, a conversation, Performance History, or
+// Attendance — via notificationLinks.js, instead of being a dead end).
+// Same real backend as before (GET /api/notifications, PATCH .../read,
+// PATCH .../read-all) — no second notification architecture, this is
+// still the one always-reachable entry point into that data.
+export default function NotificationBell({ basePath }) {
   const [open, setOpen] = useState(false);
-  const {
-    data,
-    error,
-    loading,
-    setData,
-    reload,
-  } = useAsync(() => listMyNotifications({ limit: 30 }), { deps: [] });
+  const navigate = useNavigate();
+  const { data, error, loading, setData, reload } = useAsync(() => listMyNotifications({ limit: 30 }), { deps: [] });
 
   const notifications = data?.notifications ?? [];
   const unreadCount = data?.unreadCount ?? 0;
+  const groups = useMemo(() => groupByDay(notifications), [notifications]);
 
-  async function handleMarkRead(id) {
+  async function markReadLocal(id) {
     setData((prev) =>
       prev
         ? {
@@ -87,6 +123,15 @@ export default function NotificationBell() {
       await markAllNotificationsRead();
     } catch {
       reload();
+    }
+  }
+
+  function handleOpen(notification) {
+    if (!notification.read) markReadLocal(notification.id);
+    const destination = notificationDestination(notification, basePath);
+    if (destination) {
+      setOpen(false);
+      navigate(destination);
     }
   }
 
@@ -131,7 +176,7 @@ export default function NotificationBell() {
               </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-4 space-y-2">
+            <div className="flex-1 overflow-y-auto p-4 space-y-5">
               {loading ? (
                 <SkeletonCard className="h-24" />
               ) : error ? (
@@ -139,10 +184,22 @@ export default function NotificationBell() {
               ) : notifications.length === 0 ? (
                 <div className="py-10 text-center">
                   <BellOff size={22} className="mx-auto text-[#4C5266] mb-2" />
-                  <p className="text-sm text-[#8B93A8]">No notifications yet</p>
+                  <p className="text-sm text-white font-medium">You're all caught up</p>
+                  <p className="text-xs text-[#8B93A8] mt-1">No notifications right now.</p>
                 </div>
               ) : (
-                notifications.map((n) => <NotificationRow key={n.id} notification={n} onRead={handleMarkRead} />)
+                ["Today", "Yesterday", "Earlier"].map((label) =>
+                  groups[label].length > 0 ? (
+                    <div key={label}>
+                      <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-[#8B93A8]">{label}</h3>
+                      <div className="space-y-2">
+                        {groups[label].map((n) => (
+                          <NotificationRow key={n.id} notification={n} onOpen={handleOpen} />
+                        ))}
+                      </div>
+                    </div>
+                  ) : null
+                )
               )}
             </div>
           </div>

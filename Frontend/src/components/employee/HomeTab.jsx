@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Bell, BellOff, CheckCheck, ClipboardList, ChevronRight } from "lucide-react";
 import { useAsync } from "../../hooks/useAsync";
 import ProfileHeaderCard from "./ProfileHeaderCard";
@@ -11,6 +12,7 @@ import { getProfile } from "../../services/profileService";
 import { getPerformanceSummary } from "../../services/activityService";
 import { listSuddenTasks } from "../../services/suddenTaskService";
 import { listMyNotifications, markNotificationRead, markAllNotificationsRead } from "../../services/notificationService";
+import { notificationDestination } from "../../utils/notificationLinks";
 
 function TaskCountTile({ count, onClick }) {
   return (
@@ -41,11 +43,11 @@ function timeAgo(iso) {
   return `${Math.floor(hours / 24)}d ago`;
 }
 
-function NotificationRow({ notification, onRead }) {
+function NotificationRow({ notification, onOpen }) {
   return (
     <button
       type="button"
-      onClick={() => !notification.read && onRead(notification.id)}
+      onClick={() => onOpen(notification)}
       className={`w-full text-left rounded-xl p-3.5 border transition-colors ${
         notification.read
           ? "bg-[#1A1F33]/40 border-white/[0.05]"
@@ -82,7 +84,8 @@ function NotificationRow({ notification, onRead }) {
 // page (spec: Home should no longer be dominated by tasks) — Sudden
 // Tasks are still fully available via the bottom-nav Tasks tab, nothing
 // about that feature was removed, only its Home-page prominence.
-export default function HomeTab({ onNavigate }) {
+export default function HomeTab({ onNavigate, basePath }) {
+  const navigate = useNavigate();
   const { data: profile, error: profileError, loading: profileLoading, reload: reloadProfile } = useAsync(getProfile, { deps: [] });
   const { data: performance } = useAsync(getPerformanceSummary, { deps: [] });
   const { data: suddenTasks } = useAsync(() => listSuddenTasks({ status: "ASSIGNED" }), { deps: [] });
@@ -126,6 +129,12 @@ export default function HomeTab({ onNavigate }) {
     } catch {
       reloadNotifications();
     }
+  }
+
+  function handleOpenNotification(notification) {
+    if (!notification.read) handleMarkRead(notification.id);
+    const destination = notificationDestination(notification, basePath);
+    if (destination) navigate(destination);
   }
 
   if (showPerformanceHistory) {
@@ -182,7 +191,7 @@ export default function HomeTab({ onNavigate }) {
         ) : (
           <div className="space-y-2">
             {visibleNotifications.map((n) => (
-              <NotificationRow key={n.id} notification={n} onRead={handleMarkRead} />
+              <NotificationRow key={n.id} notification={n} onOpen={handleOpenNotification} />
             ))}
             {!showAll && notifications.length > 3 ? (
               <button

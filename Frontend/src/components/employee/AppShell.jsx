@@ -30,7 +30,7 @@ export default function AppShell({ tabs, basePath, showNotificationBell = false 
       {showNotificationBell && (
         <div className="sticky top-0 z-20 h-14 flex items-center justify-between px-4 sm:px-6 bg-[#1A1A1A]/85 backdrop-blur-xl border-b border-white/[0.05]">
           <Logo withSubtitle={false} />
-          <NotificationBell />
+          <NotificationBell basePath={basePath} />
         </div>
       )}
       <div className="flex-1 overflow-y-auto pb-24">

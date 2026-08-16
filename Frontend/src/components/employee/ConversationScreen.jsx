@@ -1,6 +1,10 @@
 import { useEffect, useRef, useState } from "react";
-import { ArrowLeft, Send, ShieldAlert, Loader2, Paperclip, Camera, File as FileIcon, Mic, Download, X } from "lucide-react";
-import { listMessages, sendMessage, markConversationRead } from "../../services/chatService";
+import { createPortal } from "react-dom";
+import {
+  ArrowLeft, Send, ShieldAlert, Loader2, Paperclip, Camera, File as FileIcon, Mic, Download, X,
+  MoreHorizontal, Reply, Copy, Pencil, Trash2, Check, CheckCheck,
+} from "lucide-react";
+import { listMessages, sendMessage, markConversationRead, editMessage, deleteMessage, reactToMessage } from "../../services/chatService";
 import { usePolling } from "../../hooks/usePolling";
 import { prepareImageForUpload } from "../../services/activityService";
 import { readFileAsDataUrl, formatFileSize, formatDuration } from "../../utils/fileEncoding";
@@ -9,9 +13,51 @@ import { ApiError } from "../../services/apiClient";
 
 const POLL_MS = 4000;
 const MAX_ATTACHMENT_BYTES = 15 * 1024 * 1024;
+const REACTIONS = ["👍", "❤️", "😂", "😮", "😢", "👏"];
+// URL detection for tappable links in message text (spec §19) — deliberately
+// client-side only, no server-side preview fetch (see chatController.js's
+// own note on avoiding an SSRF surface for this).
+const URL_RE = /(https?:\/\/[^\s]+)/g;
 
 function timeLabel(iso) {
   return new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+}
+
+async function copyText(text) {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    // Clipboard API requires a secure context (https/localhost) — this
+    // app is also used over a plain http:// LAN address, where it's
+    // unavailable. Fall back to the older, broadly-supported approach.
+    try {
+      const el = document.createElement("textarea");
+      el.value = text;
+      el.style.position = "fixed";
+      el.style.opacity = "0";
+      document.body.appendChild(el);
+      el.select();
+      document.execCommand("copy");
+      document.body.removeChild(el);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+}
+
+function linkifyBody(body) {
+  const parts = body.split(URL_RE);
+  return parts.map((part, i) =>
+    URL_RE.test(part) ? (
+      <a key={i} href={part} target="_blank" rel="noopener noreferrer nofollow" className="underline underline-offset-2 break-all" onClick={(e) => e.stopPropagation()}>
+        {part}
+      </a>
+    ) : (
+      <span key={i}>{part}</span>
+    )
+  );
 }
 
 function MessageAttachment({ message }) {
@@ -47,30 +93,110 @@ function MessageAttachment({ message }) {
   return null;
 }
 
-// ConversationScreen.jsx — one open thread. Polls for new messages every
-// 4s (delta fetch via ?after=, so this stays cheap even with a lot of
-// history) — no WebSocket in this app, this is the agreed-on tradeoff.
-// The composer is hidden entirely on Warnings for employees (posting
-// there is staff-only — see backend chatController.sendMessage).
+// Small bottom-sheet of reactions + actions, portaled (same reasoning as
+// Modal.jsx / NotificationBell.jsx). The "..." button on every bubble is
+// the accessible, always-visible alternative to long-press the spec asks
+// for (§14) — long-press isn't implemented at all, so there's nothing to
+// fall back from.
+function MessageActionSheet({ message, canEdit, canDelete, onClose, onReact, onReply, onCopy, onEdit, onDelete }) {
+  return createPortal(
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center sm:justify-center" role="dialog" aria-modal="true">
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative w-full sm:max-w-sm sm:mx-4 rounded-t-2xl sm:rounded-2xl bg-[#1F2436] border border-white/10 shadow-2xl animate-fade-up overflow-hidden">
+        <div className="flex items-center justify-center gap-1.5 px-3 py-3 border-b border-white/[0.06]">
+          {REACTIONS.map((emoji) => (
+            <button
+              key={emoji}
+              type="button"
+              onClick={() => onReact(emoji)}
+              className="flex-1 text-xl py-1.5 rounded-lg hover:bg-white/[0.06] active:scale-90 transition-transform"
+            >
+              {emoji}
+            </button>
+          ))}
+        </div>
+        <div className="py-1.5">
+          <button type="button" onClick={onReply} className="w-full flex items-center gap-3 px-4 py-3 text-sm text-white hover:bg-white/[0.05]">
+            <Reply size={16} /> Reply
+          </button>
+          {message.body && (
+            <button type="button" onClick={onCopy} className="w-full flex items-center gap-3 px-4 py-3 text-sm text-white hover:bg-white/[0.05]">
+              <Copy size={16} /> Copy
+            </button>
+          )}
+          {canEdit && (
+            <button type="button" onClick={onEdit} className="w-full flex items-center gap-3 px-4 py-3 text-sm text-white hover:bg-white/[0.05]">
+              <Pencil size={16} /> Edit
+            </button>
+          )}
+          {canDelete && (
+            <button type="button" onClick={onDelete} className="w-full flex items-center gap-3 px-4 py-3 text-sm text-red-400 hover:bg-red-500/10">
+              <Trash2 size={16} /> Delete
+            </button>
+          )}
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
+function ReactionPills({ reactions, currentUserId, currentUserKind, onToggle }) {
+  if (!reactions || reactions.length === 0) return null;
+  const byEmoji = new Map();
+  for (const r of reactions) {
+    if (!byEmoji.has(r.emoji)) byEmoji.set(r.emoji, []);
+    byEmoji.get(r.emoji).push(r);
+  }
+  return (
+    <div className="mt-1 flex flex-wrap gap-1">
+      {[...byEmoji.entries()].map(([emoji, list]) => {
+        const mine = list.some((r) => (currentUserKind === "staff" ? r.userId === currentUserId : r.employeeId === currentUserId));
+        return (
+          <button
+            key={emoji}
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onToggle(emoji); }}
+            className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-xs border transition-colors ${
+              mine ? "bg-[#F47A20]/20 border-[#F47A20]/40" : "bg-black/15 border-white/10"
+            }`}
+          >
+            <span>{emoji}</span>
+            <span className="text-[10px] text-white/80">{list.length}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// ConversationScreen.jsx — one open thread: polling for new messages
+// every 4s (delta fetch via ?after=), reactions, reply, edit, delete,
+// copy, a link-detected message body, and a real "Seen" indicator on
+// your own last message (from ConversationRead.lastReadAt — no fake
+// delivery ticks; see chatController.listMessages's own comment on why
+// this is the honest version of a read receipt this REST-polling app can
+// support). The composer is hidden entirely on Warnings for employees
+// (posting there is staff-only — see backend chatController.sendMessage).
 //
 // Attachments: Photo reuses activityService.prepareImageForUpload (same
 // compression pipeline as everywhere else a photo is captured in this
-// app); File/Voice use the new readFileAsDataUrl (no compression — not
+// app); File/Voice use readFileAsDataUrl (no compression — not
 // meaningful for arbitrary files or already-compressed audio). Both are
 // the same "temporary base64 data-URL stand-in" convention documented on
 // prepareImageForUpload — there is no real upload endpoint anywhere in
-// this backend yet.
+// this backend yet, and no video message support for the same reason
+// (a video as base64 in Postgres would be unsafe at any real size).
 //
 // currentUserKind/currentUserId — generalized so the exact same component
 // backs both the Employee Chat tab (kind="employee") and the Supervisor
-// Chat tab's individual-employee conversations (kind="staff"), instead of
-// the Supervisor side maintaining a separate, simplified message-list
-// component backed by mock data. A message is "mine" when its sender
-// matches the caller's own kind+id — a SUPERVISOR_DIRECT conversation has
-// exactly one Employee sender and one staff sender, so this is unambiguous.
+// Chat tab's individual-employee conversations (kind="staff").
 export default function ConversationScreen({ conversation, currentUserId, currentUserKind = "employee", onBack }) {
   const [messages, setMessages] = useState([]);
   const [loadingInitial, setLoadingInitial] = useState(true);
+  const [loadingOlder, setLoadingOlder] = useState(false);
+  const [hasMoreOlder, setHasMoreOlder] = useState(true);
+  const [theirLastReadAt, setTheirLastReadAt] = useState(null);
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState(null);
@@ -78,6 +204,10 @@ export default function ConversationScreen({ conversation, currentUserId, curren
   const [recordingVoice, setRecordingVoice] = useState(false);
   const [pendingAttachment, setPendingAttachment] = useState(null); // { kind, url, name, size, durationSec }
   const [attachBusy, setAttachBusy] = useState(false);
+  const [actionSheetFor, setActionSheetFor] = useState(null); // message being acted on
+  const [replyTo, setReplyTo] = useState(null); // message being replied to
+  const [editingId, setEditingId] = useState(null); // message id currently being edited inline
+  const [editDraft, setEditDraft] = useState("");
   const lastFetchRef = useRef(null);
   const scrollRef = useRef(null);
   const photoInputRef = useRef(null);
@@ -89,9 +219,18 @@ export default function ConversationScreen({ conversation, currentUserId, curren
     async () => {
       try {
         const after = lastFetchRef.current;
-        const batch = await listMessages(conversation.id, after ? { after } : undefined);
+        const { messages: batch, theirLastReadAt: seen } = await listMessages(conversation.id, after ? { after } : undefined);
+        setTheirLastReadAt(seen);
         if (batch.length > 0) {
-          setMessages((prev) => [...prev, ...batch]);
+          setMessages((prev) => {
+            const known = new Set(prev.map((m) => m.id));
+            const fresh = batch.filter((m) => !known.has(m.id));
+            // A poll can also surface an edit/delete/reaction on an
+            // already-loaded message (its id isn't "new" but its content
+            // changed) — merge those in place instead of only appending.
+            const merged = prev.map((m) => batch.find((b) => b.id === m.id) ?? m);
+            return [...merged, ...fresh];
+          });
           lastFetchRef.current = batch[batch.length - 1].createdAt;
         }
       } finally {
@@ -108,7 +247,39 @@ export default function ConversationScreen({ conversation, currentUserId, curren
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
+    // Only autoscroll on genuinely new activity, not on a load-older
+    // prepend (handled separately, see loadOlder) or on mount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messages.length, pendingAttachment]);
+
+  async function loadOlder() {
+    if (loadingOlder || !hasMoreOlder || messages.length === 0) return;
+    setLoadingOlder(true);
+    const container = scrollRef.current;
+    const prevScrollHeight = container?.scrollHeight ?? 0;
+    try {
+      const oldest = messages[0];
+      const { messages: older } = await listMessages(conversation.id, { before: oldest.createdAt });
+      if (older.length === 0) {
+        setHasMoreOlder(false);
+      } else {
+        setMessages((prev) => [...older, ...prev]);
+        // Preserve scroll position — without this, prepending older
+        // messages above the viewport yanks the view to the top.
+        requestAnimationFrame(() => {
+          if (container) container.scrollTop = container.scrollHeight - prevScrollHeight;
+        });
+      }
+    } catch {
+      // Silently leave hasMoreOlder as-is — the next scroll-up retries.
+    } finally {
+      setLoadingOlder(false);
+    }
+  }
+
+  function handleScroll(e) {
+    if (e.target.scrollTop < 60) loadOlder();
+  }
 
   async function handlePhotoSelected(file) {
     if (!file) return;
@@ -161,7 +332,7 @@ export default function ConversationScreen({ conversation, currentUserId, curren
     setSending(true);
     setError(null);
     try {
-      const payload = { body };
+      const payload = { body, replyToId: replyTo?.id };
       if (pendingAttachment?.kind === "image") {
         payload.imageUrl = pendingAttachment.url;
       } else if (pendingAttachment?.kind === "file") {
@@ -192,12 +363,58 @@ export default function ConversationScreen({ conversation, currentUserId, curren
       lastFetchRef.current = message.createdAt;
       setDraft("");
       setPendingAttachment(null);
+      setReplyTo(null);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Could not send this message.");
     } finally {
       setSending(false);
     }
   }
+
+  async function handleReact(message, emoji) {
+    setActionSheetFor(null);
+    try {
+      const { reactions } = await reactToMessage(conversation.id, message.id, emoji);
+      setMessages((prev) => prev.map((m) => (m.id === message.id ? { ...m, reactions } : m)));
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Could not react to this message.");
+    }
+  }
+
+  function startEdit(message) {
+    setActionSheetFor(null);
+    setEditingId(message.id);
+    setEditDraft(message.body);
+  }
+
+  async function submitEdit(message) {
+    const body = editDraft.trim();
+    if (!body) return;
+    try {
+      const updated = await editMessage(conversation.id, message.id, body);
+      setMessages((prev) => prev.map((m) => (m.id === message.id ? updated : m)));
+      setEditingId(null);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Could not save this edit.");
+    }
+  }
+
+  async function handleDelete(message) {
+    setActionSheetFor(null);
+    try {
+      const updated = await deleteMessage(conversation.id, message.id);
+      setMessages((prev) => prev.map((m) => (m.id === message.id ? updated : m)));
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Could not delete this message.");
+    }
+  }
+
+  // The most recent message I sent — the only bubble that ever shows a
+  // Sent/Seen indicator (matches how real messengers only mark the
+  // latest, not every prior message).
+  const myLastMessageId = [...messages].reverse().find((m) =>
+    currentUserKind === "staff" ? m.senderUserId === currentUserId : m.senderEmployeeId === currentUserId
+  )?.id;
 
   return (
     <div className="flex flex-col h-full min-h-[calc(100vh-96px)]">
@@ -209,36 +426,107 @@ export default function ConversationScreen({ conversation, currentUserId, curren
         <h1 className="text-sm font-semibold text-white truncate">{conversation.title}</h1>
       </div>
 
-      <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 space-y-2.5">
+      <div ref={scrollRef} onScroll={handleScroll} className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 space-y-2.5">
         {loadingInitial ? (
           <p className="text-center text-xs text-[#4C5266] py-6">Loading messages...</p>
         ) : messages.length === 0 ? (
           <p className="text-center text-xs text-[#4C5266] py-10">No messages yet.</p>
         ) : (
-          messages.map((m) => {
-            const isMine = currentUserKind === "staff" ? m.senderUserId === currentUserId : m.senderEmployeeId === currentUserId;
-            const senderName = m.senderEmployee?.name || m.senderUser?.name;
-            return (
-              <div key={m.id} className={`flex ${isMine ? "justify-end" : "justify-start"}`}>
-                <div
-                  className={`max-w-[78%] rounded-2xl px-3.5 py-2.5 ${
-                    isMine
-                      ? "bg-[#F47A20] text-white rounded-br-md"
-                      : isWarnings
-                      ? "bg-amber-500/10 border border-amber-500/20 text-white rounded-bl-md"
-                      : "bg-[#1A1F33]/80 border border-white/[0.06] text-white rounded-bl-md"
-                  }`}
-                >
-                  {!isMine && senderName && (
-                    <p className="text-[11px] font-semibold text-[#F47A20] mb-0.5">{senderName}</p>
-                  )}
-                  {m.body && <p className="text-sm whitespace-pre-wrap break-words">{m.body}</p>}
-                  <MessageAttachment message={m} />
-                  <p className={`text-[10px] mt-1 ${isMine ? "text-white/70" : "text-[#8B93A8]"}`}>{timeLabel(m.createdAt)}</p>
+          <>
+            {loadingOlder && <p className="text-center text-[11px] text-[#4C5266] py-2">Loading older messages...</p>}
+            {messages.map((m) => {
+              const isMine = currentUserKind === "staff" ? m.senderUserId === currentUserId : m.senderEmployeeId === currentUserId;
+              const senderName = m.senderEmployee?.name || m.senderUser?.name;
+              const isDeleted = !!m.deletedAt;
+              const isEditing = editingId === m.id;
+              const replySenderName = m.replyTo?.senderEmployee?.name || m.replyTo?.senderUser?.name;
+
+              return (
+                <div key={m.id} className={`flex ${isMine ? "justify-end" : "justify-start"}`}>
+                  <div className={`group flex items-end gap-1 max-w-[82%] ${isMine ? "flex-row-reverse" : ""}`}>
+                    <div
+                      className={`rounded-2xl px-3.5 py-2.5 ${
+                        isDeleted
+                          ? "bg-white/[0.03] border border-white/[0.06] text-[#6B7280] italic"
+                          : isMine
+                          ? "bg-[#F47A20] text-white rounded-br-md"
+                          : isWarnings
+                          ? "bg-amber-500/10 border border-amber-500/20 text-white rounded-bl-md"
+                          : "bg-[#1A1F33]/80 border border-white/[0.06] text-white rounded-bl-md"
+                      }`}
+                    >
+                      {!isMine && senderName && !isDeleted && (
+                        <p className="text-[11px] font-semibold text-[#F47A20] mb-0.5">{senderName}</p>
+                      )}
+
+                      {isDeleted ? (
+                        <p className="text-sm flex items-center gap-1.5"><Trash2 size={12} /> This message was deleted</p>
+                      ) : (
+                        <>
+                          {m.replyTo && (
+                            <div className={`mb-1.5 rounded-lg px-2.5 py-1.5 border-l-2 ${isMine ? "bg-black/10 border-white/40" : "bg-black/20 border-[#F47A20]/50"}`}>
+                              <p className="text-[10px] font-semibold opacity-80">{replySenderName || "Deleted message"}</p>
+                              <p className="text-xs opacity-70 truncate">{m.replyTo.deletedAt ? "This message was deleted" : m.replyTo.body}</p>
+                            </div>
+                          )}
+
+                          {isEditing ? (
+                            <div className="min-w-[200px]">
+                              <textarea
+                                value={editDraft}
+                                onChange={(e) => setEditDraft(e.target.value)}
+                                rows={2}
+                                autoFocus
+                                className="w-full resize-none rounded-lg bg-black/20 border border-white/20 px-2 py-1.5 text-sm text-white outline-none"
+                              />
+                              <div className="flex justify-end gap-2 mt-1.5">
+                                <button type="button" onClick={() => setEditingId(null)} className="text-xs opacity-80 hover:opacity-100">Cancel</button>
+                                <button type="button" onClick={() => submitEdit(m)} className="text-xs font-semibold">Save</button>
+                              </div>
+                            </div>
+                          ) : (
+                            <>
+                              {m.body && <p className="text-sm whitespace-pre-wrap break-words">{linkifyBody(m.body)}</p>}
+                              <MessageAttachment message={m} />
+                            </>
+                          )}
+
+                          <ReactionPills
+                            reactions={m.reactions}
+                            currentUserId={currentUserId}
+                            currentUserKind={currentUserKind}
+                            onToggle={(emoji) => handleReact(m, emoji)}
+                          />
+
+                          <div className={`flex items-center gap-1 mt-1 ${isMine ? "text-white/70" : "text-[#8B93A8]"}`}>
+                            <p className="text-[10px]">{timeLabel(m.createdAt)}{m.editedAt ? " · Edited" : ""}</p>
+                            {isMine && m.id === myLastMessageId && (
+                              theirLastReadAt && new Date(theirLastReadAt) >= new Date(m.createdAt) ? (
+                                <span className="flex items-center gap-0.5 text-[10px]" title="Seen"><CheckCheck size={11} /> Seen</span>
+                              ) : (
+                                <span className="flex items-center gap-0.5 text-[10px]" title="Sent"><Check size={11} /></span>
+                              )
+                            )}
+                          </div>
+                        </>
+                      )}
+                    </div>
+
+                    {!isDeleted && !isEditing && (
+                      <button
+                        type="button"
+                        onClick={() => setActionSheetFor(m)}
+                        className="shrink-0 mb-1 p-1.5 rounded-full text-[#4C5266] hover:text-white hover:bg-white/[0.06] sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
+                        aria-label="Message actions"
+                      >
+                        <MoreHorizontal size={15} />
+                      </button>
+                    )}
+                  </div>
                 </div>
-              </div>
-            );
-          })
+              );
+            })}
+          </>
         )}
       </div>
 
@@ -249,6 +537,20 @@ export default function ConversationScreen({ conversation, currentUserId, curren
       ) : (
         <div className="px-4 sm:px-6 py-3 border-t border-white/[0.06]">
           {error && <p className="mb-2 text-xs text-red-400">{error}</p>}
+
+          {replyTo && (
+            <div className="mb-2 flex items-center gap-2 rounded-lg p-2 bg-white/[0.04] border-l-2 border-[#F47A20]/60">
+              <div className="min-w-0 flex-1">
+                <p className="text-[10px] font-semibold text-[#F47A20]">
+                  Replying to {replyTo.senderEmployee?.name || replyTo.senderUser?.name || "message"}
+                </p>
+                <p className="text-xs text-[#9AA1B4] truncate">{replyTo.body || "Attachment"}</p>
+              </div>
+              <button type="button" onClick={() => setReplyTo(null)} className="p-1 text-[#4C5266] hover:text-white">
+                <X size={14} />
+              </button>
+            </div>
+          )}
 
           {recordingVoice ? (
             <VoiceRecorder onRecorded={handleVoiceRecorded} onCancel={() => setRecordingVoice(false)} />
@@ -348,6 +650,23 @@ export default function ConversationScreen({ conversation, currentUserId, curren
             </>
           )}
         </div>
+      )}
+
+      {actionSheetFor && (
+        <MessageActionSheet
+          message={actionSheetFor}
+          canEdit={
+            !actionSheetFor.attachmentType && !actionSheetFor.imageUrl &&
+            (currentUserKind === "staff" ? actionSheetFor.senderUserId === currentUserId : actionSheetFor.senderEmployeeId === currentUserId)
+          }
+          canDelete={currentUserKind === "staff" ? actionSheetFor.senderUserId === currentUserId : actionSheetFor.senderEmployeeId === currentUserId}
+          onClose={() => setActionSheetFor(null)}
+          onReact={(emoji) => handleReact(actionSheetFor, emoji)}
+          onReply={() => { setReplyTo(actionSheetFor); setActionSheetFor(null); }}
+          onCopy={async () => { await copyText(actionSheetFor.body); setActionSheetFor(null); }}
+          onEdit={() => startEdit(actionSheetFor)}
+          onDelete={() => handleDelete(actionSheetFor)}
+        />
       )}
     </div>
   );

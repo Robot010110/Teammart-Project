@@ -323,6 +323,7 @@ model User {
   sentMessages Message[] @relation("MessageSenderUser")
   supervisorConversations Conversation[] @relation("ConversationStaffParticipant")
   reviewedActivities Activity[] @relation("ActivityReviewer")
+  messageReactions MessageReaction[] @relation("MessageReactionUser")
 }
 
 // ---------------------------------------------------------------------
@@ -417,6 +418,7 @@ model Employee {
   conversationReads     ConversationRead[]
   directConversationsAsA Conversation[]    @relation("ConversationParticipantA")
   directConversationsAsB Conversation[]    @relation("ConversationParticipantB")
+  messageReactions      MessageReaction[]  @relation("MessageReactionEmployee")
 
   @@index([marketId])
 }
@@ -1045,14 +1047,63 @@ model Message {
   senderUserId     Int?
   senderUser       User?     @relation("MessageSenderUser", fields: [senderUserId], references: [id])
 
+  // Self-relation for "reply to a specific message" — nullable, one level
+  // (a reply to a reply still just points at that message directly, no
+  // reply chain/thread tree; matches the spec's own "reply preview", not
+  // full threading).
+  replyToId String?
+  replyTo   Message?  @relation("MessageReplyTo", fields: [replyToId], references: [id], onDelete: SetNull)
+  replies   Message[] @relation("MessageReplyTo")
+
+  // Set when the sender edits their own text message; the frontend shows
+  // "Edited" whenever this is non-null rather than storing edit history.
+  editedAt DateTime?
+  // Soft-delete: body/attachments are blanked out by the controller when
+  // this is set, but the row itself is kept (spec: "preserve appropriate
+  // auditability for workplace communication") rather than hard-deleted.
+  deletedAt DateTime?
+
+  reactions MessageReaction[]
+
   createdAt DateTime @default(now())
 
   @@index([conversationId, createdAt])
+  @@index([replyToId])
+}
+
+// MessageReaction — one reaction per person per message; reacting again
+// with the same emoji removes it, a different emoji replaces it (see
+// chatController.reactToMessage). Sender is EITHER an Employee OR a
+// staff User, same dual-nullable-FK pattern as Message.sender — enforced
+// in the controller, and the two separate @@unique constraints below
+// only ever bind on whichever side is non-null for a given row (a NULL
+// employeeId never collides with another NULL employeeId in Postgres).
+model MessageReaction {
+  id        String   @id @default(cuid())
+  messageId String
+  message   Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  emoji     String
+
+  employeeId String?
+  employee   Employee? @relation("MessageReactionEmployee", fields: [employeeId], references: [id])
+  userId     Int?
+  user       User?     @relation("MessageReactionUser", fields: [userId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@unique([messageId, employeeId])
+  @@unique([messageId, userId])
+  @@index([messageId])
 }
 
 // ConversationRead — one row per (conversation, employee), tracking read
-// position. Unread count = messages in that conversation created after
-// lastReadAt (or every message, if no row exists yet — never opened).
+// position, and now also that employee's pin/mute preference for this
+// conversation (their own "relationship to this conversation" row is the
+// natural place for both, rather than a third table). Unread count =
+// messages in that conversation created after lastReadAt (or every
+// message, if no row exists yet — never opened). Employee-only for now
+// (same limitation as the rest of this model) — a Supervisor pinning/
+// muting their own conversations isn't implemented in this pass.
 model ConversationRead {
   id             String       @id @default(cuid())
   conversationId String
@@ -1060,6 +1111,8 @@ model ConversationRead {
   employeeId     String
   employee       Employee     @relation(fields: [employeeId], references: [id])
   lastReadAt     DateTime     @default(now())
+  pinned         Boolean      @default(false)
+  muted          Boolean      @default(false)
 
   @@unique([conversationId, employeeId])
 }
