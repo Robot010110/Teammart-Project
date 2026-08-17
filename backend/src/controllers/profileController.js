@@ -8,7 +8,7 @@ export async function getProfile(req, res, next) {
     if (req.user.kind === "staff") {
       const user = await prisma.user.findUnique({
         where: { id: req.user.userId },
-        include: { managedZone: true, managedMarket: true },
+        include: { managedZones: true, managedMarket: true },
       });
       if (!user) return res.status(404).json({ error: "Account not found" });
 
@@ -18,7 +18,7 @@ export async function getProfile(req, res, next) {
         name: user.name,
         email: user.email,
         role: user.role,
-        zoneId: user.managedZone?.id ?? null,
+        zoneIds: user.managedZones.map((z) => z.id),
         marketId: user.managedMarket?.id ?? null,
       });
     }

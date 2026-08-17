@@ -1,6 +1,5 @@
 import {
   LayoutGrid,
-  MapPinned,
   Store,
   Users,
   BarChart3,
@@ -9,13 +8,14 @@ import {
 
 // Sidebar.jsx
 // Ships collapsed (icon rail) and expands on hover, per the brief.
-// Only "Dashboard" and "Zones" are wired up; the rest are placeholders
-// for future pages (Markets, Employees, Reports, Settings).
+// "Dashboard" (Regional Manager Profile) and "Markets" are wired up; the
+// rest are placeholders for future pages (Employees is reachable via
+// Markets -> Employees instead of its own top-level page; Reports/
+// Settings are out of scope for this pass).
 
 const NAV_ITEMS = [
-  { key: "dashboard", label: "Dashboard", icon: LayoutGrid, active: true, roles: ["regionalManager", "supervisor"] },
-  { key: "zones", label: "Zones", icon: MapPinned, active: true, roles: ["regionalManager"] },
-  { key: "markets", label: "Markets", icon: Store, active: false, roles: ["regionalManager", "supervisor"] },
+  { key: "dashboard", label: "Profile", icon: LayoutGrid, active: true, roles: ["regionalManager", "supervisor"] },
+  { key: "markets", label: "Markets", icon: Store, active: true, roles: ["regionalManager", "supervisor"] },
   { key: "employees", label: "Employees", icon: Users, active: false, roles: ["regionalManager", "supervisor"] },
   { key: "reports", label: "Reports", icon: BarChart3, active: false, roles: ["regionalManager", "supervisor"] },
   { key: "settings", label: "Settings", icon: Settings, active: false, roles: ["regionalManager", "supervisor"] },
@@ -42,8 +42,8 @@ export default function Sidebar({ currentPage, onNavigate, role = "regionalManag
           const isCurrent =
             key === "dashboard"
               ? currentPage === "dashboard"
-              : key === "zones"
-              ? ["zone", "market", "employee"].includes(currentPage)
+              : key === "markets"
+              ? ["markets", "market", "employee"].includes(currentPage)
               : currentPage === key;
           return (
             <button

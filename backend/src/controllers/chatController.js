@@ -40,7 +40,7 @@ async function conversationAccessFor(user, conversationId) {
       const isParticipant = conversation.participantAId === user.employeeId || conversation.participantBId === user.employeeId;
       return isParticipant ? conversation : null;
     }
-    if (conversation.type === "SUPERVISOR_DIRECT") {
+    if (conversation.type === "SUPERVISOR_DIRECT" || conversation.type === "RM_DIRECT") {
       return conversation.participantAId === user.employeeId ? conversation : null;
     }
     // MARKET_GROUP / WARNINGS — any employee of that market can read.
@@ -48,7 +48,7 @@ async function conversationAccessFor(user, conversationId) {
   }
 
   if (user.kind === "staff") {
-    if (conversation.type === "SUPERVISOR_DIRECT") {
+    if (conversation.type === "SUPERVISOR_DIRECT" || conversation.type === "RM_DIRECT") {
       return conversation.staffParticipantId === user.userId ? conversation : null;
     }
     if (conversation.type === "MARKET_GROUP" || conversation.type === "WARNINGS") {
@@ -130,16 +130,21 @@ export async function listMyConversations(req, res, next) {
     const employeeId = req.user.employeeId;
     const marketId = req.user.marketId;
 
-    const [marketGroup, warnings, supervisorConvo, directs] = await Promise.all([
+    const [marketGroup, warnings, supervisorConvo, rmConvos, directs] = await Promise.all([
       findOrCreateChannel(marketId, "MARKET_GROUP"),
       findOrCreateChannel(marketId, "WARNINGS"),
       findOrCreateSupervisorConversation(marketId, employeeId),
+      // RM_DIRECT is NEVER auto-created here — an employee can't initiate
+      // contact with a Regional Manager (spec §14). Only shown once the
+      // RM has already opened it (see
+      // getOrCreateEmployeeConversationForRegionalManager).
+      prisma.conversation.findMany({ where: { type: "RM_DIRECT", participantAId: employeeId } }),
       prisma.conversation.findMany({
         where: { type: "DIRECT", OR: [{ participantAId: employeeId }, { participantBId: employeeId }] },
       }),
     ]);
 
-    const conversations = [marketGroup, warnings, ...(supervisorConvo ? [supervisorConvo] : []), ...directs];
+    const conversations = [marketGroup, warnings, ...(supervisorConvo ? [supervisorConvo] : []), ...rmConvos, ...directs];
 
     const [lastMessages, reads] = await Promise.all([
       Promise.all(
@@ -172,6 +177,16 @@ export async function listMyConversations(req, res, next) {
     const supervisorName = supervisorConvo
       ? (await prisma.user.findUnique({ where: { id: supervisorConvo.staffParticipantId }, select: { name: true } }))?.name
       : null;
+    const rmNameById = new Map(
+      rmConvos.length
+        ? (
+            await prisma.user.findMany({
+              where: { id: { in: rmConvos.map((c) => c.staffParticipantId) } },
+              select: { id: true, name: true },
+            })
+          ).map((u) => [u.id, u.name])
+        : []
+    );
 
     const shaped = conversations.map((c, i) => {
       const read = readByConversation.get(c.id);
@@ -183,8 +198,10 @@ export async function listMyConversations(req, res, next) {
           c.type === "MARKET_GROUP" ? "Market Group" :
           c.type === "WARNINGS" ? "Warnings" :
           c.type === "SUPERVISOR_DIRECT" ? (supervisorName ?? "Supervisor") :
+          c.type === "RM_DIRECT" ? (rmNameById.get(c.staffParticipantId) ?? "Regional Manager") :
           nameById.get(c.participantAId === employeeId ? c.participantBId : c.participantAId) ?? "Employee",
         otherEmployeeId: c.type === "DIRECT" ? (c.participantAId === employeeId ? c.participantBId : c.participantAId) : null,
+        locked: c.type === "RM_DIRECT" ? c.locked : false,
         lastMessage: last ? { body: last.deletedAt ? "" : last.body, deleted: !!last.deletedAt, createdAt: last.createdAt } : null,
         unreadCount: unreadCounts[i],
         pinned: read?.pinned ?? false,
@@ -386,6 +403,35 @@ export async function getOrCreateEmployeeConversationForSupervisor(req, res, nex
   }
 }
 
+// GET /api/conversations/rm/employee/:employeeId — Regional-Manager-only.
+// Get-or-create the RM_DIRECT conversation with a specific employee.
+// Creating it does NOT unlock it — the spec is explicit that the
+// employee can't reply until the RM's first actual message (see
+// sendMessage's own comment on where `locked` flips to false); opening
+// this just makes the (still-locked) conversation exist so the RM can
+// start typing into it. requireAccessibleEmployee already re-checks zone
+// access via req.user.zoneIds — a Regional Manager can't reach an
+// employee outside their own assigned zones just by guessing an id.
+export async function getOrCreateEmployeeConversationForRegionalManager(req, res, next) {
+  try {
+    if (req.user.role !== "REGIONAL_MANAGER") {
+      return res.status(403).json({ error: "Only a Regional Manager account can message an employee directly" });
+    }
+    const employee = await requireAccessibleEmployee(req.user, req.params.employeeId);
+
+    const existing = await prisma.conversation.findFirst({
+      where: { type: "RM_DIRECT", marketId: employee.marketId, participantAId: employee.id, staffParticipantId: req.user.userId },
+    });
+    const conversation = existing ?? (await prisma.conversation.create({
+      data: { type: "RM_DIRECT", marketId: employee.marketId, participantAId: employee.id, staffParticipantId: req.user.userId },
+    }));
+
+    res.json({ ...conversation, title: employee.name });
+  } catch (err) {
+    next(err);
+  }
+}
+
 // GET /api/conversations/:id/messages?after=&before=&search= — ?after is
 // an ISO timestamp; only messages strictly newer are returned, so a poll
 // loop only ever pulls the delta instead of the whole history each time.
@@ -503,6 +549,14 @@ export async function sendMessage(req, res, next) {
     }
 
     const isStaff = req.user.kind === "staff";
+
+    // RM_DIRECT lock (spec §14): the employee can't reply until the
+    // Regional Manager has sent the first message. The RM side is never
+    // blocked — sending is exactly what unlocks it, below.
+    if (conversation.type === "RM_DIRECT" && !isStaff && conversation.locked) {
+      return res.status(403).json({ error: "This conversation is locked until the Regional Manager sends the first message" });
+    }
+
     const { body, imageUrl, attachmentType, attachmentUrl, attachmentName, attachmentSize, attachmentDurationSec, replyToId } = req.body;
 
     // A reply must point at a real, non-deleted message in THIS same
@@ -532,6 +586,15 @@ export async function sendMessage(req, res, next) {
       },
       include: MESSAGE_INCLUDE,
     });
+
+    // Unlocking is a one-way transition, permanently — "once unlocked,
+    // remains available" (spec §14). Only ever flips here, on the RM's
+    // own send, never touched by anything else (not even a Supervisor/
+    // Admin acting on the same market).
+    if (conversation.type === "RM_DIRECT" && isStaff && conversation.locked) {
+      await prisma.conversation.update({ where: { id: conversation.id }, data: { locked: false } });
+      conversation.locked = false;
+    }
 
     const ATTACHMENT_LABEL = { FILE: "Sent a file", AUDIO: "Sent an audio clip", VOICE: "Sent a voice message" };
     const notificationPreview = body.trim()
@@ -574,7 +637,7 @@ export async function sendMessage(req, res, next) {
         linkType: "CONVERSATION",
         linkId: conversation.id,
       });
-    } else if (conversation.type === "SUPERVISOR_DIRECT") {
+    } else if (conversation.type === "SUPERVISOR_DIRECT" || conversation.type === "RM_DIRECT") {
       if (isStaff) {
         await notifyEmployeesUnlessMuted([conversation.participantAId], {
           type: "CHAT_MESSAGE",

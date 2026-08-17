@@ -4,7 +4,7 @@ import { prisma } from "../lib/prisma.js";
 // Admin's dashboard is global, a Regional Manager's is zone-wide, and a
 // Supervisor's is market-only.
 function scopeWhere(user) {
-  if (user.role === "REGIONAL_MANAGER") return { market: { zoneId: user.zoneId } };
+  if (user.role === "REGIONAL_MANAGER") return { market: { zoneId: { in: user.zoneIds } } };
   if (user.role === "SUPERVISOR") return { marketId: user.marketId };
   return {}; // ADMIN
 }
@@ -22,13 +22,13 @@ export async function getDashboard(req, res, next) {
       req.user.role === "ADMIN"
         ? prisma.zone.count()
         : req.user.role === "REGIONAL_MANAGER"
-        ? Promise.resolve(1) // a Regional Manager only ever has their own zone
+        ? Promise.resolve(req.user.zoneIds.length)
         : Promise.resolve(null),
 
       prisma.market.count({
         where:
           req.user.role === "REGIONAL_MANAGER"
-            ? { zoneId: req.user.zoneId }
+            ? { zoneId: { in: req.user.zoneIds } }
             : req.user.role === "SUPERVISOR"
             ? { id: req.user.marketId }
             : undefined,
@@ -37,7 +37,7 @@ export async function getDashboard(req, res, next) {
       prisma.employee.count({
         where:
           req.user.role === "REGIONAL_MANAGER"
-            ? { market: { zoneId: req.user.zoneId } }
+            ? { market: { zoneId: { in: req.user.zoneIds } } }
             : req.user.role === "SUPERVISOR"
             ? { marketId: req.user.marketId }
             : undefined,

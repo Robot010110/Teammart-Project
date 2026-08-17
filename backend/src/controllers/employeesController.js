@@ -34,7 +34,7 @@ export async function listEmployees(req, res, next) {
     if (req.user.role === "SUPERVISOR") {
       where = { ...where, marketId: req.user.marketId };
     } else if (req.user.role === "REGIONAL_MANAGER") {
-      where = { ...where, market: { zoneId: req.user.zoneId } };
+      where = { ...where, market: { zoneId: { in: req.user.zoneIds } } };
     }
     // ADMIN: no extra scoping.
 

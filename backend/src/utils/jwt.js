@@ -13,14 +13,17 @@ const REMEMBER_ME_TTL = "30d";
 // Staff = Admin / Regional Manager / Supervisor. `scope` carries the one
 // piece of ownership info relevant to their role:
 //   ADMIN             -> no scope needed, sees everything
-//   REGIONAL_MANAGER   -> { zoneId }
+//   REGIONAL_MANAGER   -> { zoneIds } — a Regional Manager can manage more
+//                          than one zone (Zone.managerId has no
+//                          uniqueness constraint), so this is always an
+//                          array, even when it holds just one id.
 //   SUPERVISOR         -> { marketId }
 export function signStaffToken(user) {
   const payload = {
     kind: "staff",
     userId: user.id,
     role: user.role,
-    zoneId: user.managedZone?.id ?? null,
+    zoneIds: (user.managedZones ?? []).map((z) => z.id),
     marketId: user.managedMarket?.id ?? null,
   };
   return jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: TOKEN_TTL });

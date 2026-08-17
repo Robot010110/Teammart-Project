@@ -8,6 +8,7 @@ import {
   getOrCreateSupervisorConversation,
   listMyStaffConversations,
   getOrCreateEmployeeConversationForSupervisor,
+  getOrCreateEmployeeConversationForRegionalManager,
   listMessages,
   sendMessage,
   editMessage,
@@ -35,6 +36,7 @@ router.use(requireAuth);
 router.post("/warnings/broadcast", requireStaffRole("ADMIN", "REGIONAL_MANAGER", "SUPERVISOR"), postWarningBroadcast);
 router.get("/staff", requireStaffRole("SUPERVISOR"), listMyStaffConversations);
 router.get("/staff/employee/:employeeId", requireStaffRole("SUPERVISOR"), getOrCreateEmployeeConversationForSupervisor);
+router.get("/rm/employee/:employeeId", requireStaffRole("REGIONAL_MANAGER"), getOrCreateEmployeeConversationForRegionalManager);
 
 // Employee-only.
 router.get("/", requireEmployeeAuth, listMyConversations);

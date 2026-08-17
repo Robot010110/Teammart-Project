@@ -120,3 +120,9 @@ export function listMyStaffConversations() {
 export function getOrCreateEmployeeConversationForSupervisor(employeeId) {
   return apiRequest(`/conversations/staff/employee/${employeeId}`);
 }
+
+// Regional-Manager-only. Opening this does NOT unlock it — see the
+// backend's own comment: only the RM's first real message does that.
+export function getOrCreateEmployeeConversationForRegionalManager(employeeId) {
+  return apiRequest(`/conversations/rm/employee/${employeeId}`);
+}

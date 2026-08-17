@@ -7,12 +7,26 @@ import {
   assignMarketSupervisor,
   deleteMarket,
 } from "../controllers/marketsController.js";
+import {
+  getMarketOverview,
+  listMarketSections,
+  getMarketSectionDetail,
+  createMarketVisit,
+  rateMarket,
+  listMarketRatings,
+  addMarketNote,
+  sendMarketFeedback,
+  getMarketHistory,
+} from "../controllers/marketManagementController.js";
 import { requireAuth, requireStaffRole, requireOwnMarketOrElevated } from "../middleware/auth.js";
 import {
   validateBody,
   createMarketSchema,
   updateMarketSchema,
   assignMarketSupervisorSchema,
+  rateMarketSchema,
+  addMarketNoteSchema,
+  sendMarketFeedbackSchema,
 } from "../utils/validate.js";
 
 const router = Router();
@@ -24,6 +38,46 @@ router.use(requireAuth, requireStaffRole("ADMIN", "REGIONAL_MANAGER", "SUPERVISO
 router.get("/", listMarkets);
 
 router.get("/:id", requireOwnMarketOrElevated((req) => req.params.id), getMarket);
+
+// Regional Manager market-management layer — overview/sections are
+// readable by any staff with market access (a Supervisor can see their
+// own market's overview too); visits/ratings/notes/feedback are
+// RM/Admin-only management-evaluation actions (enforced again inside the
+// controller via requireRmRole, since this route-level gate is the same
+// for all of them and the controller is the single source of truth).
+router.get("/:id/overview", requireOwnMarketOrElevated((req) => req.params.id), getMarketOverview);
+router.get("/:id/sections", requireOwnMarketOrElevated((req) => req.params.id), listMarketSections);
+router.get("/:id/sections/:department", requireOwnMarketOrElevated((req) => req.params.id), getMarketSectionDetail);
+router.get("/:id/history", requireOwnMarketOrElevated((req) => req.params.id), getMarketHistory);
+
+router.post(
+  "/:id/visits",
+  requireStaffRole("ADMIN", "REGIONAL_MANAGER"),
+  requireOwnMarketOrElevated((req) => req.params.id),
+  createMarketVisit
+);
+router.get("/:id/ratings", requireOwnMarketOrElevated((req) => req.params.id), listMarketRatings);
+router.post(
+  "/:id/ratings",
+  requireStaffRole("ADMIN", "REGIONAL_MANAGER"),
+  requireOwnMarketOrElevated((req) => req.params.id),
+  validateBody(rateMarketSchema),
+  rateMarket
+);
+router.post(
+  "/:id/notes",
+  requireStaffRole("ADMIN", "REGIONAL_MANAGER"),
+  requireOwnMarketOrElevated((req) => req.params.id),
+  validateBody(addMarketNoteSchema),
+  addMarketNote
+);
+router.post(
+  "/:id/feedback",
+  requireStaffRole("ADMIN", "REGIONAL_MANAGER"),
+  requireOwnMarketOrElevated((req) => req.params.id),
+  validateBody(sendMarketFeedbackSchema),
+  sendMarketFeedback
+);
 
 router.post(
   "/",

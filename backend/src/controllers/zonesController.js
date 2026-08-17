@@ -18,7 +18,7 @@ function shapeZoneSummary(zone) {
 // route guard needed here since the query itself is scoped).
 export async function listZones(req, res, next) {
   try {
-    const where = req.user.role === "REGIONAL_MANAGER" ? { id: req.user.zoneId } : undefined;
+    const where = req.user.role === "REGIONAL_MANAGER" ? { id: { in: req.user.zoneIds } } : undefined;
 
     const zones = await prisma.zone.findMany({
       where,

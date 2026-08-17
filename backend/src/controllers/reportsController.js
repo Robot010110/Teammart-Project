@@ -19,7 +19,7 @@ export async function tasksReport(req, res, next) {
     if (marketId) where.marketId = marketId;
 
     if (req.user.role === "SUPERVISOR") where.marketId = req.user.marketId;
-    else if (req.user.role === "REGIONAL_MANAGER") where.market = { zoneId: req.user.zoneId };
+    else if (req.user.role === "REGIONAL_MANAGER") where.market = { zoneId: { in: req.user.zoneIds } };
 
     if (marketId) {
       await assertMarketAccess(req.user, String(marketId));

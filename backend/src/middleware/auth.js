@@ -74,9 +74,11 @@ export function requireEmployeeRole(...allowedRoles) {
 
 // ---------------------------------------------------------------------
 // requireOwnZoneOrElevated — the IDOR-prevention check for zone-scoped
-// resources. ADMIN always passes. A REGIONAL_MANAGER may only touch the
-// zone their own token was issued for. `getZoneId(req)` returns the zone
-// id being requested (usually from req.params).
+// resources. ADMIN always passes. A REGIONAL_MANAGER may only touch a
+// zone in their own token's zoneIds — a Regional Manager can be assigned
+// more than one zone, so this is a membership check, not equality.
+// `getZoneId(req)` returns the zone id being requested (usually from
+// req.params).
 //
 // NOTE: this was written in the original backend too, but never actually
 // applied to any route — so it did nothing. It's applied to every
@@ -94,7 +96,7 @@ export function requireOwnZoneOrElevated(getZoneId) {
     }
 
     const requestedZoneId = getZoneId(req);
-    if (String(req.user.zoneId) !== String(requestedZoneId)) {
+    if (!(req.user.zoneIds ?? []).some((id) => String(id) === String(requestedZoneId))) {
       return res.status(403).json({ error: "You do not have access to this zone" });
     }
     next();
@@ -147,7 +149,7 @@ export async function staffCanAccessMarket(user, marketId) {
       select: { zoneId: true },
     });
     if (!market) return "not-found";
-    return String(user.zoneId) === String(market.zoneId);
+    return (user.zoneIds ?? []).some((id) => String(id) === String(market.zoneId));
   }
 
   return false;

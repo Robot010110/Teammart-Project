@@ -110,7 +110,7 @@ export async function listTasks(req, res, next) {
     } else if (req.user.role === "SUPERVISOR") {
       where.marketId = req.user.marketId;
     } else if (req.user.role === "REGIONAL_MANAGER") {
-      where.market = { zoneId: req.user.zoneId };
+      where.market = { zoneId: { in: req.user.zoneIds } };
     }
 
     // If a staff member explicitly asked for a marketId, verify they can

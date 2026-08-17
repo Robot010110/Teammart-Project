@@ -34,7 +34,7 @@ export async function staffLogin(req, res, next) {
 
     const user = await prisma.user.findUnique({
       where: { email },
-      include: { managedZone: true, managedMarket: true },
+      include: { managedZones: true, managedMarket: true },
     });
 
     // Deliberately vague error for both "no such user" and "wrong password" —
@@ -56,7 +56,7 @@ export async function staffLogin(req, res, next) {
         id: user.id,
         name: user.name,
         role: user.role,
-        zoneId: user.managedZone?.id ?? null,
+        zoneIds: user.managedZones.map((z) => z.id),
         marketId: user.managedMarket?.id ?? null,
       },
     });

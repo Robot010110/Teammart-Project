@@ -111,7 +111,7 @@ export async function reviewWastedOverallReport(req, res, next) {
 // same "backend-ready" pattern as every other staff-only endpoint here.
 export async function listWastedOverallReportsForMarket(req, res, next) {
   try {
-    const { status } = req.query;
+    const { status, employeeId } = req.query;
     const marketId = req.query.marketId ?? req.user.marketId;
     if (!marketId) {
       return res.status(400).json({ error: "marketId is required" });
@@ -120,6 +120,7 @@ export async function listWastedOverallReportsForMarket(req, res, next) {
 
     const where = { marketId };
     if (status) where.status = status;
+    if (employeeId) where.employeeId = employeeId;
 
     const reports = await prisma.wastedOverallReport.findMany({
       where,

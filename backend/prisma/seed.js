@@ -59,7 +59,15 @@ async function main() {
   ];
 
   for (const z of otherZonesData) {
-    const zone = await prisma.zone.upsert({ where: { number: z.number }, update: {}, create: { number: z.number } });
+    // Also managed by Ali Hassan — a Regional Manager overseeing multiple
+    // zones (Zone.managerId has no uniqueness constraint) is the normal
+    // case for this role, not an edge case, so the seed data reflects
+    // that rather than giving every RM exactly one zone.
+    const zone = await prisma.zone.upsert({
+      where: { number: z.number },
+      update: { managerId: regionalManager.id },
+      create: { number: z.number, managerId: regionalManager.id },
+    });
     for (const m of z.markets) {
       // Market has no natural unique key besides its generated id, so we
       // check by name+zone first instead of upserting, to keep this script

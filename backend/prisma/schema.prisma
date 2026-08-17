@@ -248,6 +248,10 @@ enum NotificationType {
   // Overall report — one shared type for both, same as LEAVE_REVIEWED
   // covers both leave outcomes.
   SUBMISSION_REVIEWED
+  // A Regional Manager sent a formal Warning or Recognition to a
+  // market's Supervisor (MarketFeedback) — one shared type for both,
+  // same reasoning as SUBMISSION_REVIEWED/LEAVE_REVIEWED above.
+  MARKET_FEEDBACK
 }
 
 // ---------------------------------------------------------------------
@@ -269,6 +273,12 @@ enum ConversationType {
   // Supervisor DM. This type uses participantAId (the Employee) +
   // staffParticipantId (the Supervisor's User id) instead.
   SUPERVISOR_DIRECT
+  // Same shape as SUPERVISOR_DIRECT (participantAId = Employee,
+  // staffParticipantId = the Regional Manager's User id) but with an
+  // extra rule SUPERVISOR_DIRECT doesn't have: the employee can't
+  // initiate it, and can't reply until the RM sends the first message —
+  // see Conversation.locked below.
+  RM_DIRECT
 }
 
 // FILE/AUDIO/VOICE only — an image attachment is still represented by
@@ -292,8 +302,11 @@ model User {
   role         StaffRole @default(SUPERVISOR)
   createdAt    DateTime  @default(now())
 
-  // A Regional Manager manages exactly one zone.
-  managedZone   Zone?    @relation("ZoneManager")
+  // A Regional Manager can manage multiple zones (Zone.managerId has no
+  // uniqueness constraint) — the RM management layer explicitly needs
+  // this ("Regional Manager -> manages multiple Zones"); a single-zone RM
+  // is just the common case of this same relation, not a different shape.
+  managedZones  Zone[]   @relation("ZoneManager")
   // A Supervisor manages exactly one market.
   managedMarket Market?  @relation("MarketSupervisor")
 
@@ -324,18 +337,28 @@ model User {
   supervisorConversations Conversation[] @relation("ConversationStaffParticipant")
   reviewedActivities Activity[] @relation("ActivityReviewer")
   messageReactions MessageReaction[] @relation("MessageReactionUser")
+
+  marketVisits    MarketVisit[]    @relation("MarketVisitRM")
+  marketRatings   MarketRating[]   @relation("MarketRatingRM")
+  marketNotes     MarketNote[]     @relation("MarketNoteRM")
+  marketFeedbacks MarketFeedback[] @relation("MarketFeedbackRM")
 }
 
 // ---------------------------------------------------------------------
 // Zone -> Market -> Employee
 // ---------------------------------------------------------------------
 model Zone {
-  id        Int      @id @default(autoincrement())
-  number    Int      @unique
-  managerId Int?     @unique
+  id     Int  @id @default(autoincrement())
+  number Int  @unique
+  // No longer @unique — one Regional Manager can be assigned multiple
+  // zones (see User.managedZones's own comment). A single-zone RM is
+  // still the common case; nothing about that changes.
+  managerId Int?
   manager   User?    @relation("ZoneManager", fields: [managerId], references: [id])
   markets   Market[]
   createdAt DateTime @default(now())
+
+  @@index([managerId])
 }
 
 model Market {
@@ -357,6 +380,11 @@ model Market {
   attendanceImportBatches AttendanceImportBatch[]
   conversations Conversation[]
   createdAt    DateTime     @default(now())
+
+  visits    MarketVisit[]
+  ratings   MarketRating[]
+  notes     MarketNote[]
+  feedbacks MarketFeedback[]
 
   @@index([zoneId])
 }
@@ -1012,6 +1040,14 @@ model Conversation {
   staffParticipantId Int?
   staffParticipant   User? @relation("ConversationStaffParticipant", fields: [staffParticipantId], references: [id])
 
+  // RM_DIRECT only: true until the Regional Manager sends the first
+  // message, after which it flips to false and stays false (the spec's
+  // own rule — "once unlocked, remains available"). Enforced in
+  // chatController.sendMessage, not just hidden in the UI. Meaningless
+  // for every other ConversationType (defaults true but nothing reads it
+  // for them).
+  locked Boolean @default(true)
+
   createdAt DateTime @default(now())
 
   messages Message[]
@@ -1115,4 +1151,102 @@ model ConversationRead {
   muted          Boolean      @default(false)
 
   @@unique([conversationId, employeeId])
+}
+
+// ---------------------------------------------------------------------
+// Regional Manager market management — a Regional Manager's inspection
+// record for one of their markets: a rating (1-10, historized, never
+// overwritten), a management note, or formal feedback (a Warning or
+// Recognition sent to the market's Supervisor). All three are distinct
+// from Chat (see the spec: "Warning != Chat" — a Warning/Recognition is a
+// formal management record, not a message bubble) and from each other,
+// but can optionally belong to one MarketVisit so a single inspection's
+// rating/notes/feedback show up together as one visit record instead of
+// unrelated rows (spec §25).
+// ---------------------------------------------------------------------
+model MarketVisit {
+  id                String   @id @default(cuid())
+  marketId          String
+  market            Market   @relation(fields: [marketId], references: [id])
+  regionalManagerId Int
+  regionalManager   User     @relation("MarketVisitRM", fields: [regionalManagerId], references: [id])
+  visitDate         DateTime @default(now())
+  createdAt         DateTime @default(now())
+
+  ratings   MarketRating[]
+  notes     MarketNote[]
+  feedbacks MarketFeedback[]
+
+  @@index([marketId])
+  @@index([regionalManagerId])
+}
+
+// A rating is never edited/overwritten — each one is its own row, so
+// "current rating" (most recent) and "rating history/trend" both come
+// from the same table with no separate audit log needed.
+model MarketRating {
+  id                String       @id @default(cuid())
+  marketId          String
+  market            Market       @relation(fields: [marketId], references: [id])
+  regionalManagerId Int
+  regionalManager   User         @relation("MarketRatingRM", fields: [regionalManagerId], references: [id])
+  rating            Int // 1-10, enforced in validate.js
+  notes             String?
+  visitId           String?
+  visit             MarketVisit? @relation(fields: [visitId], references: [id])
+  createdAt         DateTime     @default(now())
+
+  @@index([marketId, createdAt])
+}
+
+model MarketNote {
+  id                String       @id @default(cuid())
+  marketId          String
+  market            Market       @relation(fields: [marketId], references: [id])
+  regionalManagerId Int
+  regionalManager   User         @relation("MarketNoteRM", fields: [regionalManagerId], references: [id])
+  content           String
+  category          String?
+  visitId           String?
+  visit             MarketVisit? @relation(fields: [visitId], references: [id])
+  createdAt         DateTime     @default(now())
+
+  @@index([marketId, createdAt])
+}
+
+enum MarketFeedbackType {
+  WARNING
+  RECOGNITION
+}
+
+enum MarketFeedbackPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+// A formal Warning or Recognition, always routed to the market's
+// Supervisor (never the whole market's employees — same "the Supervisor
+// is the single point of contact" convention already used by Wasted
+// Overall reports). Delivered as a real staff Notification, not a Chat
+// message (spec §21 — kept structurally separate from Message/
+// Conversation entirely, not just styled differently).
+model MarketFeedback {
+  id                String                  @id @default(cuid())
+  marketId          String
+  market            Market                  @relation(fields: [marketId], references: [id])
+  regionalManagerId Int
+  regionalManager   User                    @relation("MarketFeedbackRM", fields: [regionalManagerId], references: [id])
+  type              MarketFeedbackType
+  title             String
+  description       String
+  category          String?
+  priority          MarketFeedbackPriority  @default(NORMAL)
+  photoUrl          String?
+  visitId           String?
+  visit             MarketVisit?            @relation(fields: [visitId], references: [id])
+  createdAt         DateTime                @default(now())
+
+  @@index([marketId, createdAt])
 }

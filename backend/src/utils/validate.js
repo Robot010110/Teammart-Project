@@ -418,6 +418,7 @@ export const reviewWastedOverallReportSchema = z
 
 export const listWastedOverallQuerySchema = z.object({
   marketId: z.string().min(1).optional(),
+  employeeId: z.string().min(1).optional(),
   status: z.enum(["DRAFT", "PENDING", "APPROVED", "REJECTED"]).optional(),
 });
 
@@ -556,4 +557,31 @@ export const listLeaveRequestsQuerySchema = z.object({
 // ---------------------------------------------------------------------
 export const assignDepartmentSchema = z.object({
   department: z.string().min(1).max(100),
+});
+
+// ---------------------------------------------------------------------
+// Regional Manager market management — ratings, notes, formal
+// Warning/Recognition feedback, and visits (see
+// marketManagementController.js).
+// ---------------------------------------------------------------------
+export const rateMarketSchema = z.object({
+  rating: z.number().int().min(1).max(10),
+  notes: z.string().max(1000).optional(),
+  visitId: z.string().min(1).optional(),
+});
+
+export const addMarketNoteSchema = z.object({
+  content: z.string().min(2).max(2000),
+  category: z.string().max(100).optional(),
+  visitId: z.string().min(1).optional(),
+});
+
+export const sendMarketFeedbackSchema = z.object({
+  type: z.enum(["WARNING", "RECOGNITION"]),
+  title: z.string().min(2).max(150),
+  description: z.string().min(2).max(2000),
+  category: z.string().max(100).optional(),
+  priority: z.enum(["LOW", "NORMAL", "HIGH", "URGENT"]).optional(),
+  photoUrl: z.string().url().optional(),
+  visitId: z.string().min(1).optional(),
 });
