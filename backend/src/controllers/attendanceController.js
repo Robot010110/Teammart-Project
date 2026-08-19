@@ -2,6 +2,7 @@ import { prisma } from "../lib/prisma.js";
 import { staffCanAccessMarket, requireAccessibleEmployee, assertMarketAccess } from "../middleware/auth.js";
 import { parseAttendanceWorkbook, buildAttendanceReportWorkbook } from "../utils/attendanceExcel.js";
 import { attendanceImportRowSchema } from "../utils/validate.js";
+import { createNotification, createNotificationForUser } from "../utils/notifications.js";
 
 // attendanceController.js — check-in/out, breaks, shift, day-off, and
 // required-hours tracking. Populated by importAttendanceRecords (a real
@@ -19,6 +20,12 @@ function sameDay(a, b) {
 
 function daysInMonth(year, month) {
   return new Date(year, month, 0).getDate(); // month is 1-12
+}
+
+// "August 20" — for human-readable notification text (spec §12's own
+// example uses a month name, not an ISO date).
+function formatDateLabel(date) {
+  return date.toLocaleDateString("en-US", { month: "long", day: "numeric" });
 }
 
 // Working hours for one day, computed from checkIn/checkOut/break —
@@ -586,6 +593,195 @@ export async function exportAttendanceReport(req, res, next) {
     res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
     res.setHeader("Content-Disposition", `attachment; filename="attendance-report-${market?.name ?? marketId}-${year}-${month}.xlsx"`);
     res.send(Buffer.from(buffer));
+  } catch (err) {
+    next(err);
+  }
+}
+
+// ---------------------------------------------------------------------
+// AttendanceAdjustmentRequest (spec §10-14) — an employee-submitted claim
+// of extra hours worked on a specific date, PENDING until their market's
+// Supervisor reviews it. Deliberately a separate model from
+// RequiredHoursAdjustment/punishmentHours (both staff-set and
+// instant/authoritative) and NOT folded into computeExtraHours() or
+// computeExtraHoursBalance() above — performance/extra-hours-balance
+// wiring is a separate decision not yet made (spec §15), so an unapproved
+// or rejected claim can never silently affect either calculation.
+// ---------------------------------------------------------------------
+
+// POST /api/attendance/extra-hours — employee submits a claim for one
+// date. Always PENDING on creation; notifies their market's Supervisor
+// the same way createWastedOverallReport does (market may have no
+// Supervisor assigned yet — the request still exists, just un-notified).
+export async function submitExtraHours(req, res, next) {
+  try {
+    const { date, hours, reason } = req.body;
+    const employeeId = req.user.employeeId;
+
+    const request = await prisma.attendanceAdjustmentRequest.create({
+      data: { employeeId, date, hours, reason, type: "EXTRA_WORK" },
+    });
+
+    const employee = await prisma.employee.findUnique({
+      where: { id: employeeId },
+      select: { name: true, marketId: true },
+    });
+    const market = await prisma.market.findUnique({
+      where: { id: employee.marketId },
+      select: { supervisorId: true },
+    });
+    if (market?.supervisorId) {
+      await createNotificationForUser({
+        userId: market.supervisorId,
+        type: "EXTRA_HOURS_SUBMITTED",
+        title: "Extra Hours Submitted",
+        body: `${employee.name} reported ${hours} extra hour${hours === 1 ? "" : "s"} on ${formatDateLabel(date)}. Review submission.`,
+        linkType: "ATTENDANCE_ADJUSTMENT",
+        linkId: request.id,
+      });
+    }
+
+    res.status(201).json(request);
+  } catch (err) {
+    next(err);
+  }
+}
+
+// GET /api/attendance/extra-hours — the current employee's own submitted
+// requests, any status.
+export async function listMyAttendanceAdjustmentRequests(req, res, next) {
+  try {
+    const requests = await prisma.attendanceAdjustmentRequest.findMany({
+      where: { employeeId: req.user.employeeId },
+      orderBy: { createdAt: "desc" },
+    });
+    res.json(requests);
+  } catch (err) {
+    next(err);
+  }
+}
+
+// GET /api/attendance/extra-hours/market?marketId=&status=&employeeId= —
+// staff-only, same market-scoping pattern as
+// listWastedOverallReportsForMarket (Supervisor: only their own market;
+// Regional Manager: only markets in their zone; Admin: any).
+export async function listAttendanceAdjustmentRequestsForMarket(req, res, next) {
+  try {
+    const { status, employeeId } = req.query;
+    const marketId = req.query.marketId ?? req.user.marketId;
+    if (!marketId) {
+      return res.status(400).json({ error: "marketId is required" });
+    }
+    await assertMarketAccess(req.user, marketId);
+
+    const where = { employee: { marketId } };
+    if (status) where.status = status;
+    if (employeeId) where.employeeId = employeeId;
+
+    const requests = await prisma.attendanceAdjustmentRequest.findMany({
+      where,
+      include: { employee: { select: { id: true, name: true, employeeCode: true } } },
+      orderBy: { createdAt: "desc" },
+    });
+    res.json(requests);
+  } catch (err) {
+    next(err);
+  }
+}
+
+// POST /api/attendance/extra-hours/:id/review — staff approve/reject a
+// PENDING request. Scoped via the request's own employee's marketId
+// (fetched fresh, never trusted from the request body), same pattern as
+// reviewWastedOverallReport, so a Supervisor can't act outside their
+// market by guessing an id — and an employee (who has no staff role at
+// all) can never reach this route in the first place.
+export async function reviewAttendanceAdjustmentRequest(req, res, next) {
+  try {
+    const { status, reviewNote } = req.body;
+    const request = await prisma.attendanceAdjustmentRequest.findUnique({
+      where: { id: req.params.id },
+      include: { employee: { select: { marketId: true, name: true } } },
+    });
+    if (!request) return res.status(404).json({ error: "Request not found" });
+    await assertMarketAccess(req.user, request.employee.marketId);
+
+    if (request.status !== "PENDING") {
+      return res.status(400).json({ error: `This request is already ${request.status.toLowerCase()}` });
+    }
+
+    const updated = await prisma.attendanceAdjustmentRequest.update({
+      where: { id: request.id },
+      data: { status, reviewNote, reviewedById: req.user.userId, reviewedAt: new Date() },
+    });
+
+    await createNotification({
+      employeeId: request.employeeId,
+      type: "SUBMISSION_REVIEWED",
+      title: status === "APPROVED" ? "Extra Hours Approved" : "Extra Hours Rejected",
+      body:
+        status === "APPROVED"
+          ? `Your ${request.hours} extra hour${request.hours === 1 ? "" : "s"} on ${formatDateLabel(request.date)} ${request.hours === 1 ? "was" : "were"} approved.`
+          : `Your extra-hours submission was rejected${reviewNote ? `: ${reviewNote}` : "."}`,
+      linkType: "ATTENDANCE_ADJUSTMENT",
+      linkId: request.id,
+    });
+
+    res.json(updated);
+  } catch (err) {
+    next(err);
+  }
+}
+
+// GET /api/attendance/history?months=6 — the current employee's own
+// combined Attendance/Work History (spec §13-14): every extra-hours
+// submission (any status) plus every day with punishment hours applied,
+// newest first. Each entry keeps its own real type/status rather than
+// being flattened into one shape, so the frontend can render the
+// Approved/Pending/Rejected/Punishment distinction the spec calls for —
+// nothing here is hardcoded, every row comes straight from
+// AttendanceAdjustmentRequest / AttendanceRecord.
+export async function getAttendanceHistory(req, res, next) {
+  try {
+    const employeeId = req.user.employeeId;
+    const months = Math.min(Number(req.query.months) || 6, 24);
+    const since = new Date();
+    since.setMonth(since.getMonth() - months);
+
+    const [extraHoursRequests, punishedRecords] = await Promise.all([
+      prisma.attendanceAdjustmentRequest.findMany({
+        where: { employeeId, date: { gte: since } },
+        orderBy: { date: "desc" },
+      }),
+      prisma.attendanceRecord.findMany({
+        where: { employeeId, date: { gte: since }, punishmentHours: { gt: 0 } },
+        orderBy: { date: "desc" },
+      }),
+    ]);
+
+    const entries = [
+      ...extraHoursRequests.map((r) => ({
+        id: r.id,
+        date: r.date,
+        type: "EXTRA_WORK",
+        hours: r.hours,
+        reason: r.reason,
+        status: r.status,
+        createdAt: r.createdAt,
+        reviewedAt: r.reviewedAt,
+      })),
+      ...punishedRecords.map((r) => ({
+        id: r.id,
+        date: r.date,
+        type: "PUNISHMENT",
+        hours: r.punishmentHours,
+        reason: r.punishmentReason,
+        status: "APPLIED",
+        createdAt: r.date,
+        reviewedAt: null,
+      })),
+    ].sort((a, b) => b.date.getTime() - a.date.getTime());
+
+    res.json(entries);
   } catch (err) {
     next(err);
   }

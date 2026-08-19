@@ -9,7 +9,7 @@ import { assertMarketAccess } from "../middleware/auth.js";
 // POST /api/products — staff adds a product to their market's catalog.
 export async function createProduct(req, res, next) {
   try {
-    const { barcode, name, stockQuantity } = req.body;
+    const { barcode, name, stockQuantity, price } = req.body;
 
     if (req.user.kind !== "staff") {
       return res.status(403).json({ error: "Not authorized for this action" });
@@ -26,7 +26,7 @@ export async function createProduct(req, res, next) {
     await assertMarketAccess(req.user, marketId);
 
     const product = await prisma.product.create({
-      data: { barcode, name, stockQuantity, marketId, createdById: req.user.userId },
+      data: { barcode, name, stockQuantity, price, marketId, createdById: req.user.userId },
     });
 
     res.status(201).json(product);
@@ -34,6 +34,28 @@ export async function createProduct(req, res, next) {
     if (err.code === "P2002") {
       return res.status(409).json({ error: "A product with this barcode already exists in this market" });
     }
+    next(err);
+  }
+}
+
+// PATCH /api/products/:id — staff-only, scoped to a market they can
+// access. Exists mainly so an EXISTING product (created before it had a
+// price) can have one set/corrected — Price Lookup shows "Price not set"
+// honestly rather than a fabricated number until this has been called.
+export async function updateProduct(req, res, next) {
+  try {
+    const product = await prisma.product.findUnique({ where: { id: req.params.id } });
+    if (!product) return res.status(404).json({ error: "Product not found" });
+
+    await assertMarketAccess(req.user, product.marketId);
+
+    const updated = await prisma.product.update({
+      where: { id: product.id },
+      data: req.body,
+    });
+
+    res.json(updated);
+  } catch (err) {
     next(err);
   }
 }

@@ -252,6 +252,10 @@ enum NotificationType {
   // market's Supervisor (MarketFeedback) — one shared type for both,
   // same reasoning as SUBMISSION_REVIEWED/LEAVE_REVIEWED above.
   MARKET_FEEDBACK
+  // An employee submitted an AttendanceAdjustmentRequest (extra hours) —
+  // notifies their market's Supervisor. The Supervisor's approve/reject
+  // outcome reuses SUBMISSION_REVIEWED going back to the employee.
+  EXTRA_HOURS_SUBMITTED
 }
 
 // ---------------------------------------------------------------------
@@ -279,6 +283,12 @@ enum ConversationType {
   // initiate it, and can't reply until the RM sends the first message —
   // see Conversation.locked below.
   RM_DIRECT
+  // A Supervisor-created, named group with an explicit member list (spec
+  // §6-8) — unlike MARKET_GROUP (implicitly every employee in the
+  // market, no membership rows needed), a CUSTOM_GROUP's members are
+  // real ConversationMember rows, added/removed individually. `name` and
+  // `createdById` on Conversation are only meaningful for this type.
+  CUSTOM_GROUP
 }
 
 // FILE/AUDIO/VOICE only — an image attachment is still represented by
@@ -342,6 +352,8 @@ model User {
   marketRatings   MarketRating[]   @relation("MarketRatingRM")
   marketNotes     MarketNote[]     @relation("MarketNoteRM")
   marketFeedbacks MarketFeedback[] @relation("MarketFeedbackRM")
+  createdGroups   Conversation[]   @relation("ConversationCreator")
+  reviewedAttendanceAdjustments AttendanceAdjustmentRequest[] @relation("AttendanceAdjustmentReviewer")
 }
 
 // ---------------------------------------------------------------------
@@ -447,6 +459,8 @@ model Employee {
   directConversationsAsA Conversation[]    @relation("ConversationParticipantA")
   directConversationsAsB Conversation[]    @relation("ConversationParticipantB")
   messageReactions      MessageReaction[]  @relation("MessageReactionEmployee")
+  groupMemberships      ConversationMember[]
+  attendanceAdjustmentRequests AttendanceAdjustmentRequest[]
 
   @@index([marketId])
 }
@@ -604,6 +618,11 @@ model Product {
   barcode       String
   name          String
   stockQuantity Int      @default(0)
+  // The product's real selling price — nullable, since not every product
+  // in this catalog has had one entered yet (see productsController.js).
+  // Powers the Cashier Price Lookup flow: a product with no price set
+  // shows "Price not set" honestly rather than a fabricated number.
+  price         Float?
 
   marketId String
   market   Market @relation(fields: [marketId], references: [id])
@@ -1026,6 +1045,14 @@ model Conversation {
   id   String           @id @default(cuid())
   type ConversationType
 
+  // CUSTOM_GROUP only: the group's display name (spec §6/§8 — renamable,
+  // persists for every member) and the staff account that created it
+  // (informational; management actions are authorized by market access +
+  // role, not exclusively by "am I the creator" — see chatController.js).
+  name        String?
+  createdById Int?
+  createdBy   User?   @relation("ConversationCreator", fields: [createdById], references: [id])
+
   marketId String
   market   Market @relation(fields: [marketId], references: [id])
 
@@ -1052,9 +1079,28 @@ model Conversation {
 
   messages Message[]
   reads    ConversationRead[]
+  members  ConversationMember[]
 
   @@unique([marketId, type, participantAId, participantBId, staffParticipantId])
   @@index([marketId])
+}
+
+// ConversationMember — explicit membership for a CUSTOM_GROUP (spec
+// §6/§7: add/remove members, view current members). Every other
+// ConversationType determines "who's in it" a different way (implicit
+// market-wide for MARKET_GROUP/WARNINGS, the two participant columns for
+// DIRECT/SUPERVISOR_DIRECT/RM_DIRECT) — this table is only ever
+// populated for CUSTOM_GROUP.
+model ConversationMember {
+  id             String       @id @default(cuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  employeeId     String
+  employee       Employee     @relation(fields: [employeeId], references: [id])
+  addedAt        DateTime     @default(now())
+
+  @@unique([conversationId, employeeId])
+  @@index([conversationId])
 }
 
 // Message — sender is EITHER an Employee OR a staff User (Warnings
@@ -1090,6 +1136,16 @@ model Message {
   replyToId String?
   replyTo   Message?  @relation("MessageReplyTo", fields: [replyToId], references: [id], onDelete: SetNull)
   replies   Message[] @relation("MessageReplyTo")
+
+  // Set when this message was created via Forward (spec §5) — a snapshot
+  // of the ORIGINAL sender's name at forward time, not a live FK to the
+  // source message/conversation. Deliberately a denormalized label, not
+  // a relation: the forwarder and the recipient(s) of the forward may
+  // not share access to the original conversation, so this never exposes
+  // more than "who first sent this", and it stays stable even if the
+  // original message is later edited or deleted. Never set together with
+  // replyToId (forwarding and replying are different actions).
+  forwardedFromSenderName String?
 
   // Set when the sender edits their own text message; the frontend shows
   // "Edited" whenever this is non-null rather than storing edit history.
@@ -1249,4 +1305,52 @@ model MarketFeedback {
   createdAt         DateTime                @default(now())
 
   @@index([marketId, createdAt])
+}
+
+// ---------------------------------------------------------------------
+// AttendanceAdjustmentRequest — an employee-submitted claim of extra
+// hours worked, pending Supervisor review (spec §10-14). Deliberately
+// its own model, not a repurposing of RequiredHoursAdjustment (that one
+// is a staff-authoritative override, written instantly, no pending
+// state) or AttendanceRecord.punishmentHours (staff-only, instant) —
+// this is the opposite direction: the EMPLOYEE claims something, and it
+// only becomes real once a Supervisor approves it. `type` is scoped to
+// EXTRA_WORK today (the only thing an employee can submit per spec §10);
+// the enum leaves room for a future staff-facing use without implying
+// one exists yet. Deliberately NOT folded into the existing derived
+// "extra hours" calculation (computeExtraHours in
+// attendanceController.js) or the extra-hours-balance used for Earned
+// Day Off — spec §15 explicitly keeps this independent of any
+// hours-driven calculation until a final model is agreed; today this is
+// purely a reviewable record, visible in Attendance History.
+// ---------------------------------------------------------------------
+enum AttendanceAdjustmentType {
+  EXTRA_WORK
+}
+
+enum AttendanceAdjustmentStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model AttendanceAdjustmentRequest {
+  id         String                   @id @default(cuid())
+  employeeId String
+  employee   Employee                 @relation(fields: [employeeId], references: [id])
+  date       DateTime // the day the extra hours were worked; time part ignored
+  type       AttendanceAdjustmentType @default(EXTRA_WORK)
+  hours      Float // > 0, enforced in validate.js
+  reason     String?
+  status     AttendanceAdjustmentStatus @default(PENDING)
+
+  reviewedById Int?
+  reviewedBy   User?     @relation("AttendanceAdjustmentReviewer", fields: [reviewedById], references: [id])
+  reviewNote   String?
+  reviewedAt   DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([employeeId])
+  @@index([status])
 }

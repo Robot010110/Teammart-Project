@@ -10,6 +10,11 @@ import {
   getEmployeeExtraHoursBalance,
   setPunishmentHours,
   exportAttendanceReport,
+  submitExtraHours,
+  listMyAttendanceAdjustmentRequests,
+  listAttendanceAdjustmentRequestsForMarket,
+  reviewAttendanceAdjustmentRequest,
+  getAttendanceHistory,
 } from "../controllers/attendanceController.js";
 import { requireAuth, requireStaffRole, requireEmployeeAuth } from "../middleware/auth.js";
 import {
@@ -19,6 +24,9 @@ import {
   setPunishmentHoursSchema,
   attendanceMonthQuerySchema,
   attendanceReportQuerySchema,
+  submitExtraHoursSchema,
+  reviewAttendanceAdjustmentSchema,
+  listAttendanceAdjustmentsQuerySchema,
 } from "../utils/validate.js";
 
 // Memory storage — the file is parsed (utils/attendanceExcel.js) and
@@ -75,6 +83,27 @@ router.get(
   requireStaffRole("ADMIN", "REGIONAL_MANAGER", "SUPERVISOR"),
   validateQuery(attendanceReportQuerySchema),
   exportAttendanceReport
+);
+
+// Extra-hours self-submission (spec §10-14) — employee-only submit/list/
+// history; staff-only market review list + approve/reject. Kept under
+// this same /attendance router (not a separate module) since it's an
+// attendance concept end-to-end, same "extend rather than duplicate"
+// call as everything else in this router.
+router.post("/extra-hours", requireEmployeeAuth, validateBody(submitExtraHoursSchema), submitExtraHours);
+router.get("/extra-hours", requireEmployeeAuth, listMyAttendanceAdjustmentRequests);
+router.get("/history", requireEmployeeAuth, getAttendanceHistory);
+router.get(
+  "/extra-hours/market",
+  requireStaffRole("ADMIN", "REGIONAL_MANAGER", "SUPERVISOR"),
+  validateQuery(listAttendanceAdjustmentsQuerySchema),
+  listAttendanceAdjustmentRequestsForMarket
+);
+router.post(
+  "/extra-hours/:id/review",
+  requireStaffRole("ADMIN", "REGIONAL_MANAGER", "SUPERVISOR"),
+  validateBody(reviewAttendanceAdjustmentSchema),
+  reviewAttendanceAdjustmentRequest
 );
 
 export default router;

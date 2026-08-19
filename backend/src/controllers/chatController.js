@@ -43,6 +43,12 @@ async function conversationAccessFor(user, conversationId) {
     if (conversation.type === "SUPERVISOR_DIRECT" || conversation.type === "RM_DIRECT") {
       return conversation.participantAId === user.employeeId ? conversation : null;
     }
+    if (conversation.type === "CUSTOM_GROUP") {
+      const membership = await prisma.conversationMember.findUnique({
+        where: { conversationId_employeeId: { conversationId: conversation.id, employeeId: user.employeeId } },
+      });
+      return membership ? conversation : null;
+    }
     // MARKET_GROUP / WARNINGS — any employee of that market can read.
     return user.marketId === conversation.marketId ? conversation : null;
   }
@@ -51,7 +57,7 @@ async function conversationAccessFor(user, conversationId) {
     if (conversation.type === "SUPERVISOR_DIRECT" || conversation.type === "RM_DIRECT") {
       return conversation.staffParticipantId === user.userId ? conversation : null;
     }
-    if (conversation.type === "MARKET_GROUP" || conversation.type === "WARNINGS") {
+    if (conversation.type === "MARKET_GROUP" || conversation.type === "WARNINGS" || conversation.type === "CUSTOM_GROUP") {
       const allowed = await staffCanAccessMarket(user, conversation.marketId);
       return allowed === true ? conversation : null;
     }
@@ -84,6 +90,7 @@ function shapeMessage(m) {
     attachmentName: null,
     attachmentSize: null,
     attachmentDurationSec: null,
+    forwardedFromSenderName: null,
     reactions: [],
   };
 }
@@ -130,7 +137,7 @@ export async function listMyConversations(req, res, next) {
     const employeeId = req.user.employeeId;
     const marketId = req.user.marketId;
 
-    const [marketGroup, warnings, supervisorConvo, rmConvos, directs] = await Promise.all([
+    const [marketGroup, warnings, supervisorConvo, rmConvos, groupMemberships, directs] = await Promise.all([
       findOrCreateChannel(marketId, "MARKET_GROUP"),
       findOrCreateChannel(marketId, "WARNINGS"),
       findOrCreateSupervisorConversation(marketId, employeeId),
@@ -139,12 +146,14 @@ export async function listMyConversations(req, res, next) {
       // RM has already opened it (see
       // getOrCreateEmployeeConversationForRegionalManager).
       prisma.conversation.findMany({ where: { type: "RM_DIRECT", participantAId: employeeId } }),
+      prisma.conversationMember.findMany({ where: { employeeId }, include: { conversation: true } }),
       prisma.conversation.findMany({
         where: { type: "DIRECT", OR: [{ participantAId: employeeId }, { participantBId: employeeId }] },
       }),
     ]);
+    const groups = groupMemberships.map((m) => m.conversation);
 
-    const conversations = [marketGroup, warnings, ...(supervisorConvo ? [supervisorConvo] : []), ...rmConvos, ...directs];
+    const conversations = [marketGroup, warnings, ...(supervisorConvo ? [supervisorConvo] : []), ...rmConvos, ...groups, ...directs];
 
     const [lastMessages, reads] = await Promise.all([
       Promise.all(
@@ -199,6 +208,7 @@ export async function listMyConversations(req, res, next) {
           c.type === "WARNINGS" ? "Warnings" :
           c.type === "SUPERVISOR_DIRECT" ? (supervisorName ?? "Supervisor") :
           c.type === "RM_DIRECT" ? (rmNameById.get(c.staffParticipantId) ?? "Regional Manager") :
+          c.type === "CUSTOM_GROUP" ? (c.name ?? "Group") :
           nameById.get(c.participantAId === employeeId ? c.participantBId : c.participantAId) ?? "Employee",
         otherEmployeeId: c.type === "DIRECT" ? (c.participantAId === employeeId ? c.participantBId : c.participantAId) : null,
         locked: c.type === "RM_DIRECT" ? c.locked : false,
@@ -340,15 +350,16 @@ export async function listMyStaffConversations(req, res, next) {
     }
     const marketId = req.user.marketId;
 
-    const [marketGroup, warnings, directs] = await Promise.all([
+    const [marketGroup, warnings, directs, groups] = await Promise.all([
       findOrCreateChannel(marketId, "MARKET_GROUP"),
       findOrCreateChannel(marketId, "WARNINGS"),
       prisma.conversation.findMany({
         where: { type: "SUPERVISOR_DIRECT", marketId, staffParticipantId: req.user.userId },
       }),
+      prisma.conversation.findMany({ where: { type: "CUSTOM_GROUP", marketId } }),
     ]);
 
-    const conversations = [marketGroup, warnings, ...directs];
+    const conversations = [marketGroup, warnings, ...directs, ...groups];
     const lastMessages = await Promise.all(
       conversations.map((c) => prisma.message.findFirst({ where: { conversationId: c.id }, orderBy: { createdAt: "desc" } }))
     );
@@ -360,7 +371,11 @@ export async function listMyStaffConversations(req, res, next) {
     const shaped = conversations.map((c, i) => ({
       id: c.id,
       type: c.type,
-      title: c.type === "MARKET_GROUP" ? "Market Group" : c.type === "WARNINGS" ? "Warnings" : nameById.get(c.participantAId) ?? "Employee",
+      title:
+        c.type === "MARKET_GROUP" ? "Market Group" :
+        c.type === "WARNINGS" ? "Warnings" :
+        c.type === "CUSTOM_GROUP" ? (c.name ?? "Group") :
+        nameById.get(c.participantAId) ?? "Employee",
       employeeId: c.type === "SUPERVISOR_DIRECT" ? c.participantAId : null,
       lastMessage: lastMessages[i] ? { body: lastMessages[i].body, createdAt: lastMessages[i].createdAt } : null,
     }));
@@ -427,6 +442,142 @@ export async function getOrCreateEmployeeConversationForRegionalManager(req, res
     }));
 
     res.json({ ...conversation, title: employee.name });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// Shared by createGroup/renameGroup/addGroupMember/removeGroupMember —
+// group MANAGEMENT (not just viewing) is Supervisor/Admin/Regional
+// Manager only, re-checked here rather than only at the route level.
+function requireGroupManagerRole(req, res) {
+  if (req.user.kind !== "staff" || !["SUPERVISOR", "ADMIN", "REGIONAL_MANAGER"].includes(req.user.role)) {
+    res.status(403).json({ error: "This action requires a Supervisor, Regional Manager, or Admin account" });
+    return false;
+  }
+  return true;
+}
+
+async function shapeGroupMembers(conversationId) {
+  const members = await prisma.conversationMember.findMany({
+    where: { conversationId },
+    include: { employee: { select: { id: true, name: true, position: true } } },
+    orderBy: { addedAt: "asc" },
+  });
+  return members.map((m) => ({ employeeId: m.employeeId, name: m.employee.name, position: m.employee.position, addedAt: m.addedAt }));
+}
+
+// POST /api/conversations/groups — Supervisor/Admin/Regional-Manager
+// only (spec §6). Body: { name, memberEmployeeIds }. Every member must
+// belong to a market the caller can access — this reuses the existing
+// staffCanAccessMarket check per employee rather than trusting a
+// client-supplied marketId, so a Supervisor can't add someone from a
+// market they don't manage.
+export async function createGroup(req, res, next) {
+  try {
+    if (!requireGroupManagerRole(req, res)) return;
+    const { name, memberEmployeeIds } = req.body;
+
+    const members = await prisma.employee.findMany({ where: { id: { in: memberEmployeeIds } } });
+    if (members.length !== memberEmployeeIds.length) {
+      return res.status(400).json({ error: "One or more members could not be found" });
+    }
+    const marketIds = [...new Set(members.map((m) => m.marketId))];
+    if (marketIds.length > 1) {
+      return res.status(400).json({ error: "All members must belong to the same market" });
+    }
+    const marketId = marketIds[0] ?? req.user.marketId;
+    if (!marketId) {
+      return res.status(400).json({ error: "Could not determine a market for this group" });
+    }
+    await assertMarketAccess(req.user, marketId);
+
+    const conversation = await prisma.conversation.create({
+      data: {
+        type: "CUSTOM_GROUP",
+        marketId,
+        name,
+        createdById: req.user.userId,
+        members: { create: members.map((m) => ({ employeeId: m.id })) },
+      },
+    });
+
+    res.status(201).json({ ...conversation, members: await shapeGroupMembers(conversation.id) });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// PATCH /api/conversations/:id/name — spec §8: renaming persists for
+// every member (it's a column on the shared Conversation row, not a
+// per-user label).
+export async function renameGroup(req, res, next) {
+  try {
+    if (!requireGroupManagerRole(req, res)) return;
+    const conversation = await prisma.conversation.findUnique({ where: { id: req.params.id } });
+    if (!conversation || conversation.type !== "CUSTOM_GROUP") return res.status(404).json({ error: "Group not found" });
+    await assertMarketAccess(req.user, conversation.marketId);
+
+    const updated = await prisma.conversation.update({ where: { id: conversation.id }, data: { name: req.body.name } });
+    res.json(updated);
+  } catch (err) {
+    next(err);
+  }
+}
+
+// GET /api/conversations/:id/members — anyone with access to the group
+// (a member, or staff with market access) can view its roster.
+export async function listGroupMembers(req, res, next) {
+  try {
+    const conversation = await conversationAccessFor(req.user, req.params.id);
+    if (!conversation || conversation.type !== "CUSTOM_GROUP") return res.status(404).json({ error: "Group not found" });
+    res.json(await shapeGroupMembers(conversation.id));
+  } catch (err) {
+    next(err);
+  }
+}
+
+// POST /api/conversations/:id/members — spec §7: add a member. The new
+// member must belong to the group's own market.
+export async function addGroupMember(req, res, next) {
+  try {
+    if (!requireGroupManagerRole(req, res)) return;
+    const conversation = await prisma.conversation.findUnique({ where: { id: req.params.id } });
+    if (!conversation || conversation.type !== "CUSTOM_GROUP") return res.status(404).json({ error: "Group not found" });
+    await assertMarketAccess(req.user, conversation.marketId);
+
+    const employee = await prisma.employee.findUnique({ where: { id: req.body.employeeId } });
+    if (!employee || employee.marketId !== conversation.marketId) {
+      return res.status(400).json({ error: "This employee does not belong to the group's market" });
+    }
+
+    await prisma.conversationMember.upsert({
+      where: { conversationId_employeeId: { conversationId: conversation.id, employeeId: employee.id } },
+      update: {},
+      create: { conversationId: conversation.id, employeeId: employee.id },
+    });
+
+    res.status(201).json(await shapeGroupMembers(conversation.id));
+  } catch (err) {
+    next(err);
+  }
+}
+
+// DELETE /api/conversations/:id/members/:employeeId — spec §7: remove a
+// member where the permission model allows it (Supervisor/Admin/RM with
+// access to this group's market).
+export async function removeGroupMember(req, res, next) {
+  try {
+    if (!requireGroupManagerRole(req, res)) return;
+    const conversation = await prisma.conversation.findUnique({ where: { id: req.params.id } });
+    if (!conversation || conversation.type !== "CUSTOM_GROUP") return res.status(404).json({ error: "Group not found" });
+    await assertMarketAccess(req.user, conversation.marketId);
+
+    await prisma.conversationMember.deleteMany({
+      where: { conversationId: conversation.id, employeeId: req.params.employeeId },
+    });
+
+    res.json(await shapeGroupMembers(conversation.id));
   } catch (err) {
     next(err);
   }
@@ -557,7 +708,7 @@ export async function sendMessage(req, res, next) {
       return res.status(403).json({ error: "This conversation is locked until the Regional Manager sends the first message" });
     }
 
-    const { body, imageUrl, attachmentType, attachmentUrl, attachmentName, attachmentSize, attachmentDurationSec, replyToId } = req.body;
+    let { body, imageUrl, attachmentType, attachmentUrl, attachmentName, attachmentSize, attachmentDurationSec, replyToId, forwardMessageId } = req.body;
 
     // A reply must point at a real, non-deleted message in THIS same
     // conversation — never trust a client-supplied id blindly (it could
@@ -568,6 +719,38 @@ export async function sendMessage(req, res, next) {
       if (!target || target.conversationId !== conversation.id || target.deletedAt) {
         return res.status(400).json({ error: "The message being replied to could not be found in this conversation" });
       }
+    }
+
+    // Forwarding (spec §5): the SOURCE message can be in any conversation
+    // the caller has access to — never trusted blindly, re-checked via
+    // conversationAccessFor exactly like every other cross-conversation
+    // reference in this file, so a user can't forward content from a
+    // conversation they don't belong to just by guessing a message id.
+    // Only the body/attachment are copied — reactions, replies, and edit
+    // history are NOT carried over, and forwardedFromSenderName is a
+    // snapshot label, not a live link back (see its own schema comment).
+    let forwardedFromSenderName = null;
+    if (forwardMessageId) {
+      const source = await prisma.message.findUnique({
+        where: { id: forwardMessageId },
+        include: { senderEmployee: { select: { name: true } }, senderUser: { select: { name: true } } },
+      });
+      if (!source || source.deletedAt) {
+        return res.status(404).json({ error: "The message to forward could not be found" });
+      }
+      const sourceConversation = await conversationAccessFor(req.user, source.conversationId);
+      if (!sourceConversation) {
+        return res.status(403).json({ error: "You do not have access to the message you're trying to forward" });
+      }
+      body = source.body;
+      imageUrl = source.imageUrl;
+      attachmentType = source.attachmentType;
+      attachmentUrl = source.attachmentUrl;
+      attachmentName = source.attachmentName;
+      attachmentSize = source.attachmentSize;
+      attachmentDurationSec = source.attachmentDurationSec;
+      replyToId = null; // a forward starts fresh, it doesn't inherit the source's reply context
+      forwardedFromSenderName = source.senderEmployee?.name || source.senderUser?.name || "Unknown";
     }
 
     const message = await prisma.message.create({
@@ -581,6 +764,7 @@ export async function sendMessage(req, res, next) {
         attachmentSize,
         attachmentDurationSec,
         replyToId: replyToId || null,
+        forwardedFromSenderName,
         senderEmployeeId: isStaff ? null : req.user.employeeId,
         senderUserId: isStaff ? req.user.userId : null,
       },
@@ -656,6 +840,18 @@ export async function sendMessage(req, res, next) {
           linkId: conversation.id,
         });
       }
+    } else if (conversation.type === "CUSTOM_GROUP") {
+      const members = await prisma.conversationMember.findMany({
+        where: { conversationId: conversation.id, employeeId: isStaff ? undefined : { not: req.user.employeeId } },
+        select: { employeeId: true },
+      });
+      await notifyEmployeesUnlessMuted(members.map((m) => m.employeeId), {
+        type: "CHAT_MESSAGE",
+        title: `New message in ${conversation.name ?? "Group"}`,
+        body: notificationPreview,
+        linkType: "CONVERSATION",
+        linkId: conversation.id,
+      });
     } else {
       // MARKET_GROUP — notify every other employee in the market.
       const others = await prisma.employee.findMany({

@@ -76,7 +76,12 @@ export const updateMyProfileSchema = z.object({
     .refine((v) => /^\d{8,15}$/.test(v), {
       message: "Enter a valid WhatsApp number, digits only (8-15 digits, country code included)",
     })
-    .nullable(),
+    .nullable()
+    .optional(),
+  // Same base64-data-URL-today, real-upload-later convention already
+  // documented on activityService.prepareImageForUpload — a data: URI is
+  // a valid URL as far as z.string().url() is concerned.
+  profilePictureUrl: z.string().url().nullable().optional(),
 });
 
 // ---------------------------------------------------------------------
@@ -278,6 +283,13 @@ export const createProductSchema = z.object({
   barcode: z.string().min(1).max(64),
   name: z.string().min(1).max(200),
   stockQuantity: z.number().int().min(0).optional().default(0),
+  price: z.number().nonnegative().max(1_000_000).optional(),
+});
+
+export const updateProductSchema = z.object({
+  name: z.string().min(1).max(200).optional(),
+  stockQuantity: z.number().int().min(0).optional(),
+  price: z.number().nonnegative().max(1_000_000).nullable().optional(),
 });
 
 export const searchProductsQuerySchema = z.object({
@@ -369,8 +381,12 @@ export const sendMessageSchema = z
     // id within the same conversation is re-checked server-side in
     // chatController.sendMessage, never trusted from this shape alone.
     replyToId: z.string().min(1).optional(),
+    // Forward (spec §5) — when set, the controller copies body/attachment
+    // from this source message instead of requiring them in the request
+    // body; access to the source is re-verified server-side.
+    forwardMessageId: z.string().min(1).optional(),
   })
-  .refine((data) => data.body.trim().length > 0 || !!data.imageUrl || !!data.attachmentUrl, {
+  .refine((data) => !!data.forwardMessageId || data.body.trim().length > 0 || !!data.imageUrl || !!data.attachmentUrl, {
     message: "A message needs text, an image, or an attachment",
     path: ["body"],
   })
@@ -385,6 +401,20 @@ export const sendMessageSchema = z
 
 export const editMessageSchema = z.object({
   body: z.string().trim().min(1, "Message can't be empty").max(4000),
+});
+
+// Supervisor/Admin/Regional-Manager group chat (spec §6-8).
+export const createGroupSchema = z.object({
+  name: z.string().trim().min(1).max(100),
+  memberEmployeeIds: z.array(z.string().min(1)).min(1, "Add at least one member").max(100),
+});
+
+export const renameGroupSchema = z.object({
+  name: z.string().trim().min(1).max(100),
+});
+
+export const addGroupMemberSchema = z.object({
+  employeeId: z.string().min(1),
 });
 
 // Fixed reaction set (spec §10) — kept small and workplace-appropriate on
@@ -496,6 +526,28 @@ export const attendanceReportQuerySchema = z.object({
   marketId: z.string().min(1),
   year: z.coerce.number().int().min(2000).max(2100),
   month: z.coerce.number().int().min(1).max(12),
+});
+
+// Extra-hours self-submission (spec §10-11) — an employee claims hours
+// worked beyond their normal schedule on a specific date; PENDING until a
+// Supervisor reviews it (see AttendanceAdjustmentRequest schema comment
+// for why this is a separate model from RequiredHoursAdjustment/
+// punishmentHours). Capped at 12/day — generous for a single extra shift,
+// without accepting an obviously-mistaken entry.
+export const submitExtraHoursSchema = z.object({
+  date: z.coerce.date(),
+  hours: z.number().positive().max(12),
+  reason: z.string().max(500).optional(),
+});
+
+export const reviewAttendanceAdjustmentSchema = z.object({
+  status: z.enum(["APPROVED", "REJECTED"]),
+  reviewNote: z.string().max(500).optional(),
+});
+
+export const listAttendanceAdjustmentsQuerySchema = z.object({
+  employeeId: z.string().min(1).optional(),
+  status: z.enum(["PENDING", "APPROVED", "REJECTED"]).optional(),
 });
 
 // ---------------------------------------------------------------------

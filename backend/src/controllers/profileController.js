@@ -60,25 +60,32 @@ export async function getProfile(req, res, next) {
   }
 }
 
-// PATCH /api/profile — employee-only self-service profile update.
-// Currently only WhatsApp number — name is already covered by
-// Employee.name (no duplicate identity field), and every other profile
-// field (department, position, etc.) is management-assigned, not
-// self-service. Validation/normalization (digits only, no "+", no
-// spaces) happens in validate.js's updateMyProfileSchema so a malformed
-// value can never reach the DB or later break a wa.me link.
+// PATCH /api/profile — employee-only self-service profile update:
+// WhatsApp number and, now, their own profile photo (spec: "An employee
+// should only be able to change their own profile photo" — enforced here
+// by always writing to req.user.employeeId, never an id from the
+// request body). Every other profile field (department, position, etc.)
+// stays management-assigned, not self-service. Only the keys actually
+// present in the request are updated, so a caller can change just the
+// photo without needing to resend whatsappNumber (and vice versa).
+// Validation/normalization happens in validate.js's
+// updateMyProfileSchema so a malformed value can never reach the DB.
 export async function updateMyProfile(req, res, next) {
   try {
     if (req.user.kind !== "employee") {
       return res.status(403).json({ error: "This action requires an employee login" });
     }
 
+    const data = {};
+    if ("whatsappNumber" in req.body) data.whatsappNumber = req.body.whatsappNumber;
+    if ("profilePictureUrl" in req.body) data.profilePictureUrl = req.body.profilePictureUrl;
+
     const employee = await prisma.employee.update({
       where: { id: req.user.employeeId },
-      data: { whatsappNumber: req.body.whatsappNumber },
+      data,
     });
 
-    res.json({ whatsappNumber: employee.whatsappNumber });
+    res.json({ whatsappNumber: employee.whatsappNumber, profilePictureUrl: employee.profilePictureUrl });
   } catch (err) {
     next(err);
   }
