@@ -21,13 +21,21 @@ async function generateUniqueEmployeeCode() {
   throw new Error("Could not generate a unique employee code, please try again");
 }
 
-// GET /api/employees?marketId=xyz — scoped by role:
+// GET /api/employees?marketId=&role=&shift=&search= — scoped by role:
 //   ADMIN             -> all employees (optionally filtered by marketId)
-//   REGIONAL_MANAGER   -> only employees in their zone's markets
+//   REGIONAL_MANAGER   -> only employees in their zone's markets (spec
+//                          §3: up to ~60 employees across many markets —
+//                          role/shift/search are the RM's filtering
+//                          tools for that)
 //   SUPERVISOR         -> only employees in their own market
+//
+// role filters on Employee.role (WORKER/CASHIER/BUTCHER); shift matches
+// EITHER cashierShift (Cashiers) OR the free-text shift field (Workers)
+// so one query param works for both; search does a case-insensitive
+// match on name or employeeCode.
 export async function listEmployees(req, res, next) {
   try {
-    const { marketId } = req.query;
+    const { marketId, role, shift, search } = req.query;
 
     let where = marketId ? { marketId: String(marketId) } : {};
 
@@ -40,6 +48,14 @@ export async function listEmployees(req, res, next) {
 
     if (marketId) {
       await assertMarketAccess(req.user, String(marketId));
+    }
+    if (role) where.role = String(role);
+    if (shift) where.OR = [{ cashierShift: String(shift) }, { shift: String(shift) }];
+    if (search) {
+      where.AND = [
+        ...(where.AND ?? []),
+        { OR: [{ name: { contains: String(search), mode: "insensitive" } }, { employeeCode: { contains: String(search), mode: "insensitive" } }] },
+      ];
     }
 
     const employees = await prisma.employee.findMany({

@@ -34,6 +34,12 @@ enum StaffRole {
   ADMIN
   REGIONAL_MANAGER
   SUPERVISOR
+  // A market's Night/Evening shift counterpart to its SUPERVISOR — its
+  // own real account (Market.overlookingSupervisorId), not a shift label
+  // on the Supervisor login (see Market's own comment). Has a narrower
+  // permission set than SUPERVISOR: e.g. can submit Card Sales but not
+  // Total Sales (see totalSalesController.js / cardSalesController.js).
+  OVERLOOKING_SUPERVISOR
 }
 
 enum MarketStatus {
@@ -214,6 +220,7 @@ enum LeaveRequestStatus {
 enum EmployeeRole {
   WORKER
   CASHIER
+  BUTCHER
 }
 
 // Only two values for Cashiers (unlike the three-shift Shift enum used by
@@ -256,6 +263,12 @@ enum NotificationType {
   // notifies their market's Supervisor. The Supervisor's approve/reject
   // outcome reuses SUBMISSION_REVIEWED going back to the employee.
   EXTRA_HOURS_SUBMITTED
+  // A Supervisor submitted a Total Sales report — notifies the market's
+  // Regional Manager(s), the only role authorized to view it.
+  TOTAL_SALES_SUBMITTED
+  // A Supervisor or Overlooking account submitted a Card Sales report for
+  // one shift — notifies the market's Regional Manager(s).
+  CARD_SALES_SUBMITTED
 }
 
 // ---------------------------------------------------------------------
@@ -319,6 +332,9 @@ model User {
   managedZones  Zone[]   @relation("ZoneManager")
   // A Supervisor manages exactly one market.
   managedMarket Market?  @relation("MarketSupervisor")
+  // An OVERLOOKING_SUPERVISOR manages exactly one market too — its own
+  // distinct account/login, not the Supervisor's (see Market's comment).
+  managedOverlookingMarket Market? @relation("MarketOverlookingSupervisor")
 
   // Tasks this staff member has reviewed (approved/rejected).
   reviewedTasks Task[] @relation("TaskReviewer")
@@ -354,6 +370,9 @@ model User {
   marketFeedbacks MarketFeedback[] @relation("MarketFeedbackRM")
   createdGroups   Conversation[]   @relation("ConversationCreator")
   reviewedAttendanceAdjustments AttendanceAdjustmentRequest[] @relation("AttendanceAdjustmentReviewer")
+  groupMemberships ConversationMember[] @relation("ConversationMemberUser")
+  submittedTotalSalesReports TotalSalesReport[] @relation("TotalSalesSubmitter")
+  submittedCardSalesReports  CardSalesReport[]  @relation("CardSalesSubmitter")
 }
 
 // ---------------------------------------------------------------------
@@ -368,6 +387,7 @@ model Zone {
   managerId Int?
   manager   User?    @relation("ZoneManager", fields: [managerId], references: [id])
   markets   Market[]
+  conversations Conversation[]
   createdAt DateTime @default(now())
 
   @@index([managerId])
@@ -381,6 +401,15 @@ model Market {
   zone         Zone         @relation(fields: [zoneId], references: [id])
   supervisorId Int?         @unique
   supervisor   User?        @relation("MarketSupervisor", fields: [supervisorId], references: [id])
+  // The market's Night/Evening-shift counterpart — a real, distinct
+  // account (StaffRole.OVERLOOKING_SUPERVISOR), not a shift label chosen
+  // at login. Nullable: a market may not have a dedicated Overlooking
+  // account yet, same as supervisorId. Deliberately mirrors supervisorId
+  // exactly (own @unique FK) rather than a generic "market staff" list,
+  // since the two roles have genuinely different permissions (e.g. only
+  // the Supervisor can submit Total Sales — see totalSalesController.js).
+  overlookingSupervisorId Int?  @unique
+  overlookingSupervisor   User? @relation("MarketOverlookingSupervisor", fields: [overlookingSupervisorId], references: [id])
   employees    Employee[]
   tasks        Task[]
   suddenTasks  SuddenTask[]
@@ -397,6 +426,9 @@ model Market {
   ratings   MarketRating[]
   notes     MarketNote[]
   feedbacks MarketFeedback[]
+
+  totalSalesReports TotalSalesReport[]
+  cardSalesReports  CardSalesReport[]
 
   @@index([zoneId])
 }
@@ -1045,16 +1077,31 @@ model Conversation {
   id   String           @id @default(cuid())
   type ConversationType
 
-  // CUSTOM_GROUP only: the group's display name (spec §6/§8 — renamable,
-  // persists for every member) and the staff account that created it
-  // (informational; management actions are authorized by market access +
-  // role, not exclusively by "am I the creator" — see chatController.js).
+  // CUSTOM_GROUP only: the group's display name/photo (spec §6/§8/RM §1 —
+  // renamable, persists for every member) and the staff account that
+  // created it. The creator is automatically a group admin (see
+  // ConversationMember.isAdmin) — but group-management authorization is
+  // never "am I the creator", always "do I have an admin membership row",
+  // so a promoted-then-un-promoted creator loses control exactly like
+  // anyone else (see chatController.js's requireGroupAdmin).
   name        String?
+  pictureUrl  String?
   createdById Int?
   createdBy   User?   @relation("ConversationCreator", fields: [createdById], references: [id])
 
-  marketId String
-  market   Market @relation(fields: [marketId], references: [id])
+  // Every non-CUSTOM_GROUP type is always scoped to exactly one market
+  // (required). A CUSTOM_GROUP may instead be scoped to a whole zone
+  // (marketId null, zoneId set — spec's "Regional/Zone Groups", e.g. a
+  // Regional Manager's cross-market "Supervisors Group") or to one single
+  // market (marketId set, same as before). Authorization for a
+  // zone-scoped group is checked against zoneId instead of marketId (see
+  // assertZoneAccess) — actual access, either way, is ultimately decided
+  // by explicit ConversationMember rows, never implicit market/zone
+  // membership (unlike MARKET_GROUP/WARNINGS, which stay implicit).
+  marketId String?
+  market   Market? @relation(fields: [marketId], references: [id])
+  zoneId   Int?
+  zone     Zone?   @relation(fields: [zoneId], references: [id])
 
   participantAId String? // DIRECT: one of the two Employees. SUPERVISOR_DIRECT: the Employee.
   participantA   Employee? @relation("ConversationParticipantA", fields: [participantAId], references: [id])
@@ -1091,15 +1138,34 @@ model Conversation {
 // market-wide for MARKET_GROUP/WARNINGS, the two participant columns for
 // DIRECT/SUPERVISOR_DIRECT/RM_DIRECT) — this table is only ever
 // populated for CUSTOM_GROUP.
+//
+// A member is EITHER an Employee OR a staff User, never both (same
+// dual-nullable-FK pattern as Message.sender — enforced in the
+// controller, not the DB). Staff membership is what makes a Regional
+// Manager's cross-market "Supervisors Group" possible: its members are
+// User rows (each market's Supervisor/Overlooking account), not
+// Employees at all.
+//
+// isAdmin — spec's own explicit rule: "do not make every Supervisor
+// automatically the administrator of every group." A member controls the
+// group (add/remove/promote/rename/change picture) only if THEIR OWN
+// membership row has isAdmin=true — set true automatically for the
+// creator's row at creation, and toggleable afterward by any other admin
+// (see chatController.promoteGroupAdmin/demoteGroupAdmin). Being
+// SUPERVISOR/REGIONAL_MANAGER by role is never sufficient on its own.
 model ConversationMember {
   id             String       @id @default(cuid())
   conversationId String
   conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  employeeId     String
-  employee       Employee     @relation(fields: [employeeId], references: [id])
+  employeeId     String?
+  employee       Employee?    @relation(fields: [employeeId], references: [id])
+  userId         Int?
+  user           User?        @relation("ConversationMemberUser", fields: [userId], references: [id])
+  isAdmin        Boolean      @default(false)
   addedAt        DateTime     @default(now())
 
   @@unique([conversationId, employeeId])
+  @@unique([conversationId, userId])
   @@index([conversationId])
 }
 
@@ -1353,4 +1419,64 @@ model AttendanceAdjustmentRequest {
 
   @@index([employeeId])
   @@index([status])
+}
+
+// ---------------------------------------------------------------------
+// Total Sales — a market's total money sold in one 24-hour reporting day
+// (RM/Supervisor spec §4-5). Supervisor-only to submit; Regional
+// Manager-only to view (Admin can too, via the same staff-role gate every
+// other market-scoped endpoint uses) — never exposed to employees or to
+// the market's own Overlooking account. Deliberately append-only, never
+// upserted: "preserve historical records rather than simply replacing
+// previous reports" (spec's own words) — a market/day can accumulate more
+// than one row (e.g. a corrected resubmission); the controller's
+// day-view picks the most recent, but nothing is ever deleted/overwritten.
+model TotalSalesReport {
+  id       String @id @default(cuid())
+  marketId String
+  market   Market @relation(fields: [marketId], references: [id])
+
+  date   DateTime // the 24-hour reporting day this covers; time part ignored
+  amount Float // > 0, enforced in validate.js — never a fabricated/rounded estimate
+  photoUrl String // evidence photo of the sales report, required
+
+  submittedById Int
+  submittedBy   User     @relation("TotalSalesSubmitter", fields: [submittedById], references: [id])
+  submittedAt   DateTime @default(now())
+
+  @@index([marketId, date])
+}
+
+// ---------------------------------------------------------------------
+// Card Sales — a per-shift card-count verification, separate from Total
+// Sales (spec §6-8): three reporting periods per day (Morning/Afternoon/
+// Night — labels only, not enforced clock times, per spec's own "should
+// not be treated as rigid hardcoded times"), 1-2 evidence photos,
+// submittable by either the market's Supervisor OR its Overlooking
+// account. No unique constraint on (marketId, date, shift) for the same
+// append-only-history reason as TotalSalesReport — a shift can be
+// resubmitted/corrected; the controller's day-view always shows the most
+// recent row per shift.
+model CardSalesReport {
+  id       String @id @default(cuid())
+  marketId String
+  market   Market @relation(fields: [marketId], references: [id])
+
+  date  DateTime // the reporting day this shift belongs to; time part ignored
+  shift CardSalesShift
+
+  photoUrl  String // at least one evidence photo is required
+  photoUrl2 String? // an optional second photo (spec: "up to two photos")
+
+  submittedById Int
+  submittedBy   User     @relation("CardSalesSubmitter", fields: [submittedById], references: [id])
+  submittedAt   DateTime @default(now())
+
+  @@index([marketId, date])
+}
+
+enum CardSalesShift {
+  MORNING
+  AFTERNOON
+  NIGHT
 }

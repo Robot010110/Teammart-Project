@@ -44,6 +44,21 @@ async function main() {
     },
   });
 
+  // A real, distinct Overlooking/Night Supervisor account for the same
+  // market (not a shift label on the Supervisor login — see
+  // Market.overlookingSupervisorId's schema comment).
+  const overlookingPasswordHash = await bcrypt.hash("Overlooking123!", 10);
+  const overlookingSupervisor = await prisma.user.upsert({
+    where: { email: "overlooking.qushtapa1@teammart.test" },
+    update: {},
+    create: {
+      name: "Qushtapa 1 Overlooking",
+      email: "overlooking.qushtapa1@teammart.test",
+      passwordHash: overlookingPasswordHash,
+      role: "OVERLOOKING_SUPERVISOR",
+    },
+  });
+
   // ---------------------------------------------------------------
   // Zone 1, managed by Ali Hassan
   // ---------------------------------------------------------------
@@ -83,10 +98,10 @@ async function main() {
   let market = await prisma.market.findFirst({ where: { name: "Qushtapa 1", zoneId: zone1.id } });
   if (!market) {
     market = await prisma.market.create({
-      data: { name: "Qushtapa 1", status: "ACTIVE", zoneId: zone1.id, supervisorId: supervisor.id },
+      data: { name: "Qushtapa 1", status: "ACTIVE", zoneId: zone1.id, supervisorId: supervisor.id, overlookingSupervisorId: overlookingSupervisor.id },
     });
   } else {
-    await prisma.market.update({ where: { id: market.id }, data: { supervisorId: supervisor.id } });
+    await prisma.market.update({ where: { id: market.id }, data: { supervisorId: supervisor.id, overlookingSupervisorId: overlookingSupervisor.id } });
   }
 
   await prisma.market.createMany({

@@ -25,6 +25,7 @@ export async function listMarkets(req, res, next) {
       include: {
         zone: { select: { id: true, number: true } },
         supervisor: { select: { id: true, name: true } },
+        overlookingSupervisor: { select: { id: true, name: true } },
         employees: { select: { id: true } },
       },
       orderBy: { name: "asc" },
@@ -61,6 +62,7 @@ export async function listMarkets(req, res, next) {
           zoneId: m.zoneId,
           zoneNumber: m.zone.number,
           supervisor: m.supervisor?.name ?? "Unassigned",
+          overlookingSupervisor: m.overlookingSupervisor?.name ?? "Unassigned",
           employeesCount: m.employees.length,
           activeCount,
           currentRating: latestRating?.rating ?? null,
@@ -85,6 +87,7 @@ export async function getMarket(req, res, next) {
         employees: true,
         zone: true,
         supervisor: { select: { id: true, name: true } },
+        overlookingSupervisor: { select: { id: true, name: true } },
       },
     });
     if (!market) {
@@ -150,6 +153,34 @@ export async function assignMarketSupervisor(req, res, next) {
     const market = await prisma.market.update({
       where: { id: req.params.id },
       data: { supervisorId },
+    });
+
+    res.json(market);
+  } catch (err) {
+    next(err);
+  }
+}
+
+// PATCH /api/markets/:id/overlooking-supervisor — ADMIN or the owning
+// REGIONAL_MANAGER. Mirrors assignMarketSupervisor exactly, for the
+// market's separate Night/Evening-shift account (StaffRole.
+// OVERLOOKING_SUPERVISOR) — a genuinely different account from the
+// Supervisor, not a shift label (see Market.overlookingSupervisorId's
+// schema comment).
+export async function assignMarketOverlookingSupervisor(req, res, next) {
+  try {
+    const { overlookingSupervisorId } = req.body;
+
+    if (overlookingSupervisorId !== null) {
+      const overlooking = await prisma.user.findUnique({ where: { id: overlookingSupervisorId } });
+      if (!overlooking || overlooking.role !== "OVERLOOKING_SUPERVISOR") {
+        return res.status(400).json({ error: "overlookingSupervisorId must belong to an OVERLOOKING_SUPERVISOR account" });
+      }
+    }
+
+    const market = await prisma.market.update({
+      where: { id: req.params.id },
+      data: { overlookingSupervisorId },
     });
 
     res.json(market);

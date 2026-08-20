@@ -39,7 +39,7 @@ export const staffRegisterSchema = z.object({
   name: z.string().min(2).max(100),
   email: z.string().email(),
   password: z.string().min(8, "Password must be at least 8 characters"),
-  role: z.enum(["ADMIN", "REGIONAL_MANAGER", "SUPERVISOR"]),
+  role: z.enum(["ADMIN", "REGIONAL_MANAGER", "SUPERVISOR", "OVERLOOKING_SUPERVISOR"]),
 });
 
 export const staffLoginSchema = z.object({
@@ -111,6 +111,10 @@ export const updateMarketSchema = z.object({
 
 export const assignMarketSupervisorSchema = z.object({
   supervisorId: z.number().int().positive().nullable(),
+});
+
+export const assignMarketOverlookingSupervisorSchema = z.object({
+  overlookingSupervisorId: z.number().int().positive().nullable(),
 });
 
 // ---------------------------------------------------------------------
@@ -404,17 +408,80 @@ export const editMessageSchema = z.object({
 });
 
 // Supervisor/Admin/Regional-Manager group chat (spec §6-8).
-export const createGroupSchema = z.object({
-  name: z.string().trim().min(1).max(100),
-  memberEmployeeIds: z.array(z.string().min(1)).min(1, "Add at least one member").max(100),
-});
+export const createGroupSchema = z
+  .object({
+    name: z.string().trim().min(1).max(100),
+    marketId: z.string().min(1).optional(),
+    zoneId: z.number().int().positive().optional(),
+    memberEmployeeIds: z.array(z.string().min(1)).max(200).optional().default([]),
+    memberStaffUserIds: z.array(z.number().int().positive()).max(200).optional().default([]),
+  })
+  .refine((data) => !!data.marketId !== !!data.zoneId, {
+    message: "Provide exactly one of marketId or zoneId",
+  })
+  .refine((data) => data.memberEmployeeIds.length + data.memberStaffUserIds.length > 0, {
+    message: "Add at least one member",
+  });
 
 export const renameGroupSchema = z.object({
   name: z.string().trim().min(1).max(100),
 });
 
-export const addGroupMemberSchema = z.object({
-  employeeId: z.string().min(1),
+export const changeGroupPictureSchema = z.object({
+  pictureUrl: z.string().url().nullable(),
+});
+
+export const addGroupMemberSchema = z
+  .object({
+    employeeId: z.string().min(1).optional(),
+    userId: z.number().int().positive().optional(),
+  })
+  .refine((data) => !!data.employeeId !== !!data.userId, {
+    message: "Provide exactly one of employeeId or userId",
+  });
+
+export const setGroupMemberAdminSchema = z.object({
+  isAdmin: z.boolean(),
+});
+
+// ---------------------------------------------------------------------
+// Total Sales — a market's total money sold in one 24-hour reporting day
+// (spec §4-5). amount/photoUrl are required — never a fabricated figure
+// or a report with no evidence.
+// ---------------------------------------------------------------------
+export const submitTotalSalesSchema = z.object({
+  date: z.coerce.date(),
+  amount: z.number().positive().max(1_000_000_000),
+  photoUrl: z.string().url(),
+});
+
+export const listTotalSalesQuerySchema = z.object({
+  marketId: z.string().min(1),
+  date: z.coerce.date().optional(),
+  from: z.coerce.date().optional(),
+  to: z.coerce.date().optional(),
+});
+
+// ---------------------------------------------------------------------
+// Card Sales — per-shift card-count verification (spec §6-8). At least
+// one photo required, a second optional ("up to two photos").
+// ---------------------------------------------------------------------
+export const submitCardSalesSchema = z.object({
+  date: z.coerce.date(),
+  shift: z.enum(["MORNING", "AFTERNOON", "NIGHT"]),
+  photoUrl: z.string().url(),
+  photoUrl2: z.string().url().optional(),
+});
+
+export const cardSalesDayQuerySchema = z.object({
+  marketId: z.string().min(1),
+  date: z.coerce.date(),
+});
+
+export const cardSalesHistoryQuerySchema = z.object({
+  marketId: z.string().min(1),
+  from: z.coerce.date().optional(),
+  to: z.coerce.date().optional(),
 });
 
 // Fixed reaction set (spec §10) — kept small and workplace-appropriate on

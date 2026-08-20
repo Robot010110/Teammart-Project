@@ -18,13 +18,18 @@ const REMEMBER_ME_TTL = "30d";
 //                          uniqueness constraint), so this is always an
 //                          array, even when it holds just one id.
 //   SUPERVISOR         -> { marketId }
+//   OVERLOOKING_SUPERVISOR -> { marketId } — same shape as SUPERVISOR,
+//                          just from managedOverlookingMarket instead of
+//                          managedMarket (a genuinely separate account
+//                          per market, not a shift label — see
+//                          Market.overlookingSupervisorId's schema comment).
 export function signStaffToken(user) {
   const payload = {
     kind: "staff",
     userId: user.id,
     role: user.role,
     zoneIds: (user.managedZones ?? []).map((z) => z.id),
-    marketId: user.managedMarket?.id ?? null,
+    marketId: user.managedMarket?.id ?? user.managedOverlookingMarket?.id ?? null,
   };
   return jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: TOKEN_TTL });
 }

@@ -5,6 +5,7 @@ import {
   createMarket,
   updateMarket,
   assignMarketSupervisor,
+  assignMarketOverlookingSupervisor,
   deleteMarket,
 } from "../controllers/marketsController.js";
 import {
@@ -24,6 +25,7 @@ import {
   createMarketSchema,
   updateMarketSchema,
   assignMarketSupervisorSchema,
+  assignMarketOverlookingSupervisorSchema,
   rateMarketSchema,
   addMarketNoteSchema,
   sendMarketFeedbackSchema,
@@ -100,6 +102,14 @@ router.patch(
   requireOwnMarketOrElevated((req) => req.params.id),
   validateBody(assignMarketSupervisorSchema),
   assignMarketSupervisor
+);
+
+router.patch(
+  "/:id/overlooking-supervisor",
+  requireStaffRole("ADMIN", "REGIONAL_MANAGER"),
+  requireOwnMarketOrElevated((req) => req.params.id),
+  validateBody(assignMarketOverlookingSupervisorSchema),
+  assignMarketOverlookingSupervisor
 );
 
 router.delete(

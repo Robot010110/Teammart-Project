@@ -33,16 +33,29 @@ export async function getMarketOverview(req, res, next) {
       include: {
         zone: { select: { id: true, number: true } },
         supervisor: { select: { id: true, name: true } },
+        overlookingSupervisor: { select: { id: true, name: true } },
         employees: true,
       },
     });
     if (!market) return res.status(404).json({ error: "Market not found" });
 
-    const [latestRating, latestVisit, employeesWithStatus] = await Promise.all([
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+
+    const [latestRating, latestVisit, employeesWithStatus, latestTotalSales, cardSalesToday] = await Promise.all([
       prisma.marketRating.findFirst({ where: { marketId }, orderBy: { createdAt: "desc" } }),
       prisma.marketVisit.findFirst({ where: { marketId }, orderBy: { visitDate: "desc" } }),
       attachEmployeeStatuses(market.employees.map(publicEmployee)),
+      // Only surfaced here if the viewer is actually allowed to see it —
+      // Total Sales stays Regional-Manager/Admin-only even as a summary
+      // tile (see totalSalesController.js's own comment on why this is
+      // never shown to a Supervisor, not even their own market's).
+      req.user.role === "REGIONAL_MANAGER" || req.user.role === "ADMIN"
+        ? prisma.totalSalesReport.findFirst({ where: { marketId, date: todayStart }, orderBy: { submittedAt: "desc" } })
+        : null,
+      prisma.cardSalesReport.findMany({ where: { marketId, date: todayStart }, select: { shift: true } }),
     ]);
+    const submittedShiftsToday = new Set(cardSalesToday.map((r) => r.shift));
 
     res.json({
       id: market.id,
@@ -50,11 +63,17 @@ export async function getMarketOverview(req, res, next) {
       status: market.status,
       zone: market.zone,
       supervisor: market.supervisor,
+      overlookingSupervisor: market.overlookingSupervisor,
       employeeCount: market.employees.length,
       activeCount: employeesWithStatus.filter((e) => e.status === "ACTIVE").length,
       currentRating: latestRating?.rating ?? null,
       lastVisitDate: latestVisit?.visitDate ?? null,
       employees: employeesWithStatus,
+      // Entry-point summaries for the Total Sales / Card Sales pages —
+      // null totalSalesToday for a Supervisor/Overlooking viewer just
+      // means "not visible to you", not "nothing submitted yet".
+      totalSalesToday: latestTotalSales ? { amount: latestTotalSales.amount, submittedAt: latestTotalSales.submittedAt } : null,
+      cardSalesToday: { MORNING: submittedShiftsToday.has("MORNING"), AFTERNOON: submittedShiftsToday.has("AFTERNOON"), NIGHT: submittedShiftsToday.has("NIGHT") },
     });
   } catch (err) {
     next(err);

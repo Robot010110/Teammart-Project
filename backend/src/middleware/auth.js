@@ -139,7 +139,7 @@ export async function staffCanAccessMarket(user, marketId) {
   if (user.kind !== "staff") return false;
   if (user.role === "ADMIN") return true;
 
-  if (user.role === "SUPERVISOR") {
+  if (user.role === "SUPERVISOR" || user.role === "OVERLOOKING_SUPERVISOR") {
     return String(user.marketId) === String(marketId);
   }
 
@@ -198,6 +198,23 @@ export async function assertMarketAccess(user, marketId) {
   const allowed = await staffCanAccessMarket(user, marketId);
   if (allowed === "not-found") throw new HttpError(404, "Market not found");
   if (!allowed) throw new HttpError(403, "You do not have access to this market");
+}
+
+// assertZoneAccess — the zone-level counterpart to assertMarketAccess,
+// for actions scoped to a whole zone rather than one market (e.g. a
+// Regional Manager's cross-market chat groups — see
+// chatController.createGroup). ADMIN always passes; REGIONAL_MANAGER must
+// have this zone in their own token's zoneIds; SUPERVISOR/
+// OVERLOOKING_SUPERVISOR never manage a zone, so they never pass.
+export async function assertZoneAccess(user, zoneId) {
+  if (user.kind !== "staff") throw new HttpError(403, "Not authorized for this zone");
+  if (user.role === "ADMIN") return;
+  if (user.role !== "REGIONAL_MANAGER") throw new HttpError(403, "Not authorized for this zone");
+  const zone = await prisma.zone.findUnique({ where: { id: Number(zoneId) }, select: { id: true } });
+  if (!zone) throw new HttpError(404, "Zone not found");
+  if (!(user.zoneIds ?? []).some((id) => String(id) === String(zoneId))) {
+    throw new HttpError(403, "You do not have access to this zone");
+  }
 }
 
 // Looks up an Employee by id and asserts the calling staff member can

@@ -24,6 +24,8 @@ import profileRoutes from "./routes/profile.routes.js";
 import notificationsRoutes from "./routes/notifications.routes.js";
 import chatRoutes from "./routes/chat.routes.js";
 import wastedOverallRoutes from "./routes/wastedOverall.routes.js";
+import totalSalesRoutes from "./routes/totalSales.routes.js";
+import cardSalesRoutes from "./routes/cardSales.routes.js";
 import { errorHandler } from "./middleware/errorHandler.js";
 import { notFound } from "./middleware/notFound.js";
 
@@ -86,6 +88,8 @@ app.use("/api/profile", profileRoutes);
 app.use("/api/notifications", notificationsRoutes);
 app.use("/api/conversations", chatRoutes);
 app.use("/api/wasted-overall", wastedOverallRoutes);
+app.use("/api/total-sales", totalSalesRoutes);
+app.use("/api/card-sales", cardSalesRoutes);
 
 app.use(notFound);
 

@@ -7,13 +7,16 @@ import {
   getOrCreateDirect,
   getOrCreateSupervisorConversation,
   listMyStaffConversations,
+  listMyRegionalManagerConversations,
   getOrCreateEmployeeConversationForSupervisor,
   getOrCreateEmployeeConversationForRegionalManager,
   createGroup,
   renameGroup,
+  changeGroupPicture,
   listGroupMembers,
   addGroupMember,
   removeGroupMember,
+  setGroupMemberAdmin,
   listMessages,
   sendMessage,
   editMessage,
@@ -33,7 +36,9 @@ import {
   conversationPreferenceSchema,
   createGroupSchema,
   renameGroupSchema,
+  changeGroupPictureSchema,
   addGroupMemberSchema,
+  setGroupMemberAdminSchema,
 } from "../utils/validate.js";
 
 const router = Router();
@@ -42,39 +47,30 @@ router.use(requireAuth);
 
 // Staff-only.
 router.post("/warnings/broadcast", requireStaffRole("ADMIN", "REGIONAL_MANAGER", "SUPERVISOR"), postWarningBroadcast);
-router.get("/staff", requireStaffRole("SUPERVISOR"), listMyStaffConversations);
+router.get("/staff", requireStaffRole("SUPERVISOR", "OVERLOOKING_SUPERVISOR"), listMyStaffConversations);
+router.get("/rm", requireStaffRole("REGIONAL_MANAGER"), listMyRegionalManagerConversations);
 router.get("/staff/employee/:employeeId", requireStaffRole("SUPERVISOR"), getOrCreateEmployeeConversationForSupervisor);
 router.get("/rm/employee/:employeeId", requireStaffRole("REGIONAL_MANAGER"), getOrCreateEmployeeConversationForRegionalManager);
 
-// Group management (spec §6-8) — Supervisor/Admin/Regional-Manager only,
-// re-checked inside the controller (requireGroupManagerRole), not just
-// here at the route level.
+// Group management (spec §1/§6-8/§13). Only creating a group is gated by
+// role here — every other management action (rename/picture/add/remove/
+// promote) is open to any authenticated account at the route level
+// because admin rights are per-group, not per-role (an employee member
+// can be promoted to Group Admin too); the controller's requireGroupAdmin
+// is the actual, single source of truth for all of them.
 router.post(
   "/groups",
   requireStaffRole("SUPERVISOR", "ADMIN", "REGIONAL_MANAGER"),
   validateBody(createGroupSchema),
   createGroup
 );
-router.patch(
-  "/:id/name",
-  requireStaffRole("SUPERVISOR", "ADMIN", "REGIONAL_MANAGER"),
-  validateBody(renameGroupSchema),
-  renameGroup
-);
-router.post(
-  "/:id/members",
-  requireStaffRole("SUPERVISOR", "ADMIN", "REGIONAL_MANAGER"),
-  validateBody(addGroupMemberSchema),
-  addGroupMember
-);
-router.delete(
-  "/:id/members/:employeeId",
-  requireStaffRole("SUPERVISOR", "ADMIN", "REGIONAL_MANAGER"),
-  removeGroupMember
-);
-// Viewing the roster is open to anyone with access to the group (a
-// member, or staff with market access) — conversationAccessFor decides,
-// not a role gate, so this one is NOT restricted to requireStaffRole.
+router.patch("/:id/name", validateBody(renameGroupSchema), renameGroup);
+router.patch("/:id/picture", validateBody(changeGroupPictureSchema), changeGroupPicture);
+router.post("/:id/members", validateBody(addGroupMemberSchema), addGroupMember);
+router.delete("/:id/members/:memberId", removeGroupMember);
+router.patch("/:id/members/:memberId", validateBody(setGroupMemberAdminSchema), setGroupMemberAdmin);
+// Viewing the roster is open to anyone with access to the group (an
+// actual member) — conversationAccessFor decides, not a role gate.
 router.get("/:id/members", listGroupMembers);
 
 // Employee-only.
