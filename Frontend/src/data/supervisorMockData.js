@@ -1,13 +1,11 @@
 // supervisorMockData.js — realistic local/mock data for the parts of
 // Supervisor Mode that have no backend model yet: Zone Manager
 // announcements, market physical structure/sections, daily section
-// checks, market problem reports, and the Zone-Manager-facing chat
-// channels (Zone Manager Group/Direct, Overlooking Direct — the Regional
-// Manager module these connect to is still mock throughout this app).
-// Warnings ("Management -> Employees") sends for real
-// (chatService.postWarningBroadcast). Individual Employee chats are also
-// real now (SUPERVISOR_DIRECT conversations — see chatController.js and
-// StaffEmployeeConversationRoute.jsx), no longer backed by this file.
+// checks, and market problem reports. Chat is entirely real now — Market
+// Group, Warnings, every employee's SUPERVISOR_DIRECT, and Custom Groups
+// all come from chatService.listMyStaffConversations (see
+// chatController.js and SupervisorChatTab.jsx) — no longer backed by
+// this file at all.
 //
 // Every function here returns a Promise, deliberately — this is the
 // exact "service -> UI" shape every *real* service file in this app
@@ -147,84 +145,3 @@ export function updateMarketProblemStatus(id, status) {
   return Promise.resolve(problems.find((p) => p.id === id));
 }
 
-// ---------------------------------------------------------------------
-// Chat — the remaining channel types with no backend messaging model yet
-// (Zone Manager Group, Zone Manager Direct, Supervisor<->Overlooking —
-// all Regional-Manager-module-facing, still mock throughout this app;
-// Market Employee Group read-back is also still local-only here, since
-// there's no dedicated screen for it yet). Warnings/"Management ->
-// Employees" sending is real (chatService.postWarningBroadcast); its
-// local history here is just what THIS session has sent, since there's
-// no staff read-back for it specifically.
-//
-// Same Conversation shape as the spec asks for:
-// { type, title, participants, lastMessage, unreadCount, messages }
-// ---------------------------------------------------------------------
-const now = Date.now();
-const mockConversations = {
-  "zone-manager-group": {
-    id: "zone-manager-group",
-    type: "ZONE_MANAGER_GROUP",
-    title: "Zone Manager Group",
-    participants: ["Zone Manager", "Supervisors", "Overlookings"],
-    unreadCount: 1,
-    messages: [
-      { id: "m1", from: "Zone Manager", body: "All markets must complete the freezer inspection before 8 PM.", createdAt: new Date(now - 3600_000).toISOString(), fromMe: false },
-    ],
-  },
-  "market-group": {
-    id: "market-group",
-    type: "MARKET_GROUP",
-    title: "Market Employee Group",
-    participants: ["Everyone in this market"],
-    unreadCount: 0,
-    messages: [
-      { id: "m1", from: "Ahmed", body: "Trash taken out, shelf cleaning done for aisle 3.", createdAt: new Date(now - 7200_000).toISOString(), fromMe: false },
-    ],
-  },
-  "warnings": {
-    id: "warnings",
-    type: "WARNINGS",
-    title: "Management → Employees",
-    participants: ["Supervisor", "Overlooking", "Employees"],
-    unreadCount: 0,
-    messages: [],
-  },
-  "zone-manager-direct": {
-    id: "zone-manager-direct",
-    type: "ZONE_MANAGER_DIRECT",
-    title: "Zone Manager",
-    participants: ["Zone Manager"],
-    unreadCount: 0,
-    messages: [
-      { id: "m1", from: "Zone Manager", body: "Can you confirm the delivery arrived this morning?", createdAt: new Date(now - 5400_000).toISOString(), fromMe: false },
-    ],
-  },
-  "overlooking-direct": {
-    id: "overlooking-direct",
-    type: "OVERLOOKING_DIRECT",
-    title: "Overlooking",
-    participants: ["Overlooking"],
-    unreadCount: 0,
-    messages: [
-      { id: "m1", from: "Overlooking", body: "Heads up — cashier register 2 was short at close, flagged it.", createdAt: new Date(now - 10_000_000).toISOString(), fromMe: false },
-    ],
-  },
-};
-
-export function listMockConversations() {
-  return Promise.resolve(Object.values(mockConversations));
-}
-
-export function getMockConversation(id) {
-  return Promise.resolve(mockConversations[id] ?? null);
-}
-
-export function sendMockMessage(conversationId, body) {
-  const convo = mockConversations[conversationId];
-  if (!convo) return Promise.reject(new Error("Conversation not found"));
-  const message = { id: `m-${Date.now()}`, from: "Me", body, createdAt: new Date().toISOString(), fromMe: true };
-  convo.messages = [...convo.messages, message];
-  convo.unreadCount = 0;
-  return Promise.resolve(message);
-}

@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { CheckCircle2, PackageX, ClipboardList, Sparkles, XCircle, Loader2 } from "lucide-react";
+import { CheckCircle2, PackageX, ClipboardList, Sparkles, XCircle, Loader2, Clock3 } from "lucide-react";
 import { useAsync } from "../../hooks/useAsync";
 import ErrorBanner from "../common/ErrorBanner";
 import { SkeletonCard } from "../common/SkeletonCard";
@@ -8,14 +8,25 @@ import { listActivitiesForMarket, reviewActivity } from "../../services/activity
 import { listItemReportsForMarket } from "../../services/itemReportService";
 import { listWastedOverallReportsForMarket, reviewWastedOverallReport } from "../../services/wastedOverallService";
 import { listSuddenTasks } from "../../services/suddenTaskService";
+import { listExtraHoursRequestsForMarket, reviewExtraHoursRequest } from "../../services/attendanceService";
 import { ApiError } from "../../services/apiClient";
 
-// Only these two submission kinds have a real staff review endpoint today
-// (Activity, Wasted Overall) — Item Reports and Sudden Tasks don't, so no
-// Approve/Reject is rendered for those (a real gap, not hidden: showing
-// non-functional buttons would be exactly the "fake frontend-only button"
-// this fix pass explicitly rules out).
-const REVIEWABLE_KINDS = { ACTIVITY: reviewActivity, WASTED_OVERALL: reviewWastedOverallReport };
+// Only these submission kinds have a real staff review endpoint today
+// (Activity, Wasted Overall, Extra Hours) — Item Reports and Sudden Tasks
+// don't, so no Approve/Reject is rendered for those (a real gap, not
+// hidden: showing non-functional buttons would be exactly the "fake
+// frontend-only button" this fix pass explicitly rules out).
+//
+// reviewExtraHoursRequest's real body shape is { status, reviewNote } —
+// this adapter maps handleReview's shared { status, rejectionReason }
+// call shape onto that, rather than changing handleReview itself (used
+// by the other two kinds too).
+const REVIEWABLE_KINDS = {
+  ACTIVITY: reviewActivity,
+  WASTED_OVERALL: reviewWastedOverallReport,
+  EXTRA_HOURS: (id, body) =>
+    reviewExtraHoursRequest(id, body.status === "REJECTED" ? { status: body.status, reviewNote: body.rejectionReason } : { status: body.status }),
+};
 
 const CATEGORY_LABEL = {
   EXPIRED_ITEMS: "expired items", SHELF_CLEANING: "shelf cleaning", PRODUCT_CUSTOMIZATION: "product customization",
@@ -52,11 +63,12 @@ function isToday(iso) {
 export default function TodayActivityFeed({ marketId }) {
   const { data, error, loading, reload } = useAsync(
     async () => {
-      const [activities, itemReports, wasted, suddenTasks] = await Promise.all([
+      const [activities, itemReports, wasted, suddenTasks, extraHours] = await Promise.all([
         listActivitiesForMarket({ marketId }),
         listItemReportsForMarket({ marketId }),
         listWastedOverallReportsForMarket({ marketId }),
         listSuddenTasks({ status: "COMPLETED" }),
+        listExtraHoursRequestsForMarket({ marketId }),
       ]);
 
       const items = [
@@ -99,6 +111,16 @@ export default function TodayActivityFeed({ marketId }) {
           subtitle: null,
           timestamp: t.completedAt ?? t.assignedAt,
           raw: t,
+        })),
+        ...extraHours.map((r) => ({
+          id: `extra-hours-${r.id}`,
+          kind: "EXTRA_HOURS",
+          icon: Clock3,
+          employeeName: r.employee?.name ?? "Unknown",
+          title: `reported ${r.hours} extra hour${r.hours === 1 ? "" : "s"}`,
+          subtitle: r.reason,
+          timestamp: r.createdAt,
+          raw: r,
         })),
       ]
         .filter((item) => isToday(item.timestamp))
@@ -241,6 +263,15 @@ function FeedItemDetail({ item, onReviewed }) {
           {row("Task", raw.title)}
           {row("Description", raw.description)}
           {row("Priority", raw.priority)}
+        </>
+      )}
+      {kind === "EXTRA_HOURS" && (
+        <>
+          {row("Date worked", new Date(raw.date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }))}
+          {row("Hours", raw.hours)}
+          {row("Status", raw.status)}
+          {row("Reason", raw.reason)}
+          {row("Review note", raw.reviewNote)}
         </>
       )}
 

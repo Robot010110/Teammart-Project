@@ -47,17 +47,27 @@ export function listMessages(conversationId, { after, before, search } = {}) {
 // pre-existing image path; attachmentType/attachmentUrl/attachmentName/
 // attachmentSize/attachmentDurationSec are the new generic
 // file/audio/voice path (see backend sendMessageSchema — exactly one of
-// body/imageUrl/attachmentUrl must be present, enforced server-side).
-// replyToId, if set, must reference a message already in this conversation
-// (re-checked server-side).
+// body/imageUrl/attachmentUrl/forwardMessageId must be present, enforced
+// server-side). replyToId, if set, must reference a message already in
+// this conversation (re-checked server-side). forwardMessageId (spec §5)
+// forwards an existing message the caller has access to — the server
+// re-verifies that access and copies the source's content itself, so the
+// client never needs to (and can't) supply the forwarded body directly.
 export function sendMessage(
   conversationId,
-  { body, imageUrl, attachmentType, attachmentUrl, attachmentName, attachmentSize, attachmentDurationSec, replyToId } = {}
+  { body, imageUrl, attachmentType, attachmentUrl, attachmentName, attachmentSize, attachmentDurationSec, replyToId, forwardMessageId } = {}
 ) {
   return apiRequest(`/conversations/${conversationId}/messages`, {
     method: "POST",
-    body: { body, imageUrl, attachmentType, attachmentUrl, attachmentName, attachmentSize, attachmentDurationSec, replyToId },
+    body: { body, imageUrl, attachmentType, attachmentUrl, attachmentName, attachmentSize, attachmentDurationSec, replyToId, forwardMessageId },
   });
+}
+
+// Forwards an existing message into another conversation the caller is
+// also a member of (spec §5) — a thin, explicitly-named wrapper around
+// sendMessage's forwardMessageId so call sites read clearly.
+export function forwardMessage(destinationConversationId, sourceMessageId) {
+  return sendMessage(destinationConversationId, { body: "", forwardMessageId: sourceMessageId });
 }
 
 // Sender-only, text messages only (no attachment) — enforced server-side.
@@ -97,12 +107,10 @@ export function searchMessages(q) {
 }
 
 // --- Staff-only (Supervisor Mode) ---
-// This is the ONLY chat capability a staff token can use today — every
-// other endpoint above is gated requireEmployeeAuth (see
-// chatController.js). Fire-and-forget: a Supervisor can broadcast into a
-// market's Warnings channel but can't read it back (no staff GET path
-// exists yet) — Supervisor Mode's Chat tab keeps its own local view of
-// what it sent for that reason, see SupervisorChatTab.jsx.
+// Fire-and-forget: a Supervisor can broadcast into a market's Warnings
+// channel but can't read it back (no staff GET path exists yet) —
+// Supervisor Mode's Chat tab keeps its own local view of what it sent
+// for that reason, see SupervisorChatTab.jsx.
 export function postWarningBroadcast(marketId, body) {
   return apiRequest("/conversations/warnings/broadcast", { method: "POST", body: { marketId, body } });
 }
@@ -125,4 +133,30 @@ export function getOrCreateEmployeeConversationForSupervisor(employeeId) {
 // backend's own comment: only the RM's first real message does that.
 export function getOrCreateEmployeeConversationForRegionalManager(employeeId) {
   return apiRequest(`/conversations/rm/employee/${employeeId}`);
+}
+
+// Group conversations (spec §6-8) — Supervisor/Admin/Regional-Manager
+// only, re-enforced server-side (requireGroupManagerRole), not just
+// gated by what this frontend shows. listGroupMembers is the one
+// exception: any authorized member (staff or employee) can view the
+// roster, not just a manager, so it's also called from the employee
+// Chat tab's group header.
+export function createGroup(name, memberEmployeeIds) {
+  return apiRequest(`/conversations/groups`, { method: "POST", body: { name, memberEmployeeIds } });
+}
+
+export function renameGroup(conversationId, name) {
+  return apiRequest(`/conversations/${conversationId}/name`, { method: "PATCH", body: { name } });
+}
+
+export function listGroupMembers(conversationId) {
+  return apiRequest(`/conversations/${conversationId}/members`);
+}
+
+export function addGroupMember(conversationId, employeeId) {
+  return apiRequest(`/conversations/${conversationId}/members`, { method: "POST", body: { employeeId } });
+}
+
+export function removeGroupMember(conversationId, employeeId) {
+  return apiRequest(`/conversations/${conversationId}/members/${employeeId}`, { method: "DELETE" });
 }

@@ -1,24 +1,32 @@
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Users2, ShieldAlert, MessageCircle, ChevronRight } from "lucide-react";
+import { Users2, ShieldAlert, MessageCircle, ChevronRight, UsersRound } from "lucide-react";
 import { useAsync } from "../../hooks/useAsync";
+import { usePolling } from "../../hooks/usePolling";
 import ErrorBanner from "../common/ErrorBanner";
 import { SkeletonCard } from "../common/SkeletonCard";
-import SupervisorConversationScreen from "./SupervisorConversationScreen";
+import ConversationScreen from "../employee/ConversationScreen";
+import GroupInfoModal from "../employee/GroupInfoModal";
+import CreateGroupModal from "./CreateGroupModal";
 import StaffEmployeeConversationRoute from "./StaffEmployeeConversationRoute";
 import { listEmployeesByMarket } from "../../services/staffEmployeeService";
-import { postWarningBroadcast } from "../../services/chatService";
-import { ApiError } from "../../services/apiClient";
-import { listMockConversations, sendMockMessage } from "../../data/supervisorMockData";
+import { listMyStaffConversations, postWarningBroadcast } from "../../services/chatService";
 import { initialsOf } from "../../utils/initials";
 
-const CHANNEL_ICON = { ZONE_MANAGER_GROUP: Users2, MARKET_GROUP: Users2, WARNINGS: ShieldAlert, ZONE_MANAGER_DIRECT: MessageCircle, OVERLOOKING_DIRECT: MessageCircle };
+const CHANNEL_ICON = { MARKET_GROUP: Users2, CUSTOM_GROUP: Users2, WARNINGS: ShieldAlert, SUPERVISOR_DIRECT: MessageCircle };
 const EMPLOYEE_CHANNEL_PREFIX = "employee-";
+const LIST_POLL_MS = 12000;
+
+function timeLabel(iso) {
+  const d = new Date(iso);
+  const now = new Date();
+  const sameDay = d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate();
+  return sameDay ? d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) : d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
 
 function ChannelRow({ conversation, onOpen }) {
   const Icon = CHANNEL_ICON[conversation.type] || MessageCircle;
   const isWarnings = conversation.type === "WARNINGS";
-  const last = conversation.messages[conversation.messages.length - 1];
   return (
     <button
       type="button"
@@ -33,70 +41,53 @@ function ChannelRow({ conversation, onOpen }) {
       <div className="min-w-0 flex-1 text-left">
         <div className="flex items-center justify-between gap-2">
           <p className={`text-sm font-medium truncate ${isWarnings ? "text-amber-300" : "text-white"}`}>{conversation.title}</p>
-          {conversation.unreadCount > 0 && (
-            <span className="shrink-0 min-w-[18px] h-[18px] px-1 rounded-full bg-[#F47A20] text-white text-[10px] font-bold flex items-center justify-center">
-              {conversation.unreadCount}
-            </span>
-          )}
+          {conversation.lastMessage && <span className="text-[10px] text-[#4C5266] shrink-0">{timeLabel(conversation.lastMessage.createdAt)}</span>}
         </div>
-        <p className="text-xs text-[#8B93A8] truncate mt-0.5">{last ? last.body : isWarnings ? "Send an announcement to your market" : "No messages yet"}</p>
+        <p className="text-xs text-[#8B93A8] truncate mt-0.5">
+          {conversation.lastMessage ? (conversation.lastMessage.body || "Sent an attachment") : isWarnings ? "Send an announcement to your market" : "No messages yet"}
+        </p>
       </div>
       <ChevronRight size={16} className="text-[#4C5266] shrink-0" />
     </button>
   );
 }
 
-// SupervisorChatTab.jsx — the Chat tab. Individual employee conversations
-// are real (StaffEmployeeConversationRoute, same backend + same
-// ConversationScreen component the Employee Chat tab uses — see that
-// file's own comment). The Zone-Manager-facing channels (spec §13/§14)
-// have no backend yet (Regional Manager module is still mock throughout
-// this app) and stay on local mock state (data/supervisorMockData.js);
-// Warnings sends for real via postWarningBroadcast. Opening a channel
-// navigates to a real route (chat/:channelId) instead of flipping local
-// state — channelId is either a fixed channel's id or
-// "employee-<employeeId>" for on-demand employee conversations.
+// SupervisorChatTab.jsx — the Chat tab. Every channel here is now real
+// (listMyStaffConversations — Market Group, Warnings, each employee's
+// SUPERVISOR_DIRECT, and any Custom Group this Supervisor created), the
+// exact same backend-persisted conversations the Employee Chat tab and
+// individual-employee conversations already used (see
+// StaffEmployeeConversationRoute's own comment on why that matters: both
+// sides render the same messages from the same backend row). Warnings
+// keeps its dedicated broadcast endpoint (market-wide notification
+// fan-out) via ConversationScreen's onBroadcast prop rather than the
+// generic composer. Create Group / rename / add / remove member (spec
+// §6-8) reuse this exact same Conversation/Message architecture through
+// a new CUSTOM_GROUP type — see chatController.createGroup and friends.
 export default function SupervisorChatTab({ session, basePath }) {
-  const { data: conversations, setData: setConversations, error, loading, reload } = useAsync(listMockConversations, { deps: [] });
+  const { data: conversations, error, loading, reload } = useAsync(listMyStaffConversations, { deps: [] });
   const { data: employees } = useAsync(() => listEmployeesByMarket(session.marketId), { deps: [session.marketId] });
   const { channelId } = useParams();
   const navigate = useNavigate();
 
-  const [sending, setSending] = useState(false);
-  const [sendError, setSendError] = useState(null);
+  const [creatingGroup, setCreatingGroup] = useState(false);
+  const [groupInfoOpen, setGroupInfoOpen] = useState(false);
+
+  usePolling(() => reload(), LIST_POLL_MS, []);
 
   const chatBase = `${basePath}/chat`;
   const isEmployeeChannel = channelId?.startsWith(EMPLOYEE_CHANNEL_PREFIX);
   const employeeId = isEmployeeChannel ? channelId.slice(EMPLOYEE_CHANNEL_PREFIX.length) : null;
-  const fixedConversation = channelId && !isEmployeeChannel ? conversations?.find((c) => c.id === channelId) : null;
+  const openConversation = channelId && !isEmployeeChannel ? conversations?.find((c) => c.id === channelId) : null;
 
   function openEmployeeChat(employee) {
     navigate(`${chatBase}/${EMPLOYEE_CHANNEL_PREFIX}${employee.id}`);
   }
 
-  async function handleSend(body) {
-    setSending(true);
-    setSendError(null);
-    try {
-      if (fixedConversation.type === "WARNINGS") {
-        await postWarningBroadcast(session.marketId, body);
-        // No staff read-back exists (chatController is employee-only for
-        // GET) — reflect what was just sent locally so the Supervisor
-        // sees confirmation, honestly labeled as "sent" not "synced".
-        fixedConversation.messages = [...fixedConversation.messages, { id: `m-${Date.now()}`, from: "Me", body, createdAt: new Date().toISOString(), fromMe: true }];
-        setConversations((prev) => prev.map((c) => (c.id === fixedConversation.id ? { ...fixedConversation } : c)));
-      } else {
-        await sendMockMessage(fixedConversation.id, body);
-        const fresh = await listMockConversations();
-        setConversations(fresh);
-      }
-      return true;
-    } catch (err) {
-      setSendError(err instanceof ApiError ? err.message : "Could not send this message.");
-      return false;
-    } finally {
-      setSending(false);
-    }
+  function handleGroupCreated(conversation) {
+    setCreatingGroup(false);
+    reload();
+    navigate(`${chatBase}/${conversation.id}`);
   }
 
   if (isEmployeeChannel) {
@@ -111,7 +102,7 @@ export default function SupervisorChatTab({ session, basePath }) {
 
   if (channelId) {
     if (loading) return <div className="px-4 sm:px-6 py-6 max-w-4xl mx-auto"><SkeletonCard className="h-40" /></div>;
-    if (!fixedConversation) {
+    if (!openConversation) {
       return (
         <div className="px-4 sm:px-6 py-6 max-w-4xl mx-auto">
           <ErrorBanner message="This conversation could not be found." onRetry={() => navigate(chatBase)} />
@@ -119,21 +110,41 @@ export default function SupervisorChatTab({ session, basePath }) {
       );
     }
     return (
-      <SupervisorConversationScreen
-        title={fixedConversation.title}
-        isWarnings={fixedConversation.type === "WARNINGS"}
-        messages={fixedConversation.messages}
-        onSend={handleSend}
-        sending={sending}
-        sendError={sendError}
-        onBack={() => { setSendError(null); navigate(chatBase); }}
-      />
+      <>
+        <ConversationScreen
+          conversation={openConversation}
+          currentUserId={session.staffId}
+          currentUserKind="staff"
+          onBack={() => navigate(chatBase)}
+          onBroadcast={openConversation.type === "WARNINGS" ? (body) => postWarningBroadcast(session.marketId, body) : undefined}
+          onOpenGroupInfo={openConversation.type === "CUSTOM_GROUP" ? () => setGroupInfoOpen(true) : undefined}
+        />
+        {groupInfoOpen && (
+          <GroupInfoModal
+            conversationId={openConversation.id}
+            groupName={openConversation.title}
+            marketId={session.marketId}
+            canManage
+            onClose={() => setGroupInfoOpen(false)}
+            onRenamed={() => reload()}
+          />
+        )}
+      </>
     );
   }
 
   return (
     <div className="px-4 sm:px-6 py-6 max-w-4xl mx-auto animate-fade-up">
-      <h1 className="text-lg font-semibold text-white mb-4">Chat</h1>
+      <div className="flex items-center justify-between mb-4">
+        <h1 className="text-lg font-semibold text-white">Chat</h1>
+        <button
+          type="button"
+          onClick={() => setCreatingGroup(true)}
+          className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold text-white bg-[#F47A20] hover:bg-[#ff8b36] transition-colors duration-150"
+        >
+          <UsersRound size={14} /> Create Group
+        </button>
+      </div>
 
       {loading ? (
         <SkeletonCard className="h-40" />
@@ -170,6 +181,10 @@ export default function SupervisorChatTab({ session, basePath }) {
             ))}
           </div>
         </section>
+      )}
+
+      {creatingGroup && (
+        <CreateGroupModal marketId={session.marketId} onClose={() => setCreatingGroup(false)} onCreated={handleGroupCreated} />
       )}
     </div>
   );

@@ -19,7 +19,7 @@ function timeLabel(iso) {
 
 function ConversationRow({ conversation, onOpen, onMore }) {
   const isWarnings = conversation.type === "WARNINGS";
-  const isGroup = conversation.type === "MARKET_GROUP";
+  const isGroup = conversation.type === "MARKET_GROUP" || conversation.type === "CUSTOM_GROUP";
   const Icon = isWarnings ? ShieldAlert : isGroup ? Users2 : MessageCircle;
 
   return (

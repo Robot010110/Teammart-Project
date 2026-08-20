@@ -1,7 +1,9 @@
+import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import ErrorBanner from "../common/ErrorBanner";
 import { SkeletonCard } from "../common/SkeletonCard";
 import ConversationScreen from "./ConversationScreen";
+import GroupInfoModal from "./GroupInfoModal";
 import { listMyConversations } from "../../services/chatService";
 import { useAsync } from "../../hooks/useAsync";
 
@@ -15,6 +17,7 @@ export default function ConversationRoute({ currentEmployeeId, basePath }) {
   const { conversationId } = useParams();
   const navigate = useNavigate();
   const { data: conversations, error, loading, reload } = useAsync(listMyConversations, { deps: [] });
+  const [groupInfoOpen, setGroupInfoOpen] = useState(false);
 
   if (loading) {
     return <div className="px-4 sm:px-6 py-6 max-w-4xl mx-auto"><SkeletonCard className="h-40" /></div>;
@@ -33,11 +36,22 @@ export default function ConversationRoute({ currentEmployeeId, basePath }) {
   }
 
   return (
-    <ConversationScreen
-      conversation={conversation}
-      currentUserId={currentEmployeeId}
-      currentUserKind="employee"
-      onBack={() => navigate(`${basePath}/chat`)}
-    />
+    <>
+      <ConversationScreen
+        conversation={conversation}
+        currentUserId={currentEmployeeId}
+        currentUserKind="employee"
+        onBack={() => navigate(`${basePath}/chat`)}
+        onOpenGroupInfo={conversation.type === "CUSTOM_GROUP" ? () => setGroupInfoOpen(true) : undefined}
+      />
+      {groupInfoOpen && (
+        <GroupInfoModal
+          conversationId={conversation.id}
+          groupName={conversation.title}
+          canManage={false}
+          onClose={() => setGroupInfoOpen(false)}
+        />
+      )}
+    </>
   );
 }

@@ -2,13 +2,14 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   ArrowLeft, Send, ShieldAlert, Loader2, Paperclip, Camera, File as FileIcon, Mic, Download, X,
-  MoreHorizontal, Reply, Copy, Pencil, Trash2, Check, CheckCheck,
+  MoreHorizontal, Reply, Copy, Pencil, Trash2, Check, CheckCheck, Users2, Forward,
 } from "lucide-react";
 import { listMessages, sendMessage, markConversationRead, editMessage, deleteMessage, reactToMessage } from "../../services/chatService";
 import { usePolling } from "../../hooks/usePolling";
 import { prepareImageForUpload } from "../../services/activityService";
 import { readFileAsDataUrl, formatFileSize, formatDuration } from "../../utils/fileEncoding";
 import VoiceRecorder from "./VoiceRecorder";
+import ForwardMessageModal from "./ForwardMessageModal";
 import { ApiError } from "../../services/apiClient";
 
 const POLL_MS = 4000;
@@ -98,7 +99,7 @@ function MessageAttachment({ message }) {
 // the accessible, always-visible alternative to long-press the spec asks
 // for (§14) — long-press isn't implemented at all, so there's nothing to
 // fall back from.
-function MessageActionSheet({ message, canEdit, canDelete, onClose, onReact, onReply, onCopy, onEdit, onDelete }) {
+function MessageActionSheet({ message, canEdit, canDelete, onClose, onReact, onReply, onForward, onCopy, onEdit, onDelete }) {
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-end sm:items-center sm:justify-center" role="dialog" aria-modal="true">
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
@@ -118,6 +119,9 @@ function MessageActionSheet({ message, canEdit, canDelete, onClose, onReact, onR
         <div className="py-1.5">
           <button type="button" onClick={onReply} className="w-full flex items-center gap-3 px-4 py-3 text-sm text-white hover:bg-white/[0.05]">
             <Reply size={16} /> Reply
+          </button>
+          <button type="button" onClick={onForward} className="w-full flex items-center gap-3 px-4 py-3 text-sm text-white hover:bg-white/[0.05]">
+            <Forward size={16} /> Forward
           </button>
           {message.body && (
             <button type="button" onClick={onCopy} className="w-full flex items-center gap-3 px-4 py-3 text-sm text-white hover:bg-white/[0.05]">
@@ -190,8 +194,17 @@ function ReactionPills({ reactions, currentUserId, currentUserKind, onToggle }) 
 //
 // currentUserKind/currentUserId — generalized so the exact same component
 // backs both the Employee Chat tab (kind="employee") and the Supervisor
-// Chat tab's individual-employee conversations (kind="staff").
-export default function ConversationScreen({ conversation, currentUserId, currentUserKind = "employee", onBack }) {
+// Chat tab's individual-employee/group conversations (kind="staff").
+//
+// onBroadcast (optional) — only ever passed for a staff viewer's own
+// Warnings channel (SupervisorChatTab.jsx). Warnings has no normal
+// composer for anyone (staff posts via the dedicated broadcast endpoint,
+// which also fans out a market-wide Notification — see
+// chatController.postWarningBroadcast); when provided, a minimal
+// text-only composer calls it instead of the generic sendMessage. Left
+// unset, Warnings stays fully read-only here (the Employee Chat tab's
+// case, and a non-Supervisor staff viewer).
+export default function ConversationScreen({ conversation, currentUserId, currentUserKind = "employee", onBack, onBroadcast, onOpenGroupInfo }) {
   const [messages, setMessages] = useState([]);
   const [loadingInitial, setLoadingInitial] = useState(true);
   const [loadingOlder, setLoadingOlder] = useState(false);
@@ -205,9 +218,12 @@ export default function ConversationScreen({ conversation, currentUserId, curren
   const [pendingAttachment, setPendingAttachment] = useState(null); // { kind, url, name, size, durationSec }
   const [attachBusy, setAttachBusy] = useState(false);
   const [actionSheetFor, setActionSheetFor] = useState(null); // message being acted on
+  const [forwardingMessage, setForwardingMessage] = useState(null); // message being forwarded
   const [replyTo, setReplyTo] = useState(null); // message being replied to
   const [editingId, setEditingId] = useState(null); // message id currently being edited inline
   const [editDraft, setEditDraft] = useState("");
+  const [broadcastDraft, setBroadcastDraft] = useState("");
+  const [broadcasting, setBroadcasting] = useState(false);
   const lastFetchRef = useRef(null);
   const scrollRef = useRef(null);
   const photoInputRef = useRef(null);
@@ -371,6 +387,23 @@ export default function ConversationScreen({ conversation, currentUserId, curren
     }
   }
 
+  async function handleBroadcastSend() {
+    const body = broadcastDraft.trim();
+    if (!body || !onBroadcast) return;
+    setBroadcasting(true);
+    setError(null);
+    try {
+      const message = await onBroadcast(body);
+      setMessages((prev) => [...prev, message]);
+      lastFetchRef.current = message.createdAt;
+      setBroadcastDraft("");
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Could not send this announcement.");
+    } finally {
+      setBroadcasting(false);
+    }
+  }
+
   async function handleReact(message, emoji) {
     setActionSheetFor(null);
     try {
@@ -423,7 +456,17 @@ export default function ConversationScreen({ conversation, currentUserId, curren
           <ArrowLeft size={18} />
         </button>
         {isWarnings && <ShieldAlert size={16} className="text-amber-400" />}
-        <h1 className="text-sm font-semibold text-white truncate">{conversation.title}</h1>
+        <h1 className="flex-1 text-sm font-semibold text-white truncate">{conversation.title}</h1>
+        {conversation.type === "CUSTOM_GROUP" && onOpenGroupInfo && (
+          <button
+            type="button"
+            onClick={onOpenGroupInfo}
+            className="shrink-0 p-1.5 -mr-1.5 text-[#9AA1B4] hover:text-white"
+            aria-label="Group info"
+          >
+            <Users2 size={17} />
+          </button>
+        )}
       </div>
 
       <div ref={scrollRef} onScroll={handleScroll} className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 space-y-2.5">
@@ -457,6 +500,11 @@ export default function ConversationScreen({ conversation, currentUserId, curren
                     >
                       {!isMine && senderName && !isDeleted && (
                         <p className="text-[11px] font-semibold text-[#F47A20] mb-0.5">{senderName}</p>
+                      )}
+                      {m.forwardedFromSenderName && !isDeleted && (
+                        <p className={`flex items-center gap-1 text-[11px] italic mb-0.5 ${isMine ? "text-white/70" : "text-[#8B93A8]"}`}>
+                          <Forward size={11} /> Forwarded from {m.forwardedFromSenderName}
+                        </p>
                       )}
 
                       {isDeleted ? (
@@ -530,7 +578,34 @@ export default function ConversationScreen({ conversation, currentUserId, curren
         )}
       </div>
 
-      {isWarnings ? (
+      {isWarnings && onBroadcast ? (
+        <div className="px-4 sm:px-6 py-3 border-t border-white/[0.06]">
+          {error && <p className="mb-2 text-xs text-red-400">{error}</p>}
+          <div className="flex items-end gap-2">
+            <textarea
+              value={broadcastDraft}
+              onChange={(e) => setBroadcastDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  handleBroadcastSend();
+                }
+              }}
+              rows={1}
+              placeholder="Send an announcement to your market..."
+              className="flex-1 min-w-0 resize-none rounded-xl bg-white/[0.04] border border-amber-500/20 px-3.5 py-2.5 text-sm text-white placeholder:text-[#4C5266] outline-none focus:border-amber-500/50 max-h-28"
+            />
+            <button
+              type="button"
+              onClick={handleBroadcastSend}
+              disabled={broadcasting || !broadcastDraft.trim()}
+              className="shrink-0 w-11 h-11 rounded-xl flex items-center justify-center text-white bg-amber-500/80 hover:bg-amber-500 disabled:bg-white/10 disabled:text-[#4C5266] transition-colors duration-200"
+            >
+              {broadcasting ? <Loader2 size={17} className="animate-spin" /> : <Send size={17} />}
+            </button>
+          </div>
+        </div>
+      ) : isWarnings ? (
         <div className="px-4 sm:px-6 py-3 border-t border-white/[0.06] flex items-center gap-2 text-xs text-[#8B93A8]">
           <ShieldAlert size={14} className="text-amber-400 shrink-0" /> Only a supervisor can post here.
         </div>
@@ -663,9 +738,18 @@ export default function ConversationScreen({ conversation, currentUserId, curren
           onClose={() => setActionSheetFor(null)}
           onReact={(emoji) => handleReact(actionSheetFor, emoji)}
           onReply={() => { setReplyTo(actionSheetFor); setActionSheetFor(null); }}
+          onForward={() => { setForwardingMessage(actionSheetFor); setActionSheetFor(null); }}
           onCopy={async () => { await copyText(actionSheetFor.body); setActionSheetFor(null); }}
           onEdit={() => startEdit(actionSheetFor)}
           onDelete={() => handleDelete(actionSheetFor)}
+        />
+      )}
+
+      {forwardingMessage && (
+        <ForwardMessageModal
+          message={forwardingMessage}
+          currentUserKind={currentUserKind}
+          onClose={() => setForwardingMessage(null)}
         />
       )}
     </div>
