@@ -135,28 +135,54 @@ export function getOrCreateEmployeeConversationForRegionalManager(employeeId) {
   return apiRequest(`/conversations/rm/employee/${employeeId}`);
 }
 
-// Group conversations (spec §6-8) — Supervisor/Admin/Regional-Manager
-// only, re-enforced server-side (requireGroupManagerRole), not just
-// gated by what this frontend shows. listGroupMembers is the one
-// exception: any authorized member (staff or employee) can view the
-// roster, not just a manager, so it's also called from the employee
-// Chat tab's group header.
-export function createGroup(name, memberEmployeeIds) {
-  return apiRequest(`/conversations/groups`, { method: "POST", body: { name, memberEmployeeIds } });
+// Regional-Manager-only: their own conversation list (deliberately does
+// NOT auto-include every market's Market Group/Warnings — see
+// chatController.listMyRegionalManagerConversations's own comment on
+// spec §12).
+export function listMyRegionalManagerConversations() {
+  return apiRequest(`/conversations/rm`);
+}
+
+// Group conversations (spec §1/§6-13). Creating one is Supervisor/Admin/
+// Regional-Manager only (re-enforced server-side); every other
+// management action (rename/picture/add/remove/promote) is admin-only
+// per-group, NOT per-role — see chatController.js's own comment on why
+// "being a Supervisor" no longer implies control over every group.
+// listGroupMembers is the one exception open to any member at all,
+// admin or not.
+//
+// payload: { name, marketId?, zoneId?, memberEmployeeIds?, memberStaffUserIds? }
+// — exactly one of marketId/zoneId scopes the group.
+export function createGroup(payload) {
+  return apiRequest(`/conversations/groups`, { method: "POST", body: payload });
 }
 
 export function renameGroup(conversationId, name) {
   return apiRequest(`/conversations/${conversationId}/name`, { method: "PATCH", body: { name } });
 }
 
+// pictureUrl is a prepareImageForUpload() data URL, or null to clear it.
+export function changeGroupPicture(conversationId, pictureUrl) {
+  return apiRequest(`/conversations/${conversationId}/picture`, { method: "PATCH", body: { pictureUrl } });
+}
+
 export function listGroupMembers(conversationId) {
   return apiRequest(`/conversations/${conversationId}/members`);
 }
 
-export function addGroupMember(conversationId, employeeId) {
-  return apiRequest(`/conversations/${conversationId}/members`, { method: "POST", body: { employeeId } });
+// Provide exactly one of { employeeId } or { userId }.
+export function addGroupMember(conversationId, member) {
+  return apiRequest(`/conversations/${conversationId}/members`, { method: "POST", body: member });
 }
 
-export function removeGroupMember(conversationId, employeeId) {
-  return apiRequest(`/conversations/${conversationId}/members/${employeeId}`, { method: "DELETE" });
+// `memberId` is the ConversationMember row's own id (from
+// listGroupMembers), not an employeeId/userId — one route shape works
+// for either kind of member.
+export function setGroupMemberAdmin(conversationId, memberId, isAdmin) {
+  return apiRequest(`/conversations/${conversationId}/members/${memberId}`, { method: "PATCH", body: { isAdmin } });
+}
+
+// `memberId` is the ConversationMember row's own id, same as setGroupMemberAdmin.
+export function removeGroupMember(conversationId, memberId) {
+  return apiRequest(`/conversations/${conversationId}/members/${memberId}`, { method: "DELETE" });
 }

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import {
   Users2, UserCheck, Star, CalendarClock, ChevronRight, ShieldAlert, Sparkles,
-  NotebookPen, History, ClipboardList,
+  NotebookPen, History, ClipboardList, DollarSign, CreditCard, Moon,
 } from "lucide-react";
 import Breadcrumb from "../components/layout/Breadcrumb";
 import StatusPill from "../components/common/StatusPill";
@@ -62,7 +62,7 @@ function SectionCard({ section, onOpen }) {
 // status), and the inspection action bar (Rate / Note / Warning /
 // Recognition / History). This is an observer/evaluator surface, not an
 // operational one — no controls here perform employee-level work.
-export default function RmMarketOverview({ marketId, onOpenEmployee, onOpenSection, onOpenHistory, onBack }) {
+export default function RmMarketOverview({ marketId, onOpenEmployee, onOpenSection, onOpenHistory, onOpenTotalSales, onOpenCardSales, onBack }) {
   const { data: overview, error, loading, reload } = useAsync(() => getMarketOverview(marketId), { deps: [marketId] });
   const { data: sections, error: sectionsError, loading: sectionsLoading } = useAsync(() => listMarketSections(marketId), { deps: [marketId] });
   const [modal, setModal] = useState(null); // "rate" | "note" | "warning" | "recognition" | null
@@ -103,6 +103,9 @@ export default function RmMarketOverview({ marketId, onOpenEmployee, onOpenSecti
           <h1 className="font-display text-3xl font-bold text-white">{overview.name}</h1>
           <p className="mt-1.5 text-sm text-[#9AA1B4]">
             Zone {overview.zone.number} &middot; Supervisor: {overview.supervisor?.name ?? "Unassigned"}
+            {overview.overlookingSupervisor && (
+              <span className="flex items-center gap-1 inline-flex ml-1"> &middot; <Moon size={12} className="text-[#8B93A8]" /> {overview.overlookingSupervisor.name}</span>
+            )}
           </p>
         </div>
         <StatusPill status={titleCaseStatus(overview.status)} />
@@ -129,6 +132,22 @@ export default function RmMarketOverview({ marketId, onOpenEmployee, onOpenSecti
             {overview.lastVisitDate ? new Date(overview.lastVisitDate).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "—"}
           </p>
           <p className="text-[10px] uppercase tracking-wide text-[#8B93A8] mt-1 flex items-center gap-1"><History size={10} /> Last Visit &middot; View History</p>
+        </button>
+      </div>
+
+      <div className="mt-3 grid grid-cols-2 gap-3">
+        <button type="button" onClick={onOpenTotalSales} className="rounded-xl p-4 bg-[#171C2E]/80 border border-white/[0.06] hover:border-[#F47A20]/25 text-left transition-colors">
+          <p className="flex items-center gap-1.5 text-white font-bold text-lg">
+            <DollarSign size={15} className="text-[#F47A20]" /> {overview.totalSalesToday ? overview.totalSalesToday.amount.toFixed(2) : "—"}
+          </p>
+          <p className="text-[10px] uppercase tracking-wide text-[#8B93A8] mt-1">Total Sales &middot; Today</p>
+        </button>
+        <button type="button" onClick={onOpenCardSales} className="rounded-xl p-4 bg-[#171C2E]/80 border border-white/[0.06] hover:border-[#F47A20]/25 text-left transition-colors">
+          <p className="flex items-center gap-1.5 text-white font-bold text-lg">
+            <CreditCard size={15} className="text-[#F47A20]" />
+            {["MORNING", "AFTERNOON", "NIGHT"].filter((s) => overview.cardSalesToday?.[s]).length}/3
+          </p>
+          <p className="text-[10px] uppercase tracking-wide text-[#8B93A8] mt-1">Card Sales &middot; Today's Shifts</p>
         </button>
       </div>
 

@@ -222,6 +222,8 @@ export async function listMyConversations(req, res, next) {
           c.type === "CUSTOM_GROUP" ? (c.name ?? "Group") :
           nameById.get(c.participantAId === employeeId ? c.participantBId : c.participantAId) ?? "Employee",
         otherEmployeeId: c.type === "DIRECT" ? (c.participantAId === employeeId ? c.participantBId : c.participantAId) : null,
+        marketId: c.marketId,
+        pictureUrl: c.pictureUrl,
         locked: c.type === "RM_DIRECT" ? c.locked : false,
         lastMessage: last ? { body: last.deletedAt ? "" : last.body, deleted: !!last.deletedAt, createdAt: last.createdAt } : null,
         unreadCount: unreadCounts[i],
@@ -392,6 +394,8 @@ export async function listMyStaffConversations(req, res, next) {
         c.type === "CUSTOM_GROUP" ? (c.name ?? "Group") :
         nameById.get(c.participantAId) ?? "Employee",
       employeeId: c.type === "SUPERVISOR_DIRECT" ? c.participantAId : null,
+      marketId: c.marketId,
+      pictureUrl: c.pictureUrl,
       lastMessage: lastMessages[i] ? { body: lastMessages[i].body, createdAt: lastMessages[i].createdAt } : null,
     }));
 
@@ -436,6 +440,9 @@ export async function listMyRegionalManagerConversations(req, res, next) {
       type: c.type,
       title: c.type === "CUSTOM_GROUP" ? (c.name ?? "Group") : nameById.get(c.participantAId) ?? "Employee",
       employeeId: c.type === "RM_DIRECT" ? c.participantAId : null,
+      marketId: c.marketId,
+      zoneId: c.zoneId,
+      pictureUrl: c.pictureUrl,
       lastMessage: lastMessages[i] ? { body: lastMessages[i].body, createdAt: lastMessages[i].createdAt } : null,
     }));
 

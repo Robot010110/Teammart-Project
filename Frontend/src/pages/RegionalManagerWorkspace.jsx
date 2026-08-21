@@ -8,6 +8,10 @@ import RmSectionDetail from "./RmSectionDetail";
 import RmMarketHistory from "./RmMarketHistory";
 import RmEmployeeProfile from "./RmEmployeeProfile";
 import RmEmployeeChat from "./RmEmployeeChat";
+import RmEmployeesPage from "./RmEmployeesPage";
+import RmChatPage from "./RmChatPage";
+import RmTotalSalesPage from "./RmTotalSalesPage";
+import RmCardSalesPage from "./RmCardSalesPage";
 
 const BASE_PATH = "/rm";
 
@@ -28,6 +32,8 @@ const BASE_PATH = "/rm";
 //   /rm/markets/:marketId/history
 //   /rm/markets/:marketId/employees/:employeeId
 //   /rm/markets/:marketId/employees/:employeeId/chat
+//   /rm/employees
+//   /rm/chat, /rm/chat/:conversationId
 export default function RegionalManagerWorkspace({ session, onLogout }) {
   return (
     <Routes>
@@ -40,11 +46,18 @@ export default function RegionalManagerWorkspace({ session, onLogout }) {
         <Route path="markets/:marketId/history" element={<RmMarketHistoryRoute />} />
         <Route path="markets/:marketId/employees/:employeeId" element={<RmEmployeeProfileRoute />} />
         <Route path="markets/:marketId/employees/:employeeId/chat" element={<RmEmployeeChatRoute session={session} />} />
+        <Route path="markets/:marketId/total-sales" element={<RmTotalSalesRoute />} />
+        <Route path="markets/:marketId/card-sales" element={<RmCardSalesRoute />} />
+        <Route path="employees" element={<RmEmployeesPage />} />
+        <Route path="chat" element={<RmChatPage session={session} />} />
+        <Route path="chat/:conversationId" element={<RmChatPage session={session} />} />
         <Route path="*" element={<Navigate to="profile" replace />} />
       </Route>
     </Routes>
   );
 }
+
+const NAV_KEY_TO_PATH = { dashboard: "profile", markets: "markets", employees: "employees", chat: "chat" };
 
 function RmShell({ session, onLogout }) {
   const navigate = useNavigate();
@@ -54,7 +67,7 @@ function RmShell({ session, onLogout }) {
       <Sidebar
         role="regionalManager"
         currentPage="dashboard"
-        onNavigate={(key) => navigate(`${BASE_PATH}/${key === "dashboard" ? "profile" : "markets"}`)}
+        onNavigate={(key) => navigate(`${BASE_PATH}/${NAV_KEY_TO_PATH[key] ?? "profile"}`)}
       />
       <div className="md:pl-[68px]">
         <Header
@@ -78,9 +91,23 @@ function RmMarketOverviewRoute() {
       onOpenEmployee={(employeeId) => navigate(`${BASE_PATH}/markets/${marketId}/employees/${employeeId}`)}
       onOpenSection={(department) => navigate(`${BASE_PATH}/markets/${marketId}/sections/${encodeURIComponent(department)}`)}
       onOpenHistory={() => navigate(`${BASE_PATH}/markets/${marketId}/history`)}
+      onOpenTotalSales={() => navigate(`${BASE_PATH}/markets/${marketId}/total-sales`)}
+      onOpenCardSales={() => navigate(`${BASE_PATH}/markets/${marketId}/card-sales`)}
       onBack={() => navigate(`${BASE_PATH}/markets`)}
     />
   );
+}
+
+function RmTotalSalesRoute() {
+  const { marketId } = useParams();
+  const navigate = useNavigate();
+  return <RmTotalSalesPage marketId={marketId} onBack={() => navigate(`${BASE_PATH}/markets/${marketId}`)} />;
+}
+
+function RmCardSalesRoute() {
+  const { marketId } = useParams();
+  const navigate = useNavigate();
+  return <RmCardSalesPage marketId={marketId} onBack={() => navigate(`${BASE_PATH}/markets/${marketId}`)} />;
 }
 
 function RmSectionDetailRoute() {

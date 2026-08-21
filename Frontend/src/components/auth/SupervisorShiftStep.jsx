@@ -2,10 +2,12 @@ import { Sun, Moon } from "lucide-react";
 
 // SupervisorShiftStep.jsx — Supervisor (Morning Shift) vs Overlooking
 // (Evening Shift), shown after picking "Supervisor" at the role-picker
-// step. Same account type/permission model either way (see Supervisor
-// Mode's permission model) — this only decides the shift label shown
-// throughout the mobile Supervisor Mode UI and which management person
-// a given task/notification is attributed to.
+// step. These are two genuinely distinct backend accounts now (StaffRole
+// SUPERVISOR vs OVERLOOKING_SUPERVISOR — see LoginPage.jsx's own
+// comment) with different permissions (e.g. only Supervisor can submit
+// Total Sales); this step just narrows which email/password step comes
+// next, and LoginPage.jsx double-checks the account's real role matches
+// what was picked here before letting the login through.
 
 export default function SupervisorShiftStep({ onSelect }) {
   return (

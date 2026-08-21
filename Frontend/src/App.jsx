@@ -83,11 +83,10 @@ function AppRoutes() {
             displayName: profile.name,
             initials: initialsOf(profile.name),
           });
-        } else if (profile.kind === "staff" && profile.role === "SUPERVISOR") {
-          // Shift ("Supervisor"/"Overlooking") isn't persisted anywhere
-          // (User has no shift column — see LoginPage.jsx) so a refresh
-          // can't recover which one was chosen; defaults back to
-          // Supervisor/Morning rather than asking again mid-session.
+        } else if (profile.kind === "staff" && (profile.role === "SUPERVISOR" || profile.role === "OVERLOOKING_SUPERVISOR")) {
+          // Supervisor and Overlooking are real, distinct accounts now
+          // (see LoginPage.jsx) — profile.role IS which one this is,
+          // recovered correctly on every refresh rather than defaulted.
           let marketName = null;
           try {
             const [market] = await listMarkets();
@@ -95,14 +94,16 @@ function AppRoutes() {
           } catch {
             // Non-fatal — see the same fallback in LoginPage.jsx.
           }
+          const isOverlooking = profile.role === "OVERLOOKING_SUPERVISOR";
           setSession({
             role: "supervisor",
+            staffRole: profile.role,
             staffId: profile.id,
             marketId: profile.marketId,
             zoneId: profile.zoneId,
             marketName,
-            shift: "MORNING",
-            title: "Supervisor",
+            shift: isOverlooking ? "EVENING" : "MORNING",
+            title: isOverlooking ? "Overlooking" : "Supervisor",
             displayName: profile.name,
             initials: initialsOf(profile.name),
           });

@@ -123,8 +123,10 @@ export default function SupervisorChatTab({ session, basePath }) {
           <GroupInfoModal
             conversationId={openConversation.id}
             groupName={openConversation.title}
-            marketId={session.marketId}
-            canManage
+            groupPictureUrl={openConversation.pictureUrl}
+            marketId={openConversation.marketId}
+            currentUserId={session.staffId}
+            currentUserKind="staff"
             onClose={() => setGroupInfoOpen(false)}
             onRenamed={() => reload()}
           />

@@ -22,9 +22,14 @@ import { initialsOf } from "../utils/initials";
 // A Regional Manager's assigned zones/market count are never picked in
 // the UI — they come entirely from the account (User.managedZones on the
 // backend, returned as zoneIds), same convention as a Supervisor's
-// market. Supervisor/Overlooking are the same backend SUPERVISOR
-// account; "Overlooking" is purely a shift label chosen here (User has
-// no shift column) — see SupervisorShiftStep.jsx.
+// market. Supervisor and Overlooking are now two genuinely distinct
+// backend accounts (StaffRole SUPERVISOR vs OVERLOOKING_SUPERVISOR, each
+// with its own email/password and its own Market.supervisorId /
+// overlookingSupervisorId assignment) — the shift step just picks which
+// one the person is about to log into; the account's own `role` in the
+// staffLogin response is the actual source of truth, cross-checked
+// against the shift step below so a mismatched pick surfaces a clear
+// error instead of silently logging in as the wrong account type.
 
 const STEP_ROLE = "role";
 const STEP_EMPLOYEE_TYPE = "employeeType";
@@ -119,8 +124,17 @@ export default function LoginPage({ onLogin }) {
     if (role === "supervisor") {
       try {
         const user = await staffLogin(email, password);
-        if (user.role !== "SUPERVISOR") {
-          setLoginError("This account isn't a Supervisor account.");
+        if (user.role !== "SUPERVISOR" && user.role !== "OVERLOOKING_SUPERVISOR") {
+          setLoginError("This account isn't a Supervisor or Overlooking account.");
+          return false;
+        }
+        const expectedRole = supervisorShift === "EVENING" ? "OVERLOOKING_SUPERVISOR" : "SUPERVISOR";
+        if (user.role !== expectedRole) {
+          setLoginError(
+            user.role === "OVERLOOKING_SUPERVISOR"
+              ? "This is an Overlooking account — go back and choose \"Overlooking\" instead."
+              : "This is a Supervisor account — go back and choose \"Supervisor\" instead."
+          );
           return false;
         }
         // The account's managed market determines everything downstream
@@ -137,12 +151,13 @@ export default function LoginPage({ onLogin }) {
         }
         onLogin({
           role,
+          staffRole: user.role,
           staffId: user.id,
           marketId: user.marketId,
           zoneId: user.zoneId,
           marketName,
           shift: supervisorShift,
-          title: supervisorShift === "EVENING" ? "Overlooking" : "Supervisor",
+          title: user.role === "OVERLOOKING_SUPERVISOR" ? "Overlooking" : "Supervisor",
           displayName: user.name,
           initials: initialsOf(user.name),
         });

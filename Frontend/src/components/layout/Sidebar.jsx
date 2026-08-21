@@ -2,21 +2,25 @@ import {
   LayoutGrid,
   Store,
   Users,
+  MessageCircle,
   BarChart3,
   Settings,
 } from "lucide-react";
 
 // Sidebar.jsx
 // Ships collapsed (icon rail) and expands on hover, per the brief.
-// "Dashboard" (Regional Manager Profile) and "Markets" are wired up; the
-// rest are placeholders for future pages (Employees is reachable via
-// Markets -> Employees instead of its own top-level page; Reports/
-// Settings are out of scope for this pass).
-
+// "Dashboard" (Regional Manager Profile), "Markets", "Employees" (spec
+// §3/§16 — the RM's own global roster across every market they manage,
+// not just the per-market drill-down under Markets), and "Chat" (spec
+// §9/§16) are wired up; Reports/Settings remain placeholders for a
+// future pass (each market's own Reports sub-page already exists under
+// Markets -> a market -> Reports/Problems, this is only the top-level
+// standalone Reports page).
 const NAV_ITEMS = [
   { key: "dashboard", label: "Profile", icon: LayoutGrid, active: true, roles: ["regionalManager", "supervisor"] },
   { key: "markets", label: "Markets", icon: Store, active: true, roles: ["regionalManager", "supervisor"] },
-  { key: "employees", label: "Employees", icon: Users, active: false, roles: ["regionalManager", "supervisor"] },
+  { key: "employees", label: "Employees", icon: Users, active: true, roles: ["regionalManager", "supervisor"] },
+  { key: "chat", label: "Chat", icon: MessageCircle, active: true, roles: ["regionalManager"] },
   { key: "reports", label: "Reports", icon: BarChart3, active: false, roles: ["regionalManager", "supervisor"] },
   { key: "settings", label: "Settings", icon: Settings, active: false, roles: ["regionalManager", "supervisor"] },
 ];

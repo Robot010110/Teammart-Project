@@ -14,6 +14,20 @@ export function listEmployeesByMarket(marketId) {
   return apiRequest(`/employees${query ? `?${query}` : ""}`);
 }
 
+// listEmployees — the Regional Manager's global roster filters (spec §3):
+// market/role/shift/search, any combination. A REGIONAL_MANAGER token is
+// scoped server-side to their own zones' markets regardless of what's
+// passed here (see employeesController.listEmployees).
+export function listEmployees({ marketId, role, shift, search } = {}) {
+  const params = new URLSearchParams();
+  if (marketId) params.set("marketId", marketId);
+  if (role) params.set("role", role);
+  if (shift) params.set("shift", shift);
+  if (search) params.set("search", search);
+  const query = params.toString();
+  return apiRequest(`/employees${query ? `?${query}` : ""}`);
+}
+
 export function getEmployee(id) {
   return apiRequest(`/employees/${id}`);
 }

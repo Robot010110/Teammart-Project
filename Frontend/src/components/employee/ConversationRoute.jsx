@@ -48,7 +48,10 @@ export default function ConversationRoute({ currentEmployeeId, basePath }) {
         <GroupInfoModal
           conversationId={conversation.id}
           groupName={conversation.title}
-          canManage={false}
+          groupPictureUrl={conversation.pictureUrl}
+          marketId={conversation.marketId}
+          currentUserId={currentEmployeeId}
+          currentUserKind="employee"
           onClose={() => setGroupInfoOpen(false)}
         />
       )}
