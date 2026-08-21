@@ -28,7 +28,7 @@ export default function SupervisorProfileCard({ session }) {
           <ShiftIcon size={13} /> {isEvening ? "Evening Shift" : "Morning Shift"}
         </span>
         <span className="flex items-center gap-1.5">
-          <BadgeCheck size={13} /> Staff ID #{session.staffId}
+          <BadgeCheck size={13} /> {session.loginId || `Staff ID #${session.staffId}`}
         </span>
         <span className="flex items-center gap-1.5">
           <Store size={13} /> {session.marketName || "Your market"}

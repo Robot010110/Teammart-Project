@@ -99,6 +99,7 @@ function AppRoutes() {
             role: "supervisor",
             staffRole: profile.role,
             staffId: profile.id,
+            loginId: profile.loginId,
             marketId: profile.marketId,
             zoneId: profile.zoneId,
             marketName,

@@ -49,6 +49,21 @@ export async function staffLogin(email, password) {
   return data.user;
 }
 
+// POST /api/auth/staff-id-login — Supervisor/Overlooking login with a
+// case-insensitive "User ID" (loginId) instead of email (see
+// backend/src/controllers/authController.js's staffIdLogin). Admin/
+// Regional Manager keep using staffLogin (email) above — they have no
+// User ID in this app.
+export async function staffIdLogin(loginId, password) {
+  const data = await apiRequest("/auth/staff-id-login", {
+    method: "POST",
+    body: { loginId, password },
+    auth: false,
+  });
+  setToken(data.token);
+  return data.user;
+}
+
 export function logout() {
   clearToken();
 }

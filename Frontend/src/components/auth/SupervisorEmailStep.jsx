@@ -1,12 +1,13 @@
 import { useState } from "react";
 import { Mail, ArrowRight } from "lucide-react";
 
-// SupervisorEmailStep.jsx — real staff login identifier (email), same
-// role in the flow as EmployeeCodeStep.jsx (Worker) / CashierUsernameStep
+// SupervisorEmailStep.jsx — Regional Manager's login identifier (email),
+// same role in the flow as EmployeeCodeStep.jsx (Worker) / CashierUsernameStep
 // (Cashier): ask for the identifier here, password on the next step.
-// Supervisor/Overlooking both authenticate as a real backend SUPERVISOR
-// User account (POST /api/auth/login) — the market they manage comes
-// from that account (User.managedMarket), never picked in the UI.
+// Supervisor/Overlooking no longer use this step — they log in with a
+// case-insensitive User ID instead (see SupervisorUserIdStep.jsx). A
+// Regional Manager's zones come from their account (User.managedZones),
+// never picked in the UI.
 
 export default function SupervisorEmailStep({ onSelect }) {
   const [email, setEmail] = useState("");

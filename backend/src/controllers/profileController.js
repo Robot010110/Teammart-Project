@@ -1,5 +1,6 @@
 import bcrypt from "bcryptjs";
 import { prisma } from "../lib/prisma.js";
+import { userIdTaken } from "../utils/accountIds.js";
 
 // GET /api/profile — returns whoever is currently logged in, staff or
 // employee. The frontend hits one endpoint regardless of role.
@@ -17,6 +18,7 @@ export async function getProfile(req, res, next) {
         id: user.id,
         name: user.name,
         email: user.email,
+        loginId: user.loginId,
         role: user.role,
         zoneIds: user.managedZones.map((z) => z.id),
         marketId: user.managedMarket?.id ?? user.managedOverlookingMarket?.id ?? null,
@@ -60,32 +62,60 @@ export async function getProfile(req, res, next) {
   }
 }
 
-// PATCH /api/profile — employee-only self-service profile update:
-// WhatsApp number and, now, their own profile photo (spec: "An employee
-// should only be able to change their own profile photo" — enforced here
-// by always writing to req.user.employeeId, never an id from the
-// request body). Every other profile field (department, position, etc.)
-// stays management-assigned, not self-service. Only the keys actually
-// present in the request are updated, so a caller can change just the
-// photo without needing to resend whatsappNumber (and vice versa).
-// Validation/normalization happens in validate.js's
-// updateMyProfileSchema so a malformed value can never reach the DB.
+// PATCH /api/profile — self-service profile update, for both account
+// kinds. Always writes to the CALLER's own row (req.user.employeeId /
+// req.user.userId, never an id from the request body) — an employee can
+// only change their own photo/WhatsApp/User ID, a staff member only
+// their own User ID, matching spec §9's "an employee should only be able
+// to change their own profile photo" applied to every self-service field
+// here. Only the keys actually present in the request are updated.
+//
+// employeeCode/username/loginId ("User ID", spec §7) go through the same
+// case-insensitive, cross-table uniqueness check (userIdTaken) — the
+// normalized comparison decides uniqueness, but the value is STORED
+// exactly as the user typed it, so their chosen casing is what displays
+// afterward (spec: "preserve the user's chosen casing").
 export async function updateMyProfile(req, res, next) {
   try {
-    if (req.user.kind !== "employee") {
-      return res.status(403).json({ error: "This action requires an employee login" });
+    if (req.user.kind === "staff") {
+      if (!("loginId" in req.body)) {
+        return res.json({});
+      }
+      const loginId = req.body.loginId;
+      if (loginId !== null) {
+        const taken = await userIdTaken(loginId, { excludeUserId: req.user.userId });
+        if (taken) return res.status(409).json({ error: "This User ID is already in use" });
+      }
+      const user = await prisma.user.update({ where: { id: req.user.userId }, data: { loginId } });
+      return res.json({ loginId: user.loginId });
     }
 
     const data = {};
     if ("whatsappNumber" in req.body) data.whatsappNumber = req.body.whatsappNumber;
     if ("profilePictureUrl" in req.body) data.profilePictureUrl = req.body.profilePictureUrl;
 
+    for (const field of ["employeeCode", "username"]) {
+      if (field in req.body) {
+        const value = req.body[field];
+        if (value !== null) {
+          const taken = await userIdTaken(value, { excludeEmployeeId: req.user.employeeId });
+          if (taken) return res.status(409).json({ error: "This User ID is already in use" });
+        }
+        data[field] = value;
+      }
+    }
+
     const employee = await prisma.employee.update({
       where: { id: req.user.employeeId },
       data,
     });
 
-    res.json({ whatsappNumber: employee.whatsappNumber, profilePictureUrl: employee.profilePictureUrl });
+    res.json({
+      whatsappNumber: employee.whatsappNumber,
+      profilePictureUrl: employee.profilePictureUrl,
+      employeeCode: employee.employeeCode,
+      username: employee.username,
+    });
   } catch (err) {
     next(err);
   }

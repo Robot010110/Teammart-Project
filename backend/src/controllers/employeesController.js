@@ -2,6 +2,7 @@ import bcrypt from "bcryptjs";
 import crypto from "crypto";
 import { prisma } from "../lib/prisma.js";
 import { staffCanAccessMarket, assertMarketAccess } from "../middleware/auth.js";
+import { userIdTaken } from "../utils/accountIds.js";
 
 function publicEmployee(e) {
   // Never send passwordHash back to the client.
@@ -118,7 +119,13 @@ export async function createEmployee(req, res, next) {
   }
 }
 
-// PATCH /api/employees/:id
+// PATCH /api/employees/:id — also how a staff member activates a
+// "pending" hire (spec §4: an employee row created without an
+// employeeCode/username/password yet — see the Employee model's own
+// comment). employeeCode/username go through the same case-insensitive,
+// cross-table uniqueness check as the self-service User-ID change
+// (userIdTaken); `password`, if present, is hashed here and never
+// echoed back — same as createEmployee's temp-password handling.
 export async function updateEmployee(req, res, next) {
   try {
     const employee = await prisma.employee.findUnique({ where: { id: req.params.id } });
@@ -132,9 +139,24 @@ export async function updateEmployee(req, res, next) {
       await assertMarketAccess(req.user, req.body.marketId);
     }
 
+    const { password, employeeCode, username, ...rest } = req.body;
+    const data = { ...rest };
+
+    for (const [field, value] of [["employeeCode", employeeCode], ["username", username]]) {
+      if (value === undefined) continue;
+      if (value !== null) {
+        const taken = await userIdTaken(value, { excludeEmployeeId: employee.id });
+        if (taken) return res.status(409).json({ error: "This User ID is already in use" });
+      }
+      data[field] = value;
+    }
+    if (password) {
+      data.passwordHash = await bcrypt.hash(password, 10);
+    }
+
     const updated = await prisma.employee.update({
       where: { id: req.params.id },
-      data: req.body,
+      data,
     });
 
     res.json(publicEmployee(updated));

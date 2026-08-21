@@ -1,5 +1,14 @@
 import { z } from "zod";
 
+// "User ID" shape (spec §5-7) — Employee.employeeCode/username and
+// User.loginId all share this same format constraint. Uniqueness is
+// case-insensitive and checked separately (see utils/accountIds.js);
+// this only validates the shape itself.
+export const USER_ID_SCHEMA = z
+  .string()
+  .trim()
+  .regex(/^[a-zA-Z0-9_.-]{2,30}$/, "User ID must be 2-30 characters: letters, numbers, underscore, dot, or hyphen");
+
 // Reusable middleware factory: validates req.body against a zod schema.
 // If invalid, responds 400 with details instead of letting bad data reach
 // the DB layer. This is the app's main defense against malformed input.
@@ -40,10 +49,16 @@ export const staffRegisterSchema = z.object({
   email: z.string().email(),
   password: z.string().min(8, "Password must be at least 8 characters"),
   role: z.enum(["ADMIN", "REGIONAL_MANAGER", "SUPERVISOR", "OVERLOOKING_SUPERVISOR"]),
+  loginId: USER_ID_SCHEMA.optional(),
 });
 
 export const staffLoginSchema = z.object({
   email: z.string().email(),
+  password: z.string().min(1),
+});
+
+export const staffIdLoginSchema = z.object({
+  loginId: z.string().min(1),
   password: z.string().min(1),
 });
 
@@ -82,6 +97,19 @@ export const updateMyProfileSchema = z.object({
   // documented on activityService.prepareImageForUpload — a data: URI is
   // a valid URL as far as z.string().url() is concerned.
   profilePictureUrl: z.string().url().nullable().optional(),
+  // "User ID" self-service change (spec §7) — Worker uses employeeCode,
+  // Cashier uses username; the frontend only ever sends the one relevant
+  // to the caller's own role. Case-insensitive uniqueness is enforced in
+  // the controller (userIdTaken), not here — this schema only checks
+  // shape. null clears it back to "not assigned" (only meaningful for a
+  // still-pending account finishing its own activation, if ever exposed
+  // that way).
+  employeeCode: USER_ID_SCHEMA.nullable().optional(),
+  username: USER_ID_SCHEMA.nullable().optional(),
+  // Staff-only in practice (Supervisor/Overlooking's own User ID) — kept
+  // in this same schema since PATCH /api/profile is one shared route for
+  // both account kinds (see profileController.updateMyProfile).
+  loginId: USER_ID_SCHEMA.nullable().optional(),
 });
 
 // ---------------------------------------------------------------------
@@ -138,6 +166,13 @@ export const updateEmployeeSchema = z.object({
   secondaryRole: z.string().max(100).nullable().optional(),
   shift: z.string().max(100).nullable().optional(),
   marketId: z.string().min(1).optional(),
+  // Activating a pending hire (spec §4/§7), or a staff-assigned User ID/
+  // password change for an existing employee. employeeCode/username go
+  // through the same USER_ID_SCHEMA + case-insensitive uniqueness check
+  // as the self-service change (see employeesController.updateEmployee).
+  employeeCode: USER_ID_SCHEMA.nullable().optional(),
+  username: USER_ID_SCHEMA.nullable().optional(),
+  password: z.string().min(6).optional(),
 });
 
 // ---------------------------------------------------------------------

@@ -315,12 +315,21 @@ enum MessageAttachmentType {
 }
 
 // ---------------------------------------------------------------------
-// Staff (Admin / Regional Manager / Supervisor) — logs in with email
+// Staff (Admin / Regional Manager / Supervisor / Overlooking Supervisor)
+// — logs in with email (Admin/Regional Manager) or loginId (Supervisor/
+// Overlooking — a case-insensitive "User ID", same concept as
+// Employee.employeeCode/username, see authController.staffIdLogin).
+// loginId is nullable/optional rather than replacing email entirely:
+// Admin/Regional Manager accounts have no User ID in this spec and keep
+// using email exclusively; every account still has a real email either
+// way (required for account creation/notifications), loginId is just an
+// additional login path some roles use instead.
 // ---------------------------------------------------------------------
 model User {
   id           Int       @id @default(autoincrement())
   name         String
   email        String    @unique
+  loginId      String?   @unique
   passwordHash String
   role         StaffRole @default(SUPERVISOR)
   createdAt    DateTime  @default(now())
@@ -435,11 +444,21 @@ model Market {
 
 // Employees log in with an employeeCode + password, not an email — this
 // matches the frontend's "find yourself" login flow for the Employee role.
+//
+// employeeCode/passwordHash are nullable to support a "pending" hire —
+// an Employee row created before credentials are assigned (spec: "do
+// not invent credentials, leave User ID and password unassigned until
+// provided"). Login lookups naturally never match a NULL employeeCode
+// (see authController.employeeLogin's own comment), and
+// employeeLogin/cashierLogin explicitly reject a null passwordHash with
+// a clear "not yet activated" error rather than attempting
+// bcrypt.compare against it. A staff member assigns both together later
+// via PATCH /api/employees/:id (see employeesController.updateEmployee).
 model Employee {
   id            String       @id @default(cuid())
-  employeeCode  String       @unique
+  employeeCode  String?      @unique
   name          String
-  passwordHash  String
+  passwordHash  String?
   position      String
   secondaryRole String?
   shift         String?

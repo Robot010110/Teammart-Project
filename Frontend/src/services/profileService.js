@@ -26,3 +26,20 @@ export function updateMyWhatsApp(whatsappNumber) {
 export function updateMyProfilePhoto(profilePictureUrl) {
   return apiRequest("/profile", { method: "PATCH", body: { profilePictureUrl } });
 }
+
+// updateMyUserId — self-service "User ID" change (spec §7). `field` is
+// whichever the caller's own account actually uses: "employeeCode"
+// (Worker), "username" (Cashier), or "loginId" (Supervisor/Overlooking).
+// Same PATCH /api/profile endpoint, own-account-only. Case-insensitive
+// uniqueness is enforced server-side (userIdTaken) — a 409 ApiError means
+// the id is already taken.
+export function updateMyUserId(field, value) {
+  return apiRequest("/profile", { method: "PATCH", body: { [field]: value } });
+}
+
+// updateMyPassword — spec §8: current password required, hashed
+// server-side, never echoed back. Works for both account kinds (see
+// profileController.updatePassword).
+export function updateMyPassword(currentPassword, newPassword) {
+  return apiRequest("/profile/password", { method: "PATCH", body: { currentPassword, newPassword } });
+}

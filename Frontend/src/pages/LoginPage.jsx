@@ -5,11 +5,12 @@ import RoleCard from "../components/auth/RoleCard";
 import EmployeeTypeStep from "../components/auth/EmployeeTypeStep";
 import SupervisorShiftStep from "../components/auth/SupervisorShiftStep";
 import SupervisorEmailStep from "../components/auth/SupervisorEmailStep";
+import SupervisorUserIdStep from "../components/auth/SupervisorUserIdStep";
 import EmployeeCodeStep from "../components/auth/EmployeeCodeStep";
 import CashierUsernameStep from "../components/auth/CashierUsernameStep";
 import PasswordStep from "../components/auth/PasswordStep";
 import { ROLE_OPTIONS } from "../data/auth";
-import { employeeLogin, cashierLogin, staffLogin } from "../services/authService";
+import { employeeLogin, cashierLogin, staffLogin, staffIdLogin } from "../services/authService";
 import { listMarkets } from "../services/marketService";
 import { ApiError } from "../services/apiClient";
 import { initialsOf } from "../utils/initials";
@@ -24,12 +25,14 @@ import { initialsOf } from "../utils/initials";
 // backend, returned as zoneIds), same convention as a Supervisor's
 // market. Supervisor and Overlooking are now two genuinely distinct
 // backend accounts (StaffRole SUPERVISOR vs OVERLOOKING_SUPERVISOR, each
-// with its own email/password and its own Market.supervisorId /
+// with its own User ID/password and its own Market.supervisorId /
 // overlookingSupervisorId assignment) — the shift step just picks which
 // one the person is about to log into; the account's own `role` in the
-// staffLogin response is the actual source of truth, cross-checked
+// staffIdLogin response is the actual source of truth, cross-checked
 // against the shift step below so a mismatched pick surfaces a clear
 // error instead of silently logging in as the wrong account type.
+// Supervisor/Overlooking log in with a case-insensitive User ID
+// (staffIdLogin); Regional Manager keeps email (staffLogin).
 
 const STEP_ROLE = "role";
 const STEP_EMPLOYEE_TYPE = "employeeType";
@@ -42,7 +45,8 @@ export default function LoginPage({ onLogin }) {
   const [role, setRole] = useState(null);
   const [employeeType, setEmployeeType] = useState(null); // "worker" | "cashier"
   const [supervisorShift, setSupervisorShift] = useState(null); // "MORNING" | "EVENING"
-  const [email, setEmail] = useState(null); // Supervisor / Regional Manager
+  const [email, setEmail] = useState(null); // Regional Manager only
+  const [userId, setUserId] = useState(null); // Supervisor / Overlooking
   const [employeeCode, setEmployeeCode] = useState(null);
   const [username, setUsername] = useState(null);
   const [loginError, setLoginError] = useState(null);
@@ -59,6 +63,7 @@ export default function LoginPage({ onLogin }) {
   const chooseEmployeeType = (type) => { setEmployeeType(type); setStep(STEP_LOCATION); };
   const chooseSupervisorShift = (shift) => { setSupervisorShift(shift); setStep(STEP_LOCATION); };
   const chooseEmail = (e) => { setEmail(e); setStep(STEP_PASSWORD); };
+  const chooseUserId = (id) => { setUserId(id); setStep(STEP_PASSWORD); };
   const chooseEmployeeCode = (code) => { setEmployeeCode(code); setStep(STEP_PASSWORD); };
   const chooseUsername = (u) => { setUsername(u); setStep(STEP_PASSWORD); };
 
@@ -68,6 +73,7 @@ export default function LoginPage({ onLogin }) {
     setEmployeeType(null);
     setSupervisorShift(null);
     setEmail(null);
+    setUserId(null);
     setEmployeeCode(null);
     setUsername(null);
   };
@@ -76,7 +82,7 @@ export default function LoginPage({ onLogin }) {
     if (step === STEP_PASSWORD) setStep(STEP_LOCATION);
     else if (step === STEP_LOCATION) {
       if (role === "employee") { setStep(STEP_EMPLOYEE_TYPE); setEmployeeCode(null); setUsername(null); }
-      else if (role === "supervisor") { setStep(STEP_SHIFT); setEmail(null); }
+      else if (role === "supervisor") { setStep(STEP_SHIFT); setUserId(null); }
       else { setEmail(null); resetAll(); }
     } else if (step === STEP_SHIFT) resetAll();
     else if (step === STEP_EMPLOYEE_TYPE) resetAll();
@@ -123,7 +129,7 @@ export default function LoginPage({ onLogin }) {
 
     if (role === "supervisor") {
       try {
-        const user = await staffLogin(email, password);
+        const user = await staffIdLogin(userId, password);
         if (user.role !== "SUPERVISOR" && user.role !== "OVERLOOKING_SUPERVISOR") {
           setLoginError("This account isn't a Supervisor or Overlooking account.");
           return false;
@@ -153,6 +159,7 @@ export default function LoginPage({ onLogin }) {
           role,
           staffRole: user.role,
           staffId: user.id,
+          loginId: user.loginId,
           marketId: user.marketId,
           zoneId: user.zoneId,
           marketName,
@@ -198,7 +205,8 @@ export default function LoginPage({ onLogin }) {
   const summary = [
     { label: "Role", value: roleLabel },
     ...(role === "supervisor" ? [{ label: "Shift", value: supervisorShift === "EVENING" ? "Overlooking (Evening)" : "Supervisor (Morning)" }] : []),
-    ...(role === "supervisor" || role === "regionalManager" ? [{ label: "Email", value: email }] : []),
+    ...(role === "supervisor" ? [{ label: "User ID", value: userId }] : []),
+    ...(role === "regionalManager" ? [{ label: "Email", value: email }] : []),
     ...(role === "employee" && employeeType === "worker" ? [{ label: "Employee Code", value: employeeCode }] : []),
     ...(role === "employee" && employeeType === "cashier" ? [{ label: "Username", value: username }] : []),
   ];
@@ -252,12 +260,14 @@ export default function LoginPage({ onLogin }) {
           <>
             <div className="text-center mb-6 animate-fade-up">
               <h2 className="font-display text-xl font-bold text-white">
-                {(role === "regionalManager" || role === "supervisor") && "Enter your email"}
+                {role === "regionalManager" && "Enter your email"}
+                {role === "supervisor" && "Enter your User ID"}
                 {role === "employee" && employeeType === "worker" && "Enter your employee code"}
                 {role === "employee" && employeeType === "cashier" && "Enter your username"}
               </h2>
             </div>
-            {(role === "regionalManager" || role === "supervisor") && <SupervisorEmailStep onSelect={chooseEmail} />}
+            {role === "regionalManager" && <SupervisorEmailStep onSelect={chooseEmail} />}
+            {role === "supervisor" && <SupervisorUserIdStep onSelect={chooseUserId} />}
             {role === "employee" && employeeType === "worker" && <EmployeeCodeStep onSelect={chooseEmployeeCode} />}
             {role === "employee" && employeeType === "cashier" && <CashierUsernameStep onSelect={chooseUsername} />}
           </>
