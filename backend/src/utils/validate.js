@@ -254,6 +254,9 @@ export const createActivitySchema = z.object({
   // flow: scan a product, flag what's wrong with its label).
   productId: z.string().optional(),
   labelIssueType: z.enum(LABEL_ISSUE_TYPES).optional(),
+  // Only meaningful when category === "ITEM_COUNTING" — which
+  // CountingAssignment this submission was performed against (spec §4).
+  countingAssignmentId: z.string().optional(),
 });
 
 export const updateActivitySchema = z.object({
@@ -264,6 +267,7 @@ export const updateActivitySchema = z.object({
   status: z.enum(EMPLOYEE_SETTABLE_ACTIVITY_STATUSES).optional(),
   productId: z.string().nullable().optional(),
   labelIssueType: z.enum(LABEL_ISSUE_TYPES).nullable().optional(),
+  countingAssignmentId: z.string().nullable().optional(),
 });
 
 export const addActivityImageSchema = z.object({
@@ -738,4 +742,25 @@ export const sendMarketFeedbackSchema = z.object({
   priority: z.enum(["LOW", "NORMAL", "HIGH", "URGENT"]).optional(),
   photoUrl: z.string().url().optional(),
   visitId: z.string().min(1).optional(),
+});
+
+// ---------------------------------------------------------------------
+// Inventory Counting assignments (spec §1-3).
+// ---------------------------------------------------------------------
+export const createCountingAssignmentSchema = z.object({
+  employeeId: z.string().min(1),
+  assignedDepartment: z.string().min(1).max(100),
+  countingArea: z.string().max(200).optional(),
+});
+
+export const listCountingAssignmentsQuerySchema = z.object({
+  marketId: z.string().min(1).optional(),
+  pending: z.enum(["true", "false"]).optional(),
+});
+
+// ---------------------------------------------------------------------
+// Missing-checkout confirmation (spec §7 — "Are you still working?").
+// ---------------------------------------------------------------------
+export const confirmStillWorkingSchema = z.object({
+  recordId: z.string().min(1),
 });

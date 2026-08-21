@@ -207,6 +207,13 @@ export async function importAttendanceRecords(req, res, next) {
       },
     });
 
+    // Extra Hours spec §9: check every employee this batch actually
+    // touched for an unusually large accumulation of extra time. Never
+    // blocks/fails the import response — a notification miss here
+    // shouldn't undo an otherwise-successful import.
+    const touchedEmployeeIds = [...new Set(perRow.filter((r) => r.ok && r.employeeId).map((r) => r.employeeId))];
+    await Promise.allSettled(touchedEmployeeIds.map((id) => checkExcessiveExtraHours(id)));
+
     res.status(201).json({ batch, errors });
   } catch (err) {
     next(err);
@@ -262,10 +269,70 @@ export async function createRequiredHoursAdjustment(req, res, next) {
 // stored (same "derive, don't duplicate" convention as workingHours
 // itself), so it can never drift out of sync with the underlying
 // checkIn/checkOut/requiredHours values.
+// A grace period, not a subtraction (Extra Hours spec §6): working more
+// than 15 minutes past requiredHours credits the FULL overage as extra
+// time; 15 minutes or less counts as zero. "Actual 9:00h vs required
+// 8:00h -> Extra Hours: 1:00" (not 0:45) is the spec's own example.
+const EXTRA_HOURS_GRACE = 0.25; // 15 minutes, in hours
+
 function computeExtraHours(record) {
   const worked = computeWorkingHours(record);
   if (worked == null) return 0;
-  return Math.max(worked - record.requiredHours, 0);
+  const overage = worked - record.requiredHours;
+  return overage > EXTRA_HOURS_GRACE ? overage : 0;
+}
+
+// Extra Hours spec §9 — "more than 5 hours of extra work within a short
+// monitoring period" triggers a management-review alert, never an
+// automatic penalty. The spec doesn't pin down an exact window, so a
+// rolling 7-day lookback is used here as a reasonable interpretation of
+// "short monitoring period" — long enough to catch a real pattern (not
+// one unusually late night), short enough to still be "recent". Re-
+// alerting is throttled the same way (skip if a EXCESSIVE_EXTRA_HOURS
+// notification already went out for this employee in the last 7 days) so
+// an ongoing pattern doesn't spam a new alert on every single import.
+const EXCESSIVE_EXTRA_HOURS_THRESHOLD = 5;
+const EXCESSIVE_EXTRA_HOURS_WINDOW_DAYS = 7;
+
+async function checkExcessiveExtraHours(employeeId) {
+  const windowStart = new Date();
+  windowStart.setDate(windowStart.getDate() - EXCESSIVE_EXTRA_HOURS_WINDOW_DAYS);
+
+  const records = await prisma.attendanceRecord.findMany({ where: { employeeId, date: { gte: windowStart } } });
+  const totalExtra = records.reduce((sum, r) => sum + computeExtraHours(r), 0);
+  if (totalExtra <= EXCESSIVE_EXTRA_HOURS_THRESHOLD) return;
+
+  const recentAlert = await prisma.notification.findFirst({
+    where: { employeeId, type: "EXCESSIVE_EXTRA_HOURS", createdAt: { gte: windowStart } },
+  });
+  if (recentAlert) return;
+
+  const employee = await prisma.employee.findUnique({
+    where: { id: employeeId },
+    select: { name: true, employeeCode: true, department: true, marketId: true },
+  });
+  if (!employee) return;
+  const market = await prisma.market.findUnique({
+    where: { id: employee.marketId },
+    select: { name: true, zone: { select: { managerId: true } } },
+  });
+  if (!market?.zone?.managerId) return;
+
+  const hours = Math.floor(totalExtra);
+  const minutes = Math.round((totalExtra - hours) * 60);
+  await createNotificationForUser({
+    userId: market.zone.managerId,
+    type: "EXCESSIVE_EXTRA_HOURS",
+    title: "Extra Hours Alert",
+    body:
+      `Employee: ${employee.name}${employee.employeeCode ? ` (${employee.employeeCode})` : ""}\n` +
+      `Market: ${market.name}\n` +
+      `Department: ${employee.department ?? "Not assigned"}\n` +
+      `Extra Hours Recorded: ${hours}h ${minutes}m\n\n` +
+      "This employee has accumulated an unusually high amount of additional working time. Please review the attendance records and determine the reason.",
+    linkType: "EMPLOYEE_ATTENDANCE",
+    linkId: employeeId,
+  });
 }
 
 // Shared by getAttendanceMonth (the month currently being viewed) and
@@ -397,6 +464,60 @@ async function buildMonthResponse(employeeId, year, month) {
   return { year, month, days, adjustments, summary: computeMonthSummary(records, daysElapsed) };
 }
 
+// Extra Hours spec §7 — "an employee checks in at 4:00 PM but there is
+// no check-out recorded after their expected shift... flag the record
+// and send a message: Check-out not detected. Are you still working?"
+// There's no live fingerprint feed reaching this app (see this file's
+// own top comment) so nothing can push a notification the instant a
+// shift ends — this runs lazily whenever the employee's own attendance
+// is loaded (getAttendanceMonth) instead, which is the closest honest
+// approximation available. missingCheckoutAlertedAt guards against
+// re-notifying on every subsequent page load for the same still-open day.
+const MISSING_CHECKOUT_BUFFER_HOURS = 1; // grace beyond requiredHours before flagging
+
+async function detectMissingCheckout(employeeId) {
+  const now = new Date();
+  const openRecords = await prisma.attendanceRecord.findMany({
+    where: { employeeId, checkIn: { not: null }, checkOut: null, missingCheckoutAlertedAt: null },
+  });
+
+  for (const record of openRecords) {
+    const elapsedHours = (now.getTime() - record.checkIn.getTime()) / (1000 * 60 * 60);
+    if (elapsedHours <= record.requiredHours + MISSING_CHECKOUT_BUFFER_HOURS) continue;
+
+    await prisma.attendanceRecord.update({ where: { id: record.id }, data: { missingCheckoutAlertedAt: now } });
+    await createNotification({
+      employeeId,
+      type: "MISSING_CHECKOUT",
+      title: "Check-out Not Detected",
+      body: "Check-out not detected. Are you still working?",
+      linkType: "ATTENDANCE_RECORD",
+      linkId: record.id,
+    });
+  }
+}
+
+// POST /api/attendance/still-working — employee-only. Body: { recordId }.
+// Answers the "Are you still working?" prompt with Yes — an
+// acknowledgement/audit marker (spec §7), not itself a source of extra-
+// hours data; a real checkOut (next import, or a manual correction) is
+// still what the extra-hours calculation actually uses.
+export async function confirmStillWorking(req, res, next) {
+  try {
+    const record = await prisma.attendanceRecord.findUnique({ where: { id: req.body.recordId } });
+    if (!record || record.employeeId !== req.user.employeeId) {
+      return res.status(404).json({ error: "Attendance record not found" });
+    }
+    const updated = await prisma.attendanceRecord.update({
+      where: { id: record.id },
+      data: { stillWorkingConfirmedAt: new Date() },
+    });
+    res.json(updated);
+  } catch (err) {
+    next(err);
+  }
+}
+
 // GET /api/attendance/month?year=&month= — the current employee's own
 // attendance for one calendar month (defaults to the current month):
 // each day's record merged with that day's required-hours adjustments,
@@ -406,6 +527,10 @@ export async function getAttendanceMonth(req, res, next) {
     const now = new Date();
     const year = req.query.year ?? now.getFullYear();
     const month = req.query.month ?? now.getMonth() + 1; // 1-12
+    // Best-effort — an employee viewing their own attendance is the
+    // natural, frequent moment to catch a missing checkout (spec §7);
+    // never blocks/fails the page load if it errors.
+    await detectMissingCheckout(req.user.employeeId).catch(() => {});
     res.json(await buildMonthResponse(req.user.employeeId, year, month));
   } catch (err) {
     next(err);

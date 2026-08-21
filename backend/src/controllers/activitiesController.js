@@ -109,7 +109,7 @@ export async function listActivities(req, res, next) {
 
     const activities = await prisma.activity.findMany({
       where,
-      include: { images: true },
+      include: { images: true, countingAssignment: true },
       orderBy: { date: "desc" },
     });
 
@@ -140,7 +140,7 @@ export async function listActivitiesForMarket(req, res, next) {
 
     const activities = await prisma.activity.findMany({
       where,
-      include: { images: true, employee: { select: { id: true, name: true, employeeCode: true } } },
+      include: { images: true, countingAssignment: true, employee: { select: { id: true, name: true, employeeCode: true } } },
       orderBy: { date: "desc" },
     });
 
@@ -224,7 +224,17 @@ export async function getActivity(req, res, next) {
 // to DRAFT (not submitted yet) unless the caller explicitly sets PENDING.
 export async function createActivity(req, res, next) {
   try {
-    const { category, date, time, notes, status, imageUrls, productId, labelIssueType } = req.body;
+    const { category, date, time, notes, status, imageUrls, productId, labelIssueType, countingAssignmentId } = req.body;
+
+    // A submitted countingAssignmentId must actually belong to the
+    // submitting employee — never trust a client-supplied id blindly
+    // (same reasoning as every other cross-record reference in this app).
+    if (countingAssignmentId) {
+      const assignment = await prisma.countingAssignment.findUnique({ where: { id: countingAssignmentId } });
+      if (!assignment || assignment.employeeId !== req.user.employeeId) {
+        return res.status(400).json({ error: "This counting assignment does not belong to you" });
+      }
+    }
 
     const activity = await prisma.activity.create({
       data: {
@@ -235,10 +245,11 @@ export async function createActivity(req, res, next) {
         status,
         productId,
         labelIssueType,
+        countingAssignmentId,
         employeeId: req.user.employeeId,
         images: imageUrls?.length ? { create: imageUrls.map((url) => ({ url })) } : undefined,
       },
-      include: { images: true },
+      include: { images: true, countingAssignment: true },
     });
 
     res.status(201).json(activity);

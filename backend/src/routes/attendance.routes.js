@@ -15,6 +15,7 @@ import {
   listAttendanceAdjustmentRequestsForMarket,
   reviewAttendanceAdjustmentRequest,
   getAttendanceHistory,
+  confirmStillWorking,
 } from "../controllers/attendanceController.js";
 import { requireAuth, requireStaffRole, requireEmployeeAuth } from "../middleware/auth.js";
 import {
@@ -27,6 +28,7 @@ import {
   submitExtraHoursSchema,
   reviewAttendanceAdjustmentSchema,
   listAttendanceAdjustmentsQuerySchema,
+  confirmStillWorkingSchema,
 } from "../utils/validate.js";
 
 // Memory storage — the file is parsed (utils/attendanceExcel.js) and
@@ -105,5 +107,8 @@ router.post(
   validateBody(reviewAttendanceAdjustmentSchema),
   reviewAttendanceAdjustmentRequest
 );
+
+// Missing-checkout confirmation (spec §7 — "Are you still working?").
+router.post("/still-working", requireEmployeeAuth, validateBody(confirmStillWorkingSchema), confirmStillWorking);
 
 export default router;
