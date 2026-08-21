@@ -36,15 +36,24 @@ export const ACTIVITY_SUBMISSION_OPTIONS = [
   { category: "REFILLING", label: "Refilling" },
   { category: "PRODUCT_CUSTOMIZATION", label: "Submit Product Customization" },
   { category: "DAILY_CLEANING", label: "Report Daily Cleaning" },
-  { category: "ITEM_COUNTING", label: "Report Item Counting" },
 ];
 
 // Human-readable label for a category code, used anywhere an Activity is
 // displayed (history list, edit form) rather than just the submission grid.
-export const CATEGORY_LABELS = ACTIVITY_SUBMISSION_OPTIONS.reduce((map, o) => {
-  map[o.category] = o.label;
-  return map;
-}, {});
+// ITEM_COUNTING used to be a plain generic tile in ACTIVITY_SUBMISSION_OPTIONS
+// too, but Inventory Counting (spec §1-4) needs its own dedicated flow — a
+// department/area assignment with a verification indicator, not just a
+// bare notes+photo form — so it's a separate section in
+// WorkerActivityTab.jsx (InventoryCountingSection.jsx) instead. It's
+// added back in here explicitly since Activity History still renders
+// every category (including this one) through this same label map.
+export const CATEGORY_LABELS = {
+  ...ACTIVITY_SUBMISSION_OPTIONS.reduce((map, o) => {
+    map[o.category] = o.label;
+    return map;
+  }, {}),
+  ITEM_COUNTING: "Inventory Counting",
+};
 
 // CLEANING_CHECKLIST_ITEMS — the fixed cashier-station cleaning checklist
 // (Cashier role, Morning shift only — see CashierCleaningSection.jsx).

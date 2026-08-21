@@ -14,6 +14,14 @@ export function getAttendanceMonth({ year, month } = {}) {
   return apiRequest(`/attendance/month${query ? `?${query}` : ""}`);
 }
 
+// confirmStillWorking — answers the "Are you still working?" missing-
+// checkout prompt with Yes (spec §7). See attendanceController.js's own
+// comment: this is an acknowledgement, not itself a source of extra-hours
+// data — a real checkOut is still what the calculation actually uses.
+export function confirmStillWorking(recordId) {
+  return apiRequest("/attendance/still-working", { method: "POST", body: { recordId } });
+}
+
 // getPerformanceHistory — Attendance Rate for each of the last `months`
 // *completed* calendar months (current month is never included; see
 // backend/src/controllers/attendanceController.js for why).

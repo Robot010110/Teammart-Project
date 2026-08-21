@@ -4,6 +4,7 @@ import AttendanceSummaryCards from "./AttendanceSummaryCards";
 import AttendanceCalendar from "./AttendanceCalendar";
 import AttendanceHistoryList from "./AttendanceHistoryList";
 import SubmitExtraHoursModal from "./SubmitExtraHoursModal";
+import MissingCheckoutBanner from "./MissingCheckoutBanner";
 import ErrorBanner from "../common/ErrorBanner";
 import { SkeletonCard } from "../common/SkeletonCard";
 import MonthPager from "../common/MonthPager";
@@ -47,6 +48,8 @@ export default function AttendanceSection() {
 
   return (
     <div className="space-y-3">
+      <MissingCheckoutBanner />
+
       <div className="flex items-center justify-end">
         <MonthPager year={year} month={month} onChange={(y, m) => { setYear(y); setMonth(m); }} />
       </div>

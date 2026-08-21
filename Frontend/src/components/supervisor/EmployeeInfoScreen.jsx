@@ -4,6 +4,9 @@ import ErrorBanner from "../common/ErrorBanner";
 import { SkeletonCard } from "../common/SkeletonCard";
 import { assignDepartment } from "../../services/staffEmployeeService";
 import AssignCredentialsField from "./AssignCredentialsField";
+import CountingAssignmentField from "./CountingAssignmentField";
+import Toast from "../common/Toast";
+import { useToast } from "../../hooks/useToast";
 import { initialsOf } from "../../utils/initials";
 
 const EMPLOYMENT_STATUS_LABEL = { ACTIVE: "Active", INACTIVE: "Inactive", ON_LEAVE: "On Leave" };
@@ -65,6 +68,7 @@ function DepartmentField({ employeeId, department, onSaved }) {
 // (SupervisorEmployeeProfileRoute.jsx) and shared with the Attendance/
 // Tasks/History sub-routes so all four only ever fetch the employee once.
 export default function EmployeeInfoScreen({ employee, setEmployee, loading, error, reload, onBack, onOpenAttendance, onOpenTasks, onOpenHistory }) {
+  const [toast, setToast] = useToast();
   return (
     <div className="px-4 sm:px-6 py-6 max-w-4xl mx-auto animate-fade-up">
       <button type="button" onClick={onBack} className="flex items-center gap-1.5 text-sm text-[#9AA1B4] hover:text-white mb-4 -ml-1 py-1.5 px-1">
@@ -116,7 +120,18 @@ export default function EmployeeInfoScreen({ employee, setEmployee, loading, err
               department={employee.department}
               onSaved={(department) => setEmployee((prev) => ({ ...prev, department }))}
             />
+            <CountingAssignmentField
+              employee={employee}
+              onAssigned={(assignment) =>
+                setToast(
+                  assignment.needsVerification
+                    ? "Counting assignment saved — sent to the Regional/Zone Manager for verification."
+                    : "Counting assignment saved."
+                )
+              }
+            />
           </div>
+          <Toast message={toast} />
 
           <div className="mt-4 rounded-2xl bg-[#171C2E]/80 border border-white/[0.06] backdrop-blur-xl overflow-hidden divide-y divide-white/[0.06]">
             <button type="button" onClick={onOpenAttendance} className="w-full flex items-center gap-3 px-4 py-3.5 text-left hover:bg-white/[0.03] transition-colors">

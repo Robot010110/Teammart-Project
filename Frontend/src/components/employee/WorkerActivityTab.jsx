@@ -5,6 +5,7 @@ import ItemReportSection from "./ItemReportSection";
 import SimpleActivityTile from "./SimpleActivityTile";
 import ShelfLabelFlow from "./ShelfLabelFlow";
 import WastedOverallFlow from "./WastedOverallFlow";
+import InventoryCountingSection from "./InventoryCountingSection";
 import ActivityStatusPill from "../common/ActivityStatusPill";
 import ErrorBanner from "../common/ErrorBanner";
 import { SkeletonCard } from "../common/SkeletonCard";
@@ -90,6 +91,11 @@ export default function WorkerActivityTab() {
           </div>
           <ChevronRight size={18} className="text-[#4C5266]" />
         </button>
+      </section>
+
+      <section className="mt-6">
+        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-[#8B93A8]">Inventory Counting</h2>
+        <InventoryCountingSection />
       </section>
 
       <section className="mt-6">
