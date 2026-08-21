@@ -12,6 +12,7 @@ import RmEmployeesPage from "./RmEmployeesPage";
 import RmChatPage from "./RmChatPage";
 import RmTotalSalesPage from "./RmTotalSalesPage";
 import RmCardSalesPage from "./RmCardSalesPage";
+import RmSettingsPage from "./RmSettingsPage";
 
 const BASE_PATH = "/rm";
 
@@ -34,6 +35,7 @@ const BASE_PATH = "/rm";
 //   /rm/markets/:marketId/employees/:employeeId/chat
 //   /rm/employees
 //   /rm/chat, /rm/chat/:conversationId
+//   /rm/settings
 export default function RegionalManagerWorkspace({ session, onLogout }) {
   return (
     <Routes>
@@ -51,13 +53,14 @@ export default function RegionalManagerWorkspace({ session, onLogout }) {
         <Route path="employees" element={<RmEmployeesPage />} />
         <Route path="chat" element={<RmChatPage session={session} />} />
         <Route path="chat/:conversationId" element={<RmChatPage session={session} />} />
+        <Route path="settings" element={<RmSettingsPage onLogout={onLogout} />} />
         <Route path="*" element={<Navigate to="profile" replace />} />
       </Route>
     </Routes>
   );
 }
 
-const NAV_KEY_TO_PATH = { dashboard: "profile", markets: "markets", employees: "employees", chat: "chat" };
+const NAV_KEY_TO_PATH = { dashboard: "profile", markets: "markets", employees: "employees", chat: "chat", settings: "settings" };
 
 function RmShell({ session, onLogout }) {
   const navigate = useNavigate();

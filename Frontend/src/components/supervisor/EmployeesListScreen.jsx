@@ -57,9 +57,13 @@ export default function EmployeesListScreen({ session, basePath }) {
                 <p className="text-sm font-medium text-white truncate">{e.name}</p>
                 <p className="text-xs text-[#8B93A8]">{ROLE_LABEL[e.role] || e.role} · {e.position}</p>
               </div>
-              <span className={`text-[11px] font-medium shrink-0 ${STATUS_TONE[e.employmentStatus] || "text-[#9AA1B4]"}`}>
-                {STATUS_LABEL[e.employmentStatus] || e.employmentStatus}
-              </span>
+              {!e.employeeCode && !e.username ? (
+                <span className="text-[11px] font-medium shrink-0 text-amber-400">Pending Login</span>
+              ) : (
+                <span className={`text-[11px] font-medium shrink-0 ${STATUS_TONE[e.employmentStatus] || "text-[#9AA1B4]"}`}>
+                  {STATUS_LABEL[e.employmentStatus] || e.employmentStatus}
+                </span>
+              )}
               <ChevronRight size={16} className="text-[#4C5266] shrink-0" />
             </button>
           ))}

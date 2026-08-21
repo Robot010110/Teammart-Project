@@ -32,6 +32,15 @@ export function getEmployee(id) {
   return apiRequest(`/employees/${id}`);
 }
 
+// updateEmployee — also how a staff member activates a "pending" hire
+// (spec §4/§7: an employee created without an employeeCode/username/
+// password yet). payload may include any of { name, position,
+// secondaryRole, shift, marketId, employeeCode, username, password } —
+// only the keys present are changed (see employeesController.updateEmployee).
+export function updateEmployee(id, payload) {
+  return apiRequest(`/employees/${id}`, { method: "PATCH", body: payload });
+}
+
 export function assignDepartment(employeeId, department) {
   return apiRequest(`/employees/${employeeId}/department`, { method: "POST", body: { department } });
 }

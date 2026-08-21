@@ -3,6 +3,7 @@ import { ArrowLeft, BadgeCheck, Briefcase, Clock, CircleDot, Pencil, Check, Load
 import ErrorBanner from "../common/ErrorBanner";
 import { SkeletonCard } from "../common/SkeletonCard";
 import { assignDepartment } from "../../services/staffEmployeeService";
+import AssignCredentialsField from "./AssignCredentialsField";
 import { initialsOf } from "../../utils/initials";
 
 const EMPLOYMENT_STATUS_LABEL = { ACTIVE: "Active", INACTIVE: "Inactive", ON_LEAVE: "On Leave" };
@@ -92,7 +93,7 @@ export default function EmployeeInfoScreen({ employee, setEmployee, loading, err
             </div>
 
             <div className="mt-4 grid grid-cols-2 gap-x-4 gap-y-2 text-xs text-[#9AA1B4]">
-              <span className="flex items-center gap-1.5"><BadgeCheck size={13} /> {employee.employeeCode}</span>
+              {employee.employeeCode && <span className="flex items-center gap-1.5"><BadgeCheck size={13} /> {employee.employeeCode}</span>}
               {employee.username && <span className="flex items-center gap-1.5"><BadgeCheck size={13} /> {employee.username}</span>}
               {employee.shift && <span className="flex items-center gap-1.5"><Clock size={13} /> {employee.shift}</span>}
               {employee.cashierShift && <span className="flex items-center gap-1.5"><Clock size={13} /> {employee.cashierShift}</span>}
@@ -103,7 +104,13 @@ export default function EmployeeInfoScreen({ employee, setEmployee, loading, err
             </div>
           </section>
 
-          <div className="mt-4">
+          <div className="mt-4 space-y-3">
+            {!employee.employeeCode && !employee.username && (
+              <AssignCredentialsField
+                employee={employee}
+                onSaved={(updated) => setEmployee((prev) => ({ ...prev, ...updated }))}
+              />
+            )}
             <DepartmentField
               employeeId={employee.id}
               department={employee.department}
