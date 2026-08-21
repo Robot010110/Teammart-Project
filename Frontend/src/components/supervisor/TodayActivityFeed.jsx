@@ -268,7 +268,17 @@ function FeedItemDetail({ item, onReviewed }) {
       {kind === "EXTRA_HOURS" && (
         <>
           {row("Date worked", new Date(raw.date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }))}
-          {row("Hours", raw.hours)}
+          {row("Employee declared", `${raw.hours}h`)}
+          {/* Extra Hours spec §8: compare the declaration against the real
+              attendance-derived figure for that same date — the
+              attendance record stays the primary source of truth; this
+              is shown for the reviewer to compare, not to auto-decide. */}
+          {row(
+            "Attendance record shows",
+            raw.hasAttendanceRecord
+              ? `${raw.attendanceExtraHours?.toFixed(2)}h extra`
+              : "No attendance record for this date yet"
+          )}
           {row("Status", raw.status)}
           {row("Reason", raw.reason)}
           {row("Review note", raw.reviewNote)}

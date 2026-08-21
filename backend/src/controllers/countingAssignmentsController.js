@@ -154,17 +154,20 @@ export async function verifyCountingAssignment(req, res, next) {
   }
 }
 
-// GET /api/counting-assignments/market?marketId=&pending=true — staff-
-// only. `pending=true` narrows to cross-department assignments still
-// awaiting verification — the Regional/Zone Manager's review queue.
+// GET /api/counting-assignments/market?marketId=&pending=true&employeeId=
+// — staff-only. `pending=true` narrows to cross-department assignments
+// still awaiting verification — the Regional/Zone Manager's review
+// queue. `employeeId` narrows to one employee's own assignment history —
+// spec §10's audit trail (RmEmployeeProfile.jsx).
 export async function listCountingAssignmentsForMarket(req, res, next) {
   try {
-    const { pending } = req.query;
+    const { pending, employeeId } = req.query;
     const marketId = req.query.marketId ?? req.user.marketId;
     if (!marketId) return res.status(400).json({ error: "marketId is required" });
     await assertMarketAccess(req.user, marketId);
 
     const where = { employee: { marketId } };
+    if (employeeId) where.employeeId = employeeId;
     if (pending === "true") where.verifiedAt = null;
 
     const assignments = await prisma.countingAssignment.findMany({

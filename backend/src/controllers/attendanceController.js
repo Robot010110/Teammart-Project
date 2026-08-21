@@ -808,7 +808,41 @@ export async function listAttendanceAdjustmentRequestsForMarket(req, res, next) 
       include: { employee: { select: { id: true, name: true, employeeCode: true } } },
       orderBy: { createdAt: "desc" },
     });
-    res.json(requests);
+
+    // Extra Hours spec §8: "compare the employee's declaration against
+    // the actual attendance records... the attendance record remains the
+    // primary source of truth." Attaches what computeExtraHours() would
+    // derive from that SAME date's real AttendanceRecord (if one
+    // exists), purely for the reviewer to compare side by side — this
+    // never overrides or feeds into the declaration itself.
+    let recordByEmployeeAndDate = new Map();
+    if (requests.length > 0) {
+      const dates = requests.map((r) => r.date.getTime());
+      // +/- 1 day of buffer: AttendanceAdjustmentRequest.date and
+      // AttendanceRecord.date are normalized to "midnight" by two
+      // different call sites (submitExtraHours vs. the Excel import),
+      // which can land on a different UTC instant for the same real
+      // calendar day depending on server timezone — matching is done by
+      // the UTC calendar-date STRING below, this range is just a cheap
+      // pre-filter and must not be tighter than a day on either side or
+      // it can exclude the very row it's looking for.
+      const DAY_MS = 24 * 60 * 60 * 1000;
+      const records = await prisma.attendanceRecord.findMany({
+        where: {
+          employeeId: { in: [...new Set(requests.map((r) => r.employeeId))] },
+          date: { gte: new Date(Math.min(...dates) - DAY_MS), lte: new Date(Math.max(...dates) + DAY_MS) },
+        },
+      });
+      recordByEmployeeAndDate = new Map(records.map((r) => [`${r.employeeId}|${r.date.toISOString().slice(0, 10)}`, r]));
+    }
+
+    const shaped = requests.map((r) => {
+      const key = `${r.employeeId}|${r.date.toISOString().slice(0, 10)}`;
+      const record = recordByEmployeeAndDate.get(key);
+      return { ...r, attendanceExtraHours: record ? computeExtraHours(record) : null, hasAttendanceRecord: !!record };
+    });
+
+    res.json(shaped);
   } catch (err) {
     next(err);
   }

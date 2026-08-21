@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import {
   MessageCircle, ChevronLeft, ChevronRight, Sparkles, PackageX, ClipboardList,
-  CalendarCheck, Phone, Image as ImageIcon,
+  CalendarCheck, Phone, Image as ImageIcon, Clock3, MapPin,
 } from "lucide-react";
 import Breadcrumb from "../components/layout/Breadcrumb";
 import Modal from "../components/common/Modal";
@@ -10,11 +10,12 @@ import { SkeletonCard } from "../components/common/SkeletonCard";
 import ActivityStatusPill from "../components/common/ActivityStatusPill";
 import { useAsync } from "../hooks/useAsync";
 import { getEmployee } from "../services/staffEmployeeService";
-import { getEmployeeAttendanceMonth } from "../services/attendanceService";
+import { getEmployeeAttendanceMonth, listExtraHoursRequestsForMarket } from "../services/attendanceService";
 import { listActivitiesForMarket } from "../services/activityService";
 import { listItemReportsForMarket } from "../services/itemReportService";
 import { listWastedOverallReportsForMarket } from "../services/wastedOverallService";
 import { listSuddenTasks } from "../services/suddenTaskService";
+import { listCountingAssignmentsForMarket } from "../services/countingAssignmentService";
 
 const CATEGORY_LABEL = {
   EXPIRED_ITEMS: "expired items", SHELF_CLEANING: "shelf cleaning", PRODUCT_CUSTOMIZATION: "product customization",
@@ -57,11 +58,13 @@ export default function RmEmployeeProfile({ marketId, employeeId, onBack, onOpen
 
   const { data: events, error: eventsError, loading: eventsLoading } = useAsync(
     async () => {
-      const [activities, itemReports, wasted, tasks] = await Promise.all([
+      const [activities, itemReports, wasted, tasks, extraHours, countingAssignments] = await Promise.all([
         listActivitiesForMarket({ marketId, employeeId }),
         listItemReportsForMarket({ marketId, employeeId }),
         listWastedOverallReportsForMarket({ marketId, employeeId }),
         listSuddenTasks({ employeeId, status: "COMPLETED" }),
+        listExtraHoursRequestsForMarket({ marketId, employeeId }),
+        listCountingAssignmentsForMarket({ marketId, employeeId }),
       ]);
 
       return [
@@ -100,6 +103,35 @@ export default function RmEmployeeProfile({ marketId, employeeId, onBack, onOpen
           status: "APPROVED",
           timestamp: t.completedAt ?? t.assignedAt,
           images: t.evidenceUrl ? [t.evidenceUrl] : [],
+        })),
+        // Extra Hours spec §10: "Related tasks... Reasons for additional
+        // hours" belongs in this same audit-trail timeline, not a
+        // separate screen.
+        ...extraHours.map((r) => ({
+          id: `extra-hours-${r.id}`,
+          icon: Clock3,
+          title: `Declared ${r.hours} extra hour${r.hours === 1 ? "" : "s"}`,
+          subtitle:
+            (r.reason ? `${r.reason} — ` : "") +
+            (r.hasAttendanceRecord ? `attendance shows ${r.attendanceExtraHours?.toFixed(2)}h` : "no attendance record for that date"),
+          status: r.status,
+          timestamp: r.createdAt,
+          images: [],
+        })),
+        // Inventory Counting spec §10: "Inventory-counting assignments"
+        // is one of the review items the spec explicitly lists.
+        ...countingAssignments.map((a) => ({
+          id: `counting-${a.id}`,
+          icon: MapPin,
+          title: `Assigned to count ${a.assignedDepartment}${a.countingArea ? ` — ${a.countingArea}` : ""}`,
+          subtitle: a.needsVerification
+            ? a.verifiedAt
+              ? `Verified by ${a.verifiedBy?.name ?? "Regional/Zone Manager"}`
+              : "Awaiting Regional/Zone Manager verification"
+            : `Assigned by ${a.assignedBy?.name ?? "Supervisor"}`,
+          status: a.needsVerification ? (a.verifiedAt ? "APPROVED" : "PENDING") : "APPROVED",
+          timestamp: a.createdAt,
+          images: [],
         })),
       ];
     },
@@ -156,9 +188,10 @@ export default function RmEmployeeProfile({ marketId, employeeId, onBack, onOpen
       </div>
 
       {attendance && (
-        <div className="mt-4 grid grid-cols-3 gap-3">
+        <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-3">
           <StatChip icon={CalendarCheck} label="Attendance Rate" value={attendance.summary.attendanceRate != null ? `${Math.round(attendance.summary.attendanceRate)}%` : "—"} />
           <StatChip icon={ClipboardList} label="Hours Worked" value={`${attendance.summary.totalHoursWorked.toFixed(1)}h`} />
+          <StatChip icon={Clock3} label="Extra Hours (attendance)" value={`${attendance.summary.extraHours.toFixed(1)}h`} />
           <StatChip icon={ClipboardList} label="Days Off" value={attendance.summary.daysOff} />
         </div>
       )}

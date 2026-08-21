@@ -756,6 +756,7 @@ export const createCountingAssignmentSchema = z.object({
 export const listCountingAssignmentsQuerySchema = z.object({
   marketId: z.string().min(1).optional(),
   pending: z.enum(["true", "false"]).optional(),
+  employeeId: z.string().min(1).optional(),
 });
 
 // ---------------------------------------------------------------------
