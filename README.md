@@ -98,6 +98,13 @@ Fix: make sure `Frontend/.env` matches `Frontend/.env.example`
 restart `npm run dev` — Vite only reads `.env` at dev-server startup, so
 editing it while the server is running has no effect until you restart.
 
+After restarting the dev server, also **hard-refresh the browser tab**
+(Ctrl+Shift+R, or close and reopen it). `VITE_API_URL` is baked into the
+JS as a plain string when the browser loads the module — a tab that was
+already open before you fixed `.env` and restarted the server keeps
+running that old already-executed code until it's reloaded, even though
+the server itself is now serving the corrected value.
+
 ## Current project status
 
 The **Employee** (Worker + Cashier) and **Supervisor** roles are fully
