@@ -84,6 +84,20 @@ The frontend expects the backend to be running at the URL in its `.env`
 |---|---|
 | `VITE_API_URL` | Base URL of the backend API (default `http://localhost:4000/api`) |
 
+### Troubleshooting: "Could not reach the server"
+
+This message comes from `Frontend/src/services/apiClient.js` when the
+browser's `fetch()` throws before any HTTP response comes back — i.e. it
+never reached the backend at all. It is not a backend, CORS, Prisma, or
+auth bug; it means `VITE_API_URL` in `Frontend/.env` is pointing somewhere
+unreachable (most commonly a stale LAN IP left over from testing on
+another device on the network, e.g. `http://192.168.x.x:4000/api`).
+
+Fix: make sure `Frontend/.env` matches `Frontend/.env.example`
+(`VITE_API_URL=http://localhost:4000/api`) for local development, then
+restart `npm run dev` — Vite only reads `.env` at dev-server startup, so
+editing it while the server is running has no effect until you restart.
+
 ## Current project status
 
 The **Employee** (Worker + Cashier) and **Supervisor** roles are fully
