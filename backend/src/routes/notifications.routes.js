@@ -3,6 +3,8 @@ import {
   listMyNotifications,
   markNotificationRead,
   markAllNotificationsRead,
+  deleteNotification,
+  deleteAllNotifications,
 } from "../controllers/notificationsController.js";
 import { requireAuth } from "../middleware/auth.js";
 
@@ -17,5 +19,7 @@ router.use(requireAuth);
 router.get("/", listMyNotifications);
 router.patch("/:id/read", markNotificationRead);
 router.patch("/read-all", markAllNotificationsRead);
+router.delete("/:id", deleteNotification);
+router.delete("/", deleteAllNotifications);
 
 export default router;

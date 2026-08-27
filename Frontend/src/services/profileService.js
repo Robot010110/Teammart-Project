@@ -18,6 +18,14 @@ export function updateMyWhatsApp(whatsappNumber) {
   return apiRequest("/profile", { method: "PATCH", body: { whatsappNumber } });
 }
 
+// updateMyPhoneNumber — Repair Pass §3: Supervisor (and any staff
+// account, since PATCH /api/profile is the one shared endpoint) self-
+// service phone number. Same normalize-then-validate convention as
+// updateMyWhatsApp above.
+export function updateMyPhoneNumber(phoneNumber) {
+  return apiRequest("/profile", { method: "PATCH", body: { phoneNumber } });
+}
+
 // updateMyProfilePhoto — same PATCH /api/profile endpoint, own-account-
 // only (backend derives the target from the auth token, never trusts an
 // id from the client — see profileController.updateMyProfile). `url` is

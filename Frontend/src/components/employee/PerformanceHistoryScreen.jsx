@@ -1,15 +1,30 @@
-import { ArrowLeft, TrendingUp, CheckCircle2, XCircle, HourglassIcon } from "lucide-react";
+import { ArrowLeft, TrendingUp, CheckCircle2, XCircle, HourglassIcon, Clock3, PackageX } from "lucide-react";
 import ErrorBanner from "../common/ErrorBanner";
 import { SkeletonCard } from "../common/SkeletonCard";
 import Toast from "../common/Toast";
+import ActivityStatusPill from "../common/ActivityStatusPill";
 import TaskStatusTabs from "../workspace/TaskStatusTabs";
 import SubmitTaskModal from "../workspace/SubmitTaskModal";
 import { getPerformanceSummary, getActivityPerformanceHistory, listActivities, deleteActivity } from "../../services/activityService";
+import { listMyExtraHoursRequests } from "../../services/attendanceService";
+import { listMyWastedOverallReports } from "../../services/wastedOverallService";
 import { ApiError } from "../../services/apiClient";
 import { canEditActivity, canDeleteActivity } from "../../data/activityRules";
 import { useAsync } from "../../hooks/useAsync";
 import { useToast } from "../../hooks/useToast";
 import { useState } from "react";
+
+const WASTED_ITEM_LABEL = { EGGS: "Eggs", TOMATO: "Tomato", POTATO: "Potato", CUCUMBER: "Cucumber", ONION: "Onion", OTHER: "Other" };
+function wastedItemLabel(report) {
+  if (report.item === "OTHER" && report.otherItemName) return report.otherItemName;
+  return WASTED_ITEM_LABEL[report.item] || report.item;
+}
+function wastedQuantityLabel(report) {
+  return report.item === "EGGS" ? `${report.quantityCount} egg${report.quantityCount === 1 ? "" : "s"}` : `${report.quantityKg}kg`;
+}
+function shortDateLabel(iso) {
+  return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
 
 const MONTH_NAMES = [
   "January", "February", "March", "April", "May", "June",
@@ -78,6 +93,24 @@ export default function PerformanceHistoryScreen({ onBack }) {
     loading: activitiesLoading,
     reload: loadActivities,
   } = useAsync(listActivities, { fallbackError: "Could not load your activities." });
+  // Extra Hours requests and Wasted Overall reports move here once a
+  // Supervisor decides them (Approved/Rejected) — they leave Attendance
+  // History / the Activity tab's own preview immediately at that point
+  // (see AttendanceHistoryList.jsx/WorkerActivityTab.jsx) and are only
+  // ever shown from here on. Both endpoints already return every one of
+  // the employee's own requests/reports regardless of status (same "fetch
+  // once, filter by tab client-side" convention TaskStatusTabs above
+  // already uses for Activities) — filtered to decided-only below.
+  const { data: extraHoursRequests, error: extraHoursError, loading: extraHoursLoading, reload: loadExtraHours } = useAsync(
+    listMyExtraHoursRequests,
+    { fallbackError: "Could not load your Extra Hours requests." }
+  );
+  const { data: wastedOverallReports, error: wastedOverallError, loading: wastedOverallLoading, reload: loadWastedOverall } = useAsync(
+    listMyWastedOverallReports,
+    { fallbackError: "Could not load your Wasted Overall reports." }
+  );
+  const decidedExtraHours = (extraHoursRequests ?? []).filter((r) => r.status !== "PENDING");
+  const decidedWastedOverall = (wastedOverallReports ?? []).filter((r) => r.status !== "PENDING");
 
   const [editingActivity, setEditingActivity] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
@@ -205,6 +238,67 @@ export default function PerformanceHistoryScreen({ onBack }) {
             {!activitiesLoading && activitiesError && <ErrorBanner message={activitiesError} onRetry={loadActivities} />}
             {!activitiesLoading && !activitiesError && activities && (
               <TaskStatusTabs activities={activities} onEdit={handleEdit} onDelete={handleDelete} deletingId={deletingId} />
+            )}
+          </section>
+
+          <section className="mt-6">
+            <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-[#8B93A8]">Extra Hours</h2>
+            {extraHoursLoading ? (
+              <SkeletonCard className="h-[100px]" />
+            ) : extraHoursError ? (
+              <ErrorBanner message={extraHoursError} onRetry={loadExtraHours} />
+            ) : decidedExtraHours.length === 0 ? (
+              <p className="text-sm text-[#4C5266] text-center py-6">No decided Extra Hours requests yet.</p>
+            ) : (
+              <div className="space-y-2">
+                {decidedExtraHours.map((r) => (
+                  <div key={r.id} className="flex items-start gap-2.5 rounded-xl p-3 bg-[#1A1F33]/70 border border-white/[0.06]">
+                    <span className="w-8 h-8 shrink-0 rounded-lg bg-[#F47A20]/10 flex items-center justify-center text-[#F47A20]">
+                      <Clock3 size={14} />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-sm text-white">Extra Work — {r.hours}h</p>
+                        <ActivityStatusPill status={r.status} />
+                      </div>
+                      <p className="mt-0.5 text-[11px] text-[#8B93A8]">
+                        {shortDateLabel(r.date)}{r.reason ? ` · ${r.reason}` : ""}
+                      </p>
+                      {r.status === "REJECTED" && r.reviewNote && (
+                        <p className="mt-1 text-[11px] text-red-400">{r.reviewNote}</p>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+
+          <section className="mt-6">
+            <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-[#8B93A8]">Wasted Overall</h2>
+            {wastedOverallLoading ? (
+              <SkeletonCard className="h-[100px]" />
+            ) : wastedOverallError ? (
+              <ErrorBanner message={wastedOverallError} onRetry={loadWastedOverall} />
+            ) : decidedWastedOverall.length === 0 ? (
+              <p className="text-sm text-[#4C5266] text-center py-6">No decided Wasted Overall reports yet.</p>
+            ) : (
+              <div className="space-y-2">
+                {decidedWastedOverall.map((r) => (
+                  <div key={r.id} className="flex items-start gap-2.5 rounded-xl p-3 bg-[#1A1F33]/70 border border-white/[0.06]">
+                    <span className="w-8 h-8 shrink-0 rounded-lg bg-[#F47A20]/10 flex items-center justify-center text-[#F47A20]">
+                      <PackageX size={14} />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-sm text-white">{wastedItemLabel(r)} — {wastedQuantityLabel(r)}</p>
+                        <ActivityStatusPill status={r.status} />
+                      </div>
+                      <p className="mt-0.5 text-[11px] text-[#8B93A8]">{shortDateLabel(r.reportedAt)}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
             )}
           </section>
         </>

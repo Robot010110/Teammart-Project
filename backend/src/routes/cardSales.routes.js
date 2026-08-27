@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { submitCardSales, getCardSalesDay, listCardSalesHistory } from "../controllers/cardSalesController.js";
+import { submitCardSales, getCardSalesDay, listCardSalesHistory, deleteCardSalesReport } from "../controllers/cardSalesController.js";
 import { requireAuth, requireStaffRole } from "../middleware/auth.js";
 import {
   validateBody,
@@ -16,5 +16,6 @@ router.use(requireAuth, requireStaffRole("SUPERVISOR", "OVERLOOKING_SUPERVISOR",
 router.post("/", requireStaffRole("SUPERVISOR", "OVERLOOKING_SUPERVISOR"), validateBody(submitCardSalesSchema), submitCardSales);
 router.get("/day", validateQuery(cardSalesDayQuerySchema), getCardSalesDay);
 router.get("/history", validateQuery(cardSalesHistoryQuerySchema), listCardSalesHistory);
+router.delete("/:id", deleteCardSalesReport);
 
 export default router;

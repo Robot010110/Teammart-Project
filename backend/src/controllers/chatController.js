@@ -1,6 +1,6 @@
 import { prisma } from "../lib/prisma.js";
 import { assertMarketAccess, assertZoneAccess, staffCanAccessMarket, requireAccessibleEmployee } from "../middleware/auth.js";
-import { createNotification, createNotificationForUser, createNotificationForMarket } from "../utils/notifications.js";
+import { createNotification, createNotificationForUser, createNotificationForMarket, createNotificationForZone } from "../utils/notifications.js";
 
 // chatController.js — market-scoped chat: one Market Group conversation,
 // one Warnings (supervisor-announcement, employee-read-only) conversation,
@@ -10,11 +10,45 @@ import { createNotification, createNotificationForUser, createNotificationForMar
 
 // Group/Warnings conversations are found-or-created rather than relying
 // on a DB constraint alone (see the schema.prisma comment on
-// ConversationType) — this is the one place that logic lives.
-async function findOrCreateChannel(marketId, type) {
+// ConversationType) — this is the one place that logic lives. Exported
+// for marketManagementController.js's Department Report posting (Phase
+// 2 §21) — the report is posted into the market's own existing
+// MARKET_GROUP conversation, not a new/invented "Zone group".
+export async function findOrCreateChannel(marketId, type) {
   const existing = await prisma.conversation.findFirst({ where: { marketId, type } });
   if (existing) return existing;
   return prisma.conversation.create({ data: { marketId, type } });
+}
+
+// Production Chat §6-8 — the zone-level counterpart to findOrCreateChannel
+// (ZONE_GROUP/ZONE_ANNOUNCEMENTS, marketId stays null, zoneId is set).
+// Same "found-or-created, not a DB constraint" convention as the market
+// channels above.
+export async function findOrCreateZoneChannel(zoneId, type) {
+  const existing = await prisma.conversation.findFirst({ where: { zoneId, type } });
+  if (existing) return existing;
+  return prisma.conversation.create({ data: { zoneId, type } });
+}
+
+// Zone membership for General Zone / Zone Announcements — every employee
+// whose market is in the zone, every Supervisor/Overlooking of a market in
+// the zone, and the zone's own Regional Manager(s). Shared by
+// conversationAccessFor and the zone-channel list-building below so
+// "who's in this zone chat" is decided in exactly one place.
+async function isZoneMember(user, zoneId) {
+  if (user.kind === "employee") {
+    const market = await prisma.market.findUnique({ where: { id: user.marketId }, select: { zoneId: true } });
+    return market?.zoneId === Number(zoneId);
+  }
+  if (user.role === "ADMIN") return true;
+  if (user.role === "REGIONAL_MANAGER") {
+    return (user.zoneIds ?? []).some((id) => String(id) === String(zoneId));
+  }
+  if (user.role === "SUPERVISOR" || user.role === "OVERLOOKING_SUPERVISOR") {
+    const market = await prisma.market.findUnique({ where: { id: user.marketId }, select: { zoneId: true } });
+    return market?.zoneId === Number(zoneId);
+  }
+  return false;
 }
 
 function directPair(employeeIdA, employeeIdB) {
@@ -25,13 +59,27 @@ function directPair(employeeIdA, employeeIdB) {
     : { participantAId: employeeIdB, participantBId: employeeIdA };
 }
 
+// Phase 3 — the STAFF_DIRECT equivalent of directPair, for a real 1:1
+// between two staff accounts (e.g. a Regional Manager and an Admin).
+// Same consistent-ordering trick so the same pair always resolves to one
+// conversation regardless of who initiates.
+function staffDirectPair(userIdA, userIdB) {
+  return userIdA < userIdB
+    ? { staffParticipantId: userIdA, staffParticipantBId: userIdB }
+    : { staffParticipantId: userIdB, staffParticipantBId: userIdA };
+}
+
 // Returns the conversation if `user` (an Employee OR a staff User token)
 // may access it, otherwise null. Shared by every route below that takes
 // a :id — this is the ONE place message/read access is decided, for both
 // account kinds, so an Employee and a Supervisor sharing a
 // SUPERVISOR_DIRECT conversation are checked by the exact same function
 // instead of two parallel (and possibly inconsistent) code paths.
-async function conversationAccessFor(user, conversationId) {
+// Exported for utils/fileAuthorization.js — a chat attachment's read
+// access is "are you a member of this conversation", which is exactly
+// what this function already answers; reusing it there means chat file
+// authorization never drifts from chat message authorization.
+export async function conversationAccessFor(user, conversationId) {
   const conversation = await prisma.conversation.findUnique({ where: { id: conversationId } });
   if (!conversation) return null;
 
@@ -49,11 +97,18 @@ async function conversationAccessFor(user, conversationId) {
       });
       return membership ? conversation : null;
     }
+    if (conversation.type === "ZONE_GROUP" || conversation.type === "ZONE_ANNOUNCEMENTS") {
+      return (await isZoneMember(user, conversation.zoneId)) ? conversation : null;
+    }
     // MARKET_GROUP / WARNINGS — any employee of that market can read.
     return user.marketId === conversation.marketId ? conversation : null;
   }
 
   if (user.kind === "staff") {
+    if (conversation.type === "STAFF_DIRECT") {
+      const isParticipant = conversation.staffParticipantId === user.userId || conversation.staffParticipantBId === user.userId;
+      return isParticipant ? conversation : null;
+    }
     if (conversation.type === "SUPERVISOR_DIRECT" || conversation.type === "RM_DIRECT") {
       return conversation.staffParticipantId === user.userId ? conversation : null;
     }
@@ -72,11 +127,259 @@ async function conversationAccessFor(user, conversationId) {
       const allowed = await staffCanAccessMarket(user, conversation.marketId);
       return allowed === true ? conversation : null;
     }
+    if (conversation.type === "ZONE_GROUP" || conversation.type === "ZONE_ANNOUNCEMENTS") {
+      return (await isZoneMember(user, conversation.zoneId)) ? conversation : null;
+    }
     // Staff never touches an Employee<->Employee DIRECT conversation.
     return null;
   }
 
   return null;
+}
+
+// Production Chat §14-15 — the single source of truth for "can THIS
+// message legitimately mention THAT account", reused by both sendMessage/
+// editMessage (to decide what actually gets persisted as a
+// MessageMention) and listMentionCandidates (the composer's @ autocomplete
+// list) so the two can never drift. A display name is never the
+// identifier — only a real employeeId/userId, re-checked against the
+// conversation's actual membership, never trusted from the request.
+async function isValidMentionTarget(conversation, { employeeId, userId }) {
+  if (employeeId) {
+    const employee = await prisma.employee.findUnique({ where: { id: employeeId }, select: { id: true, marketId: true } });
+    if (!employee) return false;
+    if (conversation.type === "MARKET_GROUP" || conversation.type === "WARNINGS") {
+      return employee.marketId === conversation.marketId;
+    }
+    if (conversation.type === "ZONE_GROUP" || conversation.type === "ZONE_ANNOUNCEMENTS") {
+      const market = await prisma.market.findUnique({ where: { id: employee.marketId }, select: { zoneId: true } });
+      return market?.zoneId === conversation.zoneId;
+    }
+    if (conversation.type === "DIRECT") {
+      return conversation.participantAId === employee.id || conversation.participantBId === employee.id;
+    }
+    if (conversation.type === "SUPERVISOR_DIRECT" || conversation.type === "RM_DIRECT") {
+      return conversation.participantAId === employee.id;
+    }
+    if (conversation.type === "CUSTOM_GROUP") {
+      const membership = await prisma.conversationMember.findUnique({
+        where: { conversationId_employeeId: { conversationId: conversation.id, employeeId: employee.id } },
+      });
+      return !!membership;
+    }
+    return false;
+  }
+
+  if (userId) {
+    if (conversation.type === "STAFF_DIRECT") {
+      return conversation.staffParticipantId === userId || conversation.staffParticipantBId === userId;
+    }
+    if (conversation.type === "SUPERVISOR_DIRECT" || conversation.type === "RM_DIRECT") {
+      return conversation.staffParticipantId === userId;
+    }
+    if (conversation.type === "CUSTOM_GROUP") {
+      const membership = await prisma.conversationMember.findFirst({ where: { conversationId: conversation.id, userId } });
+      return !!membership;
+    }
+    if (conversation.type === "MARKET_GROUP" || conversation.type === "WARNINGS") {
+      return staffMentionEligible(userId, { marketId: conversation.marketId });
+    }
+    if (conversation.type === "ZONE_GROUP" || conversation.type === "ZONE_ANNOUNCEMENTS") {
+      return staffMentionEligible(userId, { zoneId: conversation.zoneId });
+    }
+    return false;
+  }
+
+  return false;
+}
+
+// Mirrors staffCanAccessMarket/isZoneMember's own read-access rules, just
+// evaluated for the TARGET user id rather than the acting req.user — a
+// mention must only ever be valid for someone who could actually open
+// this conversation. Fixes the earlier version of this file, which only
+// allowed mentioning a market's own Supervisor/Overlooking (never the
+// Admin or zone's Regional Manager who can also legitimately read a
+// Market Group/Zone chat) — an under-privilege bug, not a leak, but a
+// real inconsistency with conversationAccessFor.
+async function staffMentionEligible(targetUserId, { marketId, zoneId }) {
+  const target = await prisma.user.findUnique({
+    where: { id: targetUserId },
+    select: {
+      role: true,
+      managedMarket: { select: { id: true, zoneId: true } },
+      managedOverlookingMarket: { select: { id: true, zoneId: true } },
+      managedZones: { select: { id: true } },
+    },
+  });
+  if (!target) return false;
+  if (target.role === "ADMIN") return true;
+
+  const targetMarket = target.managedMarket ?? target.managedOverlookingMarket ?? null;
+
+  if (marketId) {
+    if (target.role === "SUPERVISOR" || target.role === "OVERLOOKING_SUPERVISOR") return targetMarket?.id === marketId;
+    if (target.role === "REGIONAL_MANAGER") {
+      const market = await prisma.market.findUnique({ where: { id: marketId }, select: { zoneId: true } });
+      return target.managedZones.some((z) => z.id === market?.zoneId);
+    }
+    return false;
+  }
+  if (zoneId) {
+    if (target.role === "SUPERVISOR" || target.role === "OVERLOOKING_SUPERVISOR") return targetMarket?.zoneId === zoneId;
+    if (target.role === "REGIONAL_MANAGER") return target.managedZones.some((z) => z.id === zoneId);
+    return false;
+  }
+  return false;
+}
+
+// Persists only the mentions that pass isValidMentionTarget, then fires a
+// real, structured notification per mention (never triggered by the raw
+// string containing "@" — see MessageMention's own comment). Silently
+// drops an invalid/unauthorized target rather than failing the whole send
+// — the message itself is still real and valid even if one mention wasn't.
+// `previousKeys` (only ever passed from editMessage) — the set of
+// mention keys ("e:<employeeId>" / "u:<userId>") this message already
+// had before the edit, so re-saving an unchanged mention doesn't fire a
+// second MENTION notification for the same person every time the sender
+// touches Save. The MessageMention rows themselves are still recreated
+// for the full current set either way (editMessage already wiped the old
+// ones) — only the notification fan-out is deduplicated.
+async function createMentionsAndNotify(message, conversation, mentions, actorName, previousKeys = new Set()) {
+  if (!mentions?.length) return;
+  const valid = [];
+  for (const m of mentions) {
+    if (await isValidMentionTarget(conversation, m)) valid.push(m);
+  }
+  if (!valid.length) return;
+
+  await prisma.messageMention.createMany({
+    data: valid.map((m) => ({ messageId: message.id, employeeId: m.employeeId ?? null, userId: m.userId ?? null })),
+    skipDuplicates: true,
+  });
+
+  const newMentions = valid.filter((m) => !previousKeys.has(m.employeeId ? `e:${m.employeeId}` : `u:${m.userId}`));
+  if (!newMentions.length) return;
+
+  const preview = message.body?.trim()
+    ? (message.body.length > 120 ? `${message.body.slice(0, 117)}...` : message.body)
+    : "Mentioned you in a message";
+
+  await Promise.all(
+    newMentions.map((m) =>
+      m.employeeId
+        ? createNotification({
+            employeeId: m.employeeId,
+            type: "MENTION",
+            title: `${actorName} mentioned you`,
+            body: preview,
+            linkType: "CONVERSATION",
+            linkId: conversation.id,
+          })
+        : createNotificationForUser({
+            userId: m.userId,
+            type: "MENTION",
+            title: `${actorName} mentioned you`,
+            body: preview,
+            linkType: "CONVERSATION",
+            linkId: conversation.id,
+          })
+    )
+  );
+}
+
+// GET /api/conversations/:id/mention-candidates?q= — the composer's @
+// autocomplete. Bounded (take 20) and scoped exactly like
+// isValidMentionTarget's own per-type rules, so nothing ever suggested
+// here could fail validation on send.
+export async function listMentionCandidates(req, res, next) {
+  try {
+    const conversation = await conversationAccessFor(req.user, req.params.id);
+    if (!conversation) return res.status(404).json({ error: "Conversation not found" });
+
+    const q = (req.query.q || "").trim();
+    const nameFilter = q ? { contains: q, mode: "insensitive" } : undefined;
+    const employees = [];
+    const staff = [];
+
+    if (conversation.type === "MARKET_GROUP" || conversation.type === "WARNINGS") {
+      employees.push(
+        ...(await prisma.employee.findMany({
+          where: { marketId: conversation.marketId, ...(nameFilter ? { name: nameFilter } : {}) },
+          select: { id: true, name: true },
+          take: 20,
+        }))
+      );
+      const market = await prisma.market.findUnique({
+        where: { id: conversation.marketId },
+        select: { supervisorId: true, overlookingSupervisorId: true },
+      });
+      const staffIds = [market?.supervisorId, market?.overlookingSupervisorId].filter(Boolean);
+      staff.push(
+        ...(await prisma.user.findMany({
+          where: { id: { in: staffIds }, ...(nameFilter ? { name: nameFilter } : {}) },
+          select: { id: true, name: true, role: true },
+        }))
+      );
+    } else if (conversation.type === "ZONE_GROUP" || conversation.type === "ZONE_ANNOUNCEMENTS") {
+      employees.push(
+        ...(await prisma.employee.findMany({
+          where: { market: { zoneId: conversation.zoneId }, ...(nameFilter ? { name: nameFilter } : {}) },
+          select: { id: true, name: true },
+          take: 20,
+        }))
+      );
+      const zone = await prisma.zone.findUnique({ where: { id: conversation.zoneId }, select: { managerId: true } });
+      const marketsInZone = await prisma.market.findMany({
+        where: { zoneId: conversation.zoneId },
+        select: { supervisorId: true, overlookingSupervisorId: true },
+      });
+      const staffIds = [zone?.managerId, ...marketsInZone.flatMap((m) => [m.supervisorId, m.overlookingSupervisorId])].filter(Boolean);
+      staff.push(
+        ...(await prisma.user.findMany({
+          where: { id: { in: staffIds }, ...(nameFilter ? { name: nameFilter } : {}) },
+          select: { id: true, name: true, role: true },
+          take: 20,
+        }))
+      );
+    } else if (conversation.type === "CUSTOM_GROUP") {
+      const members = await prisma.conversationMember.findMany({
+        where: { conversationId: conversation.id },
+        include: { employee: { select: { id: true, name: true } }, user: { select: { id: true, name: true, role: true } } },
+      });
+      for (const m of members) {
+        if (m.employee) employees.push(m.employee);
+        if (m.user) staff.push(m.user);
+      }
+    } else if (conversation.type === "DIRECT") {
+      const otherId = conversation.participantAId === req.user.employeeId ? conversation.participantBId : conversation.participantAId;
+      const other = otherId ? await prisma.employee.findUnique({ where: { id: otherId }, select: { id: true, name: true } }) : null;
+      if (other) employees.push(other);
+    } else if (conversation.type === "SUPERVISOR_DIRECT" || conversation.type === "RM_DIRECT") {
+      if (req.user.kind === "staff") {
+        const emp = await prisma.employee.findUnique({ where: { id: conversation.participantAId }, select: { id: true, name: true } });
+        if (emp) employees.push(emp);
+      } else {
+        const staffUser = await prisma.user.findUnique({
+          where: { id: conversation.staffParticipantId },
+          select: { id: true, name: true, role: true },
+        });
+        if (staffUser) staff.push(staffUser);
+      }
+    } else if (conversation.type === "STAFF_DIRECT") {
+      const otherId = conversation.staffParticipantId === req.user.userId ? conversation.staffParticipantBId : conversation.staffParticipantId;
+      const other = otherId
+        ? await prisma.user.findUnique({ where: { id: otherId }, select: { id: true, name: true, role: true } })
+        : null;
+      if (other) staff.push(other);
+    }
+
+    res.json({
+      employees: employees.filter((e, i, arr) => arr.findIndex((x) => x.id === e.id) === i).slice(0, 20),
+      staff: staff.filter((s, i, arr) => arr.findIndex((x) => x.id === s.id) === i).slice(0, 20),
+    });
+  } catch (err) {
+    next(err);
+  }
 }
 
 function lastReadOrEpoch(read) {
@@ -103,6 +406,7 @@ function shapeMessage(m) {
     attachmentDurationSec: null,
     forwardedFromSenderName: null,
     reactions: [],
+    mentions: [],
   };
 }
 
@@ -119,7 +423,24 @@ const MESSAGE_INCLUDE = {
     },
   },
   reactions: {
-    select: { id: true, emoji: true, employeeId: true, userId: true, employee: { select: { name: true } }, user: { select: { name: true } } },
+    select: {
+      id: true,
+      emoji: true,
+      employeeId: true,
+      userId: true,
+      isRecognition: true,
+      employee: { select: { name: true } },
+      user: { select: { name: true, role: true } },
+    },
+  },
+  mentions: {
+    select: {
+      id: true,
+      employeeId: true,
+      userId: true,
+      employee: { select: { name: true } },
+      user: { select: { name: true, role: true } },
+    },
   },
 };
 
@@ -145,12 +466,28 @@ async function findOrCreateSupervisorConversation(marketId, employeeId) {
 // count.
 export async function listMyConversations(req, res, next) {
   try {
+    res.json(await buildEmployeeConversationList(req));
+  } catch (err) {
+    next(err);
+  }
+}
+
+// Phase 3: factored out of listMyConversations so organizedConversations
+// (the Important People/Groups/Individuals/Unread aggregator) can reuse
+// the exact same shaped list instead of a second, possibly-drifting
+// query — "views over one source of truth" (see the schema's own
+// comments on this convention).
+async function buildEmployeeConversationList(req) {
+  {
     const employeeId = req.user.employeeId;
     const marketId = req.user.marketId;
+    const market = await prisma.market.findUnique({ where: { id: marketId }, select: { zoneId: true } });
 
-    const [marketGroup, warnings, supervisorConvo, rmConvos, groupMemberships, directs] = await Promise.all([
+    const [marketGroup, warnings, zoneGroup, zoneAnnouncements, supervisorConvo, rmConvos, groupMemberships, directs] = await Promise.all([
       findOrCreateChannel(marketId, "MARKET_GROUP"),
       findOrCreateChannel(marketId, "WARNINGS"),
+      market?.zoneId ? findOrCreateZoneChannel(market.zoneId, "ZONE_GROUP") : null,
+      market?.zoneId ? findOrCreateZoneChannel(market.zoneId, "ZONE_ANNOUNCEMENTS") : null,
       findOrCreateSupervisorConversation(marketId, employeeId),
       // RM_DIRECT is NEVER auto-created here — an employee can't initiate
       // contact with a Regional Manager (spec §14). Only shown once the
@@ -164,7 +501,16 @@ export async function listMyConversations(req, res, next) {
     ]);
     const groups = groupMemberships.map((m) => m.conversation);
 
-    const conversations = [marketGroup, warnings, ...(supervisorConvo ? [supervisorConvo] : []), ...rmConvos, ...groups, ...directs];
+    const conversations = [
+      marketGroup,
+      warnings,
+      ...(zoneGroup ? [zoneGroup] : []),
+      ...(zoneAnnouncements ? [zoneAnnouncements] : []),
+      ...(supervisorConvo ? [supervisorConvo] : []),
+      ...rmConvos,
+      ...groups,
+      ...directs,
+    ];
 
     const [lastMessages, reads] = await Promise.all([
       Promise.all(
@@ -217,12 +563,15 @@ export async function listMyConversations(req, res, next) {
         title:
           c.type === "MARKET_GROUP" ? "Market Group" :
           c.type === "WARNINGS" ? "Warnings" :
+          c.type === "ZONE_GROUP" ? "Zone Group" :
+          c.type === "ZONE_ANNOUNCEMENTS" ? "Zone Announcements" :
           c.type === "SUPERVISOR_DIRECT" ? (supervisorName ?? "Supervisor") :
           c.type === "RM_DIRECT" ? (rmNameById.get(c.staffParticipantId) ?? "Regional Manager") :
           c.type === "CUSTOM_GROUP" ? (c.name ?? "Group") :
           nameById.get(c.participantAId === employeeId ? c.participantBId : c.participantAId) ?? "Employee",
         otherEmployeeId: c.type === "DIRECT" ? (c.participantAId === employeeId ? c.participantBId : c.participantAId) : null,
         marketId: c.marketId,
+        zoneId: c.zoneId,
         pictureUrl: c.pictureUrl,
         locked: c.type === "RM_DIRECT" ? c.locked : false,
         lastMessage: last ? { body: last.deletedAt ? "" : last.body, deleted: !!last.deletedAt, createdAt: last.createdAt } : null,
@@ -241,30 +590,34 @@ export async function listMyConversations(req, res, next) {
       return bt - at;
     });
 
-    res.json(shaped);
-  } catch (err) {
-    next(err);
+    return shaped;
   }
 }
 
-// PATCH /api/conversations/:id/preference — employee-only. Body: any
-// subset of { pinned, muted }. Uses the same ConversationRead row as
-// mark-as-read (this employee's one "my relationship to this
-// conversation" row) rather than a new table.
+// PATCH /api/conversations/:id/preference — Body: any subset of
+// { pinned, muted }. Uses the same ConversationRead row as mark-as-read
+// (this caller's one "my relationship to this conversation" row) rather
+// than a new table — works for both Employee and staff callers (Phase 3
+// extended ConversationRead with staffUserId for exactly this).
 export async function setConversationPreference(req, res, next) {
   try {
-    if (req.user.kind !== "employee") {
-      return res.status(403).json({ error: "This action requires an employee login" });
-    }
     const conversation = await conversationAccessFor(req.user, req.params.id);
     if (!conversation) return res.status(404).json({ error: "Conversation not found" });
 
     const { pinned, muted } = req.body;
-    const read = await prisma.conversationRead.upsert({
-      where: { conversationId_employeeId: { conversationId: conversation.id, employeeId: req.user.employeeId } },
-      update: { ...(pinned !== undefined ? { pinned } : {}), ...(muted !== undefined ? { muted } : {}) },
-      create: { conversationId: conversation.id, employeeId: req.user.employeeId, pinned: pinned ?? false, muted: muted ?? false },
-    });
+    const data = { ...(pinned !== undefined ? { pinned } : {}), ...(muted !== undefined ? { muted } : {}) };
+    const read =
+      req.user.kind === "employee"
+        ? await prisma.conversationRead.upsert({
+            where: { conversationId_employeeId: { conversationId: conversation.id, employeeId: req.user.employeeId } },
+            update: data,
+            create: { conversationId: conversation.id, employeeId: req.user.employeeId, pinned: pinned ?? false, muted: muted ?? false },
+          })
+        : await prisma.conversationRead.upsert({
+            where: { conversationId_staffUserId: { conversationId: conversation.id, staffUserId: req.user.userId } },
+            update: data,
+            create: { conversationId: conversation.id, staffUserId: req.user.userId, pinned: pinned ?? false, muted: muted ?? false },
+          });
 
     res.json(read);
   } catch (err) {
@@ -302,6 +655,66 @@ export async function getWarnings(req, res, next) {
   try {
     const conversation = await findOrCreateChannel(req.user.marketId, "WARNINGS");
     res.json(conversation);
+  } catch (err) {
+    next(err);
+  }
+}
+
+// GET /api/conversations/zone/:zoneId/group and /zone/:zoneId/announcements
+// — Production Chat §6-8. Any account (employee or staff) with real
+// membership in this zone (see isZoneMember) may open either channel
+// directly, the same "explicit fetch by id" pattern getMarketGroup/
+// getWarnings already provide at market scope.
+export async function getZoneGroup(req, res, next) {
+  try {
+    const zoneId = Number(req.params.zoneId);
+    if (!(await isZoneMember(req.user, zoneId))) {
+      return res.status(403).json({ error: "You do not have access to this zone" });
+    }
+    res.json(await findOrCreateZoneChannel(zoneId, "ZONE_GROUP"));
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function getZoneAnnouncements(req, res, next) {
+  try {
+    const zoneId = Number(req.params.zoneId);
+    if (!(await isZoneMember(req.user, zoneId))) {
+      return res.status(403).json({ error: "You do not have access to this zone" });
+    }
+    res.json(await findOrCreateZoneChannel(zoneId, "ZONE_ANNOUNCEMENTS"));
+  } catch (err) {
+    next(err);
+  }
+}
+
+// POST /api/conversations/zone-announcements/broadcast — the zone-level
+// counterpart to postWarningBroadcast. Restricted to the zone's own
+// Regional Manager (assertZoneAccess — never someone else's zone) or
+// Admin (spec §8: "Regional Manager / Zone Manager, Higher-level
+// authorized Admin"); everyone else in the zone is read-only, enforced in
+// sendMessage's own ZONE_ANNOUNCEMENTS block, not just here.
+export async function postZoneAnnouncement(req, res, next) {
+  try {
+    const { zoneId, body } = req.body;
+    await assertZoneAccess(req.user, zoneId);
+
+    const conversation = await findOrCreateZoneChannel(zoneId, "ZONE_ANNOUNCEMENTS");
+    const message = await prisma.message.create({
+      data: { conversationId: conversation.id, body, senderUserId: req.user.userId },
+    });
+
+    await createNotificationForZone({
+      zoneId,
+      type: "ANNOUNCEMENT",
+      title: "New Zone Announcement",
+      body: body.length > 120 ? `${body.slice(0, 117)}...` : body,
+      linkType: "CONVERSATION",
+      linkId: conversation.id,
+    });
+
+    res.status(201).json(message);
   } catch (err) {
     next(err);
   }
@@ -364,44 +777,107 @@ export async function listMyStaffConversations(req, res, next) {
     if (req.user.role !== "SUPERVISOR" && req.user.role !== "OVERLOOKING_SUPERVISOR") {
       return res.status(403).json({ error: "Only a Supervisor or Overlooking account has a market chat inbox" });
     }
-    const marketId = req.user.marketId;
+    res.json(await buildStaffConversationList(req));
+  } catch (err) {
+    next(err);
+  }
+}
 
-    const [marketGroup, warnings, directs, groupMemberships] = await Promise.all([
+// Phase 3: factored out for organizedConversations reuse (see
+// buildEmployeeConversationList's own comment).
+async function buildStaffConversationList(req) {
+  {
+    const marketId = req.user.marketId;
+    const market = await prisma.market.findUnique({ where: { id: marketId }, select: { zoneId: true } });
+
+    const [marketGroup, warnings, zoneGroup, zoneAnnouncements, directs, staffDirects, groupMemberships] = await Promise.all([
       findOrCreateChannel(marketId, "MARKET_GROUP"),
       findOrCreateChannel(marketId, "WARNINGS"),
+      market?.zoneId ? findOrCreateZoneChannel(market.zoneId, "ZONE_GROUP") : null,
+      market?.zoneId ? findOrCreateZoneChannel(market.zoneId, "ZONE_ANNOUNCEMENTS") : null,
       prisma.conversation.findMany({
         where: { type: "SUPERVISOR_DIRECT", marketId, staffParticipantId: req.user.userId },
+      }),
+      // STAFF_DIRECT (Phase 3 §3-4 — Important People): this Supervisor's
+      // own 1:1s with other staff accounts (e.g. their zone's Regional
+      // Manager). Never auto-created — only shown once opened via
+      // getOrCreateStaffContact.
+      prisma.conversation.findMany({
+        where: { type: "STAFF_DIRECT", OR: [{ staffParticipantId: req.user.userId }, { staffParticipantBId: req.user.userId }] },
       }),
       prisma.conversationMember.findMany({ where: { userId: req.user.userId }, include: { conversation: true } }),
     ]);
     const groups = groupMemberships.map((m) => m.conversation);
 
-    const conversations = [marketGroup, warnings, ...directs, ...groups];
-    const lastMessages = await Promise.all(
-      conversations.map((c) => prisma.message.findFirst({ where: { conversationId: c.id }, orderBy: { createdAt: "desc" } }))
+    const conversations = [
+      marketGroup,
+      warnings,
+      ...(zoneGroup ? [zoneGroup] : []),
+      ...(zoneAnnouncements ? [zoneAnnouncements] : []),
+      ...directs,
+      ...staffDirects,
+      ...groups,
+    ];
+
+    const [lastMessages, reads] = await Promise.all([
+      Promise.all(
+        conversations.map((c) => prisma.message.findFirst({ where: { conversationId: c.id }, orderBy: { createdAt: "desc" } }))
+      ),
+      prisma.conversationRead.findMany({
+        where: { staffUserId: req.user.userId, conversationId: { in: conversations.map((c) => c.id) } },
+      }),
+    ]);
+    const readByConversation = new Map(reads.map((r) => [r.conversationId, r]));
+    const unreadCounts = await Promise.all(
+      conversations.map((c) =>
+        prisma.message.count({
+          where: { conversationId: c.id, createdAt: { gt: lastReadOrEpoch(readByConversation.get(c.id)) } },
+        })
+      )
     );
 
     const employeeIds = directs.map((c) => c.participantAId);
     const employees = await prisma.employee.findMany({ where: { id: { in: employeeIds } }, select: { id: true, name: true } });
     const nameById = new Map(employees.map((e) => [e.id, e.name]));
 
-    const shaped = conversations.map((c, i) => ({
-      id: c.id,
-      type: c.type,
-      title:
-        c.type === "MARKET_GROUP" ? "Market Group" :
-        c.type === "WARNINGS" ? "Warnings" :
-        c.type === "CUSTOM_GROUP" ? (c.name ?? "Group") :
-        nameById.get(c.participantAId) ?? "Employee",
-      employeeId: c.type === "SUPERVISOR_DIRECT" ? c.participantAId : null,
-      marketId: c.marketId,
-      pictureUrl: c.pictureUrl,
-      lastMessage: lastMessages[i] ? { body: lastMessages[i].body, createdAt: lastMessages[i].createdAt } : null,
-    }));
+    const staffOtherIds = staffDirects.map((c) => (c.staffParticipantId === req.user.userId ? c.staffParticipantBId : c.staffParticipantId));
+    const staffOthers = await prisma.user.findMany({ where: { id: { in: staffOtherIds } }, select: { id: true, name: true } });
+    const staffNameById = new Map(staffOthers.map((u) => [u.id, u.name]));
 
-    res.json(shaped);
-  } catch (err) {
-    next(err);
+    const shaped = conversations.map((c, i) => {
+      const read = readByConversation.get(c.id);
+      return {
+        id: c.id,
+        type: c.type,
+        title:
+          c.type === "MARKET_GROUP" ? "Market Group" :
+          c.type === "WARNINGS" ? "Warnings" :
+          c.type === "ZONE_GROUP" ? "Zone Group" :
+          c.type === "ZONE_ANNOUNCEMENTS" ? "Zone Announcements" :
+          c.type === "CUSTOM_GROUP" ? (c.name ?? "Group") :
+          c.type === "STAFF_DIRECT" ? (staffNameById.get(c.staffParticipantId === req.user.userId ? c.staffParticipantBId : c.staffParticipantId) ?? "Staff") :
+          nameById.get(c.participantAId) ?? "Employee",
+        employeeId: c.type === "SUPERVISOR_DIRECT" ? c.participantAId : null,
+        staffUserId: c.type === "STAFF_DIRECT" ? (c.staffParticipantId === req.user.userId ? c.staffParticipantBId : c.staffParticipantId) : null,
+        marketId: c.marketId,
+        zoneId: c.zoneId,
+        groupType: c.groupType,
+        pictureUrl: c.pictureUrl,
+        lastMessage: lastMessages[i] ? { body: lastMessages[i].deletedAt ? "" : lastMessages[i].body, createdAt: lastMessages[i].createdAt } : null,
+        unreadCount: unreadCounts[i],
+        pinned: read?.pinned ?? false,
+        muted: read?.muted ?? false,
+      };
+    });
+
+    shaped.sort((a, b) => {
+      if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
+      const at = a.lastMessage?.createdAt ? new Date(a.lastMessage.createdAt).getTime() : 0;
+      const bt = b.lastMessage?.createdAt ? new Date(b.lastMessage.createdAt).getTime() : 0;
+      return bt - at;
+    });
+
+    return shaped;
   }
 }
 
@@ -419,42 +895,180 @@ export async function listMyRegionalManagerConversations(req, res, next) {
     if (req.user.role !== "REGIONAL_MANAGER") {
       return res.status(403).json({ error: "Only a Regional Manager account has this chat inbox" });
     }
+    res.json(await buildRmConversationList(req));
+  } catch (err) {
+    next(err);
+  }
+}
 
-    const [groupMemberships, directs] = await Promise.all([
+// Phase 3: factored out for organizedConversations reuse (see
+// buildEmployeeConversationList's own comment).
+async function buildRmConversationList(req) {
+  {
+    const zoneIds = req.user.zoneIds ?? [];
+    const [groupMemberships, directs, staffDirects, zoneChannels] = await Promise.all([
       prisma.conversationMember.findMany({ where: { userId: req.user.userId }, include: { conversation: true } }),
       prisma.conversation.findMany({ where: { type: "RM_DIRECT", staffParticipantId: req.user.userId } }),
+      // STAFF_DIRECT (Phase 3 §3-4 — Important People): this Regional
+      // Manager's own 1:1s with other staff accounts (e.g. an Admin).
+      prisma.conversation.findMany({
+        where: { type: "STAFF_DIRECT", OR: [{ staffParticipantId: req.user.userId }, { staffParticipantBId: req.user.userId }] },
+      }),
+      // Production Chat §6-8 — General Zone + Zone Announcements for every
+      // zone this RM manages, auto-provisioned same as a Supervisor's
+      // Market Group/Warnings.
+      Promise.all(
+        zoneIds.flatMap((zoneId) => [
+          findOrCreateZoneChannel(Number(zoneId), "ZONE_GROUP"),
+          findOrCreateZoneChannel(Number(zoneId), "ZONE_ANNOUNCEMENTS"),
+        ])
+      ),
     ]);
     const groups = groupMemberships.map((m) => m.conversation);
-    const conversations = [...groups, ...directs];
+    const conversations = [...zoneChannels, ...groups, ...directs, ...staffDirects];
 
-    const lastMessages = await Promise.all(
-      conversations.map((c) => prisma.message.findFirst({ where: { conversationId: c.id }, orderBy: { createdAt: "desc" } }))
+    const [lastMessages, reads] = await Promise.all([
+      Promise.all(
+        conversations.map((c) => prisma.message.findFirst({ where: { conversationId: c.id }, orderBy: { createdAt: "desc" } }))
+      ),
+      prisma.conversationRead.findMany({
+        where: { staffUserId: req.user.userId, conversationId: { in: conversations.map((c) => c.id) } },
+      }),
+    ]);
+    const readByConversation = new Map(reads.map((r) => [r.conversationId, r]));
+    const unreadCounts = await Promise.all(
+      conversations.map((c) =>
+        prisma.message.count({
+          where: { conversationId: c.id, createdAt: { gt: lastReadOrEpoch(readByConversation.get(c.id)) } },
+        })
+      )
     );
 
     const employeeIds = directs.map((c) => c.participantAId);
     const employees = await prisma.employee.findMany({ where: { id: { in: employeeIds } }, select: { id: true, name: true } });
     const nameById = new Map(employees.map((e) => [e.id, e.name]));
 
-    const shaped = conversations.map((c, i) => ({
-      id: c.id,
-      type: c.type,
-      title: c.type === "CUSTOM_GROUP" ? (c.name ?? "Group") : nameById.get(c.participantAId) ?? "Employee",
-      employeeId: c.type === "RM_DIRECT" ? c.participantAId : null,
-      marketId: c.marketId,
-      zoneId: c.zoneId,
-      pictureUrl: c.pictureUrl,
-      lastMessage: lastMessages[i] ? { body: lastMessages[i].body, createdAt: lastMessages[i].createdAt } : null,
-    }));
+    const staffOtherIds = staffDirects.map((c) => (c.staffParticipantId === req.user.userId ? c.staffParticipantBId : c.staffParticipantId));
+    const staffOthers = await prisma.user.findMany({ where: { id: { in: staffOtherIds } }, select: { id: true, name: true } });
+    const staffNameById = new Map(staffOthers.map((u) => [u.id, u.name]));
+
+    const shaped = conversations.map((c, i) => {
+      const read = readByConversation.get(c.id);
+      return {
+        id: c.id,
+        type: c.type,
+        title:
+          c.type === "ZONE_GROUP" ? "Zone Group" :
+          c.type === "ZONE_ANNOUNCEMENTS" ? "Zone Announcements" :
+          c.type === "CUSTOM_GROUP" ? (c.name ?? "Group") :
+          c.type === "STAFF_DIRECT" ? (staffNameById.get(c.staffParticipantId === req.user.userId ? c.staffParticipantBId : c.staffParticipantId) ?? "Staff") :
+          nameById.get(c.participantAId) ?? "Employee",
+        employeeId: c.type === "RM_DIRECT" ? c.participantAId : null,
+        staffUserId: c.type === "STAFF_DIRECT" ? (c.staffParticipantId === req.user.userId ? c.staffParticipantBId : c.staffParticipantId) : null,
+        marketId: c.marketId,
+        zoneId: c.zoneId,
+        groupType: c.groupType,
+        pictureUrl: c.pictureUrl,
+        lastMessage: lastMessages[i] ? { body: lastMessages[i].deletedAt ? "" : lastMessages[i].body, createdAt: lastMessages[i].createdAt } : null,
+        unreadCount: unreadCounts[i],
+        pinned: read?.pinned ?? false,
+        muted: read?.muted ?? false,
+      };
+    });
 
     shaped.sort((a, b) => {
+      if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
       const at = a.lastMessage?.createdAt ? new Date(a.lastMessage.createdAt).getTime() : 0;
       const bt = b.lastMessage?.createdAt ? new Date(b.lastMessage.createdAt).getTime() : 0;
       return bt - at;
     });
 
-    res.json(shaped);
+    return shaped;
+  }
+}
+
+// GET /api/conversations/admin — Admin-only (Phase 3.5). Every CUSTOM_GROUP
+// this Admin is an explicit member of, plus every STAFF_DIRECT
+// conversation they've opened with another staff account (Important
+// People's underlying connection — see authorizedStaffContactsFor).
+// There is no ADMIN_DIRECT-with-employee conversation type in this app
+// (Admin never gets a 1:1 with a specific employee the way a Supervisor/
+// RM does) — Admin's "Individuals" view is staff-to-staff only, an
+// accurate reflection of what the backend actually supports rather than
+// an invented capability.
+export async function listMyAdminConversations(req, res, next) {
+  try {
+    if (req.user.role !== "ADMIN") {
+      return res.status(403).json({ error: "Only an Admin account has this chat inbox" });
+    }
+    res.json(await buildAdminConversationList(req));
   } catch (err) {
     next(err);
+  }
+}
+
+// Phase 3.5: factored out for organizedConversations reuse (see
+// buildEmployeeConversationList's own comment).
+async function buildAdminConversationList(req) {
+  {
+    const [groupMemberships, staffDirects] = await Promise.all([
+      prisma.conversationMember.findMany({ where: { userId: req.user.userId }, include: { conversation: true } }),
+      prisma.conversation.findMany({
+        where: { type: "STAFF_DIRECT", OR: [{ staffParticipantId: req.user.userId }, { staffParticipantBId: req.user.userId }] },
+      }),
+    ]);
+    const groups = groupMemberships.map((m) => m.conversation);
+    const conversations = [...groups, ...staffDirects];
+
+    const [lastMessages, reads] = await Promise.all([
+      Promise.all(
+        conversations.map((c) => prisma.message.findFirst({ where: { conversationId: c.id }, orderBy: { createdAt: "desc" } }))
+      ),
+      prisma.conversationRead.findMany({
+        where: { staffUserId: req.user.userId, conversationId: { in: conversations.map((c) => c.id) } },
+      }),
+    ]);
+    const readByConversation = new Map(reads.map((r) => [r.conversationId, r]));
+    const unreadCounts = await Promise.all(
+      conversations.map((c) =>
+        prisma.message.count({
+          where: { conversationId: c.id, createdAt: { gt: lastReadOrEpoch(readByConversation.get(c.id)) } },
+        })
+      )
+    );
+
+    const staffOtherIds = staffDirects.map((c) => (c.staffParticipantId === req.user.userId ? c.staffParticipantBId : c.staffParticipantId));
+    const staffOthers = await prisma.user.findMany({ where: { id: { in: staffOtherIds } }, select: { id: true, name: true } });
+    const staffNameById = new Map(staffOthers.map((u) => [u.id, u.name]));
+
+    const shaped = conversations.map((c, i) => {
+      const read = readByConversation.get(c.id);
+      return {
+        id: c.id,
+        type: c.type,
+        title:
+          c.type === "CUSTOM_GROUP" ? (c.name ?? "Group") :
+          staffNameById.get(c.staffParticipantId === req.user.userId ? c.staffParticipantBId : c.staffParticipantId) ?? "Staff",
+        staffUserId: c.type === "STAFF_DIRECT" ? (c.staffParticipantId === req.user.userId ? c.staffParticipantBId : c.staffParticipantId) : null,
+        marketId: c.marketId,
+        zoneId: c.zoneId,
+        groupType: c.groupType,
+        pictureUrl: c.pictureUrl,
+        lastMessage: lastMessages[i] ? { body: lastMessages[i].deletedAt ? "" : lastMessages[i].body, createdAt: lastMessages[i].createdAt } : null,
+        unreadCount: unreadCounts[i],
+        pinned: read?.pinned ?? false,
+        muted: read?.muted ?? false,
+      };
+    });
+
+    shaped.sort((a, b) => {
+      if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
+      const at = a.lastMessage?.createdAt ? new Date(a.lastMessage.createdAt).getTime() : 0;
+      const bt = b.lastMessage?.createdAt ? new Date(b.lastMessage.createdAt).getTime() : 0;
+      return bt - at;
+    });
+
+    return shaped;
   }
 }
 
@@ -514,6 +1128,204 @@ export async function getOrCreateEmployeeConversationForRegionalManager(req, res
     }));
 
     res.json({ ...conversation, title: employee.name });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// Phase 3 §3-4 — Important People's underlying authorization: which
+// staff accounts a given staff user is allowed to open a real
+// STAFF_DIRECT conversation with (and therefore also favorite as an
+// Important Contact — see addImportantContact). Conservative mapping
+// onto TeamMart's actual StaffRole enum (there is no separate "CEO"
+// role): the spec's own examples — CEO, Operations Manager, senior
+// management — are all ADMIN accounts here. A Regional Manager may
+// contact any ADMIN. A Supervisor/Overlooking Supervisor may contact
+// their own zone's Regional Manager(s) plus any ADMIN. An ADMIN may
+// contact any other staff account (already the top of the hierarchy).
+// This is the ONE place that decides staff-to-staff contact
+// eligibility — reused by both getOrCreateStaffContact (creating the
+// conversation) and addImportantContact (favoriting), so favoriting can
+// never grant a permission the person didn't already have.
+// Exported (Verification pass §1) so communicationTargeting.js can reuse
+// the EXACT same "which staff accounts is this caller allowed to reach"
+// rule for Warnings & Notifications' Specific-Supervisor targeting,
+// rather than re-deriving a second, possibly-diverging version of it.
+export async function authorizedStaffContactsFor(user) {
+  if (user.role === "ADMIN") {
+    return prisma.user.findMany({ where: { id: { not: user.userId } }, select: { id: true, name: true, role: true } });
+  }
+  if (user.role === "REGIONAL_MANAGER") {
+    // Cleanup Phase §4 — a Regional/Zone Manager must be able to see and
+    // message the Supervisors/Overlooking accounts of markets inside
+    // their OWN zones (never every Supervisor company-wide) — this used
+    // to only return Admin, leaving Supervisors completely unreachable
+    // from the RM side even though the reverse direction already worked
+    // (see the SUPERVISOR/OVERLOOKING_SUPERVISOR branch below, which
+    // already resolves its own zone's manager the same way).
+    const marketsInZone = await prisma.market.findMany({
+      where: { zoneId: { in: user.zoneIds ?? [] } },
+      select: { supervisorId: true, overlookingSupervisorId: true },
+    });
+    const supervisorIds = marketsInZone.flatMap((m) => [m.supervisorId, m.overlookingSupervisorId]).filter(Boolean);
+    return prisma.user.findMany({
+      where: { OR: [{ role: "ADMIN" }, { id: { in: supervisorIds } }] },
+      select: { id: true, name: true, role: true },
+    });
+  }
+  if (user.role === "SUPERVISOR" || user.role === "OVERLOOKING_SUPERVISOR") {
+    const market = user.marketId ? await prisma.market.findUnique({ where: { id: user.marketId }, select: { zoneId: true } }) : null;
+    const zone = market?.zoneId ? await prisma.zone.findUnique({ where: { id: market.zoneId }, select: { managerId: true } }) : null;
+    return prisma.user.findMany({
+      where: { OR: [{ role: "ADMIN" }, ...(zone?.managerId ? [{ id: zone.managerId }] : [])] },
+      select: { id: true, name: true, role: true },
+    });
+  }
+  return [];
+}
+
+async function isAuthorizedStaffContact(user, targetUserId) {
+  const contacts = await authorizedStaffContactsFor(user);
+  return contacts.some((c) => c.id === targetUserId);
+}
+
+// GET /api/conversations/staff-contacts — staff-only. Backend-filtered
+// list of staff accounts this caller is allowed to start a real 1:1 with
+// (see authorizedStaffContactsFor) — never every staff account in the
+// company (spec: "never fetch everything and filter client-side").
+export async function listAuthorizedStaffContacts(req, res, next) {
+  try {
+    const contacts = await authorizedStaffContactsFor(req.user);
+    res.json(contacts);
+  } catch (err) {
+    next(err);
+  }
+}
+
+// GET /api/conversations/staff-contacts/:userId — staff-only. Get-or-
+// create the STAFF_DIRECT conversation with another staff account. The
+// target must be one of this caller's authorized contacts (re-checked
+// here server-side, never trusted from the frontend having merely shown
+// the option).
+export async function getOrCreateStaffContact(req, res, next) {
+  try {
+    const targetUserId = Number(req.params.userId);
+    if (targetUserId === req.user.userId) {
+      return res.status(400).json({ error: "Cannot start a conversation with yourself" });
+    }
+    if (!(await isAuthorizedStaffContact(req.user, targetUserId))) {
+      return res.status(403).json({ error: "You are not authorized to contact this staff account" });
+    }
+    const target = await prisma.user.findUnique({ where: { id: targetUserId }, select: { id: true, name: true, role: true } });
+    if (!target) return res.status(404).json({ error: "Staff account not found" });
+
+    const pair = staffDirectPair(req.user.userId, targetUserId);
+    const existing = await prisma.conversation.findFirst({ where: { type: "STAFF_DIRECT", ...pair } });
+    const conversation = existing ?? (await prisma.conversation.create({ data: { type: "STAFF_DIRECT", ...pair } }));
+
+    res.json({ ...conversation, title: target.name });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// ---------------------------------------------------------------------
+// Important People (Phase 3 §3-4) — a staff owner's personal, ordered
+// shortlist of contacts. Purely organizational (see ImportantContact's
+// schema comment) — never a communication-permission mechanism. Adding a
+// contact here re-validates eligibility via authorizedStaffContactsFor /
+// requireAccessibleEmployee exactly as creating the conversation would,
+// so a favorite can never outlive or bypass the underlying authorization.
+// ---------------------------------------------------------------------
+
+async function shapeImportantContact(row) {
+  return {
+    id: row.id,
+    priority: row.priority,
+    contactUserId: row.contactUserId,
+    contactEmployeeId: row.contactEmployeeId,
+    name: row.contactUser?.name ?? row.contactEmployee?.name,
+    role: row.contactUser?.role ?? null,
+    position: row.contactEmployee?.position ?? null,
+  };
+}
+
+// GET /api/conversations/important-people — staff-only. This owner's own
+// shortlist, most important first.
+export async function listImportantContacts(req, res, next) {
+  try {
+    const rows = await prisma.importantContact.findMany({
+      where: { ownerUserId: req.user.userId },
+      include: {
+        contactUser: { select: { id: true, name: true, role: true } },
+        contactEmployee: { select: { id: true, name: true, position: true } },
+      },
+      orderBy: { priority: "desc" },
+    });
+    res.json(await Promise.all(rows.map(shapeImportantContact)));
+  } catch (err) {
+    next(err);
+  }
+}
+
+// POST /api/conversations/important-people — staff-only. Body:
+// { contactUserId? | contactEmployeeId?, priority? }. contactUserId must
+// be one of this caller's authorized staff contacts (see
+// authorizedStaffContactsFor); contactEmployeeId must be an employee this
+// caller can already access (requireAccessibleEmployee — same check
+// used for RM_DIRECT/SUPERVISOR_DIRECT creation).
+export async function addImportantContact(req, res, next) {
+  try {
+    const { contactUserId, contactEmployeeId, priority } = req.body;
+
+    if (contactUserId) {
+      if (!(await isAuthorizedStaffContact(req.user, contactUserId))) {
+        return res.status(403).json({ error: "You are not authorized to add this staff account as a contact" });
+      }
+    } else {
+      await requireAccessibleEmployee(req.user, contactEmployeeId);
+    }
+
+    const row = await prisma.importantContact.upsert({
+      where: contactUserId
+        ? { ownerUserId_contactUserId: { ownerUserId: req.user.userId, contactUserId } }
+        : { ownerUserId_contactEmployeeId: { ownerUserId: req.user.userId, contactEmployeeId } },
+      update: { priority },
+      create: { ownerUserId: req.user.userId, contactUserId: contactUserId ?? null, contactEmployeeId: contactEmployeeId ?? null, priority },
+      include: {
+        contactUser: { select: { id: true, name: true, role: true } },
+        contactEmployee: { select: { id: true, name: true, position: true } },
+      },
+    });
+
+    res.status(201).json(await shapeImportantContact(row));
+  } catch (err) {
+    next(err);
+  }
+}
+
+// PATCH /api/conversations/important-people/:id — staff-only, owner-only.
+// Body: { priority }. Reordering — never touches another owner's row
+// (the where clause below scopes to req.user.userId, not just the row id).
+export async function reorderImportantContact(req, res, next) {
+  try {
+    const { count } = await prisma.importantContact.updateMany({
+      where: { id: req.params.id, ownerUserId: req.user.userId },
+      data: { priority: req.body.priority },
+    });
+    if (count === 0) return res.status(404).json({ error: "Contact not found" });
+    res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// DELETE /api/conversations/important-people/:id — staff-only, owner-only.
+// Unfavoriting only — never deletes the underlying conversation/messages.
+export async function removeImportantContact(req, res, next) {
+  try {
+    await prisma.importantContact.deleteMany({ where: { id: req.params.id, ownerUserId: req.user.userId } });
+    res.json({ ok: true });
   } catch (err) {
     next(err);
   }
@@ -616,7 +1428,7 @@ export async function createGroup(req, res, next) {
     if (req.user.kind !== "staff" || !GROUP_CREATOR_ROLES.includes(req.user.role)) {
       return res.status(403).json({ error: "This action requires a Supervisor, Regional Manager, or Admin account" });
     }
-    const { name, marketId, zoneId, memberEmployeeIds = [], memberStaffUserIds = [] } = req.body;
+    const { name, marketId, zoneId, memberEmployeeIds = [], memberStaffUserIds = [], groupType = "NORMAL" } = req.body;
 
     if (!marketId && !zoneId) return res.status(400).json({ error: "Provide either marketId or zoneId" });
     if (marketId && zoneId) return res.status(400).json({ error: "Provide only one of marketId or zoneId" });
@@ -673,6 +1485,7 @@ export async function createGroup(req, res, next) {
         marketId: marketId ?? null,
         zoneId: zoneId ?? null,
         name,
+        groupType,
         createdById: req.user.userId,
         members: {
           create: [
@@ -699,6 +1512,43 @@ export async function renameGroup(req, res, next) {
     if (!conversation) return;
     const updated = await prisma.conversation.update({ where: { id: conversation.id }, data: { name: req.body.name } });
     res.json(updated);
+  } catch (err) {
+    next(err);
+  }
+}
+
+// DELETE /api/conversations/:id — delete a CUSTOM_GROUP entirely. Admin-
+// only (requireGroupAdmin — same rule as rename/picture/member management:
+// a real membership row with isAdmin=true, never role alone). Every other
+// conversation type (MARKET_GROUP/ZONE_GROUP/WARNINGS/ZONE_ANNOUNCEMENTS/
+// DIRECT/etc.) is implicit organizational infrastructure, not something
+// any user "owns" — requireGroupAdmin already 404s for those (it only
+// ever matches type: "CUSTOM_GROUP"), so this can never be used to wipe
+// out a market/zone's shared channel.
+//
+// A real hard delete, unlike every report-deletion endpoint elsewhere in
+// this app (Notification/MarketProblem/ItemReport/etc. all soft-delete
+// for audit-trail reasons) — a chat group has no such retention
+// requirement once its own admin chooses to delete it, matching ordinary
+// messenger "delete group" semantics. Message/MessageReaction/
+// MessageMention/ConversationRead/ConversationMember all reference this
+// conversation with no cascade (Message/ConversationRead) or a cascade
+// that still requires those tables to go first (ConversationMember) —
+// deleted explicitly, in FK-safe order, inside one transaction so a
+// crash partway through can never leave an orphaned half-deleted group.
+export async function deleteGroup(req, res, next) {
+  try {
+    const conversation = await requireGroupAdmin(req, res);
+    if (!conversation) return;
+
+    await prisma.$transaction([
+      prisma.message.deleteMany({ where: { conversationId: conversation.id } }),
+      prisma.conversationRead.deleteMany({ where: { conversationId: conversation.id } }),
+      prisma.conversationMember.deleteMany({ where: { conversationId: conversation.id } }),
+      prisma.conversation.delete({ where: { id: conversation.id } }),
+    ]);
+
+    res.status(204).end();
   } catch (err) {
     next(err);
   }
@@ -935,6 +1785,19 @@ export async function sendMessage(req, res, next) {
     if (conversation.type === "WARNINGS") {
       return res.status(403).json({ error: "Post an announcement instead of a direct message on Warnings" });
     }
+    if (conversation.type === "ZONE_ANNOUNCEMENTS") {
+      return res.status(403).json({ error: "Post a zone announcement instead of a direct message here" });
+    }
+    // Phase 3 §7-8: a WARNING-type CUSTOM_GROUP is a restricted
+    // announcement group — only group admins may post, everyone else is
+    // read-only. Reuses the existing group-admin concept (isGroupAdmin)
+    // rather than a new role/permission system, the conservative default
+    // for an ambiguous posting policy.
+    if (conversation.type === "CUSTOM_GROUP" && conversation.groupType === "WARNING") {
+      if (!(await isGroupAdmin(conversation.id, req.user))) {
+        return res.status(403).json({ error: "Only a group admin can post in this announcement group" });
+      }
+    }
 
     const isStaff = req.user.kind === "staff";
 
@@ -945,7 +1808,7 @@ export async function sendMessage(req, res, next) {
       return res.status(403).json({ error: "This conversation is locked until the Regional Manager sends the first message" });
     }
 
-    let { body, imageUrl, attachmentType, attachmentUrl, attachmentName, attachmentSize, attachmentDurationSec, replyToId, forwardMessageId } = req.body;
+    let { body, imageUrl, attachmentType, attachmentUrl, attachmentName, attachmentSize, attachmentDurationSec, replyToId, forwardMessageId, mentions } = req.body;
 
     // A reply must point at a real, non-deleted message in THIS same
     // conversation — never trust a client-supplied id blindly (it could
@@ -1026,6 +1889,11 @@ export async function sendMessage(req, res, next) {
 
     const senderName = isStaff ? message.senderUser?.name : message.senderEmployee?.name;
 
+    // Mentions (§14-15) — never derived from raw "@text"; only the
+    // structured ids the composer sent, and only the ones that actually
+    // pass membership validation.
+    await createMentionsAndNotify(message, conversation, mentions, senderName ?? "Someone");
+
     // Muting a conversation (§25 — real, not cosmetic) means its
     // ConversationRead.muted is true; those recipients simply don't get a
     // notification row for this message. They still see it the moment
@@ -1101,6 +1969,19 @@ export async function sendMessage(req, res, next) {
         // employee-only) — same as SUPERVISOR_DIRECT/RM_DIRECT above.
         ...recipientUserIds.map((userId) => createNotificationForUser({ userId, ...groupNotification })),
       ]);
+    } else if (conversation.type === "STAFF_DIRECT") {
+      // Both sides are always staff here — the recipient is whichever
+      // participant slot ISN'T the sender. No mute concept for staff
+      // (same limitation as SUPERVISOR_DIRECT/RM_DIRECT above).
+      const recipientUserId = conversation.staffParticipantId === req.user.userId ? conversation.staffParticipantBId : conversation.staffParticipantId;
+      await createNotificationForUser({
+        userId: recipientUserId,
+        type: "CHAT_MESSAGE",
+        title: `New message from ${senderName}`,
+        body: notificationPreview,
+        linkType: "CONVERSATION",
+        linkId: conversation.id,
+      });
     } else {
       // MARKET_GROUP — notify every other employee in the market.
       const others = await prisma.employee.findMany({
@@ -1116,7 +1997,10 @@ export async function sendMessage(req, res, next) {
       });
     }
 
-    res.status(201).json(message);
+    const withMentions = mentions?.length
+      ? await prisma.message.findUnique({ where: { id: message.id }, include: MESSAGE_INCLUDE })
+      : message;
+    res.status(201).json(withMentions);
   } catch (err) {
     next(err);
   }
@@ -1158,7 +2042,24 @@ export async function editMessage(req, res, next) {
       include: MESSAGE_INCLUDE,
     });
 
-    res.json(shapeMessage(updated));
+    // Mentions are replaced wholesale on edit — same "re-validate against
+    // real membership, never trust the request" rule as sendMessage. The
+    // previous mention set is captured first so re-saving an unchanged
+    // mention doesn't re-notify the same person (see
+    // createMentionsAndNotify's own comment).
+    const previousMentions = await prisma.messageMention.findMany({
+      where: { messageId: message.id },
+      select: { employeeId: true, userId: true },
+    });
+    const previousKeys = new Set(previousMentions.map((m) => (m.employeeId ? `e:${m.employeeId}` : `u:${m.userId}`)));
+    await prisma.messageMention.deleteMany({ where: { messageId: message.id } });
+    const senderName = req.user.kind === "staff" ? updated.senderUser?.name : updated.senderEmployee?.name;
+    await createMentionsAndNotify(updated, conversation, req.body.mentions, senderName ?? "Someone", previousKeys);
+
+    const withMentions = req.body.mentions?.length
+      ? await prisma.message.findUnique({ where: { id: updated.id }, include: MESSAGE_INCLUDE })
+      : { ...updated, mentions: [] };
+    res.json(shapeMessage(withMentions));
   } catch (err) {
     next(err);
   }
@@ -1196,8 +2097,24 @@ export async function reactToMessage(req, res, next) {
     if (!conversation) return res.status(404).json({ error: "Conversation not found" });
     if (!message || message.deletedAt) return res.status(404).json({ error: "Message not found" });
 
-    const { emoji } = req.body;
+    const { emoji, recognition } = req.body;
     const isStaff = req.user.kind === "staff";
+
+    // Management Recognition (§13) — backend-decided, never client-
+    // asserted: authorized management role, reacting to an Employee's
+    // message. A Worker/Cashier (or staff reacting to another staff
+    // member's message) requesting recognition is rejected outright
+    // rather than silently downgraded — the frontend should never have
+    // offered the option in the first place, so this is a hard stop, not
+    // a soft fallback.
+    const MANAGEMENT_ROLES = new Set(["SUPERVISOR", "OVERLOOKING_SUPERVISOR", "REGIONAL_MANAGER", "ADMIN"]);
+    if (recognition) {
+      const authorized = isStaff && MANAGEMENT_ROLES.has(req.user.role) && !!message.senderEmployeeId;
+      if (!authorized) {
+        return res.status(403).json({ error: "Only authorized management can send a Management Recognition reaction" });
+      }
+    }
+
     const mine = await prisma.messageReaction.findFirst({
       where: isStaff ? { messageId: message.id, userId: req.user.userId } : { messageId: message.id, employeeId: req.user.employeeId },
     });
@@ -1205,7 +2122,7 @@ export async function reactToMessage(req, res, next) {
     if (mine && mine.emoji === emoji) {
       await prisma.messageReaction.delete({ where: { id: mine.id } });
     } else if (mine) {
-      await prisma.messageReaction.update({ where: { id: mine.id }, data: { emoji } });
+      await prisma.messageReaction.update({ where: { id: mine.id }, data: { emoji, isRecognition: !!recognition } });
     } else {
       await prisma.messageReaction.create({
         data: {
@@ -1213,13 +2130,32 @@ export async function reactToMessage(req, res, next) {
           emoji,
           employeeId: isStaff ? null : req.user.employeeId,
           userId: isStaff ? req.user.userId : null,
+          isRecognition: !!recognition,
         },
       });
+      if (recognition) {
+        await createNotification({
+          employeeId: message.senderEmployeeId,
+          type: "MANAGEMENT_RECOGNITION",
+          title: `Recognized by ${req.user.role === "REGIONAL_MANAGER" ? "Regional Manager" : req.user.role === "ADMIN" ? "Admin" : "your Supervisor"}`,
+          body: "Your work was recognized in chat.",
+          linkType: "CONVERSATION",
+          linkId: conversation.id,
+        });
+      }
     }
 
     const reactions = await prisma.messageReaction.findMany({
       where: { messageId: message.id },
-      select: { id: true, emoji: true, employeeId: true, userId: true, employee: { select: { name: true } }, user: { select: { name: true } } },
+      select: {
+        id: true,
+        emoji: true,
+        employeeId: true,
+        userId: true,
+        isRecognition: true,
+        employee: { select: { name: true } },
+        user: { select: { name: true, role: true } },
+      },
     });
     res.json({ reactions });
   } catch (err) {
@@ -1227,25 +2163,136 @@ export async function reactToMessage(req, res, next) {
   }
 }
 
-// POST /api/conversations/:id/read — read-state is only tracked for
-// Employees today (ConversationRead.employeeId has no staff counterpart
-// yet); a staff caller gets a no-op success rather than an error, so the
-// Supervisor Chat UI's polling loop doesn't need a kind-based branch.
+// POST /api/conversations/:id/read — Phase 3: read-state now persists for
+// staff too (Supervisor/Overlooking/Regional Manager/Admin), via the same
+// ConversationRead row's staffUserId column, mirroring the employee path
+// exactly rather than a second table.
 export async function markConversationRead(req, res, next) {
   try {
     const conversation = await conversationAccessFor(req.user, req.params.id);
     if (!conversation) return res.status(404).json({ error: "Conversation not found" });
-    if (req.user.kind !== "employee") {
-      return res.json({ ok: true });
-    }
 
-    const read = await prisma.conversationRead.upsert({
-      where: { conversationId_employeeId: { conversationId: conversation.id, employeeId: req.user.employeeId } },
-      update: { lastReadAt: new Date() },
-      create: { conversationId: conversation.id, employeeId: req.user.employeeId },
-    });
+    const read =
+      req.user.kind === "employee"
+        ? await prisma.conversationRead.upsert({
+            where: { conversationId_employeeId: { conversationId: conversation.id, employeeId: req.user.employeeId } },
+            update: { lastReadAt: new Date() },
+            create: { conversationId: conversation.id, employeeId: req.user.employeeId },
+          })
+        : await prisma.conversationRead.upsert({
+            where: { conversationId_staffUserId: { conversationId: conversation.id, staffUserId: req.user.userId } },
+            update: { lastReadAt: new Date() },
+            create: { conversationId: conversation.id, staffUserId: req.user.userId },
+          });
 
     res.json(read);
+  } catch (err) {
+    next(err);
+  }
+}
+
+// GET /api/conversations/:id/media — Repair Pass follow-up: Group
+// Information's real Media/Voice/Files browser, backed directly by real
+// Message rows (never a separate media table — imageUrl/attachmentUrl
+// are already the single source of truth for what a message attached).
+// Only the three kinds this schema actually supports are ever returned —
+// MessageAttachmentType is FILE/AUDIO/VOICE only (see its own schema
+// comment), there is no video attachment type in this app, so a
+// "Videos" category is deliberately never fabricated here.
+export async function listConversationMedia(req, res, next) {
+  try {
+    const conversation = await conversationAccessFor(req.user, req.params.id);
+    if (!conversation) return res.status(404).json({ error: "Conversation not found" });
+
+    const messages = await prisma.message.findMany({
+      where: {
+        conversationId: conversation.id,
+        deletedAt: null,
+        OR: [{ imageUrl: { not: null } }, { attachmentUrl: { not: null } }],
+      },
+      select: {
+        id: true,
+        imageUrl: true,
+        attachmentType: true,
+        attachmentUrl: true,
+        attachmentName: true,
+        attachmentSize: true,
+        attachmentDurationSec: true,
+        createdAt: true,
+        senderEmployee: { select: { id: true, name: true } },
+        senderUser: { select: { id: true, name: true } },
+      },
+      orderBy: { createdAt: "desc" },
+      take: 300,
+    });
+
+    const media = { images: [], voice: [], files: [] };
+    for (const m of messages) {
+      const senderName = m.senderEmployee?.name ?? m.senderUser?.name ?? "Unknown";
+      if (m.imageUrl) {
+        media.images.push({ messageId: m.id, url: m.imageUrl, senderName, createdAt: m.createdAt });
+      } else if (m.attachmentType === "AUDIO" || m.attachmentType === "VOICE") {
+        media.voice.push({
+          messageId: m.id, url: m.attachmentUrl, durationSec: m.attachmentDurationSec, senderName, createdAt: m.createdAt,
+        });
+      } else if (m.attachmentType === "FILE") {
+        media.files.push({
+          messageId: m.id, url: m.attachmentUrl, name: m.attachmentName, size: m.attachmentSize, senderName, createdAt: m.createdAt,
+        });
+      }
+    }
+
+    res.json(media);
+  } catch (err) {
+    next(err);
+  }
+}
+
+// GET /api/conversations/:id/messages/:messageId/seen-by — real per-
+// message read receipts (spec: "Verify group messages support an actual
+// per-message Seen by reader list, not just conversation-level read
+// state"). Deliberately NOT a new per-(message,reader) table written on
+// every read (that would be a real-write storm for a 100+-member zone
+// group on every single message) — instead derived at read time from the
+// SAME ConversationRead row markConversationRead already
+// upserts-once-per-open, same efficiency reasoning already documented on
+// that model: "avoid unnecessary database writes" for large groups.
+// Whoever's lastReadAt is at or after this message's createdAt has, by
+// definition, seen it (and everything before it) — real data, computed
+// fresh, never a stored per-message flag to keep in sync. Access is the
+// same conversationAccessFor check as reading the messages themselves —
+// no additional restriction (seeing who else in a group you already
+// belong to has read a message isn't sensitive beyond that).
+export async function getMessageSeenBy(req, res, next) {
+  try {
+    const conversation = await conversationAccessFor(req.user, req.params.id);
+    if (!conversation) return res.status(404).json({ error: "Conversation not found" });
+
+    const message = await prisma.message.findUnique({ where: { id: req.params.messageId } });
+    if (!message || message.conversationId !== conversation.id) {
+      return res.status(404).json({ error: "Message not found in this conversation" });
+    }
+
+    const reads = await prisma.conversationRead.findMany({
+      where: { conversationId: conversation.id, lastReadAt: { gte: message.createdAt } },
+      include: {
+        employee: { select: { id: true, name: true } },
+        staffUser: { select: { id: true, name: true } },
+      },
+      orderBy: { lastReadAt: "desc" },
+    });
+
+    // Never list the sender as one of their own message's readers.
+    const readers = reads
+      .filter((r) => !(r.employeeId && r.employeeId === message.senderEmployeeId) && !(r.staffUserId && r.staffUserId === message.senderUserId))
+      .map((r) => ({
+        kind: r.employeeId ? "employee" : "staff",
+        id: r.employeeId ?? r.staffUserId,
+        name: r.employee?.name ?? r.staffUser?.name ?? "Unknown",
+        readAt: r.lastReadAt,
+      }));
+
+    res.json({ count: readers.length, readers });
   } catch (err) {
     next(err);
   }
@@ -1276,6 +2323,79 @@ export async function postWarningBroadcast(req, res, next) {
     });
 
     res.status(201).json(message);
+  } catch (err) {
+    next(err);
+  }
+}
+
+// GET /api/conversations/organized — Phase 3 §1-5: the single aggregator
+// behind the Chat page's four views (Important People / Groups /
+// Individuals / Unread). Not a separate data source — every bucket is
+// computed from the exact same shaped conversation list the caller's
+// existing inbox endpoint already returns (buildEmployeeConversationList /
+// buildStaffConversationList / buildRmConversationList), so a
+// conversation legitimately appears in more than one bucket and nothing
+// here can drift from what listMyConversations/listMyStaffConversations/
+// listMyRegionalManagerConversations already show. Employees have no
+// Important People (ImportantContact.ownerUserId is always a staff
+// account, per the spec's own framing — this is a Supervisor/Regional
+// Manager/Admin feature).
+const GROUP_TYPES = new Set(["MARKET_GROUP", "WARNINGS", "ZONE_GROUP", "ZONE_ANNOUNCEMENTS", "CUSTOM_GROUP"]);
+const INDIVIDUAL_TYPES = new Set(["DIRECT", "SUPERVISOR_DIRECT", "RM_DIRECT", "STAFF_DIRECT"]);
+
+export async function organizedConversations(req, res, next) {
+  try {
+    let conversations;
+    let importantPeople = [];
+
+    if (req.user.kind === "employee") {
+      conversations = await buildEmployeeConversationList(req);
+    } else if (req.user.role === "REGIONAL_MANAGER") {
+      conversations = await buildRmConversationList(req);
+    } else if (req.user.role === "SUPERVISOR" || req.user.role === "OVERLOOKING_SUPERVISOR") {
+      conversations = await buildStaffConversationList(req);
+    } else {
+      // ADMIN (Phase 3.5 — Admin Chat screen): same "views over the same
+      // list" reuse as every other role.
+      conversations = req.user.role === "ADMIN" ? await buildAdminConversationList(req) : [];
+    }
+
+    if (req.user.kind === "staff") {
+      const contacts = await prisma.importantContact.findMany({
+        where: { ownerUserId: req.user.userId },
+        include: {
+          contactUser: { select: { id: true, name: true, role: true } },
+          contactEmployee: { select: { id: true, name: true, position: true } },
+        },
+        orderBy: { priority: "desc" },
+      });
+      const conversationByStaffId = new Map(conversations.filter((c) => c.staffUserId).map((c) => [c.staffUserId, c]));
+      const conversationByEmployeeId = new Map(conversations.filter((c) => c.employeeId).map((c) => [c.employeeId, c]));
+      importantPeople = await Promise.all(
+        contacts.map(async (contact) => {
+          const matched = contact.contactUserId
+            ? conversationByStaffId.get(contact.contactUserId)
+            : conversationByEmployeeId.get(contact.contactEmployeeId);
+          return {
+            id: contact.id,
+            priority: contact.priority,
+            contactUserId: contact.contactUserId,
+            contactEmployeeId: contact.contactEmployeeId,
+            name: contact.contactUser?.name ?? contact.contactEmployee?.name,
+            role: contact.contactUser?.role ?? null,
+            position: contact.contactEmployee?.position ?? null,
+            conversation: matched ?? null,
+          };
+        })
+      );
+    }
+
+    res.json({
+      importantPeople,
+      groups: conversations.filter((c) => GROUP_TYPES.has(c.type)),
+      individuals: conversations.filter((c) => INDIVIDUAL_TYPES.has(c.type)),
+      unread: conversations.filter((c) => c.unreadCount > 0),
+    });
   } catch (err) {
     next(err);
   }

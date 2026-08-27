@@ -6,6 +6,8 @@ import WastedItemsSection from "./WastedItemsSection";
 import CartonFillingButton from "./CartonFillingButton";
 import CardSalesSection from "./CardSalesSection";
 import SubmitTotalSalesModal from "./SubmitTotalSalesModal";
+import DepartmentMonitoringSection from "./DepartmentMonitoringSection";
+import NightShiftMonitoringSection from "./NightShiftMonitoringSection";
 import Toast from "../common/Toast";
 import { useToast } from "../../hooks/useToast";
 
@@ -44,13 +46,23 @@ export default function MarketTab({ session }) {
       </section>
 
       <section className="mt-6">
+        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-[#8B93A8]">Department Monitoring</h2>
+        <DepartmentMonitoringSection marketId={session.marketId} />
+      </section>
+
+      <section className="mt-6">
+        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-[#8B93A8]">Night Shift</h2>
+        <NightShiftMonitoringSection marketId={session.marketId} />
+      </section>
+
+      <section className="mt-6">
         <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-[#8B93A8]">Market Structure & Daily Checks</h2>
         <DailySectionChecks />
       </section>
 
       <section className="mt-6">
         <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-[#8B93A8]">Reports & Problems</h2>
-        <ReportsProblemsSection reporterName={session.displayName} />
+        <ReportsProblemsSection marketId={session.marketId} />
       </section>
 
       <section className="mt-6">

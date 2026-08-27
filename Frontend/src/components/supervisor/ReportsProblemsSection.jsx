@@ -1,53 +1,106 @@
 import { useState } from "react";
-import { AlertTriangle, Plus, Loader2, Check } from "lucide-react";
+import { AlertTriangle, Plus, Loader2, Check, History, Trash2 } from "lucide-react";
 import { useAsync } from "../../hooks/useAsync";
 import { SkeletonCard } from "../common/SkeletonCard";
 import Modal from "../common/Modal";
+import AuthenticatedImage from "../common/AuthenticatedImage";
 import EvidenceCapture from "../employee/EvidenceCapture";
-import { PROBLEM_TYPES, listMarketProblems, createMarketProblem, updateMarketProblemStatus } from "../../data/supervisorMockData";
+import { listMarketProblems, createMarketProblem, updateMarketProblemStatus, deleteMarketProblem } from "../../services/marketProblemsService";
+
+const PROBLEM_TYPES = [
+  "Freezer not working",
+  "Electricity problem",
+  "Computer not working",
+  "Cashier monitor not working",
+  "Door broken",
+  "Equipment problem",
+  "Internet/network problem",
+  "Other market problem",
+];
 
 const STATUS_TONE = { OPEN: "bg-red-500/10 text-red-400 ring-red-500/20", IN_PROGRESS: "bg-amber-500/10 text-amber-400 ring-amber-500/20", RESOLVED: "bg-emerald-500/10 text-emerald-400 ring-emerald-500/20" };
 const STATUS_LABEL = { OPEN: "Open", IN_PROGRESS: "In Progress", RESOLVED: "Resolved" };
 const STATUS_ORDER = ["OPEN", "IN_PROGRESS", "RESOLVED"];
 
-// ReportsProblemsSection.jsx — physical/technical market issues (spec
-// §20). Local/mock state (data/supervisorMockData.js) — no backend
-// model for market problems exists yet, structured as a plain
-// {id, problemType, location, description, status, photoUrl, reporterName,
-// createdAt} record so a future MarketProblem Prisma model would be a
-// drop-in swap for this file's calls.
-export default function ReportsProblemsSection({ reporterName }) {
-  const { data: problems, setData: setProblems, loading } = useAsync(listMarketProblems, { deps: [] });
+// ReportsProblemsSection.jsx — Repair Pass §4: physical/technical market
+// issues, now backed by the real MarketProblem model (previously mock/
+// in-memory frontend data). Active queue and History are two genuinely
+// separate views (view=active|history — see marketProblemsController.js):
+// resolving a problem here removes it from the Active list immediately
+// and it only ever reappears under History, surviving a refresh since
+// it's a real persisted row, not React state.
+export default function ReportsProblemsSection({ marketId }) {
+  const [tab, setTab] = useState("active");
+  const { data: problems, setData: setProblems, loading, reload } = useAsync(
+    () => listMarketProblems(marketId, tab),
+    { deps: [marketId, tab] }
+  );
   const [showForm, setShowForm] = useState(false);
   const [selected, setSelected] = useState(null);
 
   function handleCreated(problem) {
-    setProblems((prev) => [problem, ...(prev ?? [])]);
+    if (tab === "active") setProblems((prev) => [problem, ...(prev ?? [])]);
     setShowForm(false);
   }
 
   async function cycleStatus(problem) {
     const nextIndex = (STATUS_ORDER.indexOf(problem.status) + 1) % STATUS_ORDER.length;
     const updated = await updateMarketProblemStatus(problem.id, STATUS_ORDER[nextIndex]);
-    setProblems((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
+    // The updated row may no longer belong in whichever tab is currently
+    // shown (e.g. it just became RESOLVED while viewing Active) — refetch
+    // rather than trying to patch it in place, so the active/history
+    // split is always exactly what the backend says it is.
+    reload();
     setSelected(updated);
+  }
+
+  const [deleting, setDeleting] = useState(false);
+  async function handleDelete(problem) {
+    setDeleting(true);
+    try {
+      await deleteMarketProblem(problem.id);
+      setSelected(null);
+      reload();
+    } finally {
+      setDeleting(false);
+    }
   }
 
   if (loading) return <SkeletonCard className="h-40" />;
 
-  const openCount = problems.filter((p) => p.status !== "RESOLVED").length;
+  const openCount = tab === "active" ? problems.length : null;
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-3">
-        <p className="text-xs text-[#8B93A8]">{openCount} unresolved</p>
-        <button type="button" onClick={() => setShowForm(true)} className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold text-white bg-[#F47A20] hover:bg-[#ff8b36]">
-          <Plus size={14} /> Report Problem
+      <div className="flex items-center gap-2 mb-3">
+        <button
+          type="button"
+          onClick={() => setTab("active")}
+          className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${tab === "active" ? "bg-[#F47A20] text-white" : "bg-white/[0.06] text-[#9AA1B4] hover:text-white"}`}
+        >
+          Active
         </button>
+        <button
+          type="button"
+          onClick={() => setTab("history")}
+          className={`flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${tab === "history" ? "bg-[#F47A20] text-white" : "bg-white/[0.06] text-[#9AA1B4] hover:text-white"}`}
+        >
+          <History size={12} /> History
+        </button>
+        <div className="flex-1" />
+        {tab === "active" && (
+          <button type="button" onClick={() => setShowForm(true)} className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold text-white bg-[#F47A20] hover:bg-[#ff8b36]">
+            <Plus size={14} /> Report Problem
+          </button>
+        )}
       </div>
 
+      {tab === "active" && openCount !== null && <p className="text-xs text-[#8B93A8] mb-2">{openCount} unresolved</p>}
+
       {problems.length === 0 ? (
-        <p className="text-sm text-[#4C5266] text-center py-8">No problems reported.</p>
+        <p className="text-sm text-[#4C5266] text-center py-8">
+          {tab === "active" ? "No active problems reported." : "No resolved problems yet."}
+        </p>
       ) : (
         <div className="space-y-2">
           {problems.map((p) => (
@@ -73,7 +126,7 @@ export default function ReportsProblemsSection({ reporterName }) {
       )}
 
       <Modal open={showForm} onClose={() => setShowForm(false)} title="Report a Problem">
-        <ProblemForm reporterName={reporterName} onCreated={handleCreated} />
+        <ProblemForm onCreated={handleCreated} />
       </Modal>
 
       <Modal open={!!selected} onClose={() => setSelected(null)} title={selected?.problemType}>
@@ -81,14 +134,24 @@ export default function ReportsProblemsSection({ reporterName }) {
           <div className="space-y-3">
             <p className="text-sm text-[#9AA1B4]">{selected.description}</p>
             <div className="flex justify-between text-sm py-1.5 border-b border-white/[0.05]"><span className="text-[#8B93A8]">Location</span><span className="text-white">{selected.location}</span></div>
-            <div className="flex justify-between text-sm py-1.5 border-b border-white/[0.05]"><span className="text-[#8B93A8]">Reported by</span><span className="text-white">{selected.reporterName}</span></div>
-            {selected.photoUrl && <img src={selected.photoUrl} alt="" className="rounded-lg w-full max-h-56 object-cover" />}
+            <div className="flex justify-between text-sm py-1.5 border-b border-white/[0.05]"><span className="text-[#8B93A8]">Reported by</span><span className="text-white">{selected.reportedByUser?.name}</span></div>
+            {selected.photoUrl && <AuthenticatedImage src={selected.photoUrl} alt="" className="rounded-lg w-full max-h-56 object-cover" />}
+            {selected.status !== "RESOLVED" && (
+              <button
+                type="button"
+                onClick={() => cycleStatus(selected)}
+                className={`w-full flex items-center justify-center gap-2 rounded-xl py-3 text-sm font-semibold ring-1 ring-inset ${STATUS_TONE[selected.status]}`}
+              >
+                <Check size={14} /> Mark as {STATUS_LABEL[STATUS_ORDER[(STATUS_ORDER.indexOf(selected.status) + 1) % STATUS_ORDER.length]]}
+              </button>
+            )}
             <button
               type="button"
-              onClick={() => cycleStatus(selected)}
-              className={`w-full flex items-center justify-center gap-2 rounded-xl py-3 text-sm font-semibold ring-1 ring-inset ${STATUS_TONE[selected.status]}`}
+              onClick={() => handleDelete(selected)}
+              disabled={deleting}
+              className="w-full flex items-center justify-center gap-2 rounded-xl py-3 text-sm font-semibold text-red-400 bg-red-500/[0.06] border border-red-500/20 hover:bg-red-500/10 disabled:opacity-50 transition-colors"
             >
-              <Check size={14} /> Mark as {STATUS_LABEL[STATUS_ORDER[(STATUS_ORDER.indexOf(selected.status) + 1) % STATUS_ORDER.length]]}
+              {deleting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />} Delete Report
             </button>
           </div>
         )}
@@ -97,7 +160,7 @@ export default function ReportsProblemsSection({ reporterName }) {
   );
 }
 
-function ProblemForm({ reporterName, onCreated }) {
+function ProblemForm({ onCreated }) {
   const [problemType, setProblemType] = useState(PROBLEM_TYPES[0]);
   const [location, setLocation] = useState("");
   const [description, setDescription] = useState("");
@@ -113,8 +176,10 @@ function ProblemForm({ reporterName, onCreated }) {
     setSubmitting(true);
     setError(null);
     try {
-      const problem = await createMarketProblem({ problemType, location: location.trim(), description: description.trim(), photoUrl: photo, reporterName });
+      const problem = await createMarketProblem({ problemType, location: location.trim(), description: description.trim(), photoUrl: photo });
       onCreated(problem);
+    } catch {
+      setError("Could not submit this report. Please try again.");
     } finally {
       setSubmitting(false);
     }

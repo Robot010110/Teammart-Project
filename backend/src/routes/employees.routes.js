@@ -7,9 +7,11 @@ import {
   deleteEmployee,
   assignDepartment,
   getDepartmentHistory,
+  addAdditionalDepartment,
+  removeAdditionalDepartment,
 } from "../controllers/employeesController.js";
 import { requireAuth, requireStaffRole } from "../middleware/auth.js";
-import { validateBody, createEmployeeSchema, updateEmployeeSchema, assignDepartmentSchema } from "../utils/validate.js";
+import { validateBody, createEmployeeSchema, updateEmployeeSchema, assignDepartmentSchema, additionalDepartmentSchema } from "../utils/validate.js";
 
 const router = Router();
 
@@ -57,6 +59,21 @@ router.get(
   requireAuth,
   requireStaffRole("ADMIN", "REGIONAL_MANAGER", "SUPERVISOR"),
   getDepartmentHistory
+);
+
+// Night Shift §3-4 — additional (non-MAIN) department responsibilities.
+router.post(
+  "/:id/additional-departments",
+  requireAuth,
+  requireStaffRole("ADMIN", "REGIONAL_MANAGER", "SUPERVISOR"),
+  validateBody(additionalDepartmentSchema),
+  addAdditionalDepartment
+);
+router.delete(
+  "/:id/additional-departments/:department",
+  requireAuth,
+  requireStaffRole("ADMIN", "REGIONAL_MANAGER", "SUPERVISOR"),
+  removeAdditionalDepartment
 );
 
 export default router;

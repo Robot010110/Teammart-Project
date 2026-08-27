@@ -8,6 +8,7 @@ import CashierActivityTab from "../components/employee/CashierActivityTab";
 import ChatListScreen from "../components/employee/ChatListScreen";
 import ConversationRoute from "../components/employee/ConversationRoute";
 import ProfileTab from "../components/employee/ProfileTab";
+import CommunicationDetailScreen from "../components/employee/CommunicationDetailScreen";
 import { useUnreadBadges } from "../hooks/useUnreadBadges";
 
 const BASE_PATH = "/cashier";
@@ -38,6 +39,7 @@ export default function CashierWorkspace({ employeeId, onLogout }) {
         <Route path="tasks" element={<SuddenTaskListScreen basePath={BASE_PATH} />} />
         <Route path="tasks/:taskId" element={<SuddenTaskDetailRoute basePath={BASE_PATH} />} />
         <Route path="activity" element={<CashierActivityTab />} />
+        <Route path="communications/:id" element={<CommunicationDetailScreen basePath={BASE_PATH} />} />
         <Route path="chat" element={<ChatListScreen currentEmployeeId={employeeId} basePath={BASE_PATH} />} />
         <Route path="chat/:conversationId" element={<ConversationRoute currentEmployeeId={employeeId} basePath={BASE_PATH} />} />
         <Route path="profile/*" element={<ProfileTab onLogout={onLogout} basePath={`${BASE_PATH}/profile`} />} />

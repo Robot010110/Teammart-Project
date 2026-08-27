@@ -87,6 +87,22 @@ enum ActivityCategory {
   LABEL_CHECKING
   FACING
   REFILLING
+  // "How did you leave your department?" (Phase 1 foundation) — a
+  // distinct concept from FACING (a specific shelf-facing task): this is
+  // an end-of-shift department-condition submission, with its own
+  // department/expiring-photo/optional-supervisor-submitted fields below
+  // on Activity itself. Reuses this same model rather than a parallel
+  // one — see Activity's own comment.
+  DEPARTMENT_CLOSING
+  // Night Shift — ONE category for every configurable, admin-defined
+  // Night Shift task (Washing Market today, Freezer Check/Closing
+  // Inspection/etc. later), rather than a new enum value per task —
+  // Activity.nightShiftTaskDefinitionId below says WHICH task; this
+  // mirrors this exact enum's own doc comment ("adding a new category
+  // is a one-line enum change instead of a new table") one level
+  // further: a new Night Shift task type needs a new
+  // NightShiftTaskDefinition *row*, not even a schema change.
+  NIGHT_SHIFT_TASK
 }
 
 // Only meaningful when Activity.category = LABEL_CHECKING — what's wrong
@@ -237,6 +253,18 @@ enum EmploymentStatus {
   ON_LEAVE
 }
 
+// Admin Phase 2 §15 — deliberately separate from EmploymentStatus above:
+// employment status is an HR concept (is this person currently working
+// here), account status is an authentication concept (can this specific
+// login credential be used at all). A SUSPENDED/BANNED account and an
+// ACTIVE employment status can coexist (e.g. suspended pending review,
+// still employed) — merging them would make that unrepresentable.
+enum AccountStatus {
+  ACTIVE
+  SUSPENDED
+  BANNED
+}
+
 // ---------------------------------------------------------------------
 // Notifications — a real, generic feed (previously just a TODO comment
 // in EmployeeWorkspace.jsx: "this toast is NOT a real notification
@@ -286,6 +314,56 @@ enum NotificationType {
   // Manager for review (spec: "not to automatically punish the
   // employee... trigger a management review").
   EXCESSIVE_EXTRA_HOURS
+  // A Break entered PENDING_CONFIRMATION (fingerprint event, or a
+  // controlled test/manual creation — see FingerprintEvent's own
+  // comment) — notifies the employee/staff it's for: "Did you take a
+  // break?" (Phase 1 foundation; the full UX is Phase 2).
+  BREAK_PENDING_CONFIRMATION
+  // A Break the recipient confirmed reached its expected end time
+  // (ACTIVE -> COMPLETED).
+  BREAK_COMPLETED
+  // An employee (or an authorized Supervisor on their behalf) submitted
+  // a Department Closing activity — notifies the market's Supervisor/
+  // Overlooking (Phase 2 §11).
+  DEPARTMENT_CLOSING_SUBMITTED
+  // Admin Phase 2 §26 — an Admin suspended/banned/reactivated this
+  // account. One shared type for all three outcomes, same convention as
+  // SUBMISSION_REVIEWED/LEAVE_REVIEWED above.
+  ACCOUNT_STATUS_CHANGED
+  // Admin Phase 2 §26 — an Admin changed this person's role/assignment
+  // (promotion, demotion, or a same-table role/market/zone change).
+  ROLE_CHANGED
+  // Admin Phase 3 §3 — an Admin started a formal Market Visit or
+  // Administrative Inspection at this market — notifies its Supervisor.
+  MARKET_VISIT
+  // Night Shift §20 — a Night Shift task (e.g. Washing Market) was
+  // completed — notifies the market's Supervisor/Overlooking Supervisor.
+  NIGHT_SHIFT_TASK_COMPLETED
+  // Warnings & Notifications — a targeted Communication was sent to this
+  // employee. A lightweight pointer only (linkType "COMMUNICATION",
+  // linkId = Communication.id) so it shows up in the existing
+  // Notification Center for free; the full content/action UI reads the
+  // real Communication + CommunicationRecipient rows, not this row.
+  COMMUNICATION
+  // Cleanup Phase §6 — an employee submitted an ItemReport (expired/
+  // wasted item) or a Cashier submitted a PriceReport (shelf vs. system
+  // price mismatch) — notifies the market's own Supervisor/Overlooking
+  // Supervisor. One shared type for both, same convention as
+  // SUBMISSION_REVIEWED/LEAVE_REVIEWED covering multiple related events.
+  // These reports predate the Notification system and were never
+  // retrofitted until now — this is the fix for "reports only ever
+  // surfaced via Admin's global dashboards, never actively routed to the
+  // Supervisor responsible for them."
+  EMPLOYEE_REPORT_SUBMITTED
+  // Production Chat §14-15 — someone was @mentioned in a real, structured
+  // mention (never triggered by the raw string containing "@" — see
+  // MessageMention). Recipient is whichever of employeeId/userId the
+  // mentioned account actually is.
+  MENTION
+  // Production Chat §13 — an authorized management account (Supervisor/
+  // Overlooking/Regional Manager/Admin) sent a Management Recognition
+  // reaction to this employee's message (see MessageReaction.isRecognition).
+  MANAGEMENT_RECOGNITION
 }
 
 // ---------------------------------------------------------------------
@@ -319,6 +397,31 @@ enum ConversationType {
   // real ConversationMember rows, added/removed individually. `name` and
   // `createdById` on Conversation are only meaningful for this type.
   CUSTOM_GROUP
+  // Phase 3 — a real, backend-persisted 1:1 between two STAFF accounts
+  // (Admin/Regional Manager/Supervisor/Overlooking), the one shape none
+  // of the types above could represent (DIRECT is Employee-only,
+  // SUPERVISOR_DIRECT/RM_DIRECT are always Employee<->one staff member).
+  // Needed for "Important People" (spec §3-4): a Regional Manager's
+  // high-priority contacts — CEO, Operations Manager, senior management —
+  // are other staff accounts, not employees, and there was previously no
+  // way for two staff members to have a real 1:1 conversation at all.
+  // Uses staffParticipantId (A) + staffParticipantBId (B) below, ordered
+  // consistently (lower id first) same as DIRECT's participantA/B
+  // ordering — see chatController.js's directPair()/staffDirectPair().
+  STAFF_DIRECT
+  // Production Chat §6-7 — one, auto-provisioned (found-or-created, same
+  // pattern as MARKET_GROUP) General Zone chat per Zone. Membership is
+  // implicit: every employee whose market is in this zone, every
+  // Supervisor/Overlooking of a market in this zone, the zone's Regional
+  // Manager(s), and Admin — see chatController.js's
+  // findOrCreateZoneChannel/conversationAccessFor. Uses Conversation.zoneId
+  // (marketId stays null), never a CUSTOM_GROUP — a zone has exactly one
+  // of these, not a manually-created, renameable group.
+  ZONE_GROUP
+  // Production Chat §8 — the zone-level counterpart to WARNINGS: read-only
+  // for everyone in the zone, postable only by the zone's Regional
+  // Manager(s) or Admin (see chatController.postZoneAnnouncement).
+  ZONE_ANNOUNCEMENTS
 }
 
 // FILE/AUDIO/VOICE only — an image attachment is still represented by
@@ -350,6 +453,47 @@ model User {
   passwordHash String
   role         StaffRole @default(SUPERVISOR)
   createdAt    DateTime  @default(now())
+
+  // Admin Phase 2 — account-status (auth eligibility, distinct from any
+  // employment concept — staff accounts have no employment-status field
+  // at all) + session invalidation. tokenVersion is embedded in every
+  // JWT this account is issued (see utils/jwt.js); requireAuth compares
+  // it against the current DB value on every request — bumping it here
+  // makes every previously-issued token stop working immediately,
+  // without a stateful session store (see middleware/auth.js's own
+  // comment on why this is the "smallest correct" mechanism for a
+  // stateless-JWT app).
+  accountStatus AccountStatus @default(ACTIVE)
+  statusReason  String?
+  tokenVersion  Int           @default(0)
+
+  // Repair Pass §3 — self-service profile fields for staff accounts
+  // (Supervisor/Overlooking/Regional Manager/Admin), the same three an
+  // Employee already had (see Employee.profilePictureUrl/whatsappNumber's
+  // own comments) — added here instead of a second staff-profile table so
+  // PATCH /api/profile stays the one shared self-service endpoint for
+  // both account kinds (see profileController.updateMyProfile).
+  profilePictureUrl String?
+  phoneNumber       String?
+  whatsappNumber    String?
+
+  // Set only when this User account was created by promoting an
+  // existing Employee (Worker/Cashier/Butcher -> Supervisor/Regional
+  // Manager/Overlooking Supervisor) — see
+  // adminAccountController.promoteEmployeeToStaff's own comment on why
+  // this is a linked NEW account rather than an in-place row conversion
+  // (Employee.id and User.id are different identity spaces referenced
+  // by many dual-nullable-FK tables — converting in place would silently
+  // orphan every historical Activity/AttendanceRecord/Message row still
+  // pointing at the old employeeId). The old Employee row is preserved,
+  // never deleted, with its own accountStatus set to SUSPENDED so it can
+  // no longer log in.
+  promotedFromEmployeeId String?   @unique
+  promotedFromEmployee   Employee? @relation("EmployeePromotedToUser", fields: [promotedFromEmployeeId], references: [id])
+  // Reverse side of Employee.demotedFromUserId — lets this User row (if
+  // it was later demoted) be traced forward to the Employee row it
+  // became.
+  demotedToEmployee Employee? @relation("UserDemotedToEmployee")
 
   // A Regional Manager can manage multiple zones (Zone.managerId has no
   // uniqueness constraint) — the RM management layer explicitly needs
@@ -384,23 +528,43 @@ model User {
   assignedDepartments      DepartmentAssignment[]     @relation("DepartmentAssigner")
   reviewedWastedOverallReports WastedOverallReport[]  @relation("WastedOverallReviewer")
   notifications                Notification[]         @relation("NotificationRecipientUser")
+  communicationsSent           Communication[]        @relation("CommunicationSender")
+  communicationsTargetedAsSupervisor Communication[]  @relation("CommunicationTargetSupervisor")
+  communicationsReceived       CommunicationRecipient[] @relation("CommunicationRecipientUser")
 
   sentMessages Message[] @relation("MessageSenderUser")
   supervisorConversations Conversation[] @relation("ConversationStaffParticipant")
+  staffDirectConversationsAsB Conversation[] @relation("ConversationStaffParticipantB")
   reviewedActivities Activity[] @relation("ActivityReviewer")
   messageReactions MessageReaction[] @relation("MessageReactionUser")
+  messageMentions MessageMention[] @relation("MessageMentionUser")
 
   marketVisits    MarketVisit[]    @relation("MarketVisitRM")
+  adminMarketVisits MarketVisit[]  @relation("MarketVisitAdmin")
+  auditLogsAsActor AuditLog[]      @relation("AuditLogActor")
   marketRatings   MarketRating[]   @relation("MarketRatingRM")
   marketNotes     MarketNote[]     @relation("MarketNoteRM")
   marketFeedbacks MarketFeedback[] @relation("MarketFeedbackRM")
+  reportedMarketProblems MarketProblem[] @relation("MarketProblemReporter")
   createdGroups   Conversation[]   @relation("ConversationCreator")
   reviewedAttendanceAdjustments AttendanceAdjustmentRequest[] @relation("AttendanceAdjustmentReviewer")
   groupMemberships ConversationMember[] @relation("ConversationMemberUser")
   submittedTotalSalesReports TotalSalesReport[] @relation("TotalSalesSubmitter")
+  reviewedTotalSalesReports  TotalSalesReport[] @relation("TotalSalesReviewer")
   submittedCardSalesReports  CardSalesReport[]  @relation("CardSalesSubmitter")
   createdCountingAssignments  CountingAssignment[] @relation("CountingAssignmentAssigner")
   verifiedCountingAssignments CountingAssignment[] @relation("CountingAssignmentVerifier")
+  uploadedFiles               UploadedFile[]
+  staffAttendanceRecords      AttendanceRecord[]   @relation("StaffAttendance")
+  staffBreaks                 Break[]              @relation("StaffBreaks")
+  departmentClosingsSubmitted Activity[]           @relation("ActivitySubmittedByStaff")
+  createdMarketDepartments    MarketDepartment[]   @relation("MarketDepartmentCreator")
+  sentDepartmentReports       DepartmentReport[]   @relation("DepartmentReportSender")
+
+  staffConversationReads ConversationRead[] @relation("StaffConversationReads")
+  importantContacts      ImportantContact[] @relation("ImportantContactOwner")
+  importantContactOf     ImportantContact[] @relation("ImportantContactTargetUser")
+  nightShiftTaskDefinitionsCreated NightShiftTaskDefinition[] @relation("NightShiftTaskDefinitionCreator")
 }
 
 // ---------------------------------------------------------------------
@@ -416,6 +580,9 @@ model Zone {
   manager   User?    @relation("ZoneManager", fields: [managerId], references: [id])
   markets   Market[]
   conversations Conversation[]
+  auditLogs AuditLog[]
+  nightShiftTaskDefinitions NightShiftTaskDefinition[]
+  communications Communication[]
   createdAt DateTime @default(now())
 
   @@index([managerId])
@@ -447,6 +614,11 @@ model Market {
   wastedOverallReports WastedOverallReport[]
   leaveRequests LeaveRequest[]
   attendanceImportBatches AttendanceImportBatch[]
+  attendanceRecords AttendanceRecord[]
+  breaks            Break[]
+  departments       MarketDepartment[]
+  departmentReports DepartmentReport[]
+  activities        Activity[]
   conversations Conversation[]
   createdAt    DateTime     @default(now())
 
@@ -454,9 +626,13 @@ model Market {
   ratings   MarketRating[]
   notes     MarketNote[]
   feedbacks MarketFeedback[]
+  problems  MarketProblem[]
 
   totalSalesReports TotalSalesReport[]
   cardSalesReports  CardSalesReport[]
+  auditLogs         AuditLog[]
+  nightShiftTaskDefinitions NightShiftTaskDefinition[]
+  communications Communication[]
 
   @@index([zoneId])
 }
@@ -481,11 +657,42 @@ model Employee {
   position      String
   secondaryRole String?
   shift         String?
+  // Night Shift — the authoritative, enum-typed shift, reusing the exact
+  // Shift enum (MORNING/EVENING/NIGHT) AttendanceRecord/DepartmentReport
+  // already use, rather than the free-text `shift` field above (which
+  // stays untouched — existing screens display it as-is, e.g. "Morning
+  // Shift"/"Afternoon Shift"/"Night", and nothing here repurposes or
+  // migrates that data). Only WORKER/BUTCHER roles are eligible for
+  // NIGHT here (enforced in the controller, not the DB) — CASHIER keeps
+  // its own separate cashierShift below, whose CashierShift enum has no
+  // NIGHT value at all by existing, intentional design ("Cashiers are
+  // never on a Night shift").
+  operationalShift Shift?
   role          EmployeeRole @default(WORKER)
   marketId      String
   market        Market       @relation(fields: [marketId], references: [id])
   tasks         Task[]
   createdAt     DateTime     @default(now())
+
+  // Admin Phase 2 — same accountStatus/tokenVersion convention as User
+  // (see that model's own comment); deliberately separate from
+  // employmentStatus below (an HR concept), not a replacement for it.
+  accountStatus AccountStatus @default(ACTIVE)
+  statusReason  String?
+  tokenVersion  Int           @default(0)
+
+  // Set only when this Employee row is the result of demoting an
+  // existing User (Supervisor/Regional Manager/Overlooking Supervisor ->
+  // Worker/Cashier/Butcher) — see
+  // adminAccountController.demoteStaffToEmployee's own comment. The
+  // original User row is preserved, never deleted, with accountStatus
+  // set to SUSPENDED.
+  demotedFromUserId Int?  @unique
+  demotedFromUser   User? @relation("UserDemotedToEmployee", fields: [demotedFromUserId], references: [id])
+  // Reverse side of User.promotedFromEmployeeId — lets this Employee row
+  // (if it was later promoted) be traced forward to the User account it
+  // became.
+  promotedToUser User? @relation("EmployeePromotedToUser")
 
   // --- Employee Profile fields (Phase 1, Step 2) ---
   // All nullable/optional so existing employee rows don't break and none
@@ -524,16 +731,23 @@ model Employee {
   auditLogEntries           AttendanceAuditLog[]
 
   notifications         Notification[]
+  communicationsReceived CommunicationRecipient[]
   sentMessages          Message[]          @relation("MessageSenderEmployee")
   conversationReads     ConversationRead[]
   directConversationsAsA Conversation[]    @relation("ConversationParticipantA")
   directConversationsAsB Conversation[]    @relation("ConversationParticipantB")
   messageReactions      MessageReaction[]  @relation("MessageReactionEmployee")
+  messageMentions       MessageMention[]   @relation("MessageMentionEmployee")
   groupMemberships      ConversationMember[]
   attendanceAdjustmentRequests AttendanceAdjustmentRequest[]
   countingAssignments   CountingAssignment[]
+  uploadedFiles         UploadedFile[]
+  breaks                Break[]
+  fingerprintEvents     FingerprintEvent[]
+  importantContactOf    ImportantContact[] @relation("ImportantContactTargetEmployee")
 
   @@index([marketId])
+  @@index([operationalShift])
 }
 
 // ---------------------------------------------------------------------
@@ -627,16 +841,66 @@ model Activity {
   countingAssignmentId String?
   countingAssignment    CountingAssignment? @relation(fields: [countingAssignmentId], references: [id])
 
-  employeeId String
-  employee   Employee @relation(fields: [employeeId], references: [id])
+  // Only meaningful for category = DEPARTMENT_CLOSING — which department
+  // this "how did you leave it" submission is about. A plain string
+  // (matching Employee.department/DepartmentAssignment.department's own
+  // convention), not a hard FK to MarketDepartment below — a submission
+  // should stay readable even if that catalog row is later renamed/
+  // deactivated, same "the historical record doesn't retroactively
+  // change" principle used throughout this schema (e.g. Message.
+  // forwardedFromSenderName).
+  department String?
+
+  // Set only when a Supervisor/Overlooking submits this DEPARTMENT_CLOSING
+  // activity on the employee's behalf (spec: "whether submitted by
+  // employee or authorized supervisor") — null means the employee
+  // submitted it themself, the default for every other Activity category
+  // too. Authorization for who's "authorized" to do this for which
+  // employee is the same assertMarketAccess every staff-scoped endpoint
+  // already uses (see activitiesController.createActivity).
+  //
+  // Phase 2 (§15-16): a Supervisor can ALSO submit a Department Closing
+  // for a genuinely UNASSIGNED department — no employee exists to
+  // attribute it to at all. That's the one case employeeId below is
+  // null; submittedByStaffId is then the sole owner, and marketId (also
+  // otherwise unused/null — every other case derives market via
+  // employee.marketId) carries the market this submission belongs to.
+  // Never both employeeId AND marketId null at once for a real Activity
+  // row — enforced in activitiesController, not the DB.
+  submittedByStaffId Int?
+  submittedByStaff   User? @relation("ActivitySubmittedByStaff", fields: [submittedByStaffId], references: [id])
+
+  employeeId String?
+  employee   Employee? @relation(fields: [employeeId], references: [id])
+  marketId   String?
+  market     Market?  @relation(fields: [marketId], references: [id])
+
+  // Night Shift (only meaningful for category = NIGHT_SHIFT_TASK) — which
+  // reusable task this instance fulfills, and which OPERATIONAL day it
+  // belongs to. A Night Shift crosses midnight (spec: "starts 10 PM,
+  // completes 1:30 AM belongs to the PREVIOUS day's shift"), so
+  // operationalDate is deliberately a separate, explicitly-set field
+  // rather than derived from createdAt/date — createdAt stays the real
+  // server timestamp evidence was submitted, operationalDate is which
+  // shift-day this counts toward for reporting/duplicate-prevention.
+  // The @@unique below is the actual idempotent-generation guarantee
+  // (same pattern as DepartmentReport's @@unique([marketId, date,
+  // shift])) — Postgres treats every NULL as distinct, so it only
+  // constrains real Night Shift task rows, never collides with any
+  // other Activity category.
+  nightShiftTaskDefinitionId String?
+  nightShiftTaskDefinition   NightShiftTaskDefinition? @relation(fields: [nightShiftTaskDefinitionId], references: [id])
+  operationalDate            DateTime?
 
   images ActivityImage[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  @@unique([employeeId, nightShiftTaskDefinitionId, operationalDate])
   @@index([employeeId])
   @@index([status])
+  @@index([nightShiftTaskDefinitionId])
 }
 
 // One Activity can have many images, and each image belongs to exactly
@@ -648,12 +912,155 @@ model ActivityImage {
   id  String @id @default(cuid())
   url String
 
+  // Retention deadline for this specific image — currently only set for
+  // DEPARTMENT_CLOSING photos (16 hours from submission, spec §15);
+  // null for every other Activity category's images, which stay
+  // permanent like the rest of this app's task metadata (see
+  // Frontend/README.md's "Photo retention" note for the same
+  // metadata-vs-media-retention split already established for other
+  // photo types). Enforced by services/maintenanceScheduler.js's
+  // periodic sweep — see expiredAt below for how that sweep records
+  // that it actually ran for this row.
+  expiresAt DateTime?
+
+  // Set by the expiry sweep once it has deleted the physical file/
+  // UploadedFile row for this image (Phase 2) — null means "not expired
+  // yet" (or never had an expiry at all). The row itself and `url` are
+  // NEVER deleted when this is set: `url` stays as a historical record
+  // of what was submitted, but GET /api/uploads/:filename for it will
+  // correctly 404 (the UploadedFile row backing it is gone) — this field
+  // just lets the frontend show "Photo expired" proactively instead of
+  // attempting a fetch that's guaranteed to fail. Deliberately a
+  // timestamp, not a boolean, so "when did this expire" is itself part
+  // of the historical record.
+  expiredAt DateTime?
+
   activityId String
   activity   Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
 
   @@index([activityId])
+  @@index([expiresAt])
+}
+
+// ---------------------------------------------------------------------
+// NightShiftTaskDefinition — Night Shift §8: the reusable, admin-
+// configured task ARCHITECTURE ("Washing Market is the first required
+// implementation, not a special architecture future tasks cannot
+// reuse"). One row per task type; every actual instance an employee
+// works on is a plain Activity row (category NIGHT_SHIFT_TASK) linking
+// back here — see Activity.nightShiftTaskDefinitionId's own comment.
+// Restriction fields are all nullable = "no restriction on this axis"
+// (e.g. marketId null means every market gets this task, not none).
+model NightShiftTaskDefinition {
+  id          String @id @default(cuid())
+  key         String @unique // stable machine key, e.g. "WASHING_MARKET"
+  name        String
+  description String?
+
+  shift                  Shift   @default(NIGHT)
+  departmentRestriction  String? // null = any department; matches Employee/DepartmentAssignment's plain-string department convention
+  marketId               String?
+  market                 Market? @relation(fields: [marketId], references: [id])
+  zoneId                 Int?
+  zone                   Zone?   @relation(fields: [zoneId], references: [id])
+
+  requiresEvidence Boolean                       @default(false)
+  minPhotos        Int                           @default(0)
+  frequency        NightShiftTaskFrequency        @default(DAILY)
+  dueTime          String? // free-text clock time, e.g. "06:00" — mirrors Activity.time's own "stored as text" convention
+  reviewRequired   Boolean                       @default(false)
+  active           Boolean                       @default(true)
+
+  createdById Int
+  createdBy   User   @relation("NightShiftTaskDefinitionCreator", fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  instances Activity[]
+
+  @@index([active])
+  @@index([marketId])
+  @@index([zoneId])
+}
+
+enum NightShiftTaskFrequency {
+  DAILY
+  ONCE
+  WEEKLY
+}
+
+// ---------------------------------------------------------------------
+// MarketDepartment — Phase 2: the per-market department CATALOG, genuinely
+// new (nothing like it existed after Phase 1). Needed because "which
+// departments does this market track" cannot be derived from current
+// DepartmentAssignment rows alone — an UNASSIGNED department (spec §15:
+// "Dairy — Unassigned — Needs Supervisor") has, by definition, no
+// assignment row to derive it from. This is the actual configuration
+// Phase 2's completion tracking ("8 required, 6 completed") reads from —
+// never a hardcoded count. A row here is auto-created the first time a
+// department name is used in that market (DepartmentAssignment or a
+// Department Closing submission — see
+// departmentMonitoringService.ensureMarketDepartment) OR added explicitly
+// by staff via POST /api/markets/:id/departments (covers a department
+// that should be tracked before anyone is ever assigned to it).
+//
+// Employee.department/DepartmentAssignment.department/Activity.department
+// all stay plain strings, matching this table's `name` by value, not by
+// a hard foreign key — see Activity.department's own comment for why.
+model MarketDepartment {
+  id       String @id @default(cuid())
+  marketId String
+  market   Market @relation(fields: [marketId], references: [id])
+  name     String
+  active   Boolean @default(true)
+
+  createdById Int?
+  createdBy   User? @relation("MarketDepartmentCreator", fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+
+  @@unique([marketId, name])
+  @@index([marketId])
+}
+
+// ---------------------------------------------------------------------
+// DepartmentReport — one row per market/date/shift Final Department
+// Report actually sent (Phase 2 §19-22). The @@unique below is the real
+// guarantee against two concurrent "Send Report" requests both
+// succeeding for the same market/day/shift (same partial-unique-index
+// philosophy as Break's one-active-break guarantee, except this
+// constraint doesn't need a WHERE clause — every row here represents an
+// actually-sent report, so a plain unique index is enough). A snapshot
+// of the completion counts and whether an override was used is stored
+// directly on this row — the underlying Activity rows remain the one
+// source of truth for the submissions THEMSELVES (spec §13/§20: this
+// table never duplicates that data, only records that a report citing
+// it was sent, when, by whom, and where).
+model DepartmentReport {
+  id       String @id @default(cuid())
+  marketId String
+  market   Market @relation(fields: [marketId], references: [id])
+  date     DateTime // day-only, same convention as AttendanceRecord.date
+  shift    Shift
+
+  requiredCount  Int
+  completedCount Int
+  overrideUsed   Boolean @default(false)
+  overrideReason String?
+
+  sentById Int
+  sentBy   User     @relation("DepartmentReportSender", fields: [sentById], references: [id])
+  sentAt   DateTime @default(now())
+
+  // Where the report message was actually posted — the market's own
+  // MARKET_GROUP conversation (see chatController.findOrCreateChannel),
+  // never a hardcoded/invented "Zone" group.
+  conversationId String?
+  messageId      String?
+
+  @@unique([marketId, date, shift])
+  @@index([marketId, date])
 }
 
 // ---------------------------------------------------------------------
@@ -746,6 +1153,11 @@ model ItemReport {
 
   reportedAt DateTime @default(now())
 
+  // Soft delete — staff can remove a report from view (see
+  // itemReportsController.deleteItemReport); the row is kept, never
+  // hard-deleted, same convention as Notification.deletedAt.
+  deletedAt DateTime?
+
   @@index([employeeId])
   @@index([productId])
   @@index([marketId])
@@ -805,8 +1217,37 @@ model AttendanceRecord {
   missingCheckoutAlertedAt DateTime?
   stillWorkingConfirmedAt  DateTime?
 
-  employeeId String
-  employee   Employee @relation(fields: [employeeId], references: [id])
+  // Nullable as of the cross-role attendance extension (Phase 1): a
+  // Supervisor/Overlooking check-in has no Employee at all — see
+  // staffUserId below. Every EXISTING employee-attendance code path
+  // (import, extra-hours, required-hours, punishment, missing-checkout)
+  // is untouched and always supplies employeeId, so this stays optional
+  // in the schema only for the genuinely new staff-owned rows.
+  employeeId String?
+  employee   Employee? @relation(fields: [employeeId], references: [id])
+
+  // Set instead of employeeId for a Supervisor/Overlooking Supervisor's
+  // own check-in/check-out (see attendanceController.checkIn) — same
+  // dual-nullable-FK pattern already used by Message.sender/
+  // ConversationMember/UploadedFile elsewhere in this schema, exactly
+  // one of employeeId/staffUserId is ever set, enforced in the
+  // controller. Deliberately does NOT carry Worker/Cashier-only
+  // business logic (extra hours, required hours, punishment, Excel
+  // import) — a Supervisor's attendance is check-in/check-out/history
+  // only, per spec; this is the same table and same live check-in
+  // mechanism, not a parallel attendance system.
+  staffUserId Int?
+  staffUser   User? @relation("StaffAttendance", fields: [staffUserId], references: [id])
+
+  // Denormalized cache of the market this record belongs to — required
+  // for staff-owned rows (no Employee to derive it from); left null on
+  // existing/imported employee rows rather than backfilled, since every
+  // existing query already reaches market scope via employee.marketId
+  // and nothing reads AttendanceRecord.marketId for those rows. New
+  // employee check-in/out rows (see attendanceController.checkIn) do
+  // populate it too, so it's consistently available going forward.
+  marketId String?
+  market   Market? @relation(fields: [marketId], references: [id])
 
   importedById Int?
   importedBy   User? @relation("AttendanceImporter", fields: [importedById], references: [id])
@@ -819,8 +1260,13 @@ model AttendanceRecord {
 
   // One record per employee per day — makes re-importing the same export
   // file idempotent (upsert on this constraint) instead of duplicating rows.
+  // Postgres treats NULL as distinct in a unique index, so this constraint
+  // simply never matches staff-owned rows (employeeId always null there) —
+  // @@unique([staffUserId, date]) below is that same idea for staff.
   @@unique([employeeId, date])
+  @@unique([staffUserId, date])
   @@index([employeeId])
+  @@index([staffUserId])
   @@index([date])
 }
 
@@ -878,6 +1324,117 @@ model AttendanceImportBatch {
   records AttendanceRecord[]
 
   @@index([marketId])
+}
+
+// ---------------------------------------------------------------------
+// Break — Phase 1 foundation for the fingerprint-triggered break
+// workflow (spec: "Did you take a break?"). A genuinely new model, not a
+// reuse of AttendanceRecord.breakStart/breakEnd: those two fields are a
+// same-day, no-state, no-confirmation pair (fine for what an Excel
+// import can report), whereas this needs a persistent state machine,
+// confirmation step, race-condition-safe "one active break" guarantee,
+// and an optional link back to the external event that triggered it —
+// none of which the existing pair can represent. Owner is EITHER an
+// Employee OR a staff User (Supervisor/Overlooking), same dual-nullable
+// pattern as AttendanceRecord.staffUserId above, for the same reason.
+//
+// One active (PENDING_CONFIRMATION or ACTIVE) break per owner is
+// enforced by a partial unique index added by hand in this model's
+// migration.sql (Prisma's schema language can't express a WHERE clause
+// on @@unique) — see that migration file's own comment. That index, not
+// an application-level "if no active break, create one" check, is what
+// actually prevents two concurrent requests from creating duplicate
+// active breaks; the controller still checks first for a fast, friendly
+// error, but the database is the real guarantee.
+model Break {
+  id     String      @id @default(cuid())
+  status BreakStatus @default(PENDING_CONFIRMATION)
+  date   DateTime // the day this break belongs to; time part ignored, matches AttendanceRecord's convention
+
+  // Set only once the employee confirms (PENDING_CONFIRMATION -> ACTIVE).
+  // expectedEndTime is startTime + 60 minutes, set atomically with it —
+  // remaining time is always (expectedEndTime - now), never a stored
+  // countdown (spec: "the server/database is authoritative").
+  startTime       DateTime?
+  expectedEndTime DateTime?
+  // Set when the break actually leaves ACTIVE, whichever way: the
+  // moment it's read past expectedEndTime (-> COMPLETED, see
+  // breaksController's lazy transition, same pattern as
+  // attendanceController.detectMissingCheckout — no background job
+  // scheduler exists in this app yet) or when explicitly cancelled.
+  actualEndTime DateTime?
+  cancelReason  String?
+
+  employeeId String?
+  employee   Employee? @relation(fields: [employeeId], references: [id])
+  staffUserId Int?
+  staffUser   User?    @relation("StaffBreaks", fields: [staffUserId], references: [id])
+  marketId   String
+  market     Market   @relation(fields: [marketId], references: [id])
+
+  // The fingerprint event that created this break, if any (see
+  // FingerprintEvent below) — nullable because Phase 1 also needs a
+  // path for a break created without hardware yet involved (e.g. a
+  // manual/test break for development). @unique: one event can only
+  // ever originate one break.
+  fingerprintEventId String?          @unique
+  fingerprintEvent    FingerprintEvent? @relation(fields: [fingerprintEventId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([employeeId])
+  @@index([staffUserId])
+  @@index([marketId])
+  @@index([status])
+}
+
+enum BreakStatus {
+  PENDING_CONFIRMATION
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+// ---------------------------------------------------------------------
+// FingerprintEvent — Phase 1's integration BOUNDARY for the physical
+// fingerprint machine, not a real connection to it (no such hardware/API
+// access exists yet — see backend/src/services/fingerprintAdapter.js's
+// own comment for exactly what's real vs. a stand-in here). Every event
+// TeamMart will ever need to react to, regardless of which real system
+// eventually sends it, is captured by this one row: an idempotency key
+// from that system, which employee it's about, when it happened, what
+// kind of event it was, which device reported it, and the raw payload
+// preserved verbatim (same "preserve the original data" convention
+// AttendanceRecord.rawImportData already uses for Excel rows) so nothing
+// is lost even before TeamMart has a rule for every field yet.
+model FingerprintEvent {
+  id              String                @id @default(cuid())
+  externalEventId String                @unique // dedupe key from the external system — the same physical scan is never double-processed
+  eventType       FingerprintEventType
+  eventTimestamp  DateTime
+  sourceDeviceId  String?
+  rawPayload      Json?
+
+  employeeId String?
+  employee   Employee? @relation(fields: [employeeId], references: [id])
+
+  processedAt DateTime? // set once the event has been turned into a Break (or rejected) — lets a retry distinguish "new" from "already handled"
+  break       Break?
+
+  createdAt DateTime @default(now())
+
+  @@index([employeeId])
+  @@index([eventTimestamp])
+}
+
+// Deliberately just one value for Phase 1 — the only fingerprint event
+// this app currently has a defined reaction to (spec: break confirmation
+// flow). CHECK_IN/CHECK_OUT event types are a real, likely future
+// addition once the actual hardware/protocol is confirmed, not invented
+// here ahead of that.
+enum FingerprintEventType {
+  BREAK_START
 }
 
 // LeaveRequest — an employee requesting a Monthly Off day or Personal
@@ -948,11 +1505,28 @@ model AttendanceAuditLog {
 // a fast denormalized cache of whichever assignment has endDate = null
 // (the current one); this table is the source of truth for "what
 // department were they in on date X".
+// Night Shift §3-4/§27: `role` distinguishes an employee's ONE current
+// MAIN department from zero-or-more concurrently-open ADDITIONAL ones —
+// added to this existing history table rather than a new one, per its
+// own established "current = most recent open row" convention. Before
+// this, the implicit assumption (enforced only by employeesController.
+// assignDepartment always closing the prior open row) was "at most one
+// open row per employee" — that assumption now only holds PER (employee,
+// role) pair: at most one open MAIN row, and at most one open row per
+// (employee, ADDITIONAL, department) — closing/opening logic lives in
+// the controller, same as before, not a DB constraint (matching this
+// table's existing convention).
+enum DepartmentAssignmentRole {
+  MAIN
+  ADDITIONAL
+}
+
 model DepartmentAssignment {
   id         String    @id @default(cuid())
   department String
+  role       DepartmentAssignmentRole @default(MAIN)
   startDate  DateTime  @default(now())
-  endDate    DateTime? // set when the NEXT assignment starts; null = current
+  endDate    DateTime? // set when this specific (employee, role[, department]) assignment ends; null = current
 
   employeeId String
   employee   Employee @relation(fields: [employeeId], references: [id])
@@ -961,6 +1535,7 @@ model DepartmentAssignment {
   assignedBy   User @relation("DepartmentAssigner", fields: [assignedById], references: [id])
 
   @@index([employeeId])
+  @@index([employeeId, role])
 }
 
 // ---------------------------------------------------------------------
@@ -1059,6 +1634,9 @@ model PriceReport {
   market     Market   @relation(fields: [marketId], references: [id])
 
   reportedAt DateTime @default(now())
+
+  // Soft delete — same convention as ItemReport.deletedAt above.
+  deletedAt DateTime?
 
   @@index([employeeId])
   @@index([marketId])
@@ -1162,6 +1740,13 @@ model Notification {
   linkType String?
   linkId   String?
 
+  // Repair Pass §6 — soft delete: a user's own "Delete" always leaves the
+  // row in place (never hard-deleted) so nothing here becomes an actual
+  // audit-trail gap, but it's excluded from every recipient-facing query
+  // (see notificationsController.js) the same way an Employee's
+  // Communication history isn't literally erased by acknowledging it.
+  deletedAt DateTime?
+
   createdAt DateTime @default(now())
 
   @@index([employeeId, read])
@@ -1216,6 +1801,15 @@ model Conversation {
   // Employee and a SUPERVISOR_DIRECT one is always staff.
   staffParticipantId Int?
   staffParticipant   User? @relation("ConversationStaffParticipant", fields: [staffParticipantId], references: [id])
+  // STAFF_DIRECT only: the second staff participant (staffParticipantId
+  // above is the first) — same "two Employee slots" idea
+  // participantA/participantB already use for DIRECT, just for the
+  // staff-to-staff case (see ConversationType.STAFF_DIRECT's own
+  // comment). Ordered consistently (lower User.id first) so the same
+  // pair never gets two rows — enforced in
+  // chatController.staffDirectPair(), not the DB.
+  staffParticipantBId Int?
+  staffParticipantB   User? @relation("ConversationStaffParticipantB", fields: [staffParticipantBId], references: [id])
 
   // RM_DIRECT only: true until the Regional Manager sends the first
   // message, after which it flips to false and stays false (the spec's
@@ -1225,6 +1819,14 @@ model Conversation {
   // for them).
   locked Boolean @default(true)
 
+  // CUSTOM_GROUP only (Phase 3 §7-8): NORMAL is a standard group;
+  // WARNING is an operational announcement group where only members
+  // with ConversationMember.isAdmin = true may post (enforced in
+  // chatController.sendMessage) — reuses the group-admin concept every
+  // CUSTOM_GROUP already has instead of a new role/permission system.
+  // Null for every other ConversationType.
+  groupType GroupType?
+
   createdAt DateTime @default(now())
 
   messages Message[]
@@ -1232,7 +1834,16 @@ model Conversation {
   members  ConversationMember[]
 
   @@unique([marketId, type, participantAId, participantBId, staffParticipantId])
+  @@unique([type, staffParticipantId, staffParticipantBId])
   @@index([marketId])
+}
+
+// CUSTOM_GROUP's purpose (Phase 3 §7) — both variants use the exact same
+// Conversation/Message/ConversationMember tables, distinguished only by
+// this field, never a separate NormalChat/WarningChat table.
+enum GroupType {
+  NORMAL
+  WARNING
 }
 
 // ConversationMember — explicit membership for a CUSTOM_GROUP (spec
@@ -1325,6 +1936,7 @@ model Message {
   deletedAt DateTime?
 
   reactions MessageReaction[]
+  mentions  MessageMention[]
 
   createdAt DateTime @default(now())
 
@@ -1350,6 +1962,15 @@ model MessageReaction {
   userId     Int?
   user       User?     @relation("MessageReactionUser", fields: [userId], references: [id])
 
+  // Production Chat §13 — Management Recognition. True only when the
+  // reactor was, at the moment of reacting, an authorized management
+  // account (Supervisor/Overlooking/Regional Manager/Admin) reacting to an
+  // Employee's message — verified server-side in
+  // chatController.reactToMessage, never trusted from the request. A
+  // Worker/Cashier reaction is always false; there is no client-supplied
+  // way to set this true without that authorization check passing.
+  isRecognition Boolean @default(false)
+
   createdAt DateTime @default(now())
 
   @@unique([messageId, employeeId])
@@ -1357,25 +1978,84 @@ model MessageReaction {
   @@index([messageId])
 }
 
-// ConversationRead — one row per (conversation, employee), tracking read
-// position, and now also that employee's pin/mute preference for this
+// MessageMention — Production Chat §14-15. A real, structured mention:
+// created only when the composer explicitly picks a candidate from
+// listMentionCandidates (never parsed from raw "@text" server-side), and
+// re-validated server-side against that same candidate set before being
+// persisted (see chatController.isValidMentionTarget) — a display name is
+// never used as the identifier. Target is EITHER an Employee OR a staff
+// User, same dual-nullable-FK pattern as Message.sender/MessageReaction.
+model MessageMention {
+  id        String   @id @default(cuid())
+  messageId String
+  message   Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  employeeId String?
+  employee   Employee? @relation("MessageMentionEmployee", fields: [employeeId], references: [id])
+  userId     Int?
+  user       User?     @relation("MessageMentionUser", fields: [userId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@unique([messageId, employeeId])
+  @@unique([messageId, userId])
+  @@index([employeeId])
+  @@index([userId])
+}
+
+// ConversationRead — one row per (conversation, employee OR staff user),
+// tracking read position, and that owner's pin/mute preference for this
 // conversation (their own "relationship to this conversation" row is the
 // natural place for both, rather than a third table). Unread count =
 // messages in that conversation created after lastReadAt (or every
-// message, if no row exists yet — never opened). Employee-only for now
-// (same limitation as the rest of this model) — a Supervisor pinning/
-// muting their own conversations isn't implemented in this pass.
+// message, if no row exists yet — never opened). Phase 3: extended with
+// the same dual-nullable-FK convention used everywhere else in this
+// schema (see AttendanceRecord/Break) so Supervisor/Regional Manager
+// unread tracking works too — exactly one of employeeId/staffUserId is
+// set, enforced in chatController.js, not the DB.
 model ConversationRead {
   id             String       @id @default(cuid())
   conversationId String
   conversation   Conversation @relation(fields: [conversationId], references: [id])
-  employeeId     String
-  employee       Employee     @relation(fields: [employeeId], references: [id])
+  employeeId     String?
+  employee       Employee?    @relation(fields: [employeeId], references: [id])
+  staffUserId    Int?
+  staffUser      User?        @relation("StaffConversationReads", fields: [staffUserId], references: [id])
   lastReadAt     DateTime     @default(now())
   pinned         Boolean      @default(false)
   muted          Boolean      @default(false)
 
   @@unique([conversationId, employeeId])
+  @@unique([conversationId, staffUserId])
+}
+
+// ImportantContact — Phase 3 §3-4: a staff user's own personal,
+// reorderable shortlist of high-priority individual contacts (e.g. a
+// Regional Manager pinning the CEO/Operations Manager/senior
+// management). Purely organizational — favoriting a contact here does
+// NOT grant any communication permission; the target must already be an
+// authorized contact independent of this table (enforced where contacts
+// are added, in chatController.js). Owner is always a staff account
+// (only Supervisor/Regional Manager/Admin have this personal Chat
+// organization per the spec); the contact target is dual-nullable
+// (contactUserId OR contactEmployeeId) for flexibility, mirroring the
+// rest of this schema's convention, even though every example in the
+// spec (CEO, Operations Manager, senior management) is itself a staff
+// account.
+model ImportantContact {
+  id               String    @id @default(cuid())
+  ownerUserId      Int
+  owner            User      @relation("ImportantContactOwner", fields: [ownerUserId], references: [id])
+  contactUserId    Int?
+  contactUser      User?     @relation("ImportantContactTargetUser", fields: [contactUserId], references: [id])
+  contactEmployeeId String?
+  contactEmployee  Employee? @relation("ImportantContactTargetEmployee", fields: [contactEmployeeId], references: [id])
+  priority         Int       @default(0)
+  createdAt        DateTime  @default(now())
+
+  @@unique([ownerUserId, contactUserId])
+  @@unique([ownerUserId, contactEmployeeId])
+  @@index([ownerUserId])
 }
 
 // ---------------------------------------------------------------------
@@ -1390,13 +2070,37 @@ model ConversationRead {
 // unrelated rows (spec §25).
 // ---------------------------------------------------------------------
 model MarketVisit {
-  id                String   @id @default(cuid())
-  marketId          String
-  market            Market   @relation(fields: [marketId], references: [id])
-  regionalManagerId Int
-  regionalManager   User     @relation("MarketVisitRM", fields: [regionalManagerId], references: [id])
-  visitDate         DateTime @default(now())
-  createdAt         DateTime @default(now())
+  id       String @id @default(cuid())
+  marketId String
+  market   Market @relation(fields: [marketId], references: [id])
+
+  // Admin Phase 3 — extends this existing model rather than creating a
+  // second MarketVisit/AdminVisit table for the same concept (regional-
+  // ManagerId was `Int` required; made nullable here). Exactly one of
+  // regionalManagerId/adminUserId is ever set, same dual-nullable-FK
+  // convention as everywhere else in this schema — a plain RM grouping
+  // visit (unchanged behavior, marketManagementController.createMarketVisit)
+  // sets regionalManagerId; a formal Admin Visit/Inspection
+  // (adminAccountController's new lifecycle-aware endpoints) sets
+  // adminUserId.
+  regionalManagerId Int?
+  regionalManager   User? @relation("MarketVisitRM", fields: [regionalManagerId], references: [id])
+  adminUserId       Int?
+  adminUser         User? @relation("MarketVisitAdmin", fields: [adminUserId], references: [id])
+
+  visitDate DateTime @default(now())
+  createdAt DateTime @default(now())
+
+  // Admin-only fields below — meaningless (left at their defaults) for
+  // an RM's plain grouping visit, which has no start/complete lifecycle
+  // and isn't itself a "visit type": visitType/status only matter once
+  // adminUserId is set. status defaults to COMPLETED so every existing
+  // RM visit row (and any future plain grouping visit) is correctly
+  // "done" rather than looking like a permanently-open Admin visit.
+  visitType   MarketVisitType   @default(VISIT)
+  status      MarketVisitStatus @default(COMPLETED)
+  endedAt     DateTime?
+  adminNotes  String?
 
   ratings   MarketRating[]
   notes     MarketNote[]
@@ -1404,6 +2108,74 @@ model MarketVisit {
 
   @@index([marketId])
   @@index([regionalManagerId])
+  @@index([adminUserId])
+  @@index([status])
+}
+
+enum MarketVisitType {
+  VISIT
+  INSPECTION
+}
+
+enum MarketVisitStatus {
+  STARTED
+  COMPLETED
+  CANCELLED
+}
+
+// ---------------------------------------------------------------------
+// AuditLog — Admin Phase 3 §9-13: the ONE audit mechanism for every
+// sensitive administrative action (no audit infrastructure existed
+// before this — verified by inspection before adding this). Append-only
+// by convention: no controller ever updates or deletes a row (see
+// adminAuditController.js — it only ever creates/lists). previousValue/
+// newValue/metadata are Json snapshots of NON-sensitive fields only —
+// callers must never put a password/passwordHash/token in them (see
+// utils/audit.js's own comment, the one place that writes this table).
+model AuditLog {
+  id         String      @id @default(cuid())
+  actorUserId Int
+  actor       User       @relation("AuditLogActor", fields: [actorUserId], references: [id])
+  action      AuditAction
+  targetType  String
+  targetId    String?
+  marketId    String?
+  market      Market?     @relation(fields: [marketId], references: [id])
+  zoneId      Int?
+  zone        Zone?       @relation(fields: [zoneId], references: [id])
+  reason      String?
+  previousValue Json?
+  newValue      Json?
+  metadata      Json?
+  createdAt   DateTime    @default(now())
+
+  @@index([actorUserId])
+  @@index([action])
+  @@index([targetType, targetId])
+  @@index([marketId])
+  @@index([zoneId])
+  @@index([createdAt])
+}
+
+enum AuditAction {
+  ROLE_CHANGED
+  MARKET_ASSIGNMENT_CHANGED
+  ZONE_ASSIGNMENT_CHANGED
+  DEPARTMENT_ASSIGNMENT_CHANGED
+  SHIFT_CHANGED
+  EMPLOYEE_ID_CHANGED
+  PASSWORD_RESET
+  ACCOUNT_SUSPENDED
+  ACCOUNT_BANNED
+  ACCOUNT_REACTIVATED
+  EMPLOYEE_PROMOTED
+  STAFF_DEMOTED
+  MARKET_VISIT_STARTED
+  MARKET_VISIT_COMPLETED
+  MARKET_VISIT_CANCELLED
+  INSPECTION_STARTED
+  INSPECTION_COMPLETED
+  INSPECTION_CANCELLED
 }
 
 // A rating is never edited/overwritten — each one is its own row, so
@@ -1547,7 +2319,26 @@ model TotalSalesReport {
   submittedBy   User     @relation("TotalSalesSubmitter", fields: [submittedById], references: [id])
   submittedAt   DateTime @default(now())
 
+  // Cleanup Phase §10 — this was permanently informational-only (no
+  // status at all); a Regional Manager can now Approve/Reject it, same
+  // ActivityStatus enum + reviewedBy/reviewedAt/rejectionReason shape
+  // every other reviewable submission in this app already uses (Activity,
+  // ItemReport...) rather than a near-duplicate status enum. DRAFT is
+  // simply never assigned here — every report starts PENDING the moment
+  // it's submitted, there is no draft concept for Total Sales.
+  status         ActivityStatus @default(PENDING)
+  reviewedById   Int?
+  reviewedBy     User?          @relation("TotalSalesReviewer", fields: [reviewedById], references: [id])
+  reviewedAt     DateTime?
+  rejectionReason String?
+
+  // Soft delete — Regional Manager/Admin only (see
+  // totalSalesController.deleteTotalSalesReport), same convention as
+  // Notification.deletedAt/ItemReport.deletedAt.
+  deletedAt DateTime?
+
   @@index([marketId, date])
+  @@index([marketId, status])
 }
 
 // ---------------------------------------------------------------------
@@ -1575,6 +2366,9 @@ model CardSalesReport {
   submittedBy   User     @relation("CardSalesSubmitter", fields: [submittedById], references: [id])
   submittedAt   DateTime @default(now())
 
+  // Soft delete — same convention as TotalSalesReport.deletedAt above.
+  deletedAt DateTime?
+
   @@index([marketId, date])
 }
 
@@ -1582,4 +2376,303 @@ enum CardSalesShift {
   MORNING
   AFTERNOON
   NIGHT
+}
+
+// ---------------------------------------------------------------------
+// UploadedFile — metadata for every file POST /api/uploads has ever
+// accepted (filename, validated mimetype, who uploaded it). Two jobs:
+//
+// 1. Lets GET /api/uploads/:filename set a real, server-validated
+//    Content-Type instead of trusting anything from the request.
+// 2. Closes the "orphan window" between uploading a file and attaching
+//    its URL to a real business record (e.g. a photo preview shown
+//    before the activity/report it belongs to is actually saved) — see
+//    utils/fileAuthorization.js's resolveFileOwner, which checks every
+//    business-record table FIRST and only falls back to "the original
+//    uploader" here if none of them reference this file yet. Once the
+//    file is attached somewhere, that resource's own rules take over;
+//    this row is simply never consulted for authorization again (kept
+//    around anyway as a harmless audit trail of who uploaded what).
+//
+// Uploader is EITHER an Employee OR a staff User, never both — same
+// dual-nullable-FK pattern used by Message.sender/ConversationMember.
+model UploadedFile {
+  filename   String   @id
+  mimetype   String
+  uploaderEmployeeId String?
+  uploaderEmployee   Employee? @relation(fields: [uploaderEmployeeId], references: [id])
+  uploaderUserId     Int?
+  uploaderUser       User?     @relation(fields: [uploaderUserId], references: [id])
+  createdAt  DateTime @default(now())
+
+  @@index([uploaderEmployeeId])
+  @@index([uploaderUserId])
+}
+
+// ---------------------------------------------------------------------
+// Communication / CommunicationRecipient — "Warnings & Notifications":
+// targeted internal communications from ADMIN/REGIONAL_MANAGER to a
+// precisely-computed set of employees (role + Main/Additional department
+// + market/zone/company scope). Deliberately NOT built on top of the
+// existing Notification model above — Notification is a "one row IS one
+// recipient's copy" shape (see createNotification/createNotificationForUser
+// in utils/notifications.js), which has no way to represent "one
+// communication, many recipients with independently tracked read/
+// acknowledge/complete state" without changing the shape every existing
+// caller (Sudden Task, Leave, Chat, Night Shift...) already relies on.
+// Instead this is a genuinely new, reusable pair of models — and sending
+// one ALSO writes one lightweight Notification per recipient (type
+// COMMUNICATION, linkType "COMMUNICATION") so it shows up in the
+// existing Notification Center/bell for free, with zero changes to that
+// existing read/unread system. This is unrelated to ConversationType.
+// WARNINGS (an existing per-market broadcast CHAT channel) — different
+// feature, different data shape, deliberately not reused/renamed.
+//
+// MVP scoping decision (spec Rule 4 — do not overbuild): recipients are
+// Employees only for now (WORKER/CASHIER/BUTCHER/EVERYONE-of-those) —
+// every example in the spec targets Workers, and staff-as-recipient
+// would need the same dual-nullable-FK shape Notification already uses;
+// adding that later is a small additive migration, not a redesign.
+// ---------------------------------------------------------------------
+
+enum CommunicationType {
+  ANNOUNCEMENT
+  WARNING
+  TASK
+  INFORMATION
+}
+
+enum CommunicationCategory {
+  STOCK_CHECK
+  COUNTING
+  CLEANING
+  PRICE
+  LABEL
+  EXPIRY
+  INVENTORY
+  GENERAL
+}
+
+enum CommunicationPriority {
+  NORMAL
+  IMPORTANT
+  HIGH
+  URGENT
+}
+
+// How the recipient set's geographic boundary is expressed. Resolved
+// against the REAL Market->Zone relationship at send time (never trusted
+// from the frontend) — see communicationTargeting.js.
+enum CommunicationScopeType {
+  MARKET
+  ZONE
+  ALL_MARKETS
+  // Verification pass §1 — a single, specifically-named Supervisor
+  // (Communication.targetSupervisorId), not a computed audience. Only
+  // ever usable by a REGIONAL_MANAGER/ADMIN sender, and only ever
+  // resolves to a Supervisor already inside the sender's real
+  // authorized-contact scope (communicationTargeting.authorizeTargeting
+  // reuses the exact same authorizedStaffContactsFor check the RM<->
+  // Supervisor chat feature already relies on).
+  SPECIFIC_SUPERVISOR
+}
+
+// Deliberately EmployeeRole's own real values, never a parallel enum —
+// spec §7/§34: "use only roles that actually exist." EVERYONE means
+// "every real EmployeeRole", not staff.
+enum CommunicationTargetRole {
+  WORKER
+  CASHIER
+  BUTCHER
+  EVERYONE
+}
+
+enum CommunicationActionType {
+  INFORMATIONAL
+  ACKNOWLEDGEMENT
+  COMPLETION
+}
+
+// Per-recipient progress (spec §16-17) — not every value is reachable
+// for every actionType (an INFORMATIONAL communication only ever moves
+// UNREAD -> READ; ACKNOWLEDGED/IN_PROGRESS/COMPLETED are reachable only
+// when the communication's actionType calls for them).
+enum CommunicationRecipientStatus {
+  UNREAD
+  READ
+  ACKNOWLEDGED
+  IN_PROGRESS
+  COMPLETED
+}
+
+model Communication {
+  id String @id @default(cuid())
+
+  senderId Int
+  sender   User @relation("CommunicationSender", fields: [senderId], references: [id])
+  // Display-only snapshot (spec §5) — senderId + the LIVE User row remain
+  // the only source of truth for authorization; these three fields exist
+  // purely so history/detail screens don't misrepresent who a long-gone
+  // or since-reassigned sender was AT THE TIME they sent this.
+  senderNameSnapshot String
+  senderRoleSnapshot StaffRole
+  // The zone's human-readable NUMBER ("Zone 2"), i.e. Zone.number — NOT
+  // Zone.id. Deliberately a plain snapshot int rather than a Zone
+  // relation, since a Regional Manager's zone for THIS communication is
+  // "which zone did they send as," fixed forever, not "whatever zone(s)
+  // they manage now."
+  senderZoneSnapshot Int?
+
+  type     CommunicationType
+  category CommunicationCategory
+  title    String
+  message  String
+  priority CommunicationPriority @default(NORMAL)
+
+  scopeType CommunicationScopeType
+  zoneId    Int?
+  zone      Zone?   @relation(fields: [zoneId], references: [id])
+  marketId  String?
+  market    Market? @relation(fields: [marketId], references: [id])
+  // Verification pass §1 — only set (and only meaningful) when
+  // scopeType = SPECIFIC_SUPERVISOR: a Regional Manager targeting exactly
+  // one named Supervisor, not a computed bulk audience. targetRole/
+  // targetDepartment/marketId/zoneId are all irrelevant for this scope
+  // (enforced in communicationTargetingSchema/authorizeTargeting, not
+  // just left ambiguous) — the recipient set is always exactly this one
+  // staff account.
+  targetSupervisorId Int?
+  targetSupervisor   User? @relation("CommunicationTargetSupervisor", fields: [targetSupervisorId], references: [id])
+
+  targetRole CommunicationTargetRole?
+  // null = "All Departments"; a plain department-name string otherwise,
+  // matched against DepartmentAssignment.department (MAIN or ADDITIONAL,
+  // currently-open rows) — same plain-string convention used everywhere
+  // else in this schema (Employee.department, NightShiftTaskDefinition.
+  // departmentRestriction), never a separate Department table/id.
+  targetDepartment String?
+
+  deadline   DateTime?
+  actionType CommunicationActionType @default(INFORMATIONAL)
+
+  // Denormalized snapshot count (spec §32 history list) — set once at
+  // send time from the real recipient rows just created, so listing sent
+  // communications never needs an extra count() per row. The
+  // CommunicationRecipient rows themselves remain the actual source of
+  // truth for every other count (read/acknowledged/completed).
+  recipientCount Int @default(0)
+
+  // Optional client-generated idempotency key (spec §41) — a real unique
+  // constraint, so a double-click or a retried request after a timeout
+  // can't ever create two Communication rows for the same intended send;
+  // the controller catches the unique-violation and returns the
+  // already-created row instead of erroring. Nullable/unique (not a
+  // plain unique-per-value column) because most callers won't send one
+  // and Postgres treats every NULL as distinct, so omitting it never
+  // collides with another omitted one.
+  clientRequestId String? @unique
+
+  createdAt DateTime @default(now())
+
+  recipients CommunicationRecipient[]
+
+  @@index([senderId, createdAt])
+  @@index([zoneId])
+  @@index([marketId])
+}
+
+model CommunicationRecipient {
+  id              String        @id @default(cuid())
+  communicationId String
+  communication   Communication @relation(fields: [communicationId], references: [id])
+
+  // Verification pass §1 — dual-nullable, exactly one ever set, same
+  // pattern Notification/Message/ConversationMember already use
+  // elsewhere in this schema. Every EXISTING recipient row (bulk
+  // employee targeting) keeps employeeId set / userId null; a
+  // SPECIFIC_SUPERVISOR send is the one new case with userId set /
+  // employeeId null. Enforced in the controller, not a DB CHECK
+  // constraint, matching this codebase's existing convention for every
+  // other dual-owner model.
+  employeeId String?
+  employee   Employee? @relation(fields: [employeeId], references: [id])
+  userId     Int?
+  user       User?     @relation("CommunicationRecipientUser", fields: [userId], references: [id])
+
+  status         CommunicationRecipientStatus @default(UNREAD)
+  readAt         DateTime?
+  acknowledgedAt DateTime?
+  startedAt      DateTime?
+  completedAt    DateTime?
+
+  // Structured result values for a COMPLETION-type communication (spec
+  // §19-20's "White Monster Count" example) — free-shape JSON rather
+  // than fixed columns, since the fields a response needs are defined by
+  // the sender's message content, not by this schema. An optional note
+  // lives inside this same object rather than as its own column.
+  response Json?
+
+  createdAt DateTime @default(now())
+
+  // One recipient row per (communication, employee/user) — the actual
+  // guarantee behind "no duplicate recipient entries" (spec §40). Two
+  // separate unique indexes (not one compound one) because Postgres
+  // treats every NULL as distinct — a single @@unique([communicationId,
+  // employeeId, userId]) would NOT stop two staff rows (both employeeId
+  // NULL) for the same communication from colliding.
+  @@unique([communicationId, employeeId])
+  @@unique([communicationId, userId])
+  @@index([employeeId, status])
+  @@index([userId, status])
+  @@index([communicationId])
+}
+
+// ---------------------------------------------------------------------
+// MarketProblem — Repair Pass §4: a physical/technical market issue
+// (freezer down, broken door, etc), reported by a Supervisor/Overlooking
+// for their own market. Previously entirely mock/in-memory data
+// (Frontend's data/supervisorMockData.js) with no backend model at all —
+// this is the real replacement, same OPEN -> IN_PROGRESS -> RESOLVED
+// lifecycle the mock already modeled, now actually persisted so a
+// resolved problem staying off the active view survives a refresh.
+// ---------------------------------------------------------------------
+enum MarketProblemStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+}
+
+model MarketProblem {
+  id       String @id @default(cuid())
+  marketId String
+  market   Market @relation(fields: [marketId], references: [id])
+
+  // Free text, not an enum — matches the frontend's existing
+  // PROBLEM_TYPES list of full descriptive labels (e.g. "Freezer not
+  // working"), including an explicit "Other market problem" catch-all,
+  // so no problem type is ever rejected for not fitting a fixed set.
+  problemType String
+  location    String
+  description String
+  photoUrl    String?
+  status      MarketProblemStatus @default(OPEN)
+  // Set the moment status becomes RESOLVED, cleared if moved back off it
+  // (correcting a mistaken resolve) — this is what the active-vs-history
+  // query actually filters on, not just the status label.
+  resolvedAt DateTime?
+
+  reportedByUserId Int
+  reportedByUser   User @relation("MarketProblemReporter", fields: [reportedByUserId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Soft delete — a genuinely unwanted/duplicate report can be removed
+  // from both Active and History (see
+  // marketProblemsController.deleteMarketProblem), same convention as
+  // Notification.deletedAt — the row is kept, never hard-deleted.
+  deletedAt DateTime?
+
+  @@index([marketId, status])
+  @@index([marketId, resolvedAt])
 }

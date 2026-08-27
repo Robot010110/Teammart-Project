@@ -1,6 +1,6 @@
-import { Routes, Route, Navigate, Outlet, useNavigate, useParams } from "react-router-dom";
-import Sidebar from "../components/layout/Sidebar";
-import Header from "../components/layout/Header";
+import { Routes, Route, Navigate, useNavigate, useParams } from "react-router-dom";
+import { Home, Store, Users, MessageCircle, Settings as SettingsIcon } from "lucide-react";
+import AppShell from "../components/employee/AppShell";
 import RegionalManagerProfile from "./RegionalManagerProfile";
 import MarketsPage from "./MarketsPage";
 import RmMarketOverview from "./RmMarketOverview";
@@ -13,12 +13,15 @@ import RmChatPage from "./RmChatPage";
 import RmTotalSalesPage from "./RmTotalSalesPage";
 import RmCardSalesPage from "./RmCardSalesPage";
 import RmSettingsPage from "./RmSettingsPage";
+import CommunicationHistoryScreen from "../components/common/communications/CommunicationHistoryScreen";
+import CommunicationComposer from "../components/common/communications/CommunicationComposer";
 
 const BASE_PATH = "/rm";
 
-// RegionalManagerWorkspace.jsx — the Regional Manager's real, route-driven
-// desktop shell (Sidebar + Header + drill-down), replacing the old
-// RmShell/ZonePage/MarketDashboard/EmployeeProfile mock flow entirely.
+// RegionalManagerWorkspace.jsx — Regional Manager's entry point, the
+// same mobile-first AppShell/BottomNav shell every other role uses
+// (Employee/Cashier/Supervisor) instead of a permanent desktop sidebar —
+// "TeamMart, but for a Regional Manager," not a separate application.
 // Every screen below is backed by real data (marketManagementService.js,
 // staffEmployeeService.js, chatService.js) and real server-side
 // authorization (a Regional Manager can only ever reach markets/
@@ -26,7 +29,7 @@ const BASE_PATH = "/rm";
 // backend/src/middleware/auth.js's staffCanAccessMarket).
 //
 // Connected drill-down, all real routes (not fake local state):
-//   /rm/profile
+//   /rm/profile (Home tab)
 //   /rm/markets
 //   /rm/markets/:marketId
 //   /rm/markets/:marketId/sections/:department
@@ -37,9 +40,17 @@ const BASE_PATH = "/rm";
 //   /rm/chat, /rm/chat/:conversationId
 //   /rm/settings
 export default function RegionalManagerWorkspace({ session, onLogout }) {
+  const tabs = [
+    { key: "profile", label: "Home", icon: Home },
+    { key: "markets", label: "Markets", icon: Store },
+    { key: "employees", label: "Employees", icon: Users },
+    { key: "chat", label: "Chat", icon: MessageCircle },
+    { key: "settings", label: "Settings", icon: SettingsIcon },
+  ];
+
   return (
     <Routes>
-      <Route element={<RmShell session={session} onLogout={onLogout} />}>
+      <Route element={<AppShell tabs={tabs} basePath={BASE_PATH} />}>
         <Route index element={<Navigate to="profile" replace />} />
         <Route path="profile" element={<RegionalManagerProfile session={session} />} />
         <Route path="markets" element={<MarketsPage />} />
@@ -51,37 +62,14 @@ export default function RegionalManagerWorkspace({ session, onLogout }) {
         <Route path="markets/:marketId/total-sales" element={<RmTotalSalesRoute />} />
         <Route path="markets/:marketId/card-sales" element={<RmCardSalesRoute />} />
         <Route path="employees" element={<RmEmployeesPage />} />
+        <Route path="communications" element={<CommunicationHistoryScreen session={session} basePath={BASE_PATH} />} />
+        <Route path="communications/new" element={<CommunicationComposer session={session} basePath={BASE_PATH} />} />
         <Route path="chat" element={<RmChatPage session={session} />} />
         <Route path="chat/:conversationId" element={<RmChatPage session={session} />} />
         <Route path="settings" element={<RmSettingsPage onLogout={onLogout} />} />
         <Route path="*" element={<Navigate to="profile" replace />} />
       </Route>
     </Routes>
-  );
-}
-
-const NAV_KEY_TO_PATH = { dashboard: "profile", markets: "markets", employees: "employees", chat: "chat", settings: "settings" };
-
-function RmShell({ session, onLogout }) {
-  const navigate = useNavigate();
-
-  return (
-    <div className="min-h-screen bg-[#1A1A1A] text-white font-sans antialiased">
-      <Sidebar
-        role="regionalManager"
-        currentPage="dashboard"
-        onNavigate={(key) => navigate(`${BASE_PATH}/${NAV_KEY_TO_PATH[key] ?? "profile"}`)}
-      />
-      <div className="md:pl-[68px]">
-        <Header
-          user={{ name: session.displayName, role: "Regional Manager", avatarInitials: session.initials }}
-          onLogout={onLogout}
-        />
-        <main className="animate-fade-in">
-          <Outlet />
-        </main>
-      </div>
-    </div>
   );
 }
 

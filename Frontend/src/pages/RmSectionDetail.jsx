@@ -3,6 +3,7 @@ import { Sparkles, PackageX, ClipboardList, ChevronRight, Image as ImageIcon } f
 import Breadcrumb from "../components/layout/Breadcrumb";
 import Modal from "../components/common/Modal";
 import ErrorBanner from "../components/common/ErrorBanner";
+import AuthenticatedImage from "../components/common/AuthenticatedImage";
 import { SkeletonCard } from "../components/common/SkeletonCard";
 import ActivityStatusPill from "../components/common/ActivityStatusPill";
 import { useAsync } from "../hooks/useAsync";
@@ -139,7 +140,7 @@ export default function RmSectionDetail({ marketId, department, onOpenEmployee, 
       <Modal open={!!evidence} onClose={() => setEvidence(null)} title="Evidence">
         <div className="grid grid-cols-2 gap-2">
           {evidence?.map((url, i) => (
-            <img key={i} src={url} alt="" className="rounded-lg w-full aspect-square object-cover" />
+            <AuthenticatedImage key={i} src={url} alt="" className="rounded-lg w-full aspect-square object-cover" />
           ))}
         </div>
         {evidence?.length === 0 && (

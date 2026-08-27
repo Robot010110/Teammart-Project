@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Mic, Square, Play, Pause, Send, Trash2, Loader2 } from "lucide-react";
-import { readFileAsDataUrl, formatDuration } from "../../utils/fileEncoding";
+import { uploadAttachment, formatDuration } from "../../utils/fileEncoding";
 
 // VoiceRecorder.jsx — tap to record, tap to stop, preview + Retake/Send.
 // Uses MediaRecorder (no server round-trip needed to record) — if the
@@ -87,7 +87,7 @@ export default function VoiceRecorder({ onRecorded, onCancel }) {
     if (!blob) return;
     setPreparing(true);
     try {
-      const dataUrl = await readFileAsDataUrl(blob);
+      const dataUrl = await uploadAttachment(blob);
       onRecorded(dataUrl, seconds, blob.size);
     } finally {
       setPreparing(false);

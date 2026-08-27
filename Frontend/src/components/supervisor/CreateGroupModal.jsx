@@ -20,6 +20,11 @@ export default function CreateGroupModal({ marketId, onClose, onCreated }) {
   const [name, setName] = useState("");
   const [selected, setSelected] = useState(new Set());
   const [includeOverlooking, setIncludeOverlooking] = useState(false);
+  // Phase 3 §7-8: NORMAL (everyone can post, default) vs WARNING (an
+  // announcement group — only group admins, starting with the creator,
+  // can post; everyone else is read-only). Reuses the existing group-
+  // admin concept, no new permission system.
+  const [groupType, setGroupType] = useState("NORMAL");
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState(null);
 
@@ -45,7 +50,7 @@ export default function CreateGroupModal({ marketId, onClose, onCreated }) {
     setCreating(true);
     setError(null);
     try {
-      const conversation = await createGroup({ name: name.trim(), marketId, memberEmployeeIds: [...selected], memberStaffUserIds });
+      const conversation = await createGroup({ name: name.trim(), marketId, memberEmployeeIds: [...selected], memberStaffUserIds, groupType });
       onCreated(conversation);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Could not create this group.");
@@ -67,6 +72,33 @@ export default function CreateGroupModal({ marketId, onClose, onCreated }) {
             placeholder="e.g. Morning Shift Team"
             className="w-full rounded-lg bg-white/[0.04] border border-white/[0.06] px-3 py-3 text-base sm:text-sm text-white placeholder:text-[#4C5266] outline-none focus:border-[#F47A20]/50"
           />
+        </div>
+
+        <div>
+          <label className="block text-xs uppercase tracking-wide text-[#8B93A8] mb-1.5">Group Type</label>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => setGroupType("NORMAL")}
+              className={`rounded-lg py-2.5 text-xs font-semibold transition-colors ${
+                groupType === "NORMAL" ? "text-white bg-[#F47A20]" : "text-[#9AA1B4] bg-white/[0.04] hover:bg-white/[0.08]"
+              }`}
+            >
+              Normal
+            </button>
+            <button
+              type="button"
+              onClick={() => setGroupType("WARNING")}
+              className={`rounded-lg py-2.5 text-xs font-semibold transition-colors ${
+                groupType === "WARNING" ? "text-white bg-amber-500" : "text-[#9AA1B4] bg-white/[0.04] hover:bg-white/[0.08]"
+              }`}
+            >
+              Announcement
+            </button>
+          </div>
+          {groupType === "WARNING" && (
+            <p className="mt-1.5 text-[11px] text-amber-400/90">Only group admins can post — everyone else is read-only.</p>
+          )}
         </div>
 
         {market?.overlookingSupervisor && (

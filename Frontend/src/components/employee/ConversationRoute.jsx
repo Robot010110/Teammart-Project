@@ -53,6 +53,7 @@ export default function ConversationRoute({ currentEmployeeId, basePath }) {
           currentUserId={currentEmployeeId}
           currentUserKind="employee"
           onClose={() => setGroupInfoOpen(false)}
+          onDeleted={() => { setGroupInfoOpen(false); navigate(`${basePath}/chat`); }}
         />
       )}
     </>

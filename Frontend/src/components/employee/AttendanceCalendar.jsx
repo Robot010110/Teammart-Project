@@ -1,5 +1,8 @@
-import { Sunrise, Sunset, Moon, SlidersHorizontal, AlertTriangle, MinusCircle } from "lucide-react";
+import { useState } from "react";
+import { Sunrise, Sunset, Moon, SlidersHorizontal, AlertTriangle, MinusCircle, Trash2, Loader2 } from "lucide-react";
 import AttendanceStatusPill from "../common/AttendanceStatusPill";
+import { deleteMyRequiredHoursAdjustment, deleteMyPunishment } from "../../services/attendanceService";
+import { ApiError } from "../../services/apiClient";
 
 // AttendanceCalendar.jsx — one row per day this month that has an
 // AttendanceRecord (list view rather than a grid calendar — simpler to
@@ -10,21 +13,44 @@ import AttendanceStatusPill from "../common/AttendanceStatusPill";
 const SHIFT_ICON = { MORNING: Sunrise, EVENING: Sunset, NIGHT: Moon };
 const SHIFT_LABEL = { MORNING: "Morning", EVENING: "Evening", NIGHT: "Night" };
 const OFF_STATUSES = ["DAY_OFF", "APPROVED_LEAVE"];
+const MANUAL_CLEAR_AFTER_DAYS = 14;
 
 const dateLabel = (isoString) =>
   new Date(isoString).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
 const timeLabel = (isoString) =>
   isoString ? new Date(isoString).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) : "—";
+const daysSince = (isoString) => (Date.now() - new Date(isoString).getTime()) / (1000 * 60 * 60 * 24);
 
 // One RequiredHoursAdjustment for the day — a direct override (previous
 // -> new required hours), not a +/- delta, so there's a single
 // informational tone rather than a reward/penalty color split.
-function AdjustmentCallout({ adjustment }) {
+//
+// onDismiss — only supplied by the employee's own AttendanceSection (see
+// AttendanceCalendar's own onChanged prop below); Supervisor Mode's
+// EmployeeAttendanceScreen renders this same component without it, so
+// the dismiss button never appears there — a staff member manages an
+// employee's adjustments through the existing admin forms, not this
+// employee-only self-service delete.
+function AdjustmentCallout({ adjustment, onDismiss, busy }) {
+  const canDismiss = onDismiss && daysSince(adjustment.date) >= MANUAL_CLEAR_AFTER_DAYS;
   return (
     <div className="mt-2 rounded-lg border px-2.5 py-2 text-[11px] text-[#F47A20] bg-[#F47A20]/5 border-[#F47A20]/15">
-      <p className="flex items-center gap-1.5 font-medium">
-        <SlidersHorizontal size={11} /> Required Hours Adjusted
-      </p>
+      <div className="flex items-start justify-between gap-2">
+        <p className="flex items-center gap-1.5 font-medium">
+          <SlidersHorizontal size={11} /> Required Hours Adjusted
+        </p>
+        {canDismiss && (
+          <button
+            type="button"
+            onClick={() => onDismiss(adjustment)}
+            disabled={busy}
+            aria-label="Dismiss"
+            className="shrink-0 p-1 -m-1 rounded text-[#F47A20]/70 hover:text-red-400 disabled:opacity-50 transition-colors"
+          >
+            {busy ? <Loader2 size={11} className="animate-spin" /> : <Trash2 size={11} />}
+          </button>
+        )}
+      </div>
       <p className="mt-1 opacity-90">
         {adjustment.previousRequiredHours}h → {adjustment.newRequiredHours}h
       </p>
@@ -38,18 +64,65 @@ function AdjustmentCallout({ adjustment }) {
 // employee as an adjustment's reason is. Previously the reason was
 // entered by the supervisor but only ever written to the backend audit
 // log, never returned to the employee — this is the fix for that.
-function PenaltyCallout({ hours, reason }) {
+function PenaltyCallout({ hours, reason, onDismiss, busy, dismissable }) {
   return (
     <div className="mt-2 rounded-lg border px-2.5 py-2 text-[11px] text-red-400 bg-red-500/5 border-red-500/15">
-      <p className="flex items-center gap-1.5 font-medium">
-        <MinusCircle size={11} /> Penalty: -{hours.toFixed(1)}h
-      </p>
+      <div className="flex items-start justify-between gap-2">
+        <p className="flex items-center gap-1.5 font-medium">
+          <MinusCircle size={11} /> Penalty: -{hours.toFixed(1)}h
+        </p>
+        {onDismiss && dismissable && (
+          <button
+            type="button"
+            onClick={onDismiss}
+            disabled={busy}
+            aria-label="Dismiss"
+            className="shrink-0 p-1 -m-1 rounded text-red-400/70 hover:text-red-400 disabled:opacity-50 transition-colors"
+          >
+            {busy ? <Loader2 size={11} className="animate-spin" /> : <Trash2 size={11} />}
+          </button>
+        )}
+      </div>
       {reason && <p className="mt-1 opacity-90">Reason: {reason}</p>}
     </div>
   );
 }
 
-export default function AttendanceCalendar({ days }) {
+// onChanged — optional; only the employee's own AttendanceSection passes
+// it, enabling self-service dismiss buttons on already-old (see
+// MANUAL_CLEAR_AFTER_DAYS) adjustments/penalties and reloading the month
+// on success. Supervisor Mode's EmployeeAttendanceScreen renders this
+// same component read-only, unaffected.
+export default function AttendanceCalendar({ days, onChanged }) {
+  const [busyId, setBusyId] = useState(null);
+  const [actionError, setActionError] = useState(null);
+
+  async function handleDismissAdjustment(adjustment) {
+    setBusyId(adjustment.id);
+    setActionError(null);
+    try {
+      await deleteMyRequiredHoursAdjustment(adjustment.id);
+      onChanged();
+    } catch (err) {
+      setActionError(err instanceof ApiError ? err.message : "Could not dismiss this.");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function handleDismissPenalty(day) {
+    setBusyId(day.id);
+    setActionError(null);
+    try {
+      await deleteMyPunishment(day.id);
+      onChanged();
+    } catch (err) {
+      setActionError(err instanceof ApiError ? err.message : "Could not dismiss this.");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   if (days.length === 0) {
     return (
       <div className="rounded-2xl p-5 bg-[#171C2E]/80 border border-white/[0.06] backdrop-blur-xl">
@@ -60,6 +133,7 @@ export default function AttendanceCalendar({ days }) {
 
   return (
     <div className="rounded-2xl p-5 bg-[#171C2E]/80 border border-white/[0.06] backdrop-blur-xl">
+      {actionError && <p className="mb-2.5 text-xs text-red-400">{actionError}</p>}
       <div className="space-y-2.5 max-h-[420px] overflow-y-auto pr-1">
         {days.map((day) => {
           const ShiftIcon = SHIFT_ICON[day.shift];
@@ -104,10 +178,21 @@ export default function AttendanceCalendar({ days }) {
               )}
 
               {day.adjustments.map((adj) => (
-                <AdjustmentCallout key={adj.id} adjustment={adj} />
+                <AdjustmentCallout
+                  key={adj.id}
+                  adjustment={adj}
+                  onDismiss={onChanged ? handleDismissAdjustment : undefined}
+                  busy={busyId === adj.id}
+                />
               ))}
               {day.punishmentHours > 0 && (
-                <PenaltyCallout hours={day.punishmentHours} reason={day.punishmentReason} />
+                <PenaltyCallout
+                  hours={day.punishmentHours}
+                  reason={day.punishmentReason}
+                  dismissable={daysSince(day.date) >= MANUAL_CLEAR_AFTER_DAYS}
+                  onDismiss={onChanged ? () => handleDismissPenalty(day) : undefined}
+                  busy={busyId === day.id}
+                />
               )}
             </div>
           );

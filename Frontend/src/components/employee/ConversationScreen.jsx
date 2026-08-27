@@ -2,19 +2,29 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   ArrowLeft, Send, ShieldAlert, Loader2, Paperclip, Camera, File as FileIcon, Mic, Download, X,
-  MoreHorizontal, Reply, Copy, Pencil, Trash2, Check, CheckCheck, Users2, Forward,
+  MoreHorizontal, Reply, Copy, Pencil, Trash2, Check, CheckCheck, Users2, Forward, Award, Eye,
 } from "lucide-react";
-import { listMessages, sendMessage, markConversationRead, editMessage, deleteMessage, reactToMessage } from "../../services/chatService";
+import { listMessages, sendMessage, markConversationRead, editMessage, deleteMessage, reactToMessage, listMentionCandidates, getMessageSeenBy } from "../../services/chatService";
 import { usePolling } from "../../hooks/usePolling";
 import { prepareImageForUpload } from "../../services/activityService";
-import { readFileAsDataUrl, formatFileSize, formatDuration } from "../../utils/fileEncoding";
+import { uploadAttachment, formatFileSize, formatDuration } from "../../utils/fileEncoding";
+import AuthenticatedImage from "../common/AuthenticatedImage";
 import VoiceRecorder from "./VoiceRecorder";
 import ForwardMessageModal from "./ForwardMessageModal";
+import Modal from "../common/Modal";
+import { useAsync } from "../../hooks/useAsync";
+import { initialsOf } from "../../utils/initials";
 import { ApiError } from "../../services/apiClient";
 
 const POLL_MS = 4000;
 const MAX_ATTACHMENT_BYTES = 15 * 1024 * 1024;
 const REACTIONS = ["👍", "❤️", "😂", "😮", "😢", "👏"];
+// Real per-message "Seen by" only makes sense for a genuine multi-member
+// conversation — a DIRECT/SUPERVISOR_DIRECT/RM_DIRECT/STAFF_DIRECT
+// thread already has the simpler inline "Seen" tick (theirLastReadAt,
+// see this file's own read-indicator logic), where a reader LIST of at
+// most one other person adds nothing.
+const GROUP_LIKE_TYPES = new Set(["MARKET_GROUP", "ZONE_GROUP", "CUSTOM_GROUP", "WARNINGS", "ZONE_ANNOUNCEMENTS"]);
 // URL detection for tappable links in message text (spec §19) — deliberately
 // client-side only, no server-side preview fetch (see chatController.js's
 // own note on avoiding an SSRF surface for this).
@@ -48,6 +58,25 @@ async function copyText(text) {
   }
 }
 
+// Highlights "@Name" for every real, server-validated mention on this
+// message (never a raw "@" scan — only names chatController.js actually
+// persisted a MessageMention for), then linkifies the rest as usual.
+function renderBody(body, mentions) {
+  if (!mentions?.length) return linkifyBody(body);
+  const names = mentions.map((m) => m.employee?.name || m.user?.name).filter(Boolean);
+  if (!names.length) return linkifyBody(body);
+  const escaped = names.map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+  const re = new RegExp(`(@(?:${escaped.join("|")}))`, "g");
+  const parts = body.split(re);
+  return parts.map((part, i) =>
+    names.some((n) => part === `@${n}`) ? (
+      <span key={i} className="font-semibold text-[#F47A20]">{part}</span>
+    ) : (
+      <span key={i}>{linkifyBody(part)}</span>
+    )
+  );
+}
+
 function linkifyBody(body) {
   const parts = body.split(URL_RE);
   return parts.map((part, i) =>
@@ -63,7 +92,7 @@ function linkifyBody(body) {
 
 function MessageAttachment({ message }) {
   if (message.imageUrl) {
-    return <img src={message.imageUrl} alt="" className="mt-1.5 rounded-lg max-h-56 w-full object-cover" />;
+    return <AuthenticatedImage src={message.imageUrl} alt="" className="mt-1.5 rounded-lg max-h-56 w-full object-cover" />;
   }
   if (message.attachmentType === "FILE") {
     return (
@@ -99,17 +128,70 @@ function MessageAttachment({ message }) {
 // the accessible, always-visible alternative to long-press the spec asks
 // for (§14) — long-press isn't implemented at all, so there's nothing to
 // fall back from.
-function MessageActionSheet({ message, canEdit, canDelete, onClose, onReact, onReply, onForward, onCopy, onEdit, onDelete }) {
+function seenByTimeLabel(iso) {
+  return new Date(iso).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+}
+
+// SeenByModal.jsx (inline) — real per-message read receipts (Repair
+// Pass follow-up: "an actual per-message Seen by reader list, not just
+// conversation-level read state"). Backed entirely by
+// GET /api/conversations/:id/messages/:messageId/seen-by — fetched fresh
+// on open, never assembled from anything already in local state, so it
+// can never drift from what the server actually knows.
+function SeenByModal({ conversationId, messageId, onClose }) {
+  const { data, loading, error } = useAsync(() => getMessageSeenBy(conversationId, messageId), { deps: [conversationId, messageId] });
+
+  return (
+    <Modal open onClose={onClose} title="Seen By">
+      {loading ? (
+        <p className="text-sm text-[#4C5266] text-center py-6">Loading...</p>
+      ) : error ? (
+        <p className="text-sm text-red-400 text-center py-6">{error}</p>
+      ) : data.count === 0 ? (
+        <div className="text-center py-6">
+          <Eye size={22} className="mx-auto text-[#4C5266] mb-2" />
+          <p className="text-sm text-[#8B93A8]">No one else has seen this message yet.</p>
+        </div>
+      ) : (
+        <div className="space-y-2 max-h-[320px] overflow-y-auto">
+          {data.readers.map((r) => (
+            <div key={`${r.kind}-${r.id}`} className="flex items-center gap-3 rounded-xl p-2.5 bg-[#1A1F33]/70 border border-white/[0.06]">
+              <span className="w-8 h-8 rounded-full bg-white/[0.06] flex items-center justify-center text-xs font-semibold text-white shrink-0">
+                {initialsOf(r.name)}
+              </span>
+              <p className="flex-1 min-w-0 text-sm text-white truncate">{r.name}</p>
+              <p className="text-[11px] text-[#4C5266] shrink-0">{seenByTimeLabel(r.readAt)}</p>
+            </div>
+          ))}
+        </div>
+      )}
+    </Modal>
+  );
+}
+
+function MessageActionSheet({ message, canEdit, canDelete, canRecognize, canSeeSeenBy, onClose, onReact, onReply, onForward, onCopy, onEdit, onDelete, onSeenBy }) {
+  const [recognizeMode, setRecognizeMode] = useState(false);
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-end sm:items-center sm:justify-center" role="dialog" aria-modal="true">
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
       <div className="relative w-full sm:max-w-sm sm:mx-4 rounded-t-2xl sm:rounded-2xl bg-[#1F2436] border border-white/10 shadow-2xl animate-fade-up overflow-hidden">
+        {canRecognize && (
+          <button
+            type="button"
+            onClick={() => setRecognizeMode((v) => !v)}
+            className={`w-full flex items-center justify-center gap-2 px-4 py-2.5 text-xs font-semibold border-b border-white/[0.06] transition-colors ${
+              recognizeMode ? "bg-amber-500/15 text-amber-400" : "text-[#9AA1B4] hover:bg-white/[0.05]"
+            }`}
+          >
+            <Award size={13} /> {recognizeMode ? "Sending as Management Recognition — pick an emoji" : "Send as Management Recognition"}
+          </button>
+        )}
         <div className="flex items-center justify-center gap-1.5 px-3 py-3 border-b border-white/[0.06]">
           {REACTIONS.map((emoji) => (
             <button
               key={emoji}
               type="button"
-              onClick={() => onReact(emoji)}
+              onClick={() => onReact(emoji, recognizeMode)}
               className="flex-1 text-xl py-1.5 rounded-lg hover:bg-white/[0.06] active:scale-90 transition-transform"
             >
               {emoji}
@@ -126,6 +208,11 @@ function MessageActionSheet({ message, canEdit, canDelete, onClose, onReact, onR
           {message.body && (
             <button type="button" onClick={onCopy} className="w-full flex items-center gap-3 px-4 py-3 text-sm text-white hover:bg-white/[0.05]">
               <Copy size={16} /> Copy
+            </button>
+          )}
+          {canSeeSeenBy && (
+            <button type="button" onClick={onSeenBy} className="w-full flex items-center gap-3 px-4 py-3 text-sm text-white hover:bg-white/[0.05]">
+              <Eye size={16} /> Seen By
             </button>
           )}
           {canEdit && (
@@ -145,6 +232,14 @@ function MessageActionSheet({ message, canEdit, canDelete, onClose, onReact, onR
   );
 }
 
+function roleLabel(role) {
+  if (role === "REGIONAL_MANAGER") return "Regional Manager";
+  if (role === "ADMIN") return "Admin";
+  if (role === "OVERLOOKING_SUPERVISOR") return "Overlooking Supervisor";
+  if (role === "SUPERVISOR") return "Supervisor";
+  return "Management";
+}
+
 function ReactionPills({ reactions, currentUserId, currentUserKind, onToggle }) {
   if (!reactions || reactions.length === 0) return null;
   const byEmoji = new Map();
@@ -156,17 +251,24 @@ function ReactionPills({ reactions, currentUserId, currentUserKind, onToggle }) 
     <div className="mt-1 flex flex-wrap gap-1">
       {[...byEmoji.entries()].map(([emoji, list]) => {
         const mine = list.some((r) => (currentUserKind === "staff" ? r.userId === currentUserId : r.employeeId === currentUserId));
+        const recognizers = list.filter((r) => r.isRecognition);
         return (
           <button
             key={emoji}
             type="button"
             onClick={(e) => { e.stopPropagation(); onToggle(emoji); }}
+            title={recognizers.length ? recognizers.map((r) => `Recognized by ${roleLabel(r.user?.role)}`).join(", ") : undefined}
             className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-xs border transition-colors ${
-              mine ? "bg-[#F47A20]/20 border-[#F47A20]/40" : "bg-black/15 border-white/10"
+              recognizers.length
+                ? "bg-amber-500/15 border-amber-500/40"
+                : mine
+                ? "bg-[#F47A20]/20 border-[#F47A20]/40"
+                : "bg-black/15 border-white/10"
             }`}
           >
             <span>{emoji}</span>
             <span className="text-[10px] text-white/80">{list.length}</span>
+            {recognizers.length > 0 && <Award size={11} className="text-amber-400" />}
           </button>
         );
       })}
@@ -185,12 +287,11 @@ function ReactionPills({ reactions, currentUserId, currentUserKind, onToggle }) 
 //
 // Attachments: Photo reuses activityService.prepareImageForUpload (same
 // compression pipeline as everywhere else a photo is captured in this
-// app); File/Voice use readFileAsDataUrl (no compression — not
-// meaningful for arbitrary files or already-compressed audio). Both are
-// the same "temporary base64 data-URL stand-in" convention documented on
-// prepareImageForUpload — there is no real upload endpoint anywhere in
-// this backend yet, and no video message support for the same reason
-// (a video as base64 in Postgres would be unsafe at any real size).
+// app); File/Voice use uploadAttachment (no compression — not meaningful
+// for arbitrary files or already-compressed audio). Both upload to the
+// real backend (POST /api/uploads, see services/uploadService.js) and
+// resolve to a hosted URL — no video message support yet, since that
+// would need its own size/compression handling this app doesn't have.
 //
 // currentUserKind/currentUserId — generalized so the exact same component
 // backs both the Employee Chat tab (kind="employee") and the Supervisor
@@ -218,6 +319,7 @@ export default function ConversationScreen({ conversation, currentUserId, curren
   const [pendingAttachment, setPendingAttachment] = useState(null); // { kind, url, name, size, durationSec }
   const [attachBusy, setAttachBusy] = useState(false);
   const [actionSheetFor, setActionSheetFor] = useState(null); // message being acted on
+  const [seenByFor, setSeenByFor] = useState(null); // message whose real reader list is being viewed
   const [forwardingMessage, setForwardingMessage] = useState(null); // message being forwarded
   const [replyTo, setReplyTo] = useState(null); // message being replied to
   const [editingId, setEditingId] = useState(null); // message id currently being edited inline
@@ -229,7 +331,11 @@ export default function ConversationScreen({ conversation, currentUserId, curren
   const photoInputRef = useRef(null);
   const fileInputRef = useRef(null);
 
-  const isWarnings = conversation.type === "WARNINGS";
+  const isWarnings = conversation.type === "WARNINGS" || conversation.type === "ZONE_ANNOUNCEMENTS";
+  const [mentionQuery, setMentionQuery] = useState(null); // { start } while the @-dropdown is open
+  const [mentionCandidates, setMentionCandidates] = useState({ employees: [], staff: [] });
+  const [pendingMentions, setPendingMentions] = useState([]); // [{ employeeId? , userId?, name }]
+  const [recognizeMode, setRecognizeMode] = useState(false);
 
   usePolling(
     async () => {
@@ -322,7 +428,7 @@ export default function ConversationScreen({ conversation, currentUserId, curren
     setAttachBusy(true);
     setError(null);
     try {
-      const url = await readFileAsDataUrl(file);
+      const url = await uploadAttachment(file);
       const isAudio = file.type.startsWith("audio/");
       setPendingAttachment({
         kind: isAudio ? "audio" : "file",
@@ -342,13 +448,53 @@ export default function ConversationScreen({ conversation, currentUserId, curren
     setRecordingVoice(false);
   }
 
+  // Mentions (§14-15) — typing "@" opens a bounded candidate dropdown
+  // (mention-candidates, scoped to this conversation's real membership);
+  // picking one inserts "@Name " and remembers the real id. Only
+  // mentions whose "@Name" text still appears in the draft at send time
+  // are actually submitted — deleting the text drops the mention too.
+  function handleDraftChange(value) {
+    setDraft(value);
+    const match = value.match(/@([^\s@]*)$/);
+    if (match) {
+      setMentionQuery(match[1]);
+    } else {
+      setMentionQuery(null);
+    }
+  }
+
+  useEffect(() => {
+    if (mentionQuery === null) return;
+    let cancelled = false;
+    listMentionCandidates(conversation.id, mentionQuery)
+      .then((data) => { if (!cancelled) setMentionCandidates(data); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [mentionQuery, conversation.id]);
+
+  function selectMention(candidate, kind) {
+    const name = candidate.name;
+    setDraft((prev) => prev.replace(/@([^\s@]*)$/, `@${name} `));
+    setPendingMentions((prev) => [
+      ...prev.filter((m) => m.name !== name),
+      kind === "employee" ? { employeeId: candidate.id, name } : { userId: candidate.id, name },
+    ]);
+    setMentionQuery(null);
+  }
+
+  function resolveMentionsFor(body) {
+    return pendingMentions
+      .filter((m) => body.includes(`@${m.name}`))
+      .map((m) => (m.employeeId ? { employeeId: m.employeeId } : { userId: m.userId }));
+  }
+
   async function handleSend() {
     const body = draft.trim();
     if (!body && !pendingAttachment) return;
     setSending(true);
     setError(null);
     try {
-      const payload = { body, replyToId: replyTo?.id };
+      const payload = { body, replyToId: replyTo?.id, mentions: resolveMentionsFor(body) };
       if (pendingAttachment?.kind === "image") {
         payload.imageUrl = pendingAttachment.url;
       } else if (pendingAttachment?.kind === "file") {
@@ -380,6 +526,8 @@ export default function ConversationScreen({ conversation, currentUserId, curren
       setDraft("");
       setPendingAttachment(null);
       setReplyTo(null);
+      setPendingMentions([]);
+      setMentionQuery(null);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Could not send this message.");
     } finally {
@@ -404,10 +552,10 @@ export default function ConversationScreen({ conversation, currentUserId, curren
     }
   }
 
-  async function handleReact(message, emoji) {
+  async function handleReact(message, emoji, recognition = false) {
     setActionSheetFor(null);
     try {
-      const { reactions } = await reactToMessage(conversation.id, message.id, emoji);
+      const { reactions } = await reactToMessage(conversation.id, message.id, emoji, recognition);
       setMessages((prev) => prev.map((m) => (m.id === message.id ? { ...m, reactions } : m)));
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Could not react to this message.");
@@ -534,7 +682,7 @@ export default function ConversationScreen({ conversation, currentUserId, curren
                             </div>
                           ) : (
                             <>
-                              {m.body && <p className="text-sm whitespace-pre-wrap break-words">{linkifyBody(m.body)}</p>}
+                              {m.body && <p className="text-sm whitespace-pre-wrap break-words">{renderBody(m.body, m.mentions)}</p>}
                               <MessageAttachment message={m} />
                             </>
                           )}
@@ -592,7 +740,7 @@ export default function ConversationScreen({ conversation, currentUserId, curren
                 }
               }}
               rows={1}
-              placeholder="Send an announcement to your market..."
+              placeholder={conversation.type === "ZONE_ANNOUNCEMENTS" ? "Send an announcement to your zone..." : "Send an announcement to your market..."}
               className="flex-1 min-w-0 resize-none rounded-xl bg-white/[0.04] border border-amber-500/20 px-3.5 py-2.5 text-sm text-white placeholder:text-[#4C5266] outline-none focus:border-amber-500/50 max-h-28"
             />
             <button
@@ -607,7 +755,8 @@ export default function ConversationScreen({ conversation, currentUserId, curren
         </div>
       ) : isWarnings ? (
         <div className="px-4 sm:px-6 py-3 border-t border-white/[0.06] flex items-center gap-2 text-xs text-[#8B93A8]">
-          <ShieldAlert size={14} className="text-amber-400 shrink-0" /> Only a supervisor can post here.
+          <ShieldAlert size={14} className="text-amber-400 shrink-0" />
+          {conversation.type === "ZONE_ANNOUNCEMENTS" ? "Only a Regional Manager or Admin can post here." : "Only a supervisor can post here."}
         </div>
       ) : (
         <div className="px-4 sm:px-6 py-3 border-t border-white/[0.06]">
@@ -634,7 +783,7 @@ export default function ConversationScreen({ conversation, currentUserId, curren
               {pendingAttachment && (
                 <div className="mb-2 flex items-center gap-2 rounded-lg p-2 bg-white/[0.04] border border-white/[0.06]">
                   {pendingAttachment.kind === "image" ? (
-                    <img src={pendingAttachment.url} alt="" className="h-10 w-10 rounded object-cover" />
+                    <AuthenticatedImage src={pendingAttachment.url} alt="" className="h-10 w-10 rounded object-cover" />
                   ) : (
                     <span className="w-10 h-10 rounded bg-white/[0.06] flex items-center justify-center text-[#9AA1B4]">
                       {pendingAttachment.kind === "voice" ? <Mic size={16} /> : <FileIcon size={16} />}
@@ -647,6 +796,24 @@ export default function ConversationScreen({ conversation, currentUserId, curren
                   <button type="button" onClick={() => setPendingAttachment(null)} className="p-1 text-[#4C5266] hover:text-white">
                     <X size={14} />
                   </button>
+                </div>
+              )}
+
+              {mentionQuery !== null && (mentionCandidates.employees.length > 0 || mentionCandidates.staff.length > 0) && (
+                <div className="mb-2 max-h-40 overflow-y-auto rounded-xl bg-[#1F2436] border border-white/10 shadow-xl">
+                  {[...mentionCandidates.employees.map((c) => ({ ...c, kind: "employee" })), ...mentionCandidates.staff.map((c) => ({ ...c, kind: "staff" }))].map((c) => (
+                    <button
+                      key={`${c.kind}-${c.id}`}
+                      type="button"
+                      onClick={() => selectMention(c, c.kind)}
+                      className="w-full flex items-center gap-2 px-3.5 py-2.5 text-sm text-white hover:bg-white/[0.06] text-left"
+                    >
+                      <span className="w-6 h-6 rounded-full bg-white/[0.06] flex items-center justify-center text-[10px] font-semibold shrink-0">
+                        {c.name.split(" ").map((p) => p[0]).slice(0, 2).join("")}
+                      </span>
+                      {c.name}
+                    </button>
+                  ))}
                 </div>
               )}
 
@@ -702,7 +869,7 @@ export default function ConversationScreen({ conversation, currentUserId, curren
 
                 <textarea
                   value={draft}
-                  onChange={(e) => setDraft(e.target.value)}
+                  onChange={(e) => handleDraftChange(e.target.value)}
                   onKeyDown={(e) => {
                     if (e.key === "Enter" && !e.shiftKey) {
                       e.preventDefault();
@@ -710,7 +877,7 @@ export default function ConversationScreen({ conversation, currentUserId, curren
                     }
                   }}
                   rows={1}
-                  placeholder="Message..."
+                  placeholder="Message... (@ to mention)"
                   className="flex-1 min-w-0 resize-none rounded-xl bg-white/[0.04] border border-white/[0.06] px-3.5 py-2.5 text-sm text-white placeholder:text-[#4C5266] outline-none focus:border-[#F47A20]/50 max-h-28"
                 />
                 <button
@@ -735,13 +902,16 @@ export default function ConversationScreen({ conversation, currentUserId, curren
             (currentUserKind === "staff" ? actionSheetFor.senderUserId === currentUserId : actionSheetFor.senderEmployeeId === currentUserId)
           }
           canDelete={currentUserKind === "staff" ? actionSheetFor.senderUserId === currentUserId : actionSheetFor.senderEmployeeId === currentUserId}
+          canRecognize={currentUserKind === "staff" && !!actionSheetFor.senderEmployeeId}
+          canSeeSeenBy={GROUP_LIKE_TYPES.has(conversation.type)}
           onClose={() => setActionSheetFor(null)}
-          onReact={(emoji) => handleReact(actionSheetFor, emoji)}
+          onReact={(emoji, recognition) => handleReact(actionSheetFor, emoji, recognition)}
           onReply={() => { setReplyTo(actionSheetFor); setActionSheetFor(null); }}
           onForward={() => { setForwardingMessage(actionSheetFor); setActionSheetFor(null); }}
           onCopy={async () => { await copyText(actionSheetFor.body); setActionSheetFor(null); }}
           onEdit={() => startEdit(actionSheetFor)}
           onDelete={() => handleDelete(actionSheetFor)}
+          onSeenBy={() => { setSeenByFor(actionSheetFor); setActionSheetFor(null); }}
         />
       )}
 
@@ -751,6 +921,10 @@ export default function ConversationScreen({ conversation, currentUserId, curren
           currentUserKind={currentUserKind}
           onClose={() => setForwardingMessage(null)}
         />
+      )}
+
+      {seenByFor && (
+        <SeenByModal conversationId={conversation.id} messageId={seenByFor.id} onClose={() => setSeenByFor(null)} />
       )}
     </div>
   );

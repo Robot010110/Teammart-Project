@@ -3,12 +3,12 @@ import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import {
   Bell, BellOff, CheckCheck, X, ClipboardList, MessageCircle, ShieldAlert,
-  PackageX, CalendarOff, CheckCircle2, XCircle, Megaphone,
+  PackageX, CalendarOff, CheckCircle2, XCircle, Megaphone, Trash2,
 } from "lucide-react";
 import { useAsync } from "../../hooks/useAsync";
 import ErrorBanner from "../common/ErrorBanner";
 import { SkeletonCard } from "../common/SkeletonCard";
-import { listMyNotifications, markNotificationRead, markAllNotificationsRead } from "../../services/notificationService";
+import { listMyNotifications, markNotificationRead, markAllNotificationsRead, deleteNotification, deleteAllNotifications } from "../../services/notificationService";
 import { notificationDestination } from "../../utils/notificationLinks";
 
 function timeLabel(iso) {
@@ -55,28 +55,39 @@ function groupByDay(notifications) {
   return groups;
 }
 
-function NotificationRow({ notification, onOpen }) {
+function NotificationRow({ notification, onOpen, onDelete }) {
   const { icon: Icon, tone } = iconFor(notification);
   return (
-    <button
-      type="button"
-      onClick={() => onOpen(notification)}
-      className={`w-full text-left flex items-start gap-3 rounded-xl p-3.5 border transition-colors ${
+    <div
+      className={`group w-full flex items-start gap-3 rounded-xl p-3.5 border transition-colors ${
         notification.read ? "bg-[#1A1F33]/40 border-white/[0.05]" : "bg-[#1A1F33]/70 border-[#F47A20]/20"
       }`}
     >
-      <span className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${tone}`}>
-        <Icon size={16} />
-      </span>
-      <div className="min-w-0 flex-1">
-        <div className="flex items-start justify-between gap-2">
-          <p className="text-sm font-medium text-white truncate">{notification.title}</p>
-          {!notification.read && <span className="mt-1.5 w-2 h-2 rounded-full bg-[#F47A20] shrink-0" />}
+      <button type="button" onClick={() => onOpen(notification)} className="flex items-start gap-3 min-w-0 flex-1 text-left">
+        <span className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${tone}`}>
+          <Icon size={16} />
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-start justify-between gap-2">
+            <p className="text-sm font-medium text-white truncate">{notification.title}</p>
+            {!notification.read && <span className="mt-1.5 w-2 h-2 rounded-full bg-[#F47A20] shrink-0" />}
+          </div>
+          <p className="text-xs text-[#9AA1B4] mt-0.5 line-clamp-2">{notification.body}</p>
+          <p className="text-[11px] text-[#4C5266] mt-1">{timeLabel(notification.createdAt)}</p>
         </div>
-        <p className="text-xs text-[#9AA1B4] mt-0.5 line-clamp-2">{notification.body}</p>
-        <p className="text-[11px] text-[#4C5266] mt-1">{timeLabel(notification.createdAt)}</p>
-      </div>
-    </button>
+      </button>
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          onDelete(notification.id);
+        }}
+        aria-label="Delete notification"
+        className="shrink-0 p-1.5 mt-0.5 rounded-lg text-[#4C5266] hover:text-red-400 hover:bg-red-500/10 transition-colors"
+      >
+        <Trash2 size={14} />
+      </button>
+    </div>
   );
 }
 
@@ -126,6 +137,39 @@ export default function NotificationBell({ basePath }) {
     }
   }
 
+  // Repair Pass §6 — a real, persisted delete (soft-deleted server-side;
+  // see notificationsController.deleteNotification's own comment).
+  // Optimistically removed from this list immediately; reload() rolls
+  // back the optimistic removal if the request actually fails, same
+  // pattern as markReadLocal above.
+  async function handleDelete(id) {
+    const wasUnread = notifications.find((n) => n.id === id)?.read === false;
+    setData((prev) =>
+      prev
+        ? {
+            notifications: prev.notifications.filter((n) => n.id !== id),
+            unreadCount: wasUnread ? Math.max(prev.unreadCount - 1, 0) : prev.unreadCount,
+          }
+        : prev
+    );
+    try {
+      await deleteNotification(id);
+    } catch {
+      reload();
+    }
+  }
+
+  // Bulk "Delete All" — same real soft-delete as handleDelete above, one
+  // request for the whole feed instead of one per notification.
+  async function handleDeleteAll() {
+    setData({ notifications: [], unreadCount: 0 });
+    try {
+      await deleteAllNotifications();
+    } catch {
+      reload();
+    }
+  }
+
   function handleOpen(notification) {
     if (!notification.read) markReadLocal(notification.id);
     const destination = notificationDestination(notification, basePath);
@@ -170,6 +214,11 @@ export default function NotificationBell({ basePath }) {
                     <CheckCheck size={13} /> Mark all read
                   </button>
                 )}
+                {notifications.length > 0 && (
+                  <button type="button" onClick={handleDeleteAll} className="flex items-center gap-1 text-xs font-medium text-[#9AA1B4] hover:text-red-400">
+                    <Trash2 size={13} /> Delete all
+                  </button>
+                )}
                 <button type="button" onClick={() => setOpen(false)} className="p-1 text-[#9AA1B4] hover:text-white">
                   <X size={16} />
                 </button>
@@ -194,7 +243,7 @@ export default function NotificationBell({ basePath }) {
                       <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-[#8B93A8]">{label}</h3>
                       <div className="space-y-2">
                         {groups[label].map((n) => (
-                          <NotificationRow key={n.id} notification={n} onOpen={handleOpen} />
+                          <NotificationRow key={n.id} notification={n} onOpen={handleOpen} onDelete={handleDelete} />
                         ))}
                       </div>
                     </div>

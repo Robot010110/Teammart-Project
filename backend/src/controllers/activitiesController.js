@@ -1,6 +1,50 @@
+import { unlink } from "fs/promises";
+import path from "path";
 import { prisma } from "../lib/prisma.js";
-import { assertMarketAccess } from "../middleware/auth.js";
-import { createNotification } from "../utils/notifications.js";
+import { assertMarketAccess, requireAccessibleEmployee } from "../middleware/auth.js";
+import { createNotification, createNotificationForUser } from "../utils/notifications.js";
+import { UPLOADS_DIR } from "../utils/fileStorage.js";
+import { ensureMarketDepartment } from "../services/departmentMonitoringService.js";
+import { notifyNightShiftCompletion } from "../services/nightShiftService.js";
+
+// Department Closing photos expire 16 hours after submission (Phase 1
+// spec §15) — every other Activity category's images stay permanent
+// (see ActivityImage.expiresAt's own schema comment).
+const DEPARTMENT_CLOSING_PHOTO_RETENTION_MS = 16 * 60 * 60 * 1000;
+
+// Cleanup Phase §12 — every OTHER Activity category's evidence photo
+// previously never expired at all (expiresAt stayed null forever).
+// Department Closing keeps its own much shorter, deliberately-different
+// 16h window (a same-shift verification photo, not general evidence) —
+// untouched. Everything else now gets the general 1-month retention
+// policy; runDepartmentPhotoExpirySweep (maintenanceScheduler.js) is
+// already fully generic (WHERE expiresAt <= now), so this is the only
+// change needed — no new sweep, no duplicated storage mechanism. The
+// Activity row itself is never touched by this — only its ActivityImage
+// rows' underlying files get deleted once expired (see
+// runDepartmentPhotoExpirySweep's own comment), preserving History for
+// performance calculations exactly as before.
+const GENERAL_PHOTO_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
+
+function expiresAtFor(category) {
+  if (category === "DEPARTMENT_CLOSING") return new Date(Date.now() + DEPARTMENT_CLOSING_PHOTO_RETENTION_MS);
+  return new Date(Date.now() + GENERAL_PHOTO_RETENTION_MS);
+}
+
+// Deletes the physical file + its UploadedFile metadata row for a URL
+// this app's own upload endpoint produced (see
+// utils/fileStorage.js/controllers/uploadsController.js) — a no-op for
+// anything else (a legacy base64 data: URL, or any URL that isn't ours),
+// so this is always safe to call speculatively. Used wherever an
+// ActivityImage is deleted/replaced, so removing/replacing a photo never
+// leaves an orphaned file on disk (Phase 1 spec §17).
+async function deleteUnderlyingFileIfOwned(url) {
+  const match = /\/api\/uploads\/([0-9a-f-]{36}\.[a-z0-9]{1,10})$/i.exec(url ?? "");
+  if (!match) return;
+  const filename = match[1];
+  await prisma.uploadedFile.delete({ where: { filename } }).catch(() => {});
+  await unlink(path.join(UPLOADS_DIR, filename)).catch(() => {});
+}
 
 // activitiesController.js — Phase 1, Step 3/4/5: an Employee's own daily
 // activity log (EXPIRED_ITEMS, SHELF_CLEANING, etc.), separate from the
@@ -109,7 +153,11 @@ export async function listActivities(req, res, next) {
 
     const activities = await prisma.activity.findMany({
       where,
-      include: { images: true, countingAssignment: true },
+      // nightShiftTaskDefinition — purely additive; null for every
+      // non-Night-Shift category, so this doesn't change the shape of
+      // any existing caller's data, only adds a field Night Shift's own
+      // completion history (NightShiftDashboardScreen.jsx) reads.
+      include: { images: true, countingAssignment: true, nightShiftTaskDefinition: true },
       orderBy: { date: "desc" },
     });
 
@@ -133,15 +181,65 @@ export async function listActivitiesForMarket(req, res, next) {
     }
     await assertMarketAccess(req.user, marketId);
 
-    const where = { employee: { marketId } };
+    // OR'd across both ownership shapes (see Activity.employeeId's own
+    // schema comment) so an unassigned-department Department Closing —
+    // employeeId: null, marketId set directly — still shows up here,
+    // same reasoning as departmentMonitoringService's submissions query.
+    // employeeId, when given, narrows WITHIN that market scope — it does
+    // not replace it, so a Supervisor still can't reach an employee
+    // outside their own market just by passing that employee's id.
+    const where = { OR: [{ employee: { marketId } }, { marketId }] };
     if (employeeId) where.employeeId = employeeId;
     if (category) where.category = category;
     if (status) where.status = status;
 
     const activities = await prisma.activity.findMany({
       where,
-      include: { images: true, countingAssignment: true, employee: { select: { id: true, name: true, employeeCode: true } } },
+      include: {
+        images: true,
+        countingAssignment: true,
+        employee: { select: { id: true, name: true, employeeCode: true } },
+        submittedByStaff: { select: { id: true, name: true } },
+      },
       orderBy: { date: "desc" },
+    });
+
+    res.json(activities);
+  } catch (err) {
+    next(err);
+  }
+}
+
+// GET /api/activities/company?marketId=&zoneId=&category=&status=&employeeId=&take=
+// — Admin Phase 1 §17: a company-wide activity feed, no market scoping
+// (unlike listActivitiesForMarket above, which always requires and
+// enforces one market). Reuses the exact same Activity table/shape —
+// capped at `take` (default 100) most-recent-first so this never pulls
+// the entire company's activity history into one response.
+export async function listCompanyActivities(req, res, next) {
+  try {
+    const { marketId, zoneId, category, status, employeeId, take } = req.query;
+
+    const where = {};
+    if (marketId) {
+      where.OR = [{ employee: { marketId } }, { marketId }];
+    } else if (zoneId) {
+      where.OR = [{ employee: { market: { zoneId } } }, { market: { zoneId } }];
+    }
+    if (employeeId) where.employeeId = employeeId;
+    if (category) where.category = category;
+    if (status) where.status = status;
+
+    const activities = await prisma.activity.findMany({
+      where,
+      include: {
+        images: true,
+        employee: { select: { id: true, name: true, employeeCode: true, marketId: true, market: { select: { name: true, zoneId: true } } } },
+        submittedByStaff: { select: { id: true, name: true } },
+        market: { select: { name: true, zoneId: true } },
+      },
+      orderBy: { date: "desc" },
+      take: take ?? 100,
     });
 
     res.json(activities);
@@ -220,6 +318,63 @@ export async function getActivity(req, res, next) {
   }
 }
 
+// Shared by createActivity (employee, below), createDepartmentClosingForEmployee,
+// and createDepartmentClosingForUnassignedDepartment (staff-on-behalf-of,
+// further down) — ONE place that actually inserts an Activity row, so a
+// Department Closing submitted by an employee and one submitted by their
+// Supervisor (whether for an assigned employee or a genuinely unassigned
+// department) are the exact same kind of record (spec §13: "one source
+// of truth"), distinguished only by which of employeeId/submittedByStaffId
+// is set.
+async function createActivityRecord({
+  category, date, time, notes, status, productId, labelIssueType, countingAssignmentId, department,
+  employeeId, marketId, submittedByStaffId, imageUrls,
+}) {
+  const imageExpiresAt = expiresAtFor(category);
+  return prisma.activity.create({
+    data: {
+      category,
+      date,
+      time,
+      notes,
+      status,
+      productId,
+      labelIssueType,
+      countingAssignmentId,
+      department,
+      employeeId: employeeId ?? null,
+      marketId: marketId ?? null,
+      submittedByStaffId: submittedByStaffId ?? null,
+      images: imageUrls?.length ? { create: imageUrls.map((url) => ({ url, expiresAt: imageExpiresAt })) } : undefined,
+    },
+    include: { images: true, countingAssignment: true },
+  });
+}
+
+// Notifies a market's Supervisor AND Overlooking account (whichever
+// exist) that a Department Closing was submitted (Phase 2 §11) — never
+// an unrelated market, since marketId always comes from a value the
+// caller already verified access to, never from raw client input.
+async function notifyDepartmentClosingSubmitted(activity, marketId, submitterName) {
+  const market = await prisma.market.findUnique({
+    where: { id: marketId },
+    select: { supervisorId: true, overlookingSupervisorId: true },
+  });
+  const recipientIds = [market?.supervisorId, market?.overlookingSupervisorId].filter(Boolean);
+  await Promise.all(
+    recipientIds.map((userId) =>
+      createNotificationForUser({
+        userId,
+        type: "DEPARTMENT_CLOSING_SUBMITTED",
+        title: "Department Closing Submitted",
+        body: `${submitterName} completed the closing check for ${activity.department}.`,
+        linkType: "DEPARTMENT_CLOSING",
+        linkId: activity.id,
+      })
+    )
+  );
+}
+
 // POST /api/activities — an employee logs a new daily activity. Defaults
 // to DRAFT (not submitted yet) unless the caller explicitly sets PENDING.
 export async function createActivity(req, res, next) {
@@ -236,21 +391,106 @@ export async function createActivity(req, res, next) {
       }
     }
 
-    const activity = await prisma.activity.create({
-      data: {
-        category,
-        date,
-        time,
-        notes,
-        status,
-        productId,
-        labelIssueType,
-        countingAssignmentId,
-        employeeId: req.user.employeeId,
-        images: imageUrls?.length ? { create: imageUrls.map((url) => ({ url })) } : undefined,
-      },
-      include: { images: true, countingAssignment: true },
+    // Department Closing (Phase 2 §6): the department is ALWAYS the
+    // employee's own real, currently-assigned department, looked up
+    // fresh from the database — never accepted from the client. This is
+    // what makes "employeeId=A, department=B" (an unauthorized
+    // department) impossible: there is no `department` field in the
+    // request body this branch ever reads.
+    let department;
+    if (category === "DEPARTMENT_CLOSING") {
+      const employee = await prisma.employee.findUnique({ where: { id: req.user.employeeId }, select: { department: true } });
+      if (!employee?.department) {
+        return res.status(400).json({ error: "You have no department assigned yet — ask your Supervisor to assign one first." });
+      }
+      department = employee.department;
+    }
+
+    const activity = await createActivityRecord({
+      category, date, time, notes, status, productId, labelIssueType, countingAssignmentId, department, imageUrls,
+      employeeId: req.user.employeeId,
     });
+
+    if (category === "DEPARTMENT_CLOSING" && ["PENDING", "APPROVED"].includes(activity.status)) {
+      const employee = await prisma.employee.findUnique({ where: { id: req.user.employeeId }, select: { name: true, marketId: true } });
+      await notifyDepartmentClosingSubmitted(activity, employee.marketId, employee.name);
+    }
+
+    res.status(201).json(activity);
+  } catch (err) {
+    next(err);
+  }
+}
+
+// POST /api/activities/department-closing/:employeeId — staff-only:
+// "authorized supervisor" submitting a Department Closing on an
+// ASSIGNED employee's behalf (spec §12). Authorization is the exact same
+// assertMarketAccess/requireAccessibleEmployee every other staff-on-
+// behalf-of-an-employee endpoint in this app already uses (e.g.
+// tasksController.assignTask) — the employee is looked up fresh from
+// the database, so a Supervisor can never target an employee outside
+// their own market/zone just by changing :employeeId in the URL. Same
+// server-authoritative department rule as createActivity above: the
+// request body has no `department` field for this reason either — the
+// department submitted is always this employee's own real one.
+export async function createDepartmentClosingForEmployee(req, res, next) {
+  try {
+    const employee = await requireAccessibleEmployee(req.user, req.params.employeeId);
+    if (!employee.department) {
+      return res.status(400).json({ error: "This employee has no department assigned yet." });
+    }
+    const { date, time, notes, status, imageUrls } = req.body;
+
+    const activity = await createActivityRecord({
+      category: "DEPARTMENT_CLOSING", date, time, notes, status, department: employee.department, imageUrls,
+      employeeId: employee.id,
+      submittedByStaffId: req.user.userId,
+    });
+
+    if (["PENDING", "APPROVED"].includes(activity.status)) {
+      await notifyDepartmentClosingSubmitted(activity, employee.marketId, `Supervisor (for ${employee.name})`);
+    }
+
+    res.status(201).json(activity);
+  } catch (err) {
+    next(err);
+  }
+}
+
+// POST /api/activities/department-closing/market/:marketId — staff-only:
+// a Supervisor/Overlooking completing a Department Closing for a
+// genuinely UNASSIGNED department in their own market (spec §15-16) — no
+// employee exists to attribute this to at all, so employeeId is null and
+// marketId + submittedByStaffId are this record's sole owner (see
+// Activity.employeeId's own schema comment). Rejects if the named
+// department actually HAS an assigned employee right now — that case
+// must go through createDepartmentClosingForEmployee above instead, so
+// the two paths never produce ambiguous "who does this represent" data.
+export async function createDepartmentClosingForUnassignedDepartment(req, res, next) {
+  try {
+    const marketId = req.params.marketId;
+    await assertMarketAccess(req.user, marketId);
+
+    const { date, time, notes, status, imageUrls, department } = req.body;
+
+    const assignedEmployee = await prisma.employee.findFirst({ where: { marketId, department } });
+    if (assignedEmployee) {
+      return res.status(400).json({
+        error: "This department has an assigned employee — submit through their own Department Closing instead of the unassigned-department path.",
+      });
+    }
+
+    await ensureMarketDepartment(marketId, department, req.user.userId);
+
+    const activity = await createActivityRecord({
+      category: "DEPARTMENT_CLOSING", date, time, notes, status, department, imageUrls,
+      marketId,
+      submittedByStaffId: req.user.userId,
+    });
+
+    if (["PENDING", "APPROVED"].includes(activity.status)) {
+      await notifyDepartmentClosingSubmitted(activity, marketId, "Supervisor");
+    }
 
     res.status(201).json(activity);
   } catch (err) {
@@ -271,11 +511,40 @@ export async function updateActivity(req, res, next) {
       return res.status(400).json({ error: `Activity is already ${activity.status.toLowerCase()} and can no longer be edited` });
     }
 
+    // Night Shift §12-13/§16: submitting (DRAFT/PENDING -> PENDING) a
+    // Night Shift task independently re-validates the evidence
+    // requirement server-side — never trusts a frontend photo count
+    // (spec §13: "the backend must independently validate that the
+    // final submission contains at least N valid stored evidence
+    // items"). Uses the REAL current ActivityImage count for this row,
+    // not anything the client claims.
+    if (activity.category === "NIGHT_SHIFT_TASK" && req.body.status === "PENDING" && activity.nightShiftTaskDefinitionId) {
+      const definition = await prisma.nightShiftTaskDefinition.findUnique({ where: { id: activity.nightShiftTaskDefinitionId } });
+      if (definition?.requiresEvidence) {
+        const photoCount = await prisma.activityImage.count({ where: { activityId: activity.id } });
+        if (photoCount < definition.minPhotos) {
+          return res.status(400).json({ error: `At least ${definition.minPhotos} photos are required (currently ${photoCount}).` });
+        }
+      }
+    }
+
     const updated = await prisma.activity.update({
       where: { id: req.params.id },
       data: req.body,
       include: { images: true },
     });
+
+    // Fire-and-observe, never blocks/rolls back the completion that just
+    // succeeded above (spec §19/§21) — notifyNightShiftCompletion itself
+    // catches and logs every failure internally. Gated on the OLD status
+    // being DRAFT (a genuinely new submission), not just the new status
+    // being PENDING — an already-PENDING row can still be edited/re-saved
+    // (still in EDITABLE_STATUSES, e.g. adding more photos before
+    // review), and that must never re-fire a duplicate group post/
+    // notification for the same completion (spec §16).
+    if (updated.category === "NIGHT_SHIFT_TASK" && req.body.status === "PENDING" && activity.status === "DRAFT") {
+      await notifyNightShiftCompletion(updated);
+    }
 
     res.json(updated);
   } catch (err) {
@@ -319,10 +588,49 @@ export async function addActivityImage(req, res, next) {
     }
 
     const image = await prisma.activityImage.create({
-      data: { url: req.body.url, activityId: activity.id },
+      data: { url: req.body.url, activityId: activity.id, expiresAt: expiresAtFor(activity.category) },
     });
 
     res.status(201).json(image);
+  } catch (err) {
+    next(err);
+  }
+}
+
+// PATCH /api/activities/:id/images/:imageId — replace an existing image
+// in place (Phase 1 spec §17: take/preview/retake/replace before final
+// submission). Ownership + editable-status are checked exactly like
+// every other mutation on this activity; the OLD physical file is
+// deleted (deleteUnderlyingFileIfOwned) so a replace never leaves an
+// orphaned upload on disk, and expiresAt is recomputed fresh (so
+// replacing a Department Closing photo close to its original deadline
+// correctly restarts the 16-hour window from the replacement, not the
+// original submission).
+export async function replaceActivityImage(req, res, next) {
+  try {
+    const activity = await prisma.activity.findUnique({ where: { id: req.params.id } });
+    if (!activity) return res.status(404).json({ error: "Activity not found" });
+    if (activity.employeeId !== req.user.employeeId) {
+      return res.status(403).json({ error: "You do not have access to this activity" });
+    }
+    if (!EDITABLE_STATUSES.includes(activity.status)) {
+      return res.status(400).json({ error: `Activity is already ${activity.status.toLowerCase()} and can no longer be edited` });
+    }
+
+    const image = await prisma.activityImage.findUnique({ where: { id: req.params.imageId } });
+    if (!image || image.activityId !== activity.id) {
+      return res.status(404).json({ error: "Image not found on this activity" });
+    }
+
+    const oldUrl = image.url;
+    const updated = await prisma.activityImage.update({
+      where: { id: image.id },
+      data: { url: req.body.url, expiresAt: expiresAtFor(activity.category) },
+    });
+
+    await deleteUnderlyingFileIfOwned(oldUrl);
+
+    res.json(updated);
   } catch (err) {
     next(err);
   }
@@ -346,6 +654,7 @@ export async function deleteActivityImage(req, res, next) {
     }
 
     await prisma.activityImage.delete({ where: { id: image.id } });
+    await deleteUnderlyingFileIfOwned(image.url);
     res.status(204).send();
   } catch (err) {
     next(err);

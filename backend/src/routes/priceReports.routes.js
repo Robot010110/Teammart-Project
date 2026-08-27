@@ -3,6 +3,7 @@ import {
   createPriceReport,
   listPriceReports,
   listPriceReportsForMarket,
+  deletePriceReport,
 } from "../controllers/priceReportsController.js";
 import { requireAuth, requireEmployeeAuth, requireEmployeeRole, requireStaffRole } from "../middleware/auth.js";
 import { validateBody, validateQuery, createPriceReportSchema, listPriceReportsQuerySchema } from "../utils/validate.js";
@@ -25,5 +26,6 @@ router.get(
   validateQuery(listPriceReportsQuerySchema),
   listPriceReportsForMarket
 );
+router.delete("/:id", requireStaffRole("ADMIN", "REGIONAL_MANAGER", "SUPERVISOR"), deletePriceReport);
 
 export default router;

@@ -5,6 +5,7 @@ import { listActivitiesForMarket } from "../../services/activityService";
 import { listItemReportsForMarket } from "../../services/itemReportService";
 import { listWastedOverallReportsForMarket } from "../../services/wastedOverallService";
 import { listSuddenTasks } from "../../services/suddenTaskService";
+import AuthenticatedImage from "../common/AuthenticatedImage";
 
 // Month range helper — every fetchMonth below asks for one calendar
 // month's worth of one employee's records via the real market-scoped
@@ -44,7 +45,7 @@ function CATEGORIES(employeeId) {
           {detailRow("Status", item.raw.status)}
           {detailRow("Notes", item.raw.notes)}
           {detailRow("Time", new Date(item.date).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }))}
-          {item.raw.imageUrl && <img src={item.raw.imageUrl} alt="" className="mt-3 rounded-lg w-full max-h-56 object-cover" />}
+          {item.raw.imageUrl && <AuthenticatedImage src={item.raw.imageUrl} alt="" className="mt-3 rounded-lg w-full max-h-56 object-cover" />}
         </div>
       ),
     },
@@ -76,7 +77,7 @@ function CATEGORIES(employeeId) {
           {detailRow("Status", item.raw.status)}
           {detailRow("Notes", item.raw.notes)}
           {(item.raw.imageUrl || item.raw.photoUrl) && (
-            <img src={item.raw.imageUrl || item.raw.photoUrl} alt="" className="mt-3 rounded-lg w-full max-h-56 object-cover" />
+            <AuthenticatedImage src={item.raw.imageUrl || item.raw.photoUrl} alt="" className="mt-3 rounded-lg w-full max-h-56 object-cover" />
           )}
         </div>
       ),

@@ -19,3 +19,19 @@ export function markNotificationRead(id) {
 export function markAllNotificationsRead() {
   return apiRequest(`/notifications/read-all`, { method: "PATCH" });
 }
+
+// deleteNotification — Repair Pass §6: a real, persisted delete
+// (soft-deleted server-side — see the backend's own comment), not a
+// React-state-only hide. The deleted notification stops coming back from
+// listMyNotifications immediately, and stays gone across refresh/
+// logout/re-login since it's backed by a real column.
+export function deleteNotification(id) {
+  return apiRequest(`/notifications/${id}`, { method: "DELETE" });
+}
+
+// deleteAllNotifications — bulk "Delete All", same real soft-delete as
+// deleteNotification above, scoped entirely server-side to the caller's
+// own feed (no ids sent — there's nothing here for a client to spoof).
+export function deleteAllNotifications() {
+  return apiRequest(`/notifications`, { method: "DELETE" });
+}

@@ -4,6 +4,7 @@ import { useAsync } from "../../hooks/useAsync";
 import ErrorBanner from "../common/ErrorBanner";
 import { SkeletonCard } from "../common/SkeletonCard";
 import Modal from "../common/Modal";
+import AuthenticatedImage from "../common/AuthenticatedImage";
 import ActivityStatusPill from "../common/ActivityStatusPill";
 import { listWastedOverallReportsForMarket } from "../../services/wastedOverallService";
 
@@ -84,7 +85,7 @@ export default function WastedItemsSection({ marketId }) {
             <div className="flex justify-between py-1.5 border-b border-white/[0.05]"><span className="text-[#8B93A8]">Amount</span><span className="text-white">{quantityLabel(selected)}</span></div>
             <div className="flex justify-between py-1.5 border-b border-white/[0.05]"><span className="text-[#8B93A8]">Time</span><span className="text-white">{timeLabel(selected.reportedAt)}</span></div>
             {selected.notes && <p className="pt-2 text-[#9AA1B4]">{selected.notes}</p>}
-            {selected.photoUrl && <img src={selected.photoUrl} alt="" className="mt-3 rounded-lg w-full max-h-64 object-cover" />}
+            {selected.photoUrl && <AuthenticatedImage src={selected.photoUrl} alt="" className="mt-3 rounded-lg w-full max-h-64 object-cover" />}
           </div>
         )}
       </Modal>

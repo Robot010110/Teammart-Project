@@ -1,12 +1,15 @@
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Users2, MessageCircle, ChevronRight, UsersRound, ArrowLeft } from "lucide-react";
+import { Users2, MessageCircle, ChevronRight, UsersRound, ArrowLeft, ShieldAlert, Pin, BellOff, MoreVertical } from "lucide-react";
 import ErrorBanner from "../components/common/ErrorBanner";
+import AuthenticatedImage from "../components/common/AuthenticatedImage";
 import { SkeletonCard } from "../components/common/SkeletonCard";
 import ConversationScreen from "../components/employee/ConversationScreen";
 import GroupInfoModal from "../components/employee/GroupInfoModal";
+import ConversationOptionsSheet from "../components/common/ConversationOptionsSheet";
+import ChatViewTabs from "../components/common/ChatViewTabs";
 import RmCreateGroupModal from "./RmCreateGroupModal";
-import { listMyRegionalManagerConversations } from "../services/chatService";
+import { listMyRegionalManagerConversations, postZoneAnnouncement, setConversationPreference } from "../services/chatService";
 import { useAsync } from "../hooks/useAsync";
 import { usePolling } from "../hooks/usePolling";
 
@@ -19,26 +22,47 @@ function timeLabel(iso) {
   return sameDay ? d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) : d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
-function ConversationRow({ conversation, onOpen }) {
+function ConversationRow({ conversation, onOpen, onMore }) {
   const Icon = conversation.type === "CUSTOM_GROUP" ? Users2 : MessageCircle;
   return (
-    <button
-      type="button"
-      onClick={onOpen}
-      className="w-full flex items-center gap-3 rounded-xl p-3.5 bg-[#171C2E]/80 border border-white/[0.06] hover:border-[#F47A20]/25 transition-colors text-left"
-    >
-      <span className="w-10 h-10 rounded-full bg-[#F47A20]/10 text-[#F47A20] flex items-center justify-center shrink-0 overflow-hidden">
-        {conversation.pictureUrl ? <img src={conversation.pictureUrl} alt="" className="w-full h-full object-cover" /> : <Icon size={18} />}
-      </span>
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center justify-between gap-2">
-          <p className="text-sm font-medium text-white truncate">{conversation.title}</p>
-          {conversation.lastMessage && <span className="text-[10px] text-[#4C5266] shrink-0">{timeLabel(conversation.lastMessage.createdAt)}</span>}
+    <div className="w-full flex items-center gap-3 rounded-xl p-3.5 bg-[#171C2E]/80 border border-white/[0.06] hover:border-[#F47A20]/25 transition-colors">
+      <button type="button" onClick={onOpen} className="flex-1 min-w-0 flex items-center gap-3 text-left">
+        <span className="relative w-10 h-10 rounded-full bg-[#F47A20]/10 text-[#F47A20] flex items-center justify-center shrink-0 overflow-hidden">
+          {conversation.pictureUrl ? <AuthenticatedImage src={conversation.pictureUrl} alt="" className="w-full h-full object-cover" /> : <Icon size={18} />}
+          {conversation.pinned && (
+            <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-[#1A1A1A] flex items-center justify-center">
+              <Pin size={9} className="text-[#F47A20]" fill="currentColor" />
+            </span>
+          )}
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-sm font-medium text-white truncate flex items-center gap-1.5">
+              {conversation.title}
+              {conversation.muted && <BellOff size={11} className="text-[#4C5266] shrink-0" />}
+              {conversation.groupType === "WARNING" && (
+                <span className="shrink-0 flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide bg-amber-500/15 text-amber-400">
+                  <ShieldAlert size={9} /> Announce
+                </span>
+              )}
+            </p>
+            {conversation.lastMessage && <span className="text-[10px] text-[#4C5266] shrink-0">{timeLabel(conversation.lastMessage.createdAt)}</span>}
+          </div>
+          <p className="text-xs text-[#8B93A8] truncate mt-0.5">{conversation.lastMessage ? conversation.lastMessage.body || "Sent an attachment" : "No messages yet"}</p>
         </div>
-        <p className="text-xs text-[#8B93A8] truncate mt-0.5">{conversation.lastMessage ? conversation.lastMessage.body || "Sent an attachment" : "No messages yet"}</p>
-      </div>
+        {conversation.unreadCount > 0 && (
+          <span className="shrink-0 min-w-[18px] h-[18px] px-1 rounded-full bg-[#F47A20] text-white text-[10px] font-semibold flex items-center justify-center">
+            {conversation.unreadCount > 99 ? "99+" : conversation.unreadCount}
+          </span>
+        )}
+      </button>
+      {onMore && (
+        <button type="button" onClick={() => onMore(conversation)} className="p-1.5 text-[#4C5266] hover:text-white shrink-0" aria-label="More options">
+          <MoreVertical size={16} />
+        </button>
+      )}
       <ChevronRight size={16} className="text-[#4C5266] shrink-0" />
-    </button>
+    </div>
   );
 }
 
@@ -50,19 +74,47 @@ function ConversationRow({ conversation, onOpen }) {
 // endpoint's own comment). "Create Group" opens RmCreateGroupModal,
 // which can scope a new group to one market or an entire zone.
 export default function RmChatPage({ session }) {
-  const { data: conversations, error, loading, reload } = useAsync(listMyRegionalManagerConversations, { deps: [] });
+  const { data: conversations, setData: setConversations, error, loading, reload } = useAsync(listMyRegionalManagerConversations, { deps: [] });
   const { conversationId } = useParams();
   const navigate = useNavigate();
   const [creatingGroup, setCreatingGroup] = useState(false);
   const [groupInfoOpen, setGroupInfoOpen] = useState(false);
+  const [optionsFor, setOptionsFor] = useState(null);
 
   usePolling(() => reload(), LIST_POLL_MS, []);
+
+  async function handleTogglePin(conversation) {
+    setOptionsFor(null);
+    const next = !conversation.pinned;
+    setConversations((prev) => prev?.map((c) => (c.id === conversation.id ? { ...c, pinned: next } : c)));
+    try {
+      await setConversationPreference(conversation.id, { pinned: next });
+    } catch {
+      reload();
+    }
+  }
+
+  async function handleToggleMute(conversation) {
+    setOptionsFor(null);
+    const next = !conversation.muted;
+    setConversations((prev) => prev?.map((c) => (c.id === conversation.id ? { ...c, muted: next } : c)));
+    try {
+      await setConversationPreference(conversation.id, { muted: next });
+    } catch {
+      reload();
+    }
+  }
 
   const openConversation = conversationId ? conversations?.find((c) => c.id === conversationId) : null;
 
   function handleGroupCreated(conversation) {
     setCreatingGroup(false);
     reload();
+    navigate(`/rm/chat/${conversation.id}`);
+  }
+
+  async function handleOpenImportantContact(conversation) {
+    await reload();
     navigate(`/rm/chat/${conversation.id}`);
   }
 
@@ -87,6 +139,11 @@ export default function RmChatPage({ session }) {
             currentUserKind="staff"
             onBack={() => navigate("/rm/chat")}
             onOpenGroupInfo={openConversation.type === "CUSTOM_GROUP" ? () => setGroupInfoOpen(true) : undefined}
+            onBroadcast={
+              openConversation.type === "ZONE_ANNOUNCEMENTS"
+                ? (body) => postZoneAnnouncement(openConversation.zoneId, body)
+                : undefined
+            }
           />
         </div>
         {groupInfoOpen && (
@@ -99,6 +156,7 @@ export default function RmChatPage({ session }) {
             currentUserKind="staff"
             onClose={() => setGroupInfoOpen(false)}
             onRenamed={() => reload()}
+            onDeleted={() => { setGroupInfoOpen(false); reload(); navigate("/rm/chat"); }}
           />
         )}
       </div>
@@ -107,16 +165,7 @@ export default function RmChatPage({ session }) {
 
   return (
     <div className="px-6 md:px-10 py-8 max-w-4xl mx-auto animate-fade-up">
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="font-display text-2xl font-bold text-white">Chat</h1>
-        <button
-          type="button"
-          onClick={() => setCreatingGroup(true)}
-          className="flex items-center gap-1.5 rounded-xl px-4 py-2.5 text-sm font-semibold text-white bg-[#F47A20] hover:bg-[#ff8b36] transition-colors duration-150"
-        >
-          <UsersRound size={15} /> Create Group
-        </button>
-      </div>
+      <h1 className="font-display text-2xl font-bold text-white mb-6">Chat</h1>
 
       {loading ? (
         <div className="space-y-2">
@@ -124,19 +173,33 @@ export default function RmChatPage({ session }) {
         </div>
       ) : error ? (
         <ErrorBanner message={error} onRetry={reload} />
-      ) : conversations.length === 0 ? (
-        <div className="rounded-2xl p-10 bg-[#171C2E]/80 border border-white/[0.06] text-center text-sm text-[#8B93A8]">
-          No conversations yet. Create a group to get started.
-        </div>
       ) : (
-        <div className="space-y-2">
-          {conversations.map((c) => (
-            <ConversationRow key={c.id} conversation={c} onOpen={() => navigate(`/rm/chat/${c.id}`)} />
-          ))}
-        </div>
+        <ChatViewTabs
+          conversations={conversations}
+          onOpenImportantContact={handleOpenImportantContact}
+          renderRow={(c) => <ConversationRow key={c.id} conversation={c} onOpen={() => navigate(`/rm/chat/${c.id}`)} onMore={setOptionsFor} />}
+          groupsHeaderAction={
+            <button
+              type="button"
+              onClick={() => setCreatingGroup(true)}
+              className="w-full flex items-center justify-center gap-1.5 rounded-xl px-4 py-2.5 mb-1 text-sm font-semibold text-white bg-[#F47A20] hover:bg-[#ff8b36] transition-colors duration-150"
+            >
+              <UsersRound size={15} /> Create Group
+            </button>
+          }
+        />
       )}
 
       {creatingGroup && <RmCreateGroupModal session={session} onClose={() => setCreatingGroup(false)} onCreated={handleGroupCreated} />}
+
+      {optionsFor && (
+        <ConversationOptionsSheet
+          conversation={optionsFor}
+          onClose={() => setOptionsFor(null)}
+          onTogglePin={() => handleTogglePin(optionsFor)}
+          onToggleMute={() => handleToggleMute(optionsFor)}
+        />
+      )}
     </div>
   );
 }

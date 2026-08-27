@@ -57,7 +57,7 @@ export default function LoginPage({ onLogin }) {
     setRole(key);
     if (key === "employee") setStep(STEP_EMPLOYEE_TYPE);
     else if (key === "supervisor") setStep(STEP_SHIFT);
-    else setStep(STEP_LOCATION);
+    else setStep(STEP_LOCATION); // admin + regionalManager both go straight to email
   };
 
   const chooseEmployeeType = (type) => { setEmployeeType(type); setStep(STEP_LOCATION); };
@@ -199,6 +199,27 @@ export default function LoginPage({ onLogin }) {
       }
     }
 
+    // Admin — same POST /api/auth/login every other staff role uses.
+    if (role === "admin") {
+      try {
+        const user = await staffLogin(email, password);
+        if (user.role !== "ADMIN") {
+          setLoginError("This account isn't an Admin account.");
+          return false;
+        }
+        onLogin({
+          role,
+          staffId: user.id,
+          displayName: user.name,
+          initials: initialsOf(user.name),
+        });
+        return true;
+      } catch (err) {
+        setLoginError(err instanceof ApiError ? err.message : "Could not log in. Please try again.");
+        return false;
+      }
+    }
+
     return false;
   };
 
@@ -206,7 +227,7 @@ export default function LoginPage({ onLogin }) {
     { label: "Role", value: roleLabel },
     ...(role === "supervisor" ? [{ label: "Shift", value: supervisorShift === "EVENING" ? "Overlooking (Evening)" : "Supervisor (Morning)" }] : []),
     ...(role === "supervisor" ? [{ label: "User ID", value: userId }] : []),
-    ...(role === "regionalManager" ? [{ label: "Email", value: email }] : []),
+    ...(role === "regionalManager" || role === "admin" ? [{ label: "Email", value: email }] : []),
     ...(role === "employee" && employeeType === "worker" ? [{ label: "Employee Code", value: employeeCode }] : []),
     ...(role === "employee" && employeeType === "cashier" ? [{ label: "Username", value: username }] : []),
   ];
@@ -231,7 +252,7 @@ export default function LoginPage({ onLogin }) {
               <h1 className="font-display text-2xl md:text-3xl font-bold text-white">Who's logging in?</h1>
               <p className="mt-2 text-[#9AA1B4] text-sm">Select your role to see the dashboard built for you.</p>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
               {ROLE_OPTIONS.map((r, i) => <RoleCard key={r.key} role={r} index={i} onSelect={chooseRole} />)}
             </div>
           </>
@@ -260,13 +281,13 @@ export default function LoginPage({ onLogin }) {
           <>
             <div className="text-center mb-6 animate-fade-up">
               <h2 className="font-display text-xl font-bold text-white">
-                {role === "regionalManager" && "Enter your email"}
+                {(role === "regionalManager" || role === "admin") && "Enter your email"}
                 {role === "supervisor" && "Enter your User ID"}
                 {role === "employee" && employeeType === "worker" && "Enter your employee code"}
                 {role === "employee" && employeeType === "cashier" && "Enter your username"}
               </h2>
             </div>
-            {role === "regionalManager" && <SupervisorEmailStep onSelect={chooseEmail} />}
+            {(role === "regionalManager" || role === "admin") && <SupervisorEmailStep onSelect={chooseEmail} />}
             {role === "supervisor" && <SupervisorUserIdStep onSelect={chooseUserId} />}
             {role === "employee" && employeeType === "worker" && <EmployeeCodeStep onSelect={chooseEmployeeCode} />}
             {role === "employee" && employeeType === "cashier" && <CashierUsernameStep onSelect={chooseUsername} />}

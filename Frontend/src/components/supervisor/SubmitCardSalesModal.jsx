@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Camera, Loader2, CheckCircle2, X } from "lucide-react";
 import Modal from "../common/Modal";
+import AuthenticatedImage from "../common/AuthenticatedImage";
 import { submitCardSales } from "../../services/cardSalesService";
 import { prepareImageForUpload } from "../../services/activityService";
 import { ApiError } from "../../services/apiClient";
@@ -111,7 +112,7 @@ export default function SubmitCardSalesModal({ open, onClose, defaultShift, onSa
           <div className="flex gap-2 flex-wrap">
             {photos.map((url, i) => (
               <div key={i} className="relative h-24 w-24 rounded-lg overflow-hidden ring-1 ring-white/10">
-                <img src={url} alt="" className="h-full w-full object-cover" />
+                <AuthenticatedImage src={url} alt="" className="h-full w-full object-cover" />
                 <button
                   type="button"
                   onClick={() => setPhotos((prev) => prev.filter((_, idx) => idx !== i))}

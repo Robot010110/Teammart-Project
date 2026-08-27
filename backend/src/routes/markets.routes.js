@@ -18,6 +18,10 @@ import {
   addMarketNote,
   sendMarketFeedback,
   getMarketHistory,
+  listMarketDepartments,
+  addMarketDepartment,
+  getMarketDepartmentCompletionRoute,
+  sendDepartmentReport,
 } from "../controllers/marketManagementController.js";
 import { requireAuth, requireStaffRole, requireOwnMarketOrElevated } from "../middleware/auth.js";
 import {
@@ -29,13 +33,22 @@ import {
   rateMarketSchema,
   addMarketNoteSchema,
   sendMarketFeedbackSchema,
+  addMarketDepartmentSchema,
+  sendDepartmentReportSchema,
 } from "../utils/validate.js";
 
 const router = Router();
 
 // Markets are staff-only (employees reach market info through /profile,
 // scoped to just their own market — see profile.routes.js).
-router.use(requireAuth, requireStaffRole("ADMIN", "REGIONAL_MANAGER", "SUPERVISOR"));
+// OVERLOOKING_SUPERVISOR added here in Phase 2: staffCanAccessMarket
+// already treated Overlooking the same as Supervisor for market
+// ownership, but this router-level gate never actually let an
+// Overlooking token reach any of these routes to find that out — a
+// gap Phase 2's Department Monitoring (explicitly a Supervisor/
+// Overlooking feature) needs closed. Purely additive: nothing that
+// could previously reach these routes loses access.
+router.use(requireAuth, requireStaffRole("ADMIN", "REGIONAL_MANAGER", "SUPERVISOR", "OVERLOOKING_SUPERVISOR"));
 
 router.get("/", listMarkets);
 
@@ -51,6 +64,28 @@ router.get("/:id/overview", requireOwnMarketOrElevated((req) => req.params.id), 
 router.get("/:id/sections", requireOwnMarketOrElevated((req) => req.params.id), listMarketSections);
 router.get("/:id/sections/:department", requireOwnMarketOrElevated((req) => req.params.id), getMarketSectionDetail);
 router.get("/:id/history", requireOwnMarketOrElevated((req) => req.params.id), getMarketHistory);
+
+// Phase 2 — Department Monitoring, Completion, and the Final Report.
+// Same "readable by any staff with market access" pattern as
+// overview/sections above.
+router.get("/:id/departments", requireOwnMarketOrElevated((req) => req.params.id), listMarketDepartments);
+router.post(
+  "/:id/departments",
+  requireOwnMarketOrElevated((req) => req.params.id),
+  validateBody(addMarketDepartmentSchema),
+  addMarketDepartment
+);
+router.get(
+  "/:id/departments/completion",
+  requireOwnMarketOrElevated((req) => req.params.id),
+  getMarketDepartmentCompletionRoute
+);
+router.post(
+  "/:id/department-report",
+  requireOwnMarketOrElevated((req) => req.params.id),
+  validateBody(sendDepartmentReportSchema),
+  sendDepartmentReport
+);
 
 router.post(
   "/:id/visits",

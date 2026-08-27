@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Camera, Upload, RotateCcw, Loader2 } from "lucide-react";
 import { prepareImageForUpload } from "../../services/activityService";
+import AuthenticatedImage from "../common/AuthenticatedImage";
 
 // EvidenceCapture.jsx — Take Photo / Upload Photo -> preview -> Retake /
 // keep. Shared by anything that needs a single evidence photo (Sudden
@@ -30,7 +31,7 @@ export default function EvidenceCapture({ photo, onPhotoChange }) {
   if (photo) {
     return (
       <div className="rounded-xl overflow-hidden border border-white/[0.06]">
-        <img src={photo} alt="Evidence" className="w-full max-h-64 object-cover" />
+        <AuthenticatedImage src={photo} alt="Evidence" className="w-full max-h-64 object-cover" />
         <button
           type="button"
           onClick={() => onPhotoChange(null)}

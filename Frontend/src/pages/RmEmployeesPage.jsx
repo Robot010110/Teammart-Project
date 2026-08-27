@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Search, ChevronRight, Store } from "lucide-react";
 import { useAsync } from "../hooks/useAsync";
 import ErrorBanner from "../components/common/ErrorBanner";
+import AuthenticatedImage from "../components/common/AuthenticatedImage";
 import { SkeletonCard } from "../components/common/SkeletonCard";
 import { listEmployees } from "../services/staffEmployeeService";
 import { listMarkets } from "../services/marketService";
@@ -107,7 +108,7 @@ export default function RmEmployeesPage() {
                 className="w-full flex items-center gap-3 rounded-xl p-3.5 bg-[#171C2E]/80 border border-white/[0.06] hover:border-[#F47A20]/25 transition-colors text-left"
               >
                 <span className="w-10 h-10 rounded-full bg-white/[0.06] flex items-center justify-center text-xs font-semibold text-white shrink-0 overflow-hidden">
-                  {e.profilePictureUrl ? <img src={e.profilePictureUrl} alt="" className="w-full h-full object-cover" /> : initialsOf(e.name)}
+                  {e.profilePictureUrl ? <AuthenticatedImage src={e.profilePictureUrl} alt="" className="w-full h-full object-cover" /> : initialsOf(e.name)}
                 </span>
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium text-white truncate">{e.name}</p>

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Camera, ImagePlus, Loader2, Check, RotateCcw } from "lucide-react";
 import Modal from "../common/Modal";
+import AuthenticatedImage from "../common/AuthenticatedImage";
 import { prepareImageForUpload } from "../../services/activityService";
 import { updateMyProfilePhoto } from "../../services/profileService";
 import { ApiError } from "../../services/apiClient";
@@ -65,7 +66,7 @@ export default function ChangePhotoModal({ open, onClose, onSaved }) {
       {preview ? (
         <div className="space-y-4">
           <div className="mx-auto h-40 w-40 rounded-2xl overflow-hidden ring-1 ring-white/10">
-            <img src={preview} alt="Preview" className="h-full w-full object-cover" />
+            <AuthenticatedImage src={preview} alt="Preview" className="h-full w-full object-cover" />
           </div>
           {error && <p className="text-xs text-red-400 text-center">{error}</p>}
           <div className="flex gap-2">

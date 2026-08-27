@@ -6,6 +6,7 @@ import {
 import Breadcrumb from "../components/layout/Breadcrumb";
 import Modal from "../components/common/Modal";
 import ErrorBanner from "../components/common/ErrorBanner";
+import AuthenticatedImage from "../components/common/AuthenticatedImage";
 import { SkeletonCard } from "../components/common/SkeletonCard";
 import ActivityStatusPill from "../components/common/ActivityStatusPill";
 import { useAsync } from "../hooks/useAsync";
@@ -178,13 +179,15 @@ export default function RmEmployeeProfile({ marketId, employeeId, onBack, onOpen
             )}
           </div>
         </div>
-        <button
-          type="button"
-          onClick={onOpenChat}
-          className="flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white bg-[#F47A20] hover:bg-[#ff8b36] transition-colors shrink-0"
-        >
-          <MessageCircle size={15} /> Message
-        </button>
+        {onOpenChat && (
+          <button
+            type="button"
+            onClick={onOpenChat}
+            className="flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white bg-[#F47A20] hover:bg-[#ff8b36] transition-colors shrink-0"
+          >
+            <MessageCircle size={15} /> Message
+          </button>
+        )}
       </div>
 
       {attendance && (
@@ -286,7 +289,7 @@ export default function RmEmployeeProfile({ marketId, employeeId, onBack, onOpen
       <Modal open={!!evidence} onClose={() => setEvidence(null)} title="Evidence">
         <div className="grid grid-cols-2 gap-2">
           {evidence?.map((url, i) => (
-            <img key={i} src={url} alt="" className="rounded-lg w-full aspect-square object-cover" />
+            <AuthenticatedImage key={i} src={url} alt="" className="rounded-lg w-full aspect-square object-cover" />
           ))}
         </div>
       </Modal>

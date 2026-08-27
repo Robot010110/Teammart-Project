@@ -12,3 +12,15 @@ export function listMarkets() {
 export function getMarket(id) {
   return apiRequest(`/markets/${id}`);
 }
+
+// Admin Phase 2 — ADMIN-only (or the owning Regional Manager). Pass null
+// to unassign. Reassigning to a different market automatically clears
+// the stale prior assignment server-side (see marketsController's own
+// comment).
+export function assignMarketSupervisor(marketId, supervisorId) {
+  return apiRequest(`/markets/${marketId}/supervisor`, { method: "PATCH", body: { supervisorId } });
+}
+
+export function assignMarketOverlookingSupervisor(marketId, overlookingSupervisorId) {
+  return apiRequest(`/markets/${marketId}/overlooking-supervisor`, { method: "PATCH", body: { overlookingSupervisorId } });
+}

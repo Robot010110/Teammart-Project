@@ -30,10 +30,17 @@
 // Start/Complete workflow (DailyStatusTile.jsx, now removed) — per the UI
 // consistency fix pass, they now use this exact same notes+photo submit
 // flow as everything else here instead of a special-cased one.
+// Cleanup Phase §13 — Facing and Refilling removed from the Employee
+// submission grid (Inventory Counting's own dedicated section was
+// removed from WorkerActivityTab.jsx the same way — see that file's own
+// comment). The ActivityCategory enum values themselves (FACING,
+// REFILLING, ITEM_COUNTING) are deliberately left alone on the backend —
+// real historical Activity rows already use FACING, and an enum value
+// can't be safely removed out from under existing data (spec: "do not
+// destroy existing historical data unnecessarily"). This is a frontend
+// selector change only.
 export const ACTIVITY_SUBMISSION_OPTIONS = [
   { category: "SHELF_CLEANING", label: "Cleaning Shelves" },
-  { category: "FACING", label: "Facing" },
-  { category: "REFILLING", label: "Refilling" },
   { category: "PRODUCT_CUSTOMIZATION", label: "Submit Product Customization" },
   { category: "DAILY_CLEANING", label: "Report Daily Cleaning" },
 ];

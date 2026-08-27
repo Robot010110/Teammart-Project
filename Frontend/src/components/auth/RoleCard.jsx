@@ -1,8 +1,9 @@
-import { ArrowRight, ShieldCheck, ClipboardList, UserCircle2 } from "lucide-react";
+import { ArrowRight, ShieldCheck, ClipboardList, UserCircle2, Crown } from "lucide-react";
 
-// RoleCard.jsx — one of the three role choices on the login screen.
+// RoleCard.jsx — one of the role choices on the login screen.
 
 const ICONS = {
+  admin: Crown,
   regionalManager: ShieldCheck,
   supervisor: ClipboardList,
   employee: UserCircle2,

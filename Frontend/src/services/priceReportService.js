@@ -22,3 +22,8 @@ export function listPriceReportsForMarket({ marketId, status } = {}) {
   const query = params.toString();
   return apiRequest(`/price-reports/market${query ? `?${query}` : ""}`);
 }
+
+// deletePriceReport — staff-only, real persisted (soft) delete.
+export function deletePriceReport(id) {
+  return apiRequest(`/price-reports/${id}`, { method: "DELETE" });
+}

@@ -5,6 +5,7 @@ import AttendanceCalendar from "./AttendanceCalendar";
 import AttendanceHistoryList from "./AttendanceHistoryList";
 import SubmitExtraHoursModal from "./SubmitExtraHoursModal";
 import MissingCheckoutBanner from "./MissingCheckoutBanner";
+import AttendanceCheckInCard from "../common/AttendanceCheckInCard";
 import ErrorBanner from "../common/ErrorBanner";
 import { SkeletonCard } from "../common/SkeletonCard";
 import MonthPager from "../common/MonthPager";
@@ -48,6 +49,7 @@ export default function AttendanceSection() {
 
   return (
     <div className="space-y-3">
+      <AttendanceCheckInCard />
       <MissingCheckoutBanner />
 
       <div className="flex items-center justify-end">
@@ -59,7 +61,7 @@ export default function AttendanceSection() {
       {!loading && !error && data && (
         <>
           <AttendanceSummaryCards summary={data.summary} />
-          <AttendanceCalendar days={data.days} />
+          <AttendanceCalendar days={data.days} onChanged={reload} />
         </>
       )}
 

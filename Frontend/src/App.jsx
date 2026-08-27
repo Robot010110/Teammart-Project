@@ -5,6 +5,7 @@ import EmployeeWorkspace from "./pages/EmployeeWorkspace";
 import CashierWorkspace from "./pages/CashierWorkspace";
 import SupervisorWorkspace from "./pages/SupervisorWorkspace";
 import RegionalManagerWorkspace from "./pages/RegionalManagerWorkspace";
+import AdminWorkspace from "./pages/AdminWorkspace";
 import { isAuthenticated, logout as clearEmployeeToken } from "./services/authService";
 import { getProfile } from "./services/profileService";
 import { listMarkets } from "./services/marketService";
@@ -22,6 +23,7 @@ import { initialsOf } from "./utils/initials";
 //
 // Route map:
 //   /login       -> <LoginPage />
+//   /admin/*     -> <AdminWorkspace />             (Admin)
 //   /rm/*        -> <RegionalManagerWorkspace />  (Regional Manager)
 //   /me/*        -> <EmployeeWorkspace />         (Employee/Worker)
 //   /cashier/*   -> <CashierWorkspace />           (Employee/Cashier)
@@ -48,7 +50,8 @@ function AppRoutes() {
 
   const handleLogin = (newSession) => {
     setSession(newSession);
-    if (newSession.role === "regionalManager") navigate("/rm", { replace: true });
+    if (newSession.role === "admin") navigate("/admin", { replace: true });
+    else if (newSession.role === "regionalManager") navigate("/rm", { replace: true });
     else if (newSession.role === "supervisor") navigate("/supervisor", { replace: true });
     else if (newSession.employeeRole === "CASHIER") navigate("/cashier", { replace: true });
     else navigate("/me", { replace: true });
@@ -113,6 +116,13 @@ function AppRoutes() {
             role: "regionalManager",
             staffId: profile.id,
             zoneIds: profile.zoneIds,
+            displayName: profile.name,
+            initials: initialsOf(profile.name),
+          });
+        } else if (profile.kind === "staff" && profile.role === "ADMIN") {
+          setSession({
+            role: "admin",
+            staffId: profile.id,
             displayName: profile.name,
             initials: initialsOf(profile.name),
           });
@@ -181,6 +191,17 @@ function AppRoutes() {
         <Route path="/login" element={<Navigate to="/supervisor" replace />} />
         <Route path="/supervisor/*" element={<SupervisorWorkspace session={session} onLogout={handleLogout} />} />
         <Route path="*" element={<Navigate to="/supervisor" replace />} />
+      </Routes>
+    );
+  }
+
+  if (session.role === "admin") {
+    return (
+      <Routes>
+        <Route path="/" element={<Navigate to="/admin" replace />} />
+        <Route path="/login" element={<Navigate to="/admin" replace />} />
+        <Route path="/admin/*" element={<AdminWorkspace session={session} onLogout={handleLogout} />} />
+        <Route path="*" element={<Navigate to="/admin" replace />} />
       </Routes>
     );
   }

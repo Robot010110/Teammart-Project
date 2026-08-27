@@ -23,6 +23,12 @@ const REMEMBER_ME_TTL = "30d";
 //                          managedMarket (a genuinely separate account
 //                          per market, not a shift label — see
 //                          Market.overlookingSupervisorId's schema comment).
+// tv (tokenVersion) — Admin Phase 2 session invalidation: embedded here
+// at sign time, checked against the account's current DB value on every
+// request in requireAuth. Bumping User.tokenVersion (password reset,
+// suspend/ban, role change) makes every token already issued for that
+// account stop authenticating immediately, without a stateful session
+// store — see middleware/auth.js's own comment.
 export function signStaffToken(user) {
   const payload = {
     kind: "staff",
@@ -30,6 +36,7 @@ export function signStaffToken(user) {
     role: user.role,
     zoneIds: (user.managedZones ?? []).map((z) => z.id),
     marketId: user.managedMarket?.id ?? user.managedOverlookingMarket?.id ?? null,
+    tv: user.tokenVersion ?? 0,
   };
   return jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: TOKEN_TTL });
 }
@@ -53,6 +60,7 @@ export function signEmployeeToken(employee, { rememberMe = false } = {}) {
     marketId: employee.marketId,
     role: employee.role,
     cashierShift: employee.cashierShift ?? null,
+    tv: employee.tokenVersion ?? 0,
   };
   return jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: rememberMe ? REMEMBER_ME_TTL : TOKEN_TTL });
 }

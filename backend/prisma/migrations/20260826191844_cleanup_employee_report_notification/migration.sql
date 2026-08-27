@@ -1,0 +1,3 @@
+-- AlterEnum
+ALTER TYPE "NotificationType" ADD VALUE 'EMPLOYEE_REPORT_SUBMITTED';
+

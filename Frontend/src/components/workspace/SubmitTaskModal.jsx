@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Camera, X, Loader2, Lock } from "lucide-react";
 import Modal from "../common/Modal";
+import AuthenticatedImage from "../common/AuthenticatedImage";
 import { CATEGORY_LABELS } from "../../data/workspaceData";
 import { canEditActivity } from "../../data/activityRules";
 import {
@@ -169,7 +170,7 @@ export default function SubmitTaskModal({ option, activity, onClose, onSaved }) 
           <div className="flex flex-wrap gap-2">
             {existingImages.map((img) => (
               <div key={img.id} className="relative h-16 w-16 rounded-lg overflow-hidden ring-1 ring-white/10">
-                <img src={img.url} alt="" className="h-full w-full object-cover" />
+                <AuthenticatedImage src={img.url} alt="" className="h-full w-full object-cover" />
                 <button
                   type="button"
                   onClick={() => removeExistingImage(img.id)}
@@ -183,7 +184,7 @@ export default function SubmitTaskModal({ option, activity, onClose, onSaved }) 
             ))}
             {newImages.map((img, i) => (
               <div key={i} className="relative h-16 w-16 rounded-lg overflow-hidden ring-1 ring-white/10">
-                <img src={img.url} alt="" className="h-full w-full object-cover" />
+                <AuthenticatedImage src={img.url} alt="" className="h-full w-full object-cover" />
                 <button
                   type="button"
                   onClick={() => removeNewImage(i)}

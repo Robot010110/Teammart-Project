@@ -69,11 +69,11 @@ export async function listTotalSalesReports(req, res, next) {
     if (req.user.kind !== "staff" || (req.user.role !== "REGIONAL_MANAGER" && req.user.role !== "ADMIN")) {
       return res.status(403).json({ error: "Only a Regional Manager or Admin account can view Total Sales" });
     }
-    const { marketId, date, from, to } = req.query;
+    const { marketId, date, from, to, status } = req.query;
     if (!marketId) return res.status(400).json({ error: "marketId is required" });
     await assertMarketAccess(req.user, marketId);
 
-    const where = { marketId };
+    const where = { marketId, deletedAt: null };
     if (date) {
       where.date = dayOnly(date);
     } else if (from || to) {
@@ -81,13 +81,90 @@ export async function listTotalSalesReports(req, res, next) {
       if (from) where.date.gte = dayOnly(from);
       if (to) where.date.lte = dayOnly(to);
     }
+    // Cleanup Phase §2/§10 — status is an explicit opt-in filter, not the
+    // default: this endpoint's existing callers expect every historical
+    // row back (spec's own "nothing is ever deleted/overwritten"). The RM
+    // frontend is what applies the "Pending = active" split, by passing
+    // status=PENDING for its action queue and no filter for History.
+    if (status) where.status = status;
 
     const reports = await prisma.totalSalesReport.findMany({
       where,
-      include: { submittedBy: { select: { id: true, name: true } } },
+      include: {
+        submittedBy: { select: { id: true, name: true } },
+        reviewedBy: { select: { id: true, name: true } },
+      },
       orderBy: { submittedAt: "desc" },
     });
     res.json(reports);
+  } catch (err) {
+    next(err);
+  }
+}
+
+// PATCH /api/total-sales/:id/review — Regional Manager/Admin-only.
+// Approve or Reject a PENDING report exactly once (spec §10: "must not
+// remain as an active pending item after the decision" + "the historical
+// record must remain available"). Re-review of an already-decided report
+// is rejected rather than silently allowed — a decision, once made, is
+// part of the historical record too.
+export async function reviewTotalSalesReport(req, res, next) {
+  try {
+    if (req.user.kind !== "staff" || (req.user.role !== "REGIONAL_MANAGER" && req.user.role !== "ADMIN")) {
+      return res.status(403).json({ error: "Only a Regional Manager or Admin account can review Total Sales" });
+    }
+
+    const report = await prisma.totalSalesReport.findUnique({ where: { id: req.params.id } });
+    if (!report) return res.status(404).json({ error: "Total Sales report not found" });
+    await assertMarketAccess(req.user, report.marketId);
+
+    if (report.status !== "PENDING") {
+      return res.status(409).json({ error: `This report has already been ${report.status.toLowerCase()}` });
+    }
+
+    const { status, rejectionReason } = req.body;
+    const updated = await prisma.totalSalesReport.update({
+      where: { id: report.id },
+      data: { status, rejectionReason: status === "REJECTED" ? rejectionReason : null, reviewedById: req.user.userId, reviewedAt: new Date() },
+    });
+
+    await createNotificationForUser({
+      userId: report.submittedById,
+      type: "SUBMISSION_REVIEWED",
+      title: `Total Sales ${status === "APPROVED" ? "Approved" : "Rejected"}`,
+      body: status === "APPROVED"
+        ? `Your Total Sales report of $${report.amount.toFixed(2)} was approved.`
+        : `Your Total Sales report of $${report.amount.toFixed(2)} was rejected: ${rejectionReason}`,
+      linkType: "TOTAL_SALES",
+      linkId: report.id,
+    });
+
+    res.json(updated);
+  } catch (err) {
+    next(err);
+  }
+}
+
+// DELETE /api/total-sales/:id — Regional Manager/Admin-only, same
+// restriction as viewing/reviewing this report type (spec's own repeated
+// rule: a Supervisor never gets read access to Total Sales, so deletion
+// follows the same boundary rather than opening a new one). Soft delete
+// (see TotalSalesReport.deletedAt's own schema comment) — real money-
+// report history is kept, never hard-deleted.
+export async function deleteTotalSalesReport(req, res, next) {
+  try {
+    if (req.user.kind !== "staff" || (req.user.role !== "REGIONAL_MANAGER" && req.user.role !== "ADMIN")) {
+      return res.status(403).json({ error: "Only a Regional Manager or Admin account can delete a Total Sales report" });
+    }
+
+    const report = await prisma.totalSalesReport.findUnique({ where: { id: req.params.id } });
+    if (!report) return res.status(404).json({ error: "Total Sales report not found" });
+    await assertMarketAccess(req.user, report.marketId);
+
+    if (!report.deletedAt) {
+      await prisma.totalSalesReport.update({ where: { id: report.id }, data: { deletedAt: new Date() } });
+    }
+    res.status(204).end();
   } catch (err) {
     next(err);
   }

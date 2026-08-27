@@ -1,4 +1,5 @@
 import { prisma } from "../lib/prisma.js";
+import { recordAudit } from "../utils/audit.js";
 
 // GET /api/markets — list markets, scoped by role:
 //   ADMIN             -> all markets
@@ -139,6 +140,13 @@ export async function updateMarket(req, res, next) {
 }
 
 // PATCH /api/markets/:id/supervisor — ADMIN or the owning REGIONAL_MANAGER.
+// Admin Phase 2 §9: Market.supervisorId is @unique, so re-assigning a
+// Supervisor who already owns a DIFFERENT market previously just crashed
+// with a raw Postgres unique-constraint error instead of transferring
+// them cleanly — this transaction clears the stale prior assignment
+// first, in the same atomic operation, so the caller never observes a
+// state where the same Supervisor appears to own two markets (or the
+// request just fails confusingly).
 export async function assignMarketSupervisor(req, res, next) {
   try {
     const { supervisorId } = req.body;
@@ -150,10 +158,21 @@ export async function assignMarketSupervisor(req, res, next) {
       }
     }
 
-    const market = await prisma.market.update({
-      where: { id: req.params.id },
-      data: { supervisorId },
+    const before = await prisma.market.findUnique({ where: { id: req.params.id }, select: { supervisorId: true } });
+
+    const market = await prisma.$transaction(async (tx) => {
+      if (supervisorId !== null) {
+        await tx.market.updateMany({ where: { supervisorId, id: { not: req.params.id } }, data: { supervisorId: null } });
+      }
+      return tx.market.update({ where: { id: req.params.id }, data: { supervisorId } });
     });
+
+    if (req.user.kind === "staff" && req.user.role === "ADMIN") {
+      await recordAudit({
+        actorUserId: req.user.userId, action: "MARKET_ASSIGNMENT_CHANGED", targetType: "Market", targetId: req.params.id,
+        marketId: req.params.id, previousValue: { supervisorId: before?.supervisorId ?? null }, newValue: { supervisorId },
+      });
+    }
 
     res.json(market);
   } catch (err) {
@@ -178,10 +197,22 @@ export async function assignMarketOverlookingSupervisor(req, res, next) {
       }
     }
 
-    const market = await prisma.market.update({
-      where: { id: req.params.id },
-      data: { overlookingSupervisorId },
+    // Same stale-assignment cleanup as assignMarketSupervisor above.
+    const before = await prisma.market.findUnique({ where: { id: req.params.id }, select: { overlookingSupervisorId: true } });
+
+    const market = await prisma.$transaction(async (tx) => {
+      if (overlookingSupervisorId !== null) {
+        await tx.market.updateMany({ where: { overlookingSupervisorId, id: { not: req.params.id } }, data: { overlookingSupervisorId: null } });
+      }
+      return tx.market.update({ where: { id: req.params.id }, data: { overlookingSupervisorId } });
     });
+
+    if (req.user.kind === "staff" && req.user.role === "ADMIN") {
+      await recordAudit({
+        actorUserId: req.user.userId, action: "MARKET_ASSIGNMENT_CHANGED", targetType: "Market", targetId: req.params.id,
+        marketId: req.params.id, previousValue: { overlookingSupervisorId: before?.overlookingSupervisorId ?? null }, newValue: { overlookingSupervisorId },
+      });
+    }
 
     res.json(market);
   } catch (err) {

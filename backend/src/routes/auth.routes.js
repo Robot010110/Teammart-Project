@@ -1,14 +1,16 @@
 import { Router } from "express";
-import { register, staffLogin, staffIdLogin, employeeLogin, cashierLogin } from "../controllers/authController.js";
+import { register, listStaffAccounts, staffLogin, staffIdLogin, employeeLogin, cashierLogin } from "../controllers/authController.js";
 import { requireAuth, requireStaffRole } from "../middleware/auth.js";
 import { authLimiter } from "../middleware/rateLimit.js";
 import {
   validateBody,
+  validateQuery,
   staffRegisterSchema,
   staffLoginSchema,
   staffIdLoginSchema,
   employeeLoginSchema,
   cashierLoginSchema,
+  listStaffAccountsQuerySchema,
 } from "../utils/validate.js";
 
 const router = Router();
@@ -21,6 +23,15 @@ router.post(
   requireStaffRole("ADMIN"),
   validateBody(staffRegisterSchema),
   register
+);
+
+// ADMIN-only staff directory — see listStaffAccounts's own doc comment.
+router.get(
+  "/staff",
+  requireAuth,
+  requireStaffRole("ADMIN"),
+  validateQuery(listStaffAccountsQuerySchema),
+  listStaffAccounts
 );
 
 // authLimiter — these two are the actual brute-force attack surface

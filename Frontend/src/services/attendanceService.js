@@ -6,6 +6,53 @@ import { apiRequest } from "./apiClient";
 // backend/src/controllers/attendanceController.js — one endpoint,
 // getAttendanceMonth, returns everything a month view needs in one call.
 
+// checkIn/checkOut — Phase 1 cross-role live attendance: works for
+// Employee/Cashier AND Supervisor/Overlooking, through the exact same
+// backend endpoint/AttendanceRecord table (see
+// attendanceController.checkIn's own comment). No body — the server's
+// own clock is the only source of truth for the timestamp.
+export function checkIn() {
+  return apiRequest("/attendance/check-in", { method: "POST" });
+}
+
+export function checkOut() {
+  return apiRequest("/attendance/check-out", { method: "POST" });
+}
+
+// startBreak/endBreak — self-service break tied directly to today's
+// AttendanceRecord (Repair Pass §1). The 4-hour-after-check-in gate is
+// enforced server-side (attendanceController.startBreak) — this call can
+// fail with a real error message before the 4-hour mark, it never
+// silently succeeds just because the button was clickable.
+export function startBreak() {
+  return apiRequest("/attendance/break-start", { method: "POST" });
+}
+
+export function endBreak() {
+  return apiRequest("/attendance/break-end", { method: "POST" });
+}
+
+// getTodayAttendance — this account's own AttendanceRecord for today (or
+// null). Called on mount so check-in/break/check-out state survives a
+// refresh or re-login instead of resetting to "Not checked in yet" until
+// the next button tap.
+export function getTodayAttendance() {
+  return apiRequest("/attendance/today");
+}
+
+// getMyStaffAttendanceMonth — Supervisor/Overlooking's own attendance
+// (Phase 1). Deliberately a different, simpler shape than
+// getAttendanceMonth above — Worker/Cashier-only extra/required/
+// punishment-hours business rules don't apply to staff (see the backend
+// controller's own comment).
+export function getMyStaffAttendanceMonth({ year, month } = {}) {
+  const params = new URLSearchParams();
+  if (year) params.set("year", year);
+  if (month) params.set("month", month);
+  const query = params.toString();
+  return apiRequest(`/attendance/me/month${query ? `?${query}` : ""}`);
+}
+
 export function getAttendanceMonth({ year, month } = {}) {
   const params = new URLSearchParams();
   if (year) params.set("year", year);
@@ -77,6 +124,27 @@ export function submitExtraHours(payload) {
 
 export function listMyExtraHoursRequests() {
   return apiRequest("/attendance/extra-hours");
+}
+
+// deleteMyExtraHoursRequest — cancel your own still-PENDING Extra Hours
+// request. Once a Supervisor has decided it, it can no longer be
+// cancelled this way (see attendanceController.deleteMyExtraHoursRequest).
+export function deleteMyExtraHoursRequest(id) {
+  return apiRequest(`/attendance/extra-hours/${id}`, { method: "DELETE" });
+}
+
+// deleteMyRequiredHoursAdjustment / deleteMyPunishment — dismiss your
+// OWN Required Hours Adjustment / Penalty, only once it's old enough
+// (see attendanceController.js's MANUAL_CLEAR_AFTER_DAYS) — a fresh one
+// is staff-only to remove, so this can never be used to erase a
+// just-applied penalty. Both are also eventually cleared automatically
+// after 30 days regardless (maintenanceScheduler.runAdjustmentRetentionSweep).
+export function deleteMyRequiredHoursAdjustment(id) {
+  return apiRequest(`/attendance/required-hours-adjustments/${id}`, { method: "DELETE" });
+}
+
+export function deleteMyPunishment(attendanceRecordId) {
+  return apiRequest(`/attendance/${attendanceRecordId}/punishment`, { method: "DELETE" });
 }
 
 // getAttendanceHistory — the current employee's combined Work/Attendance

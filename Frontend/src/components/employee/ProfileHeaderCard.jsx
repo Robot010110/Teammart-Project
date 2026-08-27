@@ -2,6 +2,7 @@ import { useState } from "react";
 import { BadgeCheck, Store, Sun, Moon, Clock, Briefcase, CircleDot, Camera } from "lucide-react";
 import { initialsOf } from "../../utils/initials";
 import WhatsAppField from "./WhatsAppField";
+import AuthenticatedImage from "../common/AuthenticatedImage";
 import ChangePhotoModal from "./ChangePhotoModal";
 
 // ProfileHeaderCard.jsx — the profile header shown at the top of both
@@ -60,7 +61,7 @@ export default function ProfileHeaderCard({ profile }) {
           className="group relative h-14 w-14 sm:h-16 sm:w-16 shrink-0 rounded-2xl bg-gradient-to-br from-[#F47A20] to-[#c95c10] grid place-items-center ring-4 ring-white/[0.06] overflow-hidden"
         >
           {photo ? (
-            <img src={photo} alt="" className="h-full w-full object-cover" />
+            <AuthenticatedImage src={photo} alt="" className="h-full w-full object-cover" />
           ) : (
             <span className="text-base sm:text-lg font-display font-bold text-white">{initialsOf(profile.name)}</span>
           )}

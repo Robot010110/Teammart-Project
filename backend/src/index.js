@@ -1,6 +1,7 @@
 import "dotenv/config";
 import { app } from "./app.js";
 import { prisma } from "./lib/prisma.js";
+import { startMaintenanceScheduler, stopMaintenanceScheduler } from "./jobs/maintenanceScheduler.js";
 
 // Fail fast and loud if the app can't actually issue valid tokens,
 // instead of booting successfully and only discovering the problem when
@@ -15,6 +16,7 @@ const PORT = process.env.PORT || 4000;
 
 const server = app.listen(PORT, () => {
   console.log(`TEAMMART backend running on http://localhost:${PORT}`);
+  startMaintenanceScheduler();
 });
 
 // Anything that escapes Express's request/response cycle (e.g. a DB
@@ -36,6 +38,7 @@ process.on("uncaughtException", (err) => {
 // deploys/restarts under a process manager that sends SIGTERM.
 function shutdown(signal) {
   console.log(`${signal} received, shutting down...`);
+  stopMaintenanceScheduler();
   server.close(async () => {
     await prisma.$disconnect();
     process.exit(0);

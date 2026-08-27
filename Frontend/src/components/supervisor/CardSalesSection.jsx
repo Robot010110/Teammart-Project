@@ -1,9 +1,9 @@
 import { useState } from "react";
-import { CreditCard, CheckCircle2, Clock, Camera } from "lucide-react";
+import { CreditCard, CheckCircle2, Clock, Camera, Trash2, Loader2 } from "lucide-react";
 import SubmitCardSalesModal from "./SubmitCardSalesModal";
 import ErrorBanner from "../common/ErrorBanner";
 import { SkeletonCard } from "../common/SkeletonCard";
-import { getCardSalesDay } from "../../services/cardSalesService";
+import { getCardSalesDay, deleteCardSalesReport } from "../../services/cardSalesService";
 import { useAsync } from "../../hooks/useAsync";
 
 function todayIso() {
@@ -23,10 +23,21 @@ function timeLabel(iso) {
 export default function CardSalesSection({ marketId }) {
   const { data, error, loading, reload } = useAsync(() => getCardSalesDay(marketId, todayIso()), { deps: [marketId] });
   const [submitShift, setSubmitShift] = useState(null); // shift key | null
+  const [deletingId, setDeletingId] = useState(null);
 
   function handleSaved() {
     setSubmitShift(null);
     reload();
+  }
+
+  async function handleDelete(reportId) {
+    setDeletingId(reportId);
+    try {
+      await deleteCardSalesReport(reportId);
+      reload();
+    } finally {
+      setDeletingId(null);
+    }
   }
 
   if (loading) return <SkeletonCard className="h-[180px]" />;
@@ -44,9 +55,20 @@ export default function CardSalesSection({ marketId }) {
                 <CreditCard size={14} className="text-[#F47A20]" /> {SHIFT_LABEL[shift]}
               </span>
               {submitted ? (
-                <span className="flex items-center gap-1 text-xs font-medium text-emerald-400">
-                  <CheckCircle2 size={13} /> Submitted
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className="flex items-center gap-1 text-xs font-medium text-emerald-400">
+                    <CheckCircle2 size={13} /> Submitted
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => handleDelete(slot.report.id)}
+                    disabled={deletingId === slot.report.id}
+                    aria-label="Delete report"
+                    className="p-1 rounded-lg text-[#4C5266] hover:text-red-400 hover:bg-red-500/10 disabled:opacity-50 transition-colors"
+                  >
+                    {deletingId === slot.report.id ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
+                  </button>
+                </div>
               ) : (
                 <button
                   type="button"

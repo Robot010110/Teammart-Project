@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Tag, RotateCcw } from "lucide-react";
 import Modal from "../common/Modal";
+import AuthenticatedImage from "../common/AuthenticatedImage";
 import ChooseMethodStep from "./itemReport/ChooseMethodStep";
 import BarcodeScanStep from "./itemReport/BarcodeScanStep";
 import ProductSearchStep from "./itemReport/ProductSearchStep";
@@ -123,7 +124,7 @@ export default function PriceLookupFlow({ open, onClose }) {
       {step === "price" && foundProduct && (
         <div className="space-y-4 text-center">
           {evidencePhoto?.url && (
-            <img src={evidencePhoto.url} alt="" className="mx-auto h-24 w-24 rounded-xl object-cover" />
+            <AuthenticatedImage src={evidencePhoto.url} alt="" className="mx-auto h-24 w-24 rounded-xl object-cover" />
           )}
           <div>
             <p className="text-sm text-[#9AA1B4]">{foundProduct.name}</p>

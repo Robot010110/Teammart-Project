@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Camera, Loader2, CheckCircle2, X } from "lucide-react";
 import Modal from "../common/Modal";
+import AuthenticatedImage from "../common/AuthenticatedImage";
 import { createPriceReport } from "../../services/priceReportService";
 import { prepareImageForUpload } from "../../services/activityService";
 import { ApiError } from "../../services/apiClient";
@@ -100,7 +101,7 @@ export default function PriceReportFlow({ open, onClose, onSaved }) {
           <label className="block text-xs uppercase tracking-wide text-[#8B93A8] mb-1.5">Product Photo (optional)</label>
           {photo?.url ? (
             <div className="relative h-24 w-24 rounded-lg overflow-hidden ring-1 ring-white/10">
-              <img src={photo.url} alt="" className="h-full w-full object-cover" />
+              <AuthenticatedImage src={photo.url} alt="" className="h-full w-full object-cover" />
               <button
                 type="button"
                 onClick={() => setPhoto(null)}

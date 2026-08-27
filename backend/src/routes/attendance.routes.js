@@ -11,11 +11,22 @@ import {
   setPunishmentHours,
   exportAttendanceReport,
   submitExtraHours,
+  deleteMyExtraHoursRequest,
+  deleteMyRequiredHoursAdjustment,
+  deleteMyPunishment,
   listMyAttendanceAdjustmentRequests,
   listAttendanceAdjustmentRequestsForMarket,
   reviewAttendanceAdjustmentRequest,
   getAttendanceHistory,
   confirmStillWorking,
+  checkIn,
+  checkOut,
+  getTodayAttendance,
+  startBreak,
+  endBreak,
+  getMyStaffAttendanceMonth,
+  previewBreakExport,
+  listCompanyAttendance,
 } from "../controllers/attendanceController.js";
 import { requireAuth, requireStaffRole, requireEmployeeAuth } from "../middleware/auth.js";
 import {
@@ -25,10 +36,12 @@ import {
   setPunishmentHoursSchema,
   attendanceMonthQuerySchema,
   attendanceReportQuerySchema,
+  staffAttendanceMonthQuerySchema,
   submitExtraHoursSchema,
   reviewAttendanceAdjustmentSchema,
   listAttendanceAdjustmentsQuerySchema,
   confirmStillWorkingSchema,
+  companyAttendanceQuerySchema,
 } from "../utils/validate.js";
 
 // Memory storage — the file is parsed (utils/attendanceExcel.js) and
@@ -42,7 +55,31 @@ const router = Router();
 
 router.use(requireAuth);
 
+// Cross-role live attendance (Phase 1) — Employee/Cashier AND Supervisor/
+// Overlooking share these two endpoints and the underlying
+// AttendanceRecord table; no role gate here beyond requireAuth because
+// the exact allowed-kinds check (and the resulting ownership) lives in
+// attendanceController.attendanceOwnerFromUser — see its own comment for
+// why Admin/Regional Manager are excluded there instead of here.
+router.post("/check-in", checkIn);
+router.post("/check-out", checkOut);
+router.get("/today", getTodayAttendance);
+// Self-service break, tied directly to AttendanceRecord.breakStart/
+// breakEnd (see attendanceController.startBreak's own comment for why
+// this is deliberately a different mechanism from the fingerprint-
+// triggered Break model/breaksController.js — the timing rule and the
+// action-shape here don't match that flow at all).
+router.post("/break-start", startBreak);
+router.post("/break-end", endBreak);
+// Supervisor/Overlooking's own attendance history — never accepts a
+// target id (always req.user.userId inside the controller), so this
+// can't be used to reach another market's attendance by editing a query
+// param.
+router.get("/me/month", validateQuery(staffAttendanceMonthQuerySchema), getMyStaffAttendanceMonth);
+
 router.get("/month", requireEmployeeAuth, validateQuery(attendanceMonthQuerySchema), getAttendanceMonth);
+// Admin Phase 1 §16 — company-wide, no market/zone scoping.
+router.get("/company", requireStaffRole("ADMIN"), validateQuery(companyAttendanceQuerySchema), listCompanyAttendance);
 router.get("/performance-history", requireEmployeeAuth, getPerformanceHistory);
 router.get("/extra-hours-balance", requireEmployeeAuth, getExtraHoursBalance);
 
@@ -87,6 +124,10 @@ router.get(
   exportAttendanceReport
 );
 
+// The Excel EXPORT (outbound) integration boundary's own verification
+// endpoint — see services/excelExportAdapter.js's own comment.
+router.get("/break-export-preview", requireStaffRole("ADMIN"), previewBreakExport);
+
 // Extra-hours self-submission (spec §10-14) — employee-only submit/list/
 // history; staff-only market review list + approve/reject. Kept under
 // this same /attendance router (not a separate module) since it's an
@@ -94,6 +135,12 @@ router.get(
 // call as everything else in this router.
 router.post("/extra-hours", requireEmployeeAuth, validateBody(submitExtraHoursSchema), submitExtraHours);
 router.get("/extra-hours", requireEmployeeAuth, listMyAttendanceAdjustmentRequests);
+router.delete("/extra-hours/:id", requireEmployeeAuth, deleteMyExtraHoursRequest);
+// Repair Pass follow-up — an employee dismissing their own, already-old
+// (see attendanceController's MANUAL_CLEAR_AFTER_DAYS) Required Hours
+// Adjustment / Penalty from their own Attendance screen.
+router.delete("/required-hours-adjustments/:id", requireEmployeeAuth, deleteMyRequiredHoursAdjustment);
+router.delete("/:id/punishment", requireEmployeeAuth, deleteMyPunishment);
 router.get("/history", requireEmployeeAuth, getAttendanceHistory);
 router.get(
   "/extra-hours/market",

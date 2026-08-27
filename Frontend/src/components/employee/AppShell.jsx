@@ -29,7 +29,13 @@ export default function AppShell({ tabs, basePath, showNotificationBell = false 
     <div className="min-h-screen flex flex-col bg-[#1A1A1A]">
       {showNotificationBell && (
         <div className="sticky top-0 z-20 h-14 flex items-center justify-between px-4 sm:px-6 bg-[#1A1A1A]/85 backdrop-blur-xl border-b border-white/[0.05]">
-          <Logo withSubtitle={false} />
+          {/* Cleanup Phase §9 — logo click -> homepage, reusing the exact
+              same routing this shell already does for a bottom-nav tab
+              switch (navigate to `${basePath}/<tab>`), not a second
+              navigation mechanism. */}
+          <button type="button" onClick={() => navigate(`${basePath}/${tabs[0]?.key ?? "home"}`)} className="rounded-lg -m-1 p-1 hover:opacity-80 transition-opacity" aria-label="Go to homepage">
+            <Logo withSubtitle={false} />
+          </button>
           <NotificationBell basePath={basePath} />
         </div>
       )}

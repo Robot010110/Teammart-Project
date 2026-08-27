@@ -7,6 +7,7 @@ import EmployeesListScreen from "../components/supervisor/EmployeesListScreen";
 import SupervisorEmployeeProfileRoute from "../components/supervisor/SupervisorEmployeeProfileRoute";
 import SupervisorChatTab from "../components/supervisor/SupervisorChatTab";
 import MarketTab from "../components/supervisor/MarketTab";
+import CommunicationDetailScreen from "../components/employee/CommunicationDetailScreen";
 
 const BASE_PATH = "/supervisor";
 
@@ -33,14 +34,27 @@ export default function SupervisorWorkspace({ session, onLogout }) {
 
   return (
     <Routes>
-      <Route element={<AppShell tabs={tabs} basePath={BASE_PATH} />}>
+      {/* Cleanup Phase §3 — Supervisor gets the same real notification
+          bell every other staff/employee role already has. Backend
+          support already existed (GET /api/notifications' recipientWhere
+          already branches on a staff userId, not just employeeId — see
+          notificationsController.js) — this was purely a missing
+          frontend wire-up, not a new backend capability. */}
+      <Route element={<AppShell tabs={tabs} basePath={BASE_PATH} showNotificationBell />}>
         <Route index element={<Navigate to="home" replace />} />
-        <Route path="home" element={<SupervisorHomeTab session={session} />} />
+        <Route path="home" element={<SupervisorHomeTab session={session} basePath={BASE_PATH} />} />
         <Route path="employees" element={<EmployeesListScreen session={session} basePath={BASE_PATH} />} />
         <Route path="employees/:employeeId/*" element={<SupervisorEmployeeProfileRoute basePath={BASE_PATH} />} />
         <Route path="chat" element={<SupervisorChatTab session={session} basePath={BASE_PATH} />} />
         <Route path="chat/:channelId" element={<SupervisorChatTab session={session} basePath={BASE_PATH} />} />
         <Route path="market" element={<MarketTab session={session} />} />
+        {/* Verification pass §1 — a Supervisor can now be a targeted
+            recipient (Specific-Supervisor warnings from a Zone Manager/
+            Admin); this reuses the exact same detail screen an employee
+            recipient uses (see that component's own comment — nothing in
+            it is employee-specific), reached the same way an employee
+            reaches it: the notification bell's linkType "COMMUNICATION". */}
+        <Route path="communications/:id" element={<CommunicationDetailScreen basePath={BASE_PATH} />} />
         <Route path="settings" element={<SettingsScreen onLogout={onLogout} />} />
         <Route path="*" element={<Navigate to="home" replace />} />
       </Route>

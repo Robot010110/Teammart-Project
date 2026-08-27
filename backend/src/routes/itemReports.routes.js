@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { createItemReport, listItemReports, listItemReportsForMarket } from "../controllers/itemReportsController.js";
+import { createItemReport, listItemReports, listItemReportsForMarket, deleteItemReport } from "../controllers/itemReportsController.js";
 import { requireAuth, requireEmployeeAuth, requireStaffRole } from "../middleware/auth.js";
 import {
   validateBody,
@@ -22,6 +22,7 @@ router.get(
   validateQuery(listItemReportsMarketQuerySchema),
   listItemReportsForMarket
 );
+router.delete("/:id", requireStaffRole("ADMIN", "REGIONAL_MANAGER", "SUPERVISOR"), deleteItemReport);
 
 // Everything else here is employee-only — the employee's own expired/
 // wasted item reporting (same shape as activities.routes.js).

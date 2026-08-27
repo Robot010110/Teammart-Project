@@ -1,5 +1,6 @@
 import { prisma } from "../lib/prisma.js";
 import { assertMarketAccess } from "../middleware/auth.js";
+import { createNotificationForUser } from "../utils/notifications.js";
 
 // itemReportsController.js — the Expired/Wasted Items module. An employee
 // identifies a Product (barcode scan or photo -> manual search on the
@@ -42,6 +43,30 @@ export async function createItemReport(req, res, next) {
       }),
     ]);
 
+    // Cleanup Phase §6 — route straight to the market's own Supervisor,
+    // the same fire-and-forget pattern already used for Wasted Overall
+    // (wastedOverallController.js) and Department Closing. Never Admin —
+    // Admin only ever sees this via its own separate global dashboards
+    // (AdminActivitiesPage/AdminReportsPage), not because a report is
+    // "sent" there.
+    const market = await prisma.market.findUnique({ where: { id: req.user.marketId }, select: { supervisorId: true, overlookingSupervisorId: true } });
+    const recipients = [market?.supervisorId, market?.overlookingSupervisorId].filter(Boolean);
+    if (recipients.length) {
+      const employee = await prisma.employee.findUnique({ where: { id: req.user.employeeId }, select: { name: true } });
+      await Promise.all(
+        recipients.map((userId) =>
+          createNotificationForUser({
+            userId,
+            type: "EMPLOYEE_REPORT_SUBMITTED",
+            title: "Item Report Submitted",
+            body: `${employee.name} reported ${quantity} unit${quantity === 1 ? "" : "s"} of ${product.name} as ${condition.toLowerCase()}.`,
+            linkType: "ITEM_REPORT",
+            linkId: report.id,
+          })
+        )
+      );
+    }
+
     res.status(201).json(report);
   } catch (err) {
     next(err);
@@ -62,6 +87,7 @@ export async function listItemReports(req, res, next) {
     const reports = await prisma.itemReport.findMany({
       where: {
         employeeId: req.user.employeeId,
+        deletedAt: null,
         reportedAt: { gte: monthStart, lt: monthEnd },
       },
       include: { product: { select: { id: true, name: true, barcode: true } } },
@@ -89,7 +115,7 @@ export async function listItemReportsForMarket(req, res, next) {
     }
     await assertMarketAccess(req.user, marketId);
 
-    const where = { marketId };
+    const where = { marketId, deletedAt: null };
     if (employeeId) where.employeeId = employeeId;
     if (condition) where.condition = condition;
     if (status) where.status = status;
@@ -104,6 +130,28 @@ export async function listItemReportsForMarket(req, res, next) {
     });
 
     res.json(reports);
+  } catch (err) {
+    next(err);
+  }
+}
+
+// DELETE /api/item-reports/:id — staff-only, scoped to the report's own
+// market (assertMarketAccess re-checked against the real row's marketId,
+// never a client-supplied one). Soft delete (see ItemReport.deletedAt's
+// own schema comment) — the underlying Product.stockQuantity decrement
+// this report originally caused is never reversed (that's real inventory
+// history, not something a deleted report should silently undo);
+// deleting only removes the report itself from view.
+export async function deleteItemReport(req, res, next) {
+  try {
+    const existing = await prisma.itemReport.findUnique({ where: { id: req.params.id } });
+    if (!existing) return res.status(404).json({ error: "Report not found" });
+    await assertMarketAccess(req.user, existing.marketId);
+
+    if (!existing.deletedAt) {
+      await prisma.itemReport.update({ where: { id: existing.id }, data: { deletedAt: new Date() } });
+    }
+    res.status(204).end();
   } catch (err) {
     next(err);
   }

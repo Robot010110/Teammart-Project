@@ -1,18 +1,16 @@
-// fileEncoding.js — turns a File/Blob into a base64 data URL with no
-// compression, for anything that isn't a photo (compressImage in
+import { uploadFile } from "../services/uploadService";
+
+// uploadAttachment — uploads a File/Blob to the real backend upload
+// endpoint (see services/uploadService.js) and resolves to the hosted
+// URL. Used for anything that isn't a photo (compressImage in
 // imageCompression.js assumes image input, which a PDF/voice recording
-// isn't). Same TEMPORARY, DEV-ONLY stand-in as
-// activityService.prepareImageForUpload — there is no real upload
-// endpoint anywhere in this backend yet (see that function's own doc
-// comment); this is the exact same convention applied to non-image
-// attachments instead of duplicating a second ad-hoc approach.
-export function readFileAsDataUrl(fileOrBlob) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result);
-    reader.onerror = () => reject(reader.error);
-    reader.readAsDataURL(fileOrBlob);
-  });
+// isn't) — same upload path as activityService.prepareImageForUpload,
+// just without the image-specific compression step first. (Formerly
+// named readFileAsDataUrl, back when this actually base64-encoded the
+// file instead of uploading it — renamed along with the two call sites
+// once a real upload endpoint existed, so the name stays honest.)
+export function uploadAttachment(fileOrBlob) {
+  return uploadFile(fileOrBlob);
 }
 
 export function formatFileSize(bytes) {

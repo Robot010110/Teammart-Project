@@ -69,7 +69,7 @@ export async function getCardSalesDay(req, res, next) {
     await assertMarketAccess(req.user, marketId);
 
     const reports = await prisma.cardSalesReport.findMany({
-      where: { marketId, date: dayOnly(date) },
+      where: { marketId, date: dayOnly(date), deletedAt: null },
       include: { submittedBy: { select: { id: true, name: true, role: true } } },
       orderBy: { submittedAt: "desc" },
     });
@@ -93,7 +93,7 @@ export async function listCardSalesHistory(req, res, next) {
     if (!marketId) return res.status(400).json({ error: "marketId is required" });
     await assertMarketAccess(req.user, marketId);
 
-    const where = { marketId };
+    const where = { marketId, deletedAt: null };
     if (from || to) {
       where.date = {};
       if (from) where.date.gte = dayOnly(from);
@@ -106,6 +106,25 @@ export async function listCardSalesHistory(req, res, next) {
       orderBy: [{ date: "desc" }, { submittedAt: "desc" }],
     });
     res.json(reports);
+  } catch (err) {
+    next(err);
+  }
+}
+
+// DELETE /api/card-sales/:id — staff with market access (same
+// restriction as viewing this report type — see this file's own top
+// comment on why Card Sales isn't RM/Admin-restricted like Total Sales).
+// Soft delete (see CardSalesReport.deletedAt's own schema comment).
+export async function deleteCardSalesReport(req, res, next) {
+  try {
+    const report = await prisma.cardSalesReport.findUnique({ where: { id: req.params.id } });
+    if (!report) return res.status(404).json({ error: "Card Sales report not found" });
+    await assertMarketAccess(req.user, report.marketId);
+
+    if (!report.deletedAt) {
+      await prisma.cardSalesReport.update({ where: { id: report.id }, data: { deletedAt: new Date() } });
+    }
+    res.status(204).end();
   } catch (err) {
     next(err);
   }

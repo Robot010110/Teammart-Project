@@ -38,3 +38,31 @@ export async function createNotificationForMarket({ marketId, excludeEmployeeId,
     data: employees.map((e) => ({ employeeId: e.id, type, title, body, linkType, linkId })),
   });
 }
+
+// Fan-out version for an explicit, already-resolved employee id list —
+// Warnings & Notifications' own recipient snapshot, which (unlike
+// createNotificationForMarket above) isn't "everyone in one market" but
+// a precisely-targeted set possibly spanning many markets/a whole zone.
+// A no-op writer failing here must never be mistaken for the
+// Communication/CommunicationRecipient rows themselves failing — see
+// communicationsController.sendCommunication's own comment on why this
+// call happens AFTER that transaction already committed.
+export async function createNotificationForEmployees({ employeeIds, type, title, body, linkType, linkId }) {
+  if (employeeIds.length === 0) return;
+  await prisma.notification.createMany({
+    data: employeeIds.map((employeeId) => ({ employeeId, type, title, body, linkType, linkId })),
+  });
+}
+
+// Zone-wide counterpart to createNotificationForMarket — fans out to every
+// employee whose market belongs to this zone (a Zone Announcement, e.g.).
+export async function createNotificationForZone({ zoneId, excludeEmployeeId, type, title, body, linkType, linkId }) {
+  const employees = await prisma.employee.findMany({
+    where: { market: { zoneId }, id: excludeEmployeeId ? { not: excludeEmployeeId } : undefined },
+    select: { id: true },
+  });
+  if (employees.length === 0) return;
+  await prisma.notification.createMany({
+    data: employees.map((e) => ({ employeeId: e.id, type, title, body, linkType, linkId })),
+  });
+}

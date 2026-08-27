@@ -37,3 +37,10 @@ export function listItemReportsForMarket({ marketId, employeeId, condition, stat
   const query = params.toString();
   return apiRequest(`/item-reports/market${query ? `?${query}` : ""}`);
 }
+
+// deleteItemReport — staff-only, real persisted (soft) delete; leaves
+// the report's own market feed and the employee's own history
+// immediately.
+export function deleteItemReport(id) {
+  return apiRequest(`/item-reports/${id}`, { method: "DELETE" });
+}

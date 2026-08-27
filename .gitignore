@@ -34,3 +34,9 @@ coverage/
 
 # Misc
 .cache/
+
+# Locally-stored uploaded files (dev file storage — see
+# backend/src/utils/fileStorage.js). Not committed, same as any other
+# generated/user-content directory; a production deployment should point
+# PUBLIC_BASE_URL/storage at a real object storage service instead.
+backend/uploads/

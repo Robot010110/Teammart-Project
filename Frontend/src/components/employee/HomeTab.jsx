@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Bell, BellOff, CheckCheck, ClipboardList, ChevronRight } from "lucide-react";
+import { ClipboardList, ChevronRight, Moon } from "lucide-react";
 import { useAsync } from "../../hooks/useAsync";
 import ProfileHeaderCard from "./ProfileHeaderCard";
 import PerformanceCircle from "./PerformanceCircle";
@@ -11,8 +11,6 @@ import { SkeletonCard } from "../common/SkeletonCard";
 import { getProfile } from "../../services/profileService";
 import { getPerformanceSummary } from "../../services/activityService";
 import { listSuddenTasks } from "../../services/suddenTaskService";
-import { listMyNotifications, markNotificationRead, markAllNotificationsRead } from "../../services/notificationService";
-import { notificationDestination } from "../../utils/notificationLinks";
 
 function TaskCountTile({ count, onClick }) {
   return (
@@ -33,45 +31,16 @@ function TaskCountTile({ count, onClick }) {
   );
 }
 
-function timeAgo(iso) {
-  const diffMs = Date.now() - new Date(iso).getTime();
-  const minutes = Math.floor(diffMs / 60000);
-  if (minutes < 1) return "Just now";
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  return `${Math.floor(hours / 24)}d ago`;
-}
-
-function NotificationRow({ notification, onOpen }) {
-  return (
-    <button
-      type="button"
-      onClick={() => onOpen(notification)}
-      className={`w-full text-left rounded-xl p-3.5 border transition-colors ${
-        notification.read
-          ? "bg-[#1A1F33]/40 border-white/[0.05]"
-          : "bg-[#1A1F33]/70 border-[#F47A20]/20"
-      }`}
-    >
-      <div className="flex items-start gap-2.5">
-        {!notification.read ? <span className="mt-1.5 w-2 h-2 rounded-full bg-[#F47A20] shrink-0" /> : <span className="mt-1.5 w-2 h-2 shrink-0" />}
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-medium text-white truncate">{notification.title}</p>
-          <p className="text-xs text-[#9AA1B4] mt-0.5 line-clamp-2">{notification.body}</p>
-          <p className="text-[11px] text-[#4C5266] mt-1">{timeAgo(notification.createdAt)}</p>
-        </div>
-      </div>
-    </button>
-  );
-}
-
 // HomeTab.jsx — the Worker/Cashier personal dashboard:
 // Profile header (identity, department, WhatsApp)
 //   -> Performance (real circular indicator, tap for history)
 //   -> Attendance (the full monthly summary + calendar + day-off request,
-//      visible right here rather than requiring navigation elsewhere)
-//   -> Notifications preview.
+//      visible right here rather than requiring navigation elsewhere).
+//
+// The Notifications preview section that used to live here is gone (the
+// bell icon in the top bar is untouched and still fully functional —
+// only this in-page duplicate list was removed), matching the same
+// removal already done on SupervisorHomeTab.jsx.
 //
 // Chat and Wasted Overall shortcuts used to live here as a quick-action
 // row — removed per the homepage cleanup pass (Home was getting
@@ -89,53 +58,8 @@ export default function HomeTab({ onNavigate, basePath }) {
   const { data: profile, error: profileError, loading: profileLoading, reload: reloadProfile } = useAsync(getProfile, { deps: [] });
   const { data: performance } = useAsync(getPerformanceSummary, { deps: [] });
   const { data: suddenTasks } = useAsync(() => listSuddenTasks({ status: "ASSIGNED" }), { deps: [] });
-  const {
-    data: notificationsData,
-    error: notificationsError,
-    loading: notificationsLoading,
-    setData: setNotificationsData,
-    reload: reloadNotifications,
-  } = useAsync(() => listMyNotifications({ limit: 30 }), { deps: [] });
 
-  const [showAll, setShowAll] = useState(false);
   const [showPerformanceHistory, setShowPerformanceHistory] = useState(false);
-
-  const notifications = notificationsData?.notifications ?? [];
-  const unreadCount = notificationsData?.unreadCount ?? 0;
-  const visibleNotifications = showAll ? notifications : notifications.slice(0, 3);
-
-  async function handleMarkRead(id) {
-    setNotificationsData((prev) =>
-      prev
-        ? {
-            notifications: prev.notifications.map((n) => (n.id === id ? { ...n, read: true } : n)),
-            unreadCount: Math.max(prev.unreadCount - 1, 0),
-          }
-        : prev
-    );
-    try {
-      await markNotificationRead(id);
-    } catch {
-      reloadNotifications();
-    }
-  }
-
-  async function handleMarkAllRead() {
-    setNotificationsData((prev) =>
-      prev ? { notifications: prev.notifications.map((n) => ({ ...n, read: true })), unreadCount: 0 } : prev
-    );
-    try {
-      await markAllNotificationsRead();
-    } catch {
-      reloadNotifications();
-    }
-  }
-
-  function handleOpenNotification(notification) {
-    if (!notification.read) handleMarkRead(notification.id);
-    const destination = notificationDestination(notification, basePath);
-    if (destination) navigate(destination);
-  }
 
   if (showPerformanceHistory) {
     return (
@@ -155,6 +79,27 @@ export default function HomeTab({ onNavigate, basePath }) {
         <ProfileHeaderCard profile={profile} />
       )}
 
+      {/* Night Shift entry point — only ever shown to an employee whose
+          own operationalShift is NIGHT (from GET /api/profile, kept in
+          sync with the same field the backend eligibility check uses),
+          never inferred from the frontend alone. */}
+      {profile?.operationalShift === "NIGHT" && (
+        <button
+          type="button"
+          onClick={() => navigate(`${basePath}/night-shift`)}
+          className="mt-4 w-full flex items-center gap-3 rounded-2xl p-4 bg-gradient-to-br from-[#1D2D5C]/60 to-[#171C2E]/80 border border-[#F47A20]/20 hover:border-[#F47A20]/40 backdrop-blur-xl transition-colors text-left"
+        >
+          <span className="grid place-items-center h-11 w-11 rounded-xl bg-[#F47A20]/15 text-[#F47A20] shrink-0">
+            <Moon size={19} />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold text-white">Night Shift</p>
+            <p className="text-xs text-[#9AA1B4]">Tonight's tasks, Washing Market, and your departments</p>
+          </div>
+          <ChevronRight size={16} className="text-[#4C5266] shrink-0" />
+        </button>
+      )}
+
       <div className="mt-4 flex gap-3 items-stretch">
         <PerformanceCircle rate={performance?.rate} onClick={() => setShowPerformanceHistory(true)} />
         <TaskCountTile count={suddenTasks?.length ?? null} onClick={() => onNavigate?.("tasks")} />
@@ -163,47 +108,6 @@ export default function HomeTab({ onNavigate, basePath }) {
       <section className="mt-6">
         <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-[#8B93A8]">Attendance</h2>
         <AttendanceSection />
-      </section>
-
-      <section className="mt-6">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-sm font-semibold uppercase tracking-wider text-[#8B93A8]">Notifications</h2>
-          {unreadCount > 0 ? (
-            <button
-              type="button"
-              onClick={handleMarkAllRead}
-              className="flex items-center gap-1 text-xs font-medium text-[#F47A20] hover:text-[#ff8b36]"
-            >
-              <CheckCheck size={14} /> Mark all read
-            </button>
-          ) : null}
-        </div>
-
-        {notificationsLoading ? (
-          <SkeletonCard className="h-24" />
-        ) : notificationsError ? (
-          <ErrorBanner message={notificationsError} onRetry={reloadNotifications} />
-        ) : notifications.length === 0 ? (
-          <div className="rounded-2xl p-6 bg-[#171C2E]/80 border border-white/[0.06] text-center">
-            <BellOff size={22} className="mx-auto text-[#4C5266] mb-2" />
-            <p className="text-sm text-[#8B93A8]">No notifications yet</p>
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {visibleNotifications.map((n) => (
-              <NotificationRow key={n.id} notification={n} onOpen={handleOpenNotification} />
-            ))}
-            {!showAll && notifications.length > 3 ? (
-              <button
-                type="button"
-                onClick={() => setShowAll(true)}
-                className="w-full flex items-center justify-center gap-1 py-2.5 text-xs font-medium text-[#9AA1B4] hover:text-white"
-              >
-                <Bell size={14} /> View all ({notifications.length})
-              </button>
-            ) : null}
-          </div>
-        )}
       </section>
     </div>
   );

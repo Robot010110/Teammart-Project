@@ -8,6 +8,9 @@ import WorkerActivityTab from "../components/employee/WorkerActivityTab";
 import ChatListScreen from "../components/employee/ChatListScreen";
 import ConversationRoute from "../components/employee/ConversationRoute";
 import ProfileTab from "../components/employee/ProfileTab";
+import NightShiftDashboardScreen from "../components/employee/NightShiftDashboardScreen";
+import WashingMarketScreen from "../components/employee/WashingMarketScreen";
+import CommunicationDetailScreen from "../components/employee/CommunicationDetailScreen";
 import { useUnreadBadges } from "../hooks/useUnreadBadges";
 
 const BASE_PATH = "/me";
@@ -39,6 +42,9 @@ export default function EmployeeWorkspace({ employeeId, onLogout }) {
         <Route path="tasks" element={<SuddenTaskListScreen basePath={BASE_PATH} />} />
         <Route path="tasks/:taskId" element={<SuddenTaskDetailRoute basePath={BASE_PATH} />} />
         <Route path="activity" element={<WorkerActivityTab />} />
+        <Route path="night-shift" element={<NightShiftDashboardScreen basePath={BASE_PATH} />} />
+        <Route path="night-shift/washing-market/:activityId" element={<WashingMarketScreen basePath={BASE_PATH} />} />
+        <Route path="communications/:id" element={<CommunicationDetailScreen basePath={BASE_PATH} />} />
         <Route path="chat" element={<ChatListScreen currentEmployeeId={employeeId} basePath={BASE_PATH} />} />
         <Route path="chat/:conversationId" element={<ConversationRoute currentEmployeeId={employeeId} basePath={BASE_PATH} />} />
         <Route path="profile/*" element={<ProfileTab onLogout={onLogout} basePath={`${BASE_PATH}/profile`} />} />

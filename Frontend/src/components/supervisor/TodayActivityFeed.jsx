@@ -1,11 +1,12 @@
 import { useMemo, useState } from "react";
-import { CheckCircle2, PackageX, ClipboardList, Sparkles, XCircle, Loader2, Clock3 } from "lucide-react";
+import { CheckCircle2, PackageX, ClipboardList, Sparkles, XCircle, Loader2, Clock3, Trash2 } from "lucide-react";
 import { useAsync } from "../../hooks/useAsync";
 import ErrorBanner from "../common/ErrorBanner";
+import AuthenticatedImage from "../common/AuthenticatedImage";
 import { SkeletonCard } from "../common/SkeletonCard";
 import Modal from "../common/Modal";
 import { listActivitiesForMarket, reviewActivity } from "../../services/activityService";
-import { listItemReportsForMarket } from "../../services/itemReportService";
+import { listItemReportsForMarket, deleteItemReport } from "../../services/itemReportService";
 import { listWastedOverallReportsForMarket, reviewWastedOverallReport } from "../../services/wastedOverallService";
 import { listSuddenTasks } from "../../services/suddenTaskService";
 import { listExtraHoursRequestsForMarket, reviewExtraHoursRequest } from "../../services/attendanceService";
@@ -204,6 +205,17 @@ function FeedItemDetail({ item, onReviewed }) {
 
   const reviewFn = REVIEWABLE_KINDS[kind];
   const canReview = !!reviewFn && raw.status === "PENDING";
+  const [deleting, setDeleting] = useState(false);
+
+  async function handleDelete() {
+    setDeleting(true);
+    try {
+      await deleteItemReport(raw.id);
+      onReviewed();
+    } finally {
+      setDeleting(false);
+    }
+  }
 
   async function handleReview(status) {
     if (status === "REJECTED" && !rejecting) {
@@ -285,12 +297,12 @@ function FeedItemDetail({ item, onReviewed }) {
         </>
       )}
 
-      {raw.imageUrl && <img src={raw.imageUrl} alt="" className="mt-3 rounded-lg w-full max-h-64 object-cover" />}
-      {raw.photoUrl && <img src={raw.photoUrl} alt="" className="mt-3 rounded-lg w-full max-h-64 object-cover" />}
+      {raw.imageUrl && <AuthenticatedImage src={raw.imageUrl} alt="" className="mt-3 rounded-lg w-full max-h-64 object-cover" />}
+      {raw.photoUrl && <AuthenticatedImage src={raw.photoUrl} alt="" className="mt-3 rounded-lg w-full max-h-64 object-cover" />}
       {raw.images?.length > 0 && (
         <div className="mt-3 grid grid-cols-3 gap-2">
           {raw.images.map((img) => (
-            <img key={img.id} src={img.url} alt="" className="rounded-lg aspect-square object-cover" />
+            <AuthenticatedImage key={img.id} src={img.url} alt="" className="rounded-lg aspect-square object-cover" />
           ))}
         </div>
       )}
@@ -329,6 +341,17 @@ function FeedItemDetail({ item, onReviewed }) {
             </button>
           </div>
         </div>
+      )}
+
+      {kind === "ITEM_REPORT" && (
+        <button
+          type="button"
+          onClick={handleDelete}
+          disabled={deleting}
+          className="mt-4 w-full flex items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-semibold text-red-400 bg-red-500/[0.06] border border-red-500/20 hover:bg-red-500/10 disabled:opacity-50 transition-colors"
+        >
+          {deleting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />} Delete Report
+        </button>
       )}
     </div>
   );

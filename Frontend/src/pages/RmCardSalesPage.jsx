@@ -1,9 +1,10 @@
 import { useState } from "react";
-import { CreditCard, CheckCircle2, Clock, Image as ImageIcon } from "lucide-react";
+import { CreditCard, CheckCircle2, Clock, Image as ImageIcon, Trash2, Loader2 } from "lucide-react";
 import Breadcrumb from "../components/layout/Breadcrumb";
 import ErrorBanner from "../components/common/ErrorBanner";
+import AuthenticatedImage from "../components/common/AuthenticatedImage";
 import { SkeletonCard } from "../components/common/SkeletonCard";
-import { getCardSalesDay } from "../services/cardSalesService";
+import { getCardSalesDay, deleteCardSalesReport } from "../services/cardSalesService";
 import { useAsync } from "../hooks/useAsync";
 
 function todayIso() {
@@ -27,6 +28,17 @@ const SHIFT_LABEL = { MORNING: "Morning", AFTERNOON: "Afternoon", NIGHT: "Night"
 export default function RmCardSalesPage({ marketId, marketName, onBack }) {
   const [date, setDate] = useState(todayIso());
   const { data, error, loading, reload } = useAsync(() => getCardSalesDay(marketId, date), { deps: [marketId, date] });
+  const [deletingId, setDeletingId] = useState(null);
+
+  async function handleDelete(reportId) {
+    setDeletingId(reportId);
+    try {
+      await deleteCardSalesReport(reportId);
+      reload();
+    } finally {
+      setDeletingId(null);
+    }
+  }
 
   return (
     <div className="px-6 md:px-10 py-8 max-w-4xl mx-auto animate-fade-up">
@@ -63,7 +75,18 @@ export default function RmCardSalesPage({ marketId, marketName, onBack }) {
                       <CreditCard size={14} className="text-[#F47A20]" /> {SHIFT_LABEL[shift]}
                     </span>
                     {submitted ? (
-                      <span className="flex items-center gap-1 text-xs font-medium text-emerald-400"><CheckCircle2 size={12} /> Submitted</span>
+                      <div className="flex items-center gap-2">
+                        <span className="flex items-center gap-1 text-xs font-medium text-emerald-400"><CheckCircle2 size={12} /> Submitted</span>
+                        <button
+                          type="button"
+                          onClick={() => handleDelete(report.id)}
+                          disabled={deletingId === report.id}
+                          aria-label="Delete report"
+                          className="p-1 rounded-lg text-[#4C5266] hover:text-red-400 hover:bg-red-500/10 disabled:opacity-50 transition-colors"
+                        >
+                          {deletingId === report.id ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
+                        </button>
+                      </div>
                     ) : (
                       <span className="text-xs font-medium text-[#4C5266]">Pending</span>
                     )}
@@ -75,11 +98,11 @@ export default function RmCardSalesPage({ marketId, marketName, onBack }) {
                       <p className="flex items-center gap-1 text-xs text-[#4C5266] mt-0.5"><Clock size={11} /> {timeLabel(report.submittedAt)}</p>
                       <div className="mt-3 flex gap-2">
                         <a href={report.photoUrl} target="_blank" rel="noreferrer">
-                          <img src={report.photoUrl} alt="Card count" className="h-16 w-16 rounded-lg object-cover ring-1 ring-white/10" />
+                          <AuthenticatedImage src={report.photoUrl} alt="Card count" className="h-16 w-16 rounded-lg object-cover ring-1 ring-white/10" />
                         </a>
                         {report.photoUrl2 && (
                           <a href={report.photoUrl2} target="_blank" rel="noreferrer">
-                            <img src={report.photoUrl2} alt="Card count 2" className="h-16 w-16 rounded-lg object-cover ring-1 ring-white/10" />
+                            <AuthenticatedImage src={report.photoUrl2} alt="Card count 2" className="h-16 w-16 rounded-lg object-cover ring-1 ring-white/10" />
                           </a>
                         )}
                       </div>

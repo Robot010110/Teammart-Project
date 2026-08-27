@@ -2,6 +2,8 @@ import { prisma } from "../lib/prisma.js";
 import { assertMarketAccess, HttpError } from "../middleware/auth.js";
 import { attachEmployeeStatuses } from "../utils/employeeStatus.js";
 import { createNotificationForUser } from "../utils/notifications.js";
+import { getMarketDepartmentStatus, getMarketDepartmentCompletion, ensureMarketDepartment } from "../services/departmentMonitoringService.js";
+import { findOrCreateChannel } from "./chatController.js";
 
 // marketManagementController.js — the Regional Manager's market
 // inspection/evaluation layer: overview, department "sections"
@@ -335,5 +337,150 @@ async function assertVisitBelongsToMarket(visitId, marketId) {
   const visit = await prisma.marketVisit.findUnique({ where: { id: visitId }, select: { marketId: true } });
   if (!visit || visit.marketId !== marketId) {
     throw new HttpError(400, "visitId does not belong to this market");
+  }
+}
+
+// ---------------------------------------------------------------------
+// Phase 2 — Department Monitoring, Completion, and the Final Department
+// Report. All three read from the exact same DEPARTMENT_CLOSING Activity
+// records Employee/Supervisor submission already writes (see
+// services/departmentMonitoringService.js) — nothing here duplicates
+// that data into a second table just for display (spec §13/§20).
+// ---------------------------------------------------------------------
+
+// GET /api/markets/:id/departments — staff-only, the Department
+// Monitoring section's data (spec §12): per-department assigned
+// employee, today's submission status, submitter, and photo
+// availability, all derived live — nothing cached that could drift.
+export async function listMarketDepartments(req, res, next) {
+  try {
+    const marketId = req.params.id;
+    await assertMarketAccess(req.user, marketId);
+    const statuses = await getMarketDepartmentStatus(marketId, { date: req.query.date ? new Date(req.query.date) : new Date() });
+    res.json(statuses);
+  } catch (err) {
+    next(err);
+  }
+}
+
+// POST /api/markets/:id/departments — staff-only. Registers a department
+// in this market's catalog before anyone is assigned to it (spec §15:
+// an Unassigned department has to be nameable/trackable even with zero
+// current employees) — the same underlying registration
+// assignDepartment/Department-Closing submissions already trigger
+// automatically, exposed here as an explicit action for this case.
+export async function addMarketDepartment(req, res, next) {
+  try {
+    const marketId = req.params.id;
+    await assertMarketAccess(req.user, marketId);
+    const department = await ensureMarketDepartment(marketId, req.body.name, req.user.userId);
+    res.status(201).json(department);
+  } catch (err) {
+    next(err);
+  }
+}
+
+// GET /api/markets/:id/departments/completion — staff-only. The
+// backend-authoritative completion count (spec §17-18) — the frontend
+// never computes "X/Y departments complete" itself, it only displays
+// what this endpoint returns.
+export async function getMarketDepartmentCompletionRoute(req, res, next) {
+  try {
+    const marketId = req.params.id;
+    await assertMarketAccess(req.user, marketId);
+    const completion = await getMarketDepartmentCompletion(marketId, { date: req.query.date ? new Date(req.query.date) : new Date() });
+    res.json(completion);
+  } catch (err) {
+    next(err);
+  }
+}
+
+// POST /api/markets/:id/department-report — staff-only (Supervisor/
+// Overlooking of this market, or RM/Admin). Sends the Final Department
+// Report (spec §19-22): re-validates completion server-side (never
+// trusts anything the frontend computed), refuses if incomplete unless
+// `override: true` is explicitly passed (recorded — who/when/reason,
+// spec §18), and posts the report into this market's own existing
+// MARKET_GROUP conversation — never an invented "Zone group". The
+// DepartmentReport.@@unique([marketId, date, shift]) constraint is the
+// real guarantee against two concurrent "Send Report" requests both
+// succeeding for the same market/day/shift (same partial-unique-index
+// philosophy as Break's one-active-break guarantee) — this function
+// still checks first for a fast, friendly error, but that constraint is
+// what actually decides it under a genuine race.
+export async function sendDepartmentReport(req, res, next) {
+  try {
+    const marketId = req.params.id;
+    await assertMarketAccess(req.user, marketId);
+
+    const { date, shift, override, overrideReason } = req.body;
+    const reportDate = new Date(date);
+    reportDate.setHours(0, 0, 0, 0);
+
+    const existing = await prisma.departmentReport.findUnique({
+      where: { marketId_date_shift: { marketId, date: reportDate, shift } },
+    });
+    if (existing) {
+      return res.status(409).json({ error: "A report for this market/date/shift has already been sent", report: existing });
+    }
+
+    const completion = await getMarketDepartmentCompletion(marketId, { date: reportDate });
+    if (!completion.isComplete && !override) {
+      return res.status(400).json({
+        error: "Required departments are not all complete yet.",
+        requiredCount: completion.requiredCount,
+        completedCount: completion.completedCount,
+        missing: completion.missing,
+      });
+    }
+    if (!completion.isComplete && override && !overrideReason) {
+      return res.status(400).json({ error: "An override reason is required to send an incomplete report." });
+    }
+
+    const market = await prisma.market.findUnique({ where: { id: marketId }, select: { name: true } });
+    const lines = completion.statuses.map((s) => {
+      const who = s.submission?.submittedBy
+        ? s.submission.submittedBy.kind === "staff" ? "Supervisor" : s.submission.submittedBy.name
+        : "—";
+      const stateLabel = s.state === "COMPLETED" ? "Completed" : s.state === "UNASSIGNED" ? "Unassigned" : "Missing";
+      return `- ${s.department} — ${who} — ${stateLabel}`;
+    });
+    const dateLabel = reportDate.toLocaleDateString("en-US", { month: "long", day: "numeric" });
+    const shiftLabel = shift.charAt(0) + shift.slice(1).toLowerCase();
+    const body = [
+      `${market.name} — Department Closing Report`,
+      "",
+      `Date: ${dateLabel}`,
+      `Shift: ${shiftLabel}`,
+      "",
+      `${completion.completedCount}/${completion.requiredCount} departments completed${completion.overrideUsed ? " (sent with override)" : ""}.`,
+      "",
+      "Departments:",
+      ...lines,
+    ].join("\n");
+
+    const conversation = await findOrCreateChannel(marketId, "MARKET_GROUP");
+    const message = await prisma.message.create({
+      data: { conversationId: conversation.id, body, senderUserId: req.user.userId },
+    });
+
+    const report = await prisma.departmentReport.create({
+      data: {
+        marketId,
+        date: reportDate,
+        shift,
+        requiredCount: completion.requiredCount,
+        completedCount: completion.completedCount,
+        overrideUsed: !completion.isComplete && !!override,
+        overrideReason: !completion.isComplete && override ? overrideReason : null,
+        sentById: req.user.userId,
+        conversationId: conversation.id,
+        messageId: message.id,
+      },
+    });
+
+    res.status(201).json({ report, message });
+  } catch (err) {
+    next(err);
   }
 }

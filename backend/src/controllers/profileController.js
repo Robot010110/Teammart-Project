@@ -22,6 +22,21 @@ export async function getProfile(req, res, next) {
         role: user.role,
         zoneIds: user.managedZones.map((z) => z.id),
         marketId: user.managedMarket?.id ?? user.managedOverlookingMarket?.id ?? null,
+        // Repair Pass §5 — a Supervisor/Overlooking's own market's zone.
+        // App.jsx's session-restore path (GET /api/profile, used on every
+        // page refresh) already destructures `profile.zoneId` — it was
+        // simply never sent by this endpoint, a pre-existing gap
+        // (independent of the same field's login-response counterpart in
+        // authController.js, fixed alongside this) that would have made
+        // the Supervisor homepage's Zone Announcements card silently stop
+        // working the moment the page was refreshed, even though it
+        // worked immediately after login.
+        zoneId: user.managedMarket?.zoneId ?? user.managedOverlookingMarket?.zoneId ?? null,
+        // Repair Pass §3 — self-service profile fields (see the User
+        // model's own schema comment).
+        profilePictureUrl: user.profilePictureUrl,
+        phoneNumber: user.phoneNumber,
+        whatsappNumber: user.whatsappNumber,
       });
     }
 
@@ -54,6 +69,13 @@ export async function getProfile(req, res, next) {
       username: employee.username,
       department: employee.department,
       cashierShift: employee.cashierShift,
+      // Night Shift — lets the frontend decide whether to show the Night
+      // Shift entry point without a second request; the full Main/
+      // Additional department breakdown + today's tasks still only come
+      // from GET /api/night-shift/my-dashboard (see that endpoint's own
+      // comment on why this stays out of the generic profile/employee
+      // self-view).
+      operationalShift: employee.operationalShift,
       employmentStatus: employee.employmentStatus,
       whatsappNumber: employee.whatsappNumber,
     });
@@ -78,16 +100,35 @@ export async function getProfile(req, res, next) {
 export async function updateMyProfile(req, res, next) {
   try {
     if (req.user.kind === "staff") {
-      if (!("loginId" in req.body)) {
-        return res.json({});
+      const data = {};
+      // Repair Pass §3 — profilePictureUrl/phoneNumber/whatsappNumber
+      // reuse the exact validated shape (updateMyProfileSchema) the
+      // employee branch below always has — this branch previously only
+      // ever applied loginId, silently dropping the other fields even
+      // though the shared schema already accepted them, which is why
+      // Supervisor profile editing didn't actually persist anything.
+      if ("profilePictureUrl" in req.body) data.profilePictureUrl = req.body.profilePictureUrl;
+      if ("phoneNumber" in req.body) data.phoneNumber = req.body.phoneNumber;
+      if ("whatsappNumber" in req.body) data.whatsappNumber = req.body.whatsappNumber;
+
+      if ("loginId" in req.body) {
+        const loginId = req.body.loginId;
+        if (loginId !== null) {
+          const taken = await userIdTaken(loginId, { excludeUserId: req.user.userId });
+          if (taken) return res.status(409).json({ error: "This User ID is already in use" });
+        }
+        data.loginId = loginId;
       }
-      const loginId = req.body.loginId;
-      if (loginId !== null) {
-        const taken = await userIdTaken(loginId, { excludeUserId: req.user.userId });
-        if (taken) return res.status(409).json({ error: "This User ID is already in use" });
-      }
-      const user = await prisma.user.update({ where: { id: req.user.userId }, data: { loginId } });
-      return res.json({ loginId: user.loginId });
+
+      if (Object.keys(data).length === 0) return res.json({});
+
+      const user = await prisma.user.update({ where: { id: req.user.userId }, data });
+      return res.json({
+        loginId: user.loginId,
+        profilePictureUrl: user.profilePictureUrl,
+        phoneNumber: user.phoneNumber,
+        whatsappNumber: user.whatsappNumber,
+      });
     }
 
     const data = {};

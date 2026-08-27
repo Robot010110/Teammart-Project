@@ -1,13 +1,15 @@
 import { useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Building2, MapPinned, Store, ClipboardList, MessageCircle, ShieldAlert, Sparkles, CalendarCheck,
-  CheckCheck, BellOff,
+  CheckCheck, BellOff, Megaphone, ChevronRight, Trash2,
 } from "lucide-react";
 import { useAsync } from "../hooks/useAsync";
 import ErrorBanner from "../components/common/ErrorBanner";
 import { SkeletonCard } from "../components/common/SkeletonCard";
+import AttendanceCheckInCard from "../components/common/AttendanceCheckInCard";
 import { listMarkets } from "../services/marketService";
-import { listMyNotifications, markNotificationRead, markAllNotificationsRead } from "../services/notificationService";
+import { listMyNotifications, markNotificationRead, markAllNotificationsRead, deleteNotification, deleteAllNotifications } from "../services/notificationService";
 
 function timeAgo(iso) {
   const diffMs = Date.now() - new Date(iso).getTime();
@@ -42,28 +44,36 @@ function styleFor(n) {
   return TYPE_STYLE[n.type] ?? { icon: ClipboardList, tone: "text-[#9AA1B4] bg-white/[0.06]" };
 }
 
-function NotificationRow({ n, onRead }) {
+function NotificationRow({ n, onRead, onDelete }) {
   const { icon: Icon, tone } = styleFor(n);
   return (
-    <button
-      type="button"
-      onClick={() => !n.read && onRead(n.id)}
-      className={`w-full text-left flex items-start gap-3 rounded-xl p-3.5 border transition-colors ${
+    <div
+      className={`flex items-start gap-2 rounded-xl p-3.5 border transition-colors ${
         n.read ? "bg-[#171C2E]/50 border-white/[0.05]" : "bg-[#171C2E]/90 border-[#F47A20]/25"
       }`}
     >
-      <span className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${tone}`}>
-        <Icon size={16} />
-      </span>
-      <div className="min-w-0 flex-1">
-        <div className="flex items-start justify-between gap-2">
-          <p className="text-sm font-medium text-white truncate">{n.title}</p>
-          {!n.read && <span className="mt-1.5 w-2 h-2 rounded-full bg-[#F47A20] shrink-0" />}
+      <button type="button" onClick={() => !n.read && onRead(n.id)} className="flex-1 min-w-0 text-left flex items-start gap-3">
+        <span className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${tone}`}>
+          <Icon size={16} />
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-start justify-between gap-2">
+            <p className="text-sm font-medium text-white truncate">{n.title}</p>
+            {!n.read && <span className="mt-1.5 w-2 h-2 rounded-full bg-[#F47A20] shrink-0" />}
+          </div>
+          <p className="text-xs text-[#9AA1B4] mt-0.5 line-clamp-2">{n.body}</p>
+          <p className="text-[11px] text-[#4C5266] mt-1">{timeAgo(n.createdAt)}</p>
         </div>
-        <p className="text-xs text-[#9AA1B4] mt-0.5 line-clamp-2">{n.body}</p>
-        <p className="text-[11px] text-[#4C5266] mt-1">{timeAgo(n.createdAt)}</p>
-      </div>
-    </button>
+      </button>
+      <button
+        type="button"
+        onClick={(e) => { e.stopPropagation(); onDelete(n.id); }}
+        aria-label="Delete notification"
+        className="shrink-0 p-1.5 mt-0.5 rounded-lg text-[#4C5266] hover:text-red-400 hover:bg-red-500/10 transition-colors"
+      >
+        <Trash2 size={14} />
+      </button>
+    </div>
   );
 }
 
@@ -86,6 +96,7 @@ function StatCard({ icon: Icon, label, value }) {
 // derived from the real markets list, never hardcoded), and a real
 // notification feed below it, visually distinct by type.
 export default function RegionalManagerProfile({ session }) {
+  const navigate = useNavigate();
   const { data: markets, error: marketsError, loading: marketsLoading, reload: reloadMarkets } = useAsync(listMarkets, { deps: [] });
   const {
     data: notifData,
@@ -128,6 +139,32 @@ export default function RegionalManagerProfile({ session }) {
     }
   }
 
+  async function handleDeleteNotification(id) {
+    const wasUnread = notifications.find((n) => n.id === id)?.read === false;
+    setNotifData((prev) =>
+      prev
+        ? {
+            notifications: prev.notifications.filter((n) => n.id !== id),
+            unreadCount: wasUnread ? Math.max(prev.unreadCount - 1, 0) : prev.unreadCount,
+          }
+        : prev
+    );
+    try {
+      await deleteNotification(id);
+    } catch {
+      reloadNotifs();
+    }
+  }
+
+  async function handleDeleteAllNotifications() {
+    setNotifData({ notifications: [], unreadCount: 0 });
+    try {
+      await deleteAllNotifications();
+    } catch {
+      reloadNotifs();
+    }
+  }
+
   return (
     <div className="px-6 md:px-10 py-8 max-w-5xl mx-auto animate-fade-up">
       <div className="rounded-2xl p-6 bg-gradient-to-br from-[#171C2E] to-[#1A1F33] border border-white/[0.06] backdrop-blur-xl">
@@ -162,14 +199,44 @@ export default function RegionalManagerProfile({ session }) {
 
       {marketsError && <div className="mt-4"><ErrorBanner message={marketsError} onRetry={reloadMarkets} /></div>}
 
+      {/* Cleanup Phase §5 — Check-in -> Check-out, no Break (RM row of
+          the attendance table); Employee/Supervisor keep the full
+          Check-in -> Break -> Check-out flow via the same component's
+          default showBreak=true elsewhere. */}
+      <div className="mt-4">
+        <AttendanceCheckInCard showBreak={false} />
+      </div>
+
+      <button
+        type="button"
+        onClick={() => navigate("/rm/communications")}
+        className="mt-4 w-full flex items-center gap-3 rounded-xl p-4 bg-[#171C2E]/80 border border-white/[0.06] hover:border-[#F47A20]/25 backdrop-blur-xl transition-colors text-left"
+      >
+        <span className="w-9 h-9 rounded-lg bg-[#F47A20]/10 flex items-center justify-center text-[#F47A20] shrink-0">
+          <Megaphone size={17} />
+        </span>
+        <span className="flex-1 min-w-0">
+          <p className="text-sm font-semibold text-white">Warnings & Notifications</p>
+          <p className="text-xs text-[#8B93A8]">Send targeted communications to your zones</p>
+        </span>
+        <ChevronRight size={16} className="text-[#4C5266] shrink-0" />
+      </button>
+
       <section className="mt-8">
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-sm font-semibold uppercase tracking-wider text-[#8B93A8]">Notifications</h2>
-          {unreadCount > 0 && (
-            <button type="button" onClick={handleMarkAllRead} className="flex items-center gap-1 text-xs font-medium text-[#F47A20] hover:text-[#ff8b36]">
-              <CheckCheck size={14} /> Mark all read
-            </button>
-          )}
+          <div className="flex items-center gap-3">
+            {unreadCount > 0 && (
+              <button type="button" onClick={handleMarkAllRead} className="flex items-center gap-1 text-xs font-medium text-[#F47A20] hover:text-[#ff8b36]">
+                <CheckCheck size={14} /> Mark all read
+              </button>
+            )}
+            {notifications.length > 0 && (
+              <button type="button" onClick={handleDeleteAllNotifications} className="flex items-center gap-1 text-xs font-medium text-[#9AA1B4] hover:text-red-400">
+                <Trash2 size={14} /> Delete all
+              </button>
+            )}
+          </div>
         </div>
 
         {notifLoading ? (
@@ -183,7 +250,7 @@ export default function RegionalManagerProfile({ session }) {
           </div>
         ) : (
           <div className="space-y-2">
-            {visible.map((n) => <NotificationRow key={n.id} n={n} onRead={handleRead} />)}
+            {visible.map((n) => <NotificationRow key={n.id} n={n} onRead={handleRead} onDelete={handleDeleteNotification} />)}
             {!showAll && notifications.length > 6 && (
               <button
                 type="button"

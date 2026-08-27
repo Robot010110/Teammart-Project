@@ -22,6 +22,17 @@ export function notificationDestination(notification, basePath) {
       return linkType === "ACTIVITY" ? `${basePath}/profile/performance` : `${basePath}/activity`;
     case "LEAVE_REQUEST":
       return `${basePath}/profile/attendance`;
+    case "ITEM_REPORT":
+    case "PRICE_REPORT":
+      // Neither has a single-item detail screen — both live in the
+      // Supervisor's Home tab (SupervisorHomeTab -> ReportsSection), same
+      // "route to the screen that shows it" fallback as ACTIVITY above.
+      return `${basePath}/home`;
+    case "COMMUNICATION":
+      // Warnings & Notifications — a real detail screen exists for this
+      // one (CommunicationDetailScreen.jsx), unlike ACTIVITY/WASTED_OVERALL
+      // above which route to a list because they have no single-item view.
+      return linkId ? `${basePath}/communications/${linkId}` : null;
     default:
       return null;
   }

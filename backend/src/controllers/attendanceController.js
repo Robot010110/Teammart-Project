@@ -3,6 +3,7 @@ import { staffCanAccessMarket, requireAccessibleEmployee, assertMarketAccess } f
 import { parseAttendanceWorkbook, buildAttendanceReportWorkbook } from "../utils/attendanceExcel.js";
 import { attendanceImportRowSchema } from "../utils/validate.js";
 import { createNotification, createNotificationForUser } from "../utils/notifications.js";
+import { buildBreakAttendanceExportRows } from "../services/excelExportAdapter.js";
 
 // attendanceController.js — check-in/out, breaks, shift, day-off, and
 // required-hours tracking. Populated by importAttendanceRecords (a real
@@ -11,6 +12,273 @@ import { createNotification, createNotificationForUser } from "../utils/notifica
 // app. The employee-facing month view only ever reflects real imported/
 // adjusted rows — zero/empty when nothing exists yet, never a hardcoded
 // number.
+
+function dayOnly(date) {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+// Which kind of caller is allowed to use the cross-role check-in/check-
+// out endpoints below, and what "owns" the resulting AttendanceRecord —
+// Employee/Cashier (any Employee role) or Supervisor/Overlooking
+// (staff). Regional Manager/Admin/Zone Manager are deliberately
+// excluded (spec: "Zone Manager is NOT included in this attendance
+// requirement" — neither has a market to check in at).
+function attendanceOwnerFromUser(user) {
+  if (user.kind === "employee") return { employeeId: user.employeeId, marketId: user.marketId };
+  if (user.kind === "staff" && (user.role === "SUPERVISOR" || user.role === "OVERLOOKING_SUPERVISOR")) {
+    return { staffUserId: user.userId, marketId: user.marketId };
+  }
+  // Cleanup Phase §5 — Regional/Zone Manager gets Check-in -> Check-out
+  // (no Break; that's enforced by the frontend simply never offering one
+  // for this role — see AttendanceCheckInCard's showBreak prop). A
+  // Regional Manager isn't assigned to one single market the way a
+  // Supervisor is (they manage a whole zone, possibly several markets),
+  // so marketId genuinely has no single correct value here — the schema
+  // already supports that (AttendanceRecord.marketId is nullable
+  // specifically for staff-owned rows; see its own comment).
+  if (user.kind === "staff" && user.role === "REGIONAL_MANAGER") {
+    return { staffUserId: user.userId, marketId: null };
+  }
+  return null;
+}
+
+function attendanceOwnerWhere(owner, date) {
+  return owner.employeeId
+    ? { employeeId_date: { employeeId: owner.employeeId, date } }
+    : { staffUserId_date: { staffUserId: owner.staffUserId, date } };
+}
+
+// Repair Pass §1 — the 4-hour break / 8-hour checkout gates, enforced
+// here (server clock only) so a client can never bypass them by simply
+// not disabling its own button. Kept as plain constants (not env-
+// configurable) since the spec gives exact numbers, same as every other
+// hardcoded business rule already in this file (e.g. requiredHours'
+// default of 8).
+const BREAK_AVAILABLE_AFTER_MS = 4 * 60 * 60 * 1000;
+const CHECKOUT_AVAILABLE_AFTER_MS = 8 * 60 * 60 * 1000;
+
+function minutesUntil(elapsedMs, thresholdMs) {
+  return Math.ceil((thresholdMs - elapsedMs) / 60000);
+}
+
+// POST /api/attendance/check-in — Phase 1 cross-role live attendance:
+// Employee/Cashier AND Supervisor/Overlooking, through the exact same
+// AttendanceRecord table and per-day unique constraint every other
+// attendance row already uses — not a parallel system (see
+// attendanceOwnerFromUser above and AttendanceRecord.staffUserId's own
+// schema comment). Tapping check-in again the same day before checking
+// out just returns the existing open record rather than erroring — a
+// duplicate tap from a flaky connection shouldn't be a hard failure.
+export async function checkIn(req, res, next) {
+  try {
+    const owner = attendanceOwnerFromUser(req.user);
+    if (!owner) return res.status(403).json({ error: "This account cannot check in/out" });
+    // A Regional Manager legitimately has no marketId (see
+    // attendanceOwnerFromUser's own comment) — only Employee/Supervisor/
+    // Overlooking are required to have one.
+    if (!owner.marketId && req.user.role !== "REGIONAL_MANAGER") {
+      return res.status(400).json({ error: "Your account is not assigned to a market" });
+    }
+
+    const today = dayOnly(new Date());
+    const where = attendanceOwnerWhere(owner, today);
+
+    const existing = await prisma.attendanceRecord.findUnique({ where });
+    if (existing?.checkIn && existing.checkOut) {
+      return res.status(400).json({ error: "You have already checked out for today" });
+    }
+    if (existing?.checkIn) {
+      return res.json(existing);
+    }
+
+    const record = await prisma.attendanceRecord.upsert({
+      where,
+      update: { checkIn: new Date(), status: "PRESENT" },
+      create: {
+        date: today,
+        checkIn: new Date(),
+        status: "PRESENT",
+        source: "MANUAL",
+        marketId: owner.marketId,
+        employeeId: owner.employeeId ?? null,
+        staffUserId: owner.staffUserId ?? null,
+      },
+    });
+
+    res.status(201).json(record);
+  } catch (err) {
+    next(err);
+  }
+}
+
+// POST /api/attendance/check-out — counterpart to checkIn above.
+// Idempotent the same way: calling it again after already checking out
+// just returns the existing record.
+export async function checkOut(req, res, next) {
+  try {
+    const owner = attendanceOwnerFromUser(req.user);
+    if (!owner) return res.status(403).json({ error: "This account cannot check in/out" });
+
+    const today = dayOnly(new Date());
+    const where = attendanceOwnerWhere(owner, today);
+
+    const existing = await prisma.attendanceRecord.findUnique({ where });
+    if (!existing?.checkIn) {
+      return res.status(400).json({ error: "You haven't checked in yet today" });
+    }
+    if (existing.checkOut) {
+      return res.json(existing);
+    }
+
+    const elapsedMs = Date.now() - existing.checkIn.getTime();
+    if (elapsedMs < CHECKOUT_AVAILABLE_AFTER_MS) {
+      return res.status(400).json({
+        error: `Check-out is available 8 hours after check-in (${minutesUntil(elapsedMs, CHECKOUT_AVAILABLE_AFTER_MS)} minute(s) left)`,
+      });
+    }
+
+    const record = await prisma.attendanceRecord.update({ where, data: { checkOut: new Date() } });
+    res.json(record);
+  } catch (err) {
+    next(err);
+  }
+}
+
+// GET /api/attendance/today — this account's own AttendanceRecord for
+// today (or null if none yet). Repair Pass §1: previously there was no
+// way for AttendanceCheckInCard to learn the real check-in state on
+// mount, so a refresh/re-login always rendered "Not checked in yet"
+// until the user tapped a button again, even though the real record was
+// sitting in the database the whole time — this endpoint is the fix.
+export async function getTodayAttendance(req, res, next) {
+  try {
+    const owner = attendanceOwnerFromUser(req.user);
+    if (!owner) return res.status(403).json({ error: "This account cannot check in/out" });
+
+    const today = dayOnly(new Date());
+    const where = attendanceOwnerWhere(owner, today);
+    const record = await prisma.attendanceRecord.findUnique({ where });
+    res.json(record ?? null);
+  } catch (err) {
+    next(err);
+  }
+}
+
+// POST /api/attendance/break-start — self-service break, available only
+// 4 hours after a real check-in (Repair Pass §1). Deliberately separate
+// from breaksController.js's fingerprint-triggered Break model: that
+// system is created by an Admin/hardware event and runs a fixed 60-
+// minute confirm/auto-complete cycle, which doesn't fit "the employee
+// taps Break themselves, whenever they choose, after the 4-hour mark" —
+// this instead writes directly to the same AttendanceRecord row check-
+// in/out already use, via the same breakStart/breakEnd columns Excel
+// import has always populated (see AttendanceRecord's schema comment),
+// so working-hours computation (computeWorkingHours) already accounts
+// for it with no further changes.
+export async function startBreak(req, res, next) {
+  try {
+    const owner = attendanceOwnerFromUser(req.user);
+    if (!owner) return res.status(403).json({ error: "This account cannot check in/out" });
+    if (req.user.role === "REGIONAL_MANAGER") {
+      return res.status(403).json({ error: "A Regional Manager account has no break requirement" });
+    }
+
+    const today = dayOnly(new Date());
+    const where = attendanceOwnerWhere(owner, today);
+    const existing = await prisma.attendanceRecord.findUnique({ where });
+
+    if (!existing?.checkIn) return res.status(400).json({ error: "You haven't checked in yet today" });
+    if (existing.checkOut) return res.status(400).json({ error: "You have already checked out for today" });
+    if (existing.breakStart && !existing.breakEnd) return res.json(existing); // already on break — idempotent
+    if (existing.breakStart && existing.breakEnd) {
+      return res.status(400).json({ error: "You have already taken your break today" });
+    }
+
+    const elapsedMs = Date.now() - existing.checkIn.getTime();
+    if (elapsedMs < BREAK_AVAILABLE_AFTER_MS) {
+      return res.status(400).json({
+        error: `Break is available 4 hours after check-in (${minutesUntil(elapsedMs, BREAK_AVAILABLE_AFTER_MS)} minute(s) left)`,
+      });
+    }
+
+    const record = await prisma.attendanceRecord.update({ where, data: { breakStart: new Date() } });
+    res.json(record);
+  } catch (err) {
+    next(err);
+  }
+}
+
+// POST /api/attendance/break-end — ends the break started above.
+export async function endBreak(req, res, next) {
+  try {
+    const owner = attendanceOwnerFromUser(req.user);
+    if (!owner) return res.status(403).json({ error: "This account cannot check in/out" });
+
+    const today = dayOnly(new Date());
+    const where = attendanceOwnerWhere(owner, today);
+    const existing = await prisma.attendanceRecord.findUnique({ where });
+
+    if (!existing?.breakStart) return res.status(400).json({ error: "You haven't started a break today" });
+    if (existing.breakEnd) return res.json(existing); // already ended — idempotent
+
+    const record = await prisma.attendanceRecord.update({ where, data: { breakEnd: new Date() } });
+    res.json(record);
+  } catch (err) {
+    next(err);
+  }
+}
+
+// GET /api/attendance/me/month?year=&month= — the caller's OWN
+// attendance rows only (never accepts a target id, so a Supervisor can
+// never reach another market's attendance just by editing a query
+// param — see the Phase 1 spec's own warning about this). Employee/
+// Cashier already has a richer version of this (getAttendanceMonth,
+// with extra/required/punishment hours) — this one is for Supervisor/
+// Overlooking, who this app's business rules never apply those
+// Worker/Cashier-specific computations to, so it deliberately stays
+// simpler rather than dragging staff into logic that doesn't apply to
+// them.
+export async function getMyStaffAttendanceMonth(req, res, next) {
+  try {
+    if (req.user.kind !== "staff" || !["SUPERVISOR", "OVERLOOKING_SUPERVISOR"].includes(req.user.role)) {
+      return res.status(403).json({ error: "This account has no personal attendance to view" });
+    }
+    const now = new Date();
+    const year = Number(req.query.year) || now.getFullYear();
+    const month = Number(req.query.month) || now.getMonth() + 1;
+    const monthStart = new Date(year, month - 1, 1);
+    const monthEnd = new Date(year, month, 1);
+
+    const records = await prisma.attendanceRecord.findMany({
+      where: { staffUserId: req.user.userId, date: { gte: monthStart, lt: monthEnd } },
+      orderBy: { date: "asc" },
+    });
+    res.json({ records });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// GET /api/attendance/break-export-preview?marketId=&from=&to= —
+// ADMIN-only. Lets the excelExportAdapter boundary (see that file's own
+// comment) be verified end-to-end today, even with no real destination
+// connected yet: returns the exact rows a future real export would send,
+// as JSON, so the shaping logic can be tested/inspected now rather than
+// only once a real destination exists.
+export async function previewBreakExport(req, res, next) {
+  try {
+    const { marketId, from, to } = req.query;
+    if (!marketId || !from || !to) {
+      return res.status(400).json({ error: "marketId, from, and to are required" });
+    }
+    const rows = await buildBreakAttendanceExportRows({ marketId, from: new Date(from), to: new Date(to) });
+    res.json({ rows });
+  } catch (err) {
+    next(err);
+  }
+}
 
 function sameDay(a, b) {
   return (
@@ -428,6 +696,72 @@ export async function setPunishmentHours(req, res, next) {
   }
 }
 
+// An employee may dismiss their OWN Required Hours Adjustment / Penalty
+// once it's old enough to no longer be "current" business — a fresh one
+// (still within this window) stays staff-only to remove, so an employee
+// can never erase a just-applied penalty/adjustment the moment it lands.
+// This is a manual, earlier counterpart to
+// maintenanceScheduler.runAdjustmentRetentionSweep's fully automatic
+// 30-day cleanup — that sweep is the guarantee these never linger
+// forever even if nobody dismisses them by hand; this just lets the
+// employee clear an already-stale one sooner, from their own Attendance
+// screen.
+const MANUAL_CLEAR_AFTER_DAYS = 14;
+
+function daysSince(date) {
+  return (Date.now() - new Date(date).getTime()) / (1000 * 60 * 60 * 24);
+}
+
+// DELETE /api/attendance/required-hours-adjustments/:id — employee-only,
+// their own adjustment, only once MANUAL_CLEAR_AFTER_DAYS has passed
+// since the day it applies to. Deleting the audit row here never changes
+// the AttendanceRecord.requiredHours value it already set (see
+// createRequiredHoursAdjustment's own comment) — only removes the
+// explanation from view, same as the automatic sweep.
+export async function deleteMyRequiredHoursAdjustment(req, res, next) {
+  try {
+    const adjustment = await prisma.requiredHoursAdjustment.findUnique({ where: { id: req.params.id } });
+    if (!adjustment || adjustment.employeeId !== req.user.employeeId) {
+      return res.status(404).json({ error: "Adjustment not found" });
+    }
+    if (daysSince(adjustment.date) < MANUAL_CLEAR_AFTER_DAYS) {
+      return res.status(400).json({
+        error: `This can be dismissed ${MANUAL_CLEAR_AFTER_DAYS} days after its date — ${Math.ceil(MANUAL_CLEAR_AFTER_DAYS - daysSince(adjustment.date))} day(s) left`,
+      });
+    }
+    await prisma.requiredHoursAdjustment.delete({ where: { id: adjustment.id } });
+    res.status(204).end();
+  } catch (err) {
+    next(err);
+  }
+}
+
+// DELETE /api/attendance/:id/punishment — employee-only, their own
+// AttendanceRecord, only once MANUAL_CLEAR_AFTER_DAYS has passed since
+// its date. Clears punishmentHours/punishmentReason back to their
+// defaults (0/null) — same effect the automatic 30-day sweep eventually
+// has, just triggerable sooner by the employee once it's genuinely old.
+export async function deleteMyPunishment(req, res, next) {
+  try {
+    const record = await prisma.attendanceRecord.findUnique({ where: { id: req.params.id } });
+    if (!record || record.employeeId !== req.user.employeeId) {
+      return res.status(404).json({ error: "Attendance record not found" });
+    }
+    if (!(record.punishmentHours > 0) && !record.punishmentReason) {
+      return res.status(400).json({ error: "This record has no penalty to clear" });
+    }
+    if (daysSince(record.date) < MANUAL_CLEAR_AFTER_DAYS) {
+      return res.status(400).json({
+        error: `This can be dismissed ${MANUAL_CLEAR_AFTER_DAYS} days after its date — ${Math.ceil(MANUAL_CLEAR_AFTER_DAYS - daysSince(record.date))} day(s) left`,
+      });
+    }
+    await prisma.attendanceRecord.update({ where: { id: record.id }, data: { punishmentHours: 0, punishmentReason: null } });
+    res.status(204).end();
+  } catch (err) {
+    next(err);
+  }
+}
+
 // Shared by the employee-facing getAttendanceMonth and the staff-facing
 // getEmployeeAttendanceMonth (Supervisor Mode) — same shape, only the
 // caller differs (req.user.employeeId vs. a :employeeId route param
@@ -772,6 +1106,27 @@ export async function submitExtraHours(req, res, next) {
   }
 }
 
+// DELETE /api/attendance/extra-hours/:id — employee-only, their own
+// request, only while it's still PENDING (once a Supervisor decides it,
+// it's no longer this employee's to unilaterally remove — it moves to
+// Performance History instead, same "decided items are final" rule
+// already applied to Activities/Wasted Overall).
+export async function deleteMyExtraHoursRequest(req, res, next) {
+  try {
+    const request = await prisma.attendanceAdjustmentRequest.findUnique({ where: { id: req.params.id } });
+    if (!request || request.employeeId !== req.user.employeeId) {
+      return res.status(404).json({ error: "Request not found" });
+    }
+    if (request.status !== "PENDING") {
+      return res.status(400).json({ error: "This request has already been reviewed and can no longer be cancelled" });
+    }
+    await prisma.attendanceAdjustmentRequest.delete({ where: { id: request.id } });
+    res.status(204).end();
+  } catch (err) {
+    next(err);
+  }
+}
+
 // GET /api/attendance/extra-hours — the current employee's own submitted
 // requests, any status.
 export async function listMyAttendanceAdjustmentRequests(req, res, next) {
@@ -941,6 +1296,144 @@ export async function getAttendanceHistory(req, res, next) {
     ].sort((a, b) => b.date.getTime() - a.date.getTime());
 
     res.json(entries);
+  } catch (err) {
+    next(err);
+  }
+}
+
+// Derives a company-attendance row's live state purely from
+// checkIn/checkOut/active-break presence — independent of the stored
+// AttendanceStatus (which separately captures LATE/ABSENT/DAY_OFF/etc.
+// and can co-occur with WORKING, e.g. a late arrival who's still
+// clocked in). "MISSING" means no AttendanceRecord exists at all for
+// that person on that date — never checked in — distinct from an
+// explicit ABSENT record.
+function deriveAttendanceState(record, onBreak) {
+  if (!record) return "MISSING";
+  if (onBreak) return "ON_BREAK";
+  if (record.checkIn && !record.checkOut) return "WORKING";
+  if (record.checkOut) return "CHECKED_OUT";
+  return record.status; // ABSENT / DAY_OFF / APPROVED_LEAVE / PENDING_REVIEW
+}
+
+// GET /api/attendance/company — Admin Phase 1 §16: a company-wide
+// attendance snapshot for one day (default today), across every market
+// — no marketId required, unlike every other attendance endpoint in
+// this file (all of which are single-employee or single-market,
+// gated via assertMarketAccess/requireAccessibleEmployee). Reuses the
+// exact same AttendanceRecord/Employee/Break tables — not a parallel
+// attendance system — same "no extra scoping for ADMIN" pattern already
+// established in zonesController/marketsController/employeesController.
+// Regional Manager/Supervisor do NOT get this endpoint (route is
+// ADMIN-only) — this is company-wide visibility, not a broadening of
+// their existing zone/market-scoped access.
+export async function listCompanyAttendance(req, res, next) {
+  try {
+    const { date, marketId, zoneId, role, shift, status, search } = req.query;
+    const day = dayOnly(date ? new Date(date) : new Date());
+
+    const includeEmployees = role !== "STAFF";
+    const includeStaff = !role || role === "STAFF";
+
+    let employeeWhere = {};
+    if (marketId) employeeWhere.marketId = marketId;
+    else if (zoneId) employeeWhere.market = { zoneId };
+    if (role && role !== "STAFF") employeeWhere.role = role;
+    if (shift) employeeWhere.OR = [{ cashierShift: shift }, { shift: shift }];
+    if (search) {
+      employeeWhere.AND = [
+        ...(employeeWhere.AND ?? []),
+        { OR: [{ name: { contains: search, mode: "insensitive" } }, { employeeCode: { contains: search, mode: "insensitive" } }] },
+      ];
+    }
+
+    const [employees, staffUsers, records, activeBreaks] = await Promise.all([
+      includeEmployees
+        ? prisma.employee.findMany({
+            where: employeeWhere,
+            select: { id: true, name: true, role: true, employeeCode: true, marketId: true, market: { select: { name: true, zoneId: true } } },
+            orderBy: { name: "asc" },
+          })
+        : [],
+      includeStaff
+        ? prisma.user.findMany({
+            where: { role: { in: ["SUPERVISOR", "OVERLOOKING_SUPERVISOR"] } },
+            select: {
+              id: true, name: true, role: true,
+              managedMarket: { select: { id: true, name: true, zoneId: true } },
+              managedOverlookingMarket: { select: { id: true, name: true, zoneId: true } },
+            },
+          })
+        : [],
+      prisma.attendanceRecord.findMany({ where: { date: day } }),
+      prisma.break.findMany({ where: { date: day, status: "ACTIVE" } }),
+    ]);
+
+    const recordByEmployeeId = new Map(records.filter((r) => r.employeeId).map((r) => [r.employeeId, r]));
+    const recordByStaffId = new Map(records.filter((r) => r.staffUserId).map((r) => [r.staffUserId, r]));
+    const onBreakEmployeeIds = new Set(activeBreaks.filter((b) => b.employeeId).map((b) => b.employeeId));
+    const onBreakStaffIds = new Set(activeBreaks.filter((b) => b.staffUserId).map((b) => b.staffUserId));
+
+    let rows = employees.map((e) => {
+      const record = recordByEmployeeId.get(e.id) ?? null;
+      return {
+        kind: "employee",
+        id: e.id,
+        name: e.name,
+        role: e.role,
+        employeeCode: e.employeeCode,
+        marketId: e.marketId,
+        marketName: e.market?.name ?? null,
+        zoneId: e.market?.zoneId ?? null,
+        checkIn: record?.checkIn ?? null,
+        checkOut: record?.checkOut ?? null,
+        status: record?.status ?? null,
+        state: deriveAttendanceState(record, onBreakEmployeeIds.has(e.id)),
+      };
+    });
+
+    if (includeStaff) {
+      const staffRows = staffUsers
+        .map((u) => {
+          const market = u.managedMarket ?? u.managedOverlookingMarket ?? null;
+          if (marketId && market?.id !== marketId) return null;
+          if (zoneId && market?.zoneId !== zoneId) return null;
+          const record = recordByStaffId.get(u.id) ?? null;
+          return {
+            kind: "staff",
+            id: u.id,
+            name: u.name,
+            role: u.role,
+            employeeCode: null,
+            marketId: market?.id ?? null,
+            marketName: market?.name ?? null,
+            zoneId: market?.zoneId ?? null,
+            checkIn: record?.checkIn ?? null,
+            checkOut: record?.checkOut ?? null,
+            status: record?.status ?? null,
+            state: deriveAttendanceState(record, onBreakStaffIds.has(u.id)),
+          };
+        })
+        .filter(Boolean);
+      rows = [...rows, ...staffRows];
+    }
+
+    if (status) {
+      rows = rows.filter((r) => r.state === status || r.status === status);
+    }
+
+    res.json({
+      date: day,
+      summary: {
+        total: rows.length,
+        working: rows.filter((r) => r.state === "WORKING").length,
+        onBreak: rows.filter((r) => r.state === "ON_BREAK").length,
+        checkedOut: rows.filter((r) => r.state === "CHECKED_OUT").length,
+        missing: rows.filter((r) => r.state === "MISSING").length,
+        late: rows.filter((r) => r.status === "LATE").length,
+      },
+      rows,
+    });
   } catch (err) {
     next(err);
   }

@@ -27,6 +27,13 @@ import wastedOverallRoutes from "./routes/wastedOverall.routes.js";
 import totalSalesRoutes from "./routes/totalSales.routes.js";
 import cardSalesRoutes from "./routes/cardSales.routes.js";
 import countingAssignmentsRoutes from "./routes/countingAssignments.routes.js";
+import uploadsRoutes from "./routes/uploads.routes.js";
+import breaksRoutes from "./routes/breaks.routes.js";
+import fingerprintRoutes from "./routes/fingerprint.routes.js";
+import adminRoutes from "./routes/admin.routes.js";
+import nightShiftRoutes from "./routes/nightShift.routes.js";
+import communicationsRoutes from "./routes/communications.routes.js";
+import marketProblemsRoutes from "./routes/marketProblems.routes.js";
 import { errorHandler } from "./middleware/errorHandler.js";
 import { notFound } from "./middleware/notFound.js";
 
@@ -70,6 +77,15 @@ app.get("/api/health", async (req, res) => {
 // themselves (see routes/auth.routes.js).
 app.use("/api", apiLimiter);
 
+// Uploading AND reading files both live here — POST /api/uploads
+// (authenticated) and GET /api/uploads/:filename (authenticated AND
+// per-file authorized against whatever business resource owns it — see
+// utils/fileAuthorization.js). There is deliberately no public static
+// mount for the uploads directory: a file is private by default, and a
+// valid Bearer token alone is not sufficient to read one — see
+// uploadsController.downloadFile's own comment.
+app.use("/api/uploads", uploadsRoutes);
+
 app.use("/api/auth", authRoutes);
 app.use("/api/zones", zonesRoutes);
 app.use("/api/markets", marketsRoutes);
@@ -89,9 +105,17 @@ app.use("/api/profile", profileRoutes);
 app.use("/api/notifications", notificationsRoutes);
 app.use("/api/conversations", chatRoutes);
 app.use("/api/wasted-overall", wastedOverallRoutes);
+app.use("/api/market-problems", marketProblemsRoutes);
 app.use("/api/total-sales", totalSalesRoutes);
 app.use("/api/card-sales", cardSalesRoutes);
 app.use("/api/counting-assignments", countingAssignmentsRoutes);
+app.use("/api/breaks", breaksRoutes);
+// The controlled test/manual boundary for the (not yet connected) real
+// fingerprint system — see fingerprintController.js's own comment.
+app.use("/api/fingerprint-events", fingerprintRoutes);
+app.use("/api/admin", adminRoutes);
+app.use("/api/night-shift", nightShiftRoutes);
+app.use("/api/communications", communicationsRoutes);
 
 app.use(notFound);
 

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Search, ArrowLeft } from "lucide-react";
 import { searchProducts } from "../../../services/itemReportService";
 import { ApiError } from "../../../services/apiClient";
+import AuthenticatedImage from "../../common/AuthenticatedImage";
 
 // ProductSearchStep.jsx — debounced product search, seeded with a
 // scanned-but-unresolved barcode when arriving from BarcodeScanStep
@@ -35,7 +36,7 @@ export default function ProductSearchStep({ initialQuery = "", evidencePhotoUrl,
     <div className="space-y-3">
       {evidencePhotoUrl && (
         <div className="flex items-center gap-2 rounded-lg p-2 bg-white/[0.04]">
-          <img src={evidencePhotoUrl} alt="" className="h-12 w-12 rounded-lg object-cover" />
+          <AuthenticatedImage src={evidencePhotoUrl} alt="" className="h-12 w-12 rounded-lg object-cover" />
           <span className="text-xs text-[#9AA1B4]">Photo attached as evidence</span>
         </div>
       )}

@@ -3,6 +3,19 @@ import { prisma } from "../lib/prisma.js";
 import { signStaffToken, signEmployeeToken } from "../utils/jwt.js";
 import { userIdTaken } from "../utils/accountIds.js";
 
+// Admin Phase 2 §16-17: a SUSPENDED/BANNED account must never
+// authenticate, even with the correct password — checked at every login
+// endpoint, right after password verification (so a wrong password
+// still gets the same generic error, never leaking account-status as a
+// side channel). Message deliberately doesn't reveal WHY beyond the
+// status itself — statusReason is an internal admin note, not shown to
+// the rejected account holder here.
+function accountStatusBlockMessage(status) {
+  if (status === "SUSPENDED") return "This account has been suspended. Contact an administrator.";
+  if (status === "BANNED") return "This account has been banned.";
+  return null;
+}
+
 // POST /api/auth/register
 // Creates a new staff account (Admin / Regional Manager / Supervisor /
 // Overlooking Supervisor). Locked to ADMIN-only in the routes file —
@@ -37,6 +50,33 @@ export async function register(req, res, next) {
   }
 }
 
+// GET /api/auth/staff — ADMIN-only. Lists every staff account (id, name,
+// email, role), so an Admin can pick an existing Regional Manager when
+// assigning a zone manager (zonesController.assignZoneManager) instead
+// of needing to already know a numeric userId. Never returns
+// passwordHash. Optional ?role= filter (e.g. ?role=REGIONAL_MANAGER) —
+// the only caller today only ever wants that one role, but the endpoint
+// itself is a general staff directory, not a single-purpose lookup.
+export async function listStaffAccounts(req, res, next) {
+  try {
+    const { role } = req.query;
+    const users = await prisma.user.findMany({
+      where: role ? { role } : undefined,
+      select: {
+        id: true, name: true, email: true, role: true, loginId: true,
+        accountStatus: true, statusReason: true,
+        managedMarket: { select: { id: true, name: true } },
+        managedOverlookingMarket: { select: { id: true, name: true } },
+        managedZones: { select: { id: true, number: true } },
+      },
+      orderBy: { name: "asc" },
+    });
+    res.json(users);
+  } catch (err) {
+    next(err);
+  }
+}
+
 // POST /api/auth/login  (staff: Admin / Regional Manager / Supervisor)
 export async function staffLogin(req, res, next) {
   try {
@@ -57,6 +97,10 @@ export async function staffLogin(req, res, next) {
     if (!passwordMatches) {
       return res.status(401).json({ error: "Invalid email or password" });
     }
+    const statusBlock = accountStatusBlockMessage(user.accountStatus);
+    if (statusBlock) {
+      return res.status(403).json({ error: statusBlock });
+    }
 
     const token = signStaffToken(user);
 
@@ -68,6 +112,12 @@ export async function staffLogin(req, res, next) {
         role: user.role,
         zoneIds: user.managedZones.map((z) => z.id),
         marketId: user.managedMarket?.id ?? user.managedOverlookingMarket?.id ?? null,
+        // Repair Pass §5 — a Supervisor/Overlooking's own market's zone
+        // (previously missing entirely, so `session.zoneId` on the
+        // frontend was always undefined for this login path even though
+        // LoginPage.jsx already expected it — needed so the Supervisor
+        // homepage can reach its own zone's real Zone Announcements).
+        zoneId: user.managedMarket?.zoneId ?? user.managedOverlookingMarket?.zoneId ?? null,
       },
     });
   } catch (err) {
@@ -100,6 +150,10 @@ export async function staffIdLogin(req, res, next) {
     if (!passwordMatches) {
       return res.status(401).json({ error: "Invalid User ID or password" });
     }
+    const statusBlock = accountStatusBlockMessage(user.accountStatus);
+    if (statusBlock) {
+      return res.status(403).json({ error: statusBlock });
+    }
 
     const token = signStaffToken(user);
 
@@ -112,6 +166,12 @@ export async function staffIdLogin(req, res, next) {
         loginId: user.loginId,
         zoneIds: user.managedZones.map((z) => z.id),
         marketId: user.managedMarket?.id ?? user.managedOverlookingMarket?.id ?? null,
+        // Repair Pass §5 — a Supervisor/Overlooking's own market's zone
+        // (previously missing entirely, so `session.zoneId` on the
+        // frontend was always undefined for this login path even though
+        // LoginPage.jsx already expected it — needed so the Supervisor
+        // homepage can reach its own zone's real Zone Announcements).
+        zoneId: user.managedMarket?.zoneId ?? user.managedOverlookingMarket?.zoneId ?? null,
       },
     });
   } catch (err) {
@@ -145,6 +205,10 @@ export async function employeeLogin(req, res, next) {
     const passwordMatches = await bcrypt.compare(password, employee.passwordHash);
     if (!passwordMatches) {
       return res.status(401).json({ error: "Invalid employee code or password" });
+    }
+    const statusBlock = accountStatusBlockMessage(employee.accountStatus);
+    if (statusBlock) {
+      return res.status(403).json({ error: statusBlock });
     }
 
     const token = signEmployeeToken(employee, { rememberMe });
@@ -188,6 +252,10 @@ export async function cashierLogin(req, res, next) {
     const passwordMatches = await bcrypt.compare(password, employee.passwordHash);
     if (!passwordMatches) {
       return res.status(401).json({ error: "Invalid username or password" });
+    }
+    const statusBlock = accountStatusBlockMessage(employee.accountStatus);
+    if (statusBlock) {
+      return res.status(403).json({ error: statusBlock });
     }
 
     const token = signEmployeeToken(employee, { rememberMe });

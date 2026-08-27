@@ -1,0 +1,3 @@
+-- AlterEnum
+ALTER TYPE "NotificationType" ADD VALUE 'NIGHT_SHIFT_TASK_COMPLETED';
+

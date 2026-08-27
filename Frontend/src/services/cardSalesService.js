@@ -22,3 +22,9 @@ export function listCardSalesHistory({ marketId, from, to } = {}) {
   if (to) params.set("to", to);
   return apiRequest(`/card-sales/history?${params.toString()}`);
 }
+
+// deleteCardSalesReport — staff with market access, real persisted
+// (soft) delete.
+export function deleteCardSalesReport(id) {
+  return apiRequest(`/card-sales/${id}`, { method: "DELETE" });
+}

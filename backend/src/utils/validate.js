@@ -1,4 +1,12 @@
 import { z } from "zod";
+import { DEPARTMENTS } from "./departments.js";
+
+// Cleanup Phase §1 — the one Zod fragment every NEW department-name write
+// path now uses (assignDepartmentSchema, additionalDepartmentSchema,
+// addMarketDepartmentSchema, Night Shift departmentRestriction, Warnings
+// & Notifications targetDepartment) instead of a free z.string(). Never
+// applied retroactively to existing rows.
+const departmentEnum = z.enum(DEPARTMENTS);
 
 // "User ID" shape (spec §5-7) — Employee.employeeCode/username and
 // User.loginId all share this same format constraint. Uniqueness is
@@ -57,6 +65,10 @@ export const staffLoginSchema = z.object({
   password: z.string().min(1),
 });
 
+export const listStaffAccountsQuerySchema = z.object({
+  role: z.enum(["ADMIN", "REGIONAL_MANAGER", "SUPERVISOR", "OVERLOOKING_SUPERVISOR"]).optional(),
+});
+
 export const staffIdLoginSchema = z.object({
   loginId: z.string().min(1),
   password: z.string().min(1),
@@ -79,6 +91,73 @@ export const updatePasswordSchema = z.object({
   newPassword: z.string().min(8, "Password must be at least 8 characters"),
 });
 
+// ---------------------------------------------------------------------
+// Admin Phase 2 — administrative control (role changes, assignments,
+// account status). Every mutation here is ADMIN-only server-side (see
+// admin.routes.js) — these schemas only validate shape, never
+// authorization.
+// ---------------------------------------------------------------------
+
+export const updateStaffProfileSchema = z.object({
+  name: z.string().min(2).max(100).optional(),
+  email: z.string().email().optional(),
+  loginId: USER_ID_SCHEMA.nullable().optional(),
+});
+
+// Change Role (§4/§6-8) — exactly what's required depends on the target
+// role; enforced in the controller (a Zod object here can't express
+// "marketId required only when role=SUPERVISOR" cleanly without losing
+// the specific error messages the workflow needs).
+export const changeStaffRoleSchema = z.object({
+  role: z.enum(["ADMIN", "REGIONAL_MANAGER", "SUPERVISOR", "OVERLOOKING_SUPERVISOR"]),
+  marketId: z.string().min(1).optional(),
+  zoneIds: z.array(z.number().int().positive()).optional(),
+});
+
+// Full-replace zone list for a Regional Manager (§10) — RMs manage
+// MULTIPLE zones (Zone.managerId has no uniqueness constraint), so this
+// is always an array, never a single zoneId.
+export const setRmZonesSchema = z.object({
+  zoneIds: z.array(z.number().int().positive()).min(1, "Select at least one zone"),
+});
+
+export const resetPasswordSchema = z.object({
+  newPassword: z.string().min(8, "Password must be at least 8 characters"),
+});
+
+export const setAccountStatusSchema = z.object({
+  status: z.enum(["ACTIVE", "SUSPENDED", "BANNED"]),
+  reason: z.string().trim().max(500).optional(),
+}).refine((data) => data.status === "ACTIVE" || !!data.reason, {
+  message: "A reason is required when suspending or banning an account",
+  path: ["reason"],
+});
+
+// Demote a staff account to Worker/Cashier/Butcher (§8) — the account-
+// type transition in the opposite direction of promoteEmployeeToStaff.
+export const demoteStaffSchema = z.object({
+  role: z.enum(["WORKER", "CASHIER", "BUTCHER"]),
+  marketId: z.string().min(1),
+  password: z.string().min(8, "Password must be at least 8 characters"),
+  shift: z.string().min(1).optional(),
+  username: USER_ID_SCHEMA.optional(),
+}).refine((data) => data.role !== "CASHIER" || !!data.username, {
+  message: "username is required when demoting to Cashier",
+  path: ["username"],
+});
+
+// Promote a Worker/Cashier/Butcher to Supervisor/Regional
+// Manager/Overlooking Supervisor (§5-7) — the account-type transition in
+// the opposite direction of demoteStaff.
+export const promoteEmployeeSchema = z.object({
+  role: z.enum(["REGIONAL_MANAGER", "SUPERVISOR", "OVERLOOKING_SUPERVISOR"]),
+  email: z.string().email(),
+  password: z.string().min(8, "Password must be at least 8 characters"),
+  marketId: z.string().min(1).optional(),
+  zoneIds: z.array(z.number().int().positive()).optional(),
+  loginId: USER_ID_SCHEMA.optional(),
+});
+
 // WhatsApp number — normalized to digits-only (an optional leading "+"
 // stripped along with spaces/dashes/parens) before validation, so a
 // malformed value can never reach the DB or later break a wa.me link
@@ -90,6 +169,19 @@ export const updateMyProfileSchema = z.object({
     .transform((v) => v.replace(/[\s\-().]/g, "").replace(/^\+/, ""))
     .refine((v) => /^\d{8,15}$/.test(v), {
       message: "Enter a valid WhatsApp number, digits only (8-15 digits, country code included)",
+    })
+    .nullable()
+    .optional(),
+  // Repair Pass §3 — Supervisor (and, since this is the one shared
+  // schema, any staff account) self-service phone number. Same
+  // normalize-then-validate shape as whatsappNumber just above, not a
+  // second convention.
+  phoneNumber: z
+    .string()
+    .trim()
+    .transform((v) => v.replace(/[\s\-().]/g, "").replace(/^\+/, ""))
+    .refine((v) => /^\d{8,15}$/.test(v), {
+      message: "Enter a valid phone number, digits only (8-15 digits, country code included)",
     })
     .nullable()
     .optional(),
@@ -165,6 +257,11 @@ export const updateEmployeeSchema = z.object({
   position: z.string().min(2).max(100).optional(),
   secondaryRole: z.string().max(100).nullable().optional(),
   shift: z.string().max(100).nullable().optional(),
+  // Night Shift — the enum-typed authoritative shift (see Employee.
+  // operationalShift's own schema comment). NIGHT is only valid for
+  // WORKER/BUTCHER — enforced in employeesController.updateEmployee,
+  // not here (this schema only validates shape).
+  operationalShift: z.enum(["MORNING", "EVENING", "NIGHT"]).nullable().optional(),
   marketId: z.string().min(1).optional(),
   // Activating a pending hire (spec §4/§7), or a staff-assigned User ID/
   // password change for an existing employee. employeeCode/username go
@@ -232,6 +329,8 @@ const ACTIVITY_CATEGORIES = [
   "LABEL_CHECKING",
   "FACING",
   "REFILLING",
+  "DEPARTMENT_CLOSING",
+  "NIGHT_SHIFT_TASK",
 ];
 
 const LABEL_ISSUE_TYPES = ["MISSING", "INCORRECT", "DAMAGED"];
@@ -257,6 +356,12 @@ export const createActivitySchema = z.object({
   // Only meaningful when category === "ITEM_COUNTING" — which
   // CountingAssignment this submission was performed against (spec §4).
   countingAssignmentId: z.string().optional(),
+  // No `department` field here (Phase 2 §6): for category ===
+  // "DEPARTMENT_CLOSING", the department is always the employee's own
+  // real, currently-assigned one, looked up server-side in
+  // activitiesController.createActivity — never accepted from the
+  // client, so there is nothing here for a malicious "employeeId=A,
+  // department=B" request to even try to set.
 });
 
 export const updateActivitySchema = z.object({
@@ -272,6 +377,40 @@ export const updateActivitySchema = z.object({
 
 export const addActivityImageSchema = z.object({
   url: z.string().url(),
+});
+
+export const replaceActivityImageSchema = z.object({
+  url: z.string().url(),
+});
+
+// POST /api/activities/department-closing/:employeeId — staff submitting
+// a Department Closing on an ASSIGNED employee's behalf (spec §12:
+// "whether submitted by employee or authorized supervisor"). category
+// and department are both fixed server-side, not accepted here (Phase 2
+// §6: same "never trust a client-supplied department" rule as the
+// employee's own submission) — see activitiesController.
+export const staffCreateDepartmentClosingSchema = z.object({
+  date: z.coerce.date(),
+  time: z.string().min(1).max(20),
+  notes: z.string().max(1000).optional(),
+  status: z.enum(EMPLOYEE_SETTABLE_ACTIVITY_STATUSES).optional().default("PENDING"),
+  imageUrls: z.array(z.string().url()).max(20).optional(),
+});
+
+// POST /api/activities/department-closing/market/:marketId — a
+// Supervisor/Overlooking completing a genuinely UNASSIGNED department
+// (Phase 2 §15-16). `department` IS accepted here — unlike the two
+// schemas above — because there is no employee to derive it from; the
+// controller independently verifies the named department actually has
+// no employee assigned before accepting it (see
+// activitiesController.createDepartmentClosingForUnassignedDepartment).
+export const staffCreateDepartmentClosingForUnassignedSchema = z.object({
+  date: z.coerce.date(),
+  time: z.string().min(1).max(20),
+  department: z.string().min(1).max(60),
+  notes: z.string().max(1000).optional(),
+  status: z.enum(EMPLOYEE_SETTABLE_ACTIVITY_STATUSES).optional().default("PENDING"),
+  imageUrls: z.array(z.string().url()).max(20).optional(),
 });
 
 export const listActivitiesQuerySchema = z.object({
@@ -428,6 +567,25 @@ export const sendMessageSchema = z
     // from this source message instead of requiring them in the request
     // body; access to the source is re-verified server-side.
     forwardMessageId: z.string().min(1).optional(),
+    // Mentions (Production Chat §14-15) — the composer sends the actual
+    // ids the user picked from listMentionCandidates, never raw "@text".
+    // Each target is re-validated against this conversation's real
+    // membership server-side (chatController.isValidMentionTarget) —
+    // this array is never trusted as-is.
+    mentions: z
+      .array(
+        z
+          .object({
+            employeeId: z.string().min(1).optional(),
+            userId: z.number().int().positive().optional(),
+          })
+          .refine((m) => !!m.employeeId !== !!m.userId, {
+            message: "Provide exactly one of employeeId or userId per mention",
+          })
+      )
+      .max(50)
+      .optional()
+      .default([]),
   })
   .refine((data) => !!data.forwardMessageId || data.body.trim().length > 0 || !!data.imageUrl || !!data.attachmentUrl, {
     message: "A message needs text, an image, or an attachment",
@@ -444,9 +602,25 @@ export const sendMessageSchema = z
 
 export const editMessageSchema = z.object({
   body: z.string().trim().min(1, "Message can't be empty").max(4000),
+  mentions: z
+    .array(
+      z
+        .object({
+          employeeId: z.string().min(1).optional(),
+          userId: z.number().int().positive().optional(),
+        })
+        .refine((m) => !!m.employeeId !== !!m.userId, {
+          message: "Provide exactly one of employeeId or userId per mention",
+        })
+    )
+    .max(50)
+    .optional()
+    .default([]),
 });
 
-// Supervisor/Admin/Regional-Manager group chat (spec §6-8).
+// Supervisor/Admin/Regional-Manager group chat (spec §6-8). Phase 3
+// §7-8 adds groupType — NORMAL (default, everyone can post) or WARNING
+// (only group admins can post, enforced in chatController.sendMessage).
 export const createGroupSchema = z
   .object({
     name: z.string().trim().min(1).max(100),
@@ -454,6 +628,7 @@ export const createGroupSchema = z
     zoneId: z.number().int().positive().optional(),
     memberEmployeeIds: z.array(z.string().min(1)).max(200).optional().default([]),
     memberStaffUserIds: z.array(z.number().int().positive()).max(200).optional().default([]),
+    groupType: z.enum(["NORMAL", "WARNING"]).optional().default("NORMAL"),
   })
   .refine((data) => !!data.marketId !== !!data.zoneId, {
     message: "Provide exactly one of marketId or zoneId",
@@ -483,6 +658,24 @@ export const setGroupMemberAdminSchema = z.object({
   isAdmin: z.boolean(),
 });
 
+// Important People (Phase 3 §3-4) — a staff owner's personal, reorderable
+// contact shortlist. Purely organizational (see ImportantContact's schema
+// comment) — the target's actual authorization is re-checked server-side
+// in chatController.js, never trusted from this shape.
+export const addImportantContactSchema = z
+  .object({
+    contactUserId: z.number().int().positive().optional(),
+    contactEmployeeId: z.string().min(1).optional(),
+    priority: z.number().int().min(0).max(1000).optional().default(0),
+  })
+  .refine((data) => !!data.contactUserId !== !!data.contactEmployeeId, {
+    message: "Provide exactly one of contactUserId or contactEmployeeId",
+  });
+
+export const reorderImportantContactSchema = z.object({
+  priority: z.number().int().min(0).max(1000),
+});
+
 // ---------------------------------------------------------------------
 // Total Sales — a market's total money sold in one 24-hour reporting day
 // (spec §4-5). amount/photoUrl are required — never a fabricated figure
@@ -499,6 +692,17 @@ export const listTotalSalesQuerySchema = z.object({
   date: z.coerce.date().optional(),
   from: z.coerce.date().optional(),
   to: z.coerce.date().optional(),
+  status: z.enum(["PENDING", "APPROVED", "REJECTED"]).optional(),
+});
+
+// Cleanup Phase §10 — Regional Manager Approve/Reject on a submitted
+// Total Sales report.
+export const reviewTotalSalesReportSchema = z.object({
+  status: z.enum(["APPROVED", "REJECTED"]),
+  rejectionReason: z.string().min(2).max(500).optional(),
+}).refine((v) => v.status !== "REJECTED" || !!v.rejectionReason, {
+  message: "rejectionReason is required when rejecting",
+  path: ["rejectionReason"],
 });
 
 // ---------------------------------------------------------------------
@@ -529,6 +733,20 @@ export const ALLOWED_REACTIONS = ["👍", "❤️", "😂", "😮", "😢", "�
 
 export const reactToMessageSchema = z.object({
   emoji: z.enum(ALLOWED_REACTIONS),
+  // Production Chat §13 — requesting a Management Recognition reaction
+  // instead of a plain one. Authorization (is this account actually
+  // management, is the message's sender an Employee) is enforced
+  // server-side in chatController.reactToMessage; setting this true from
+  // an unauthorized account is rejected outright, never silently
+  // downgraded to a normal reaction.
+  recognition: z.boolean().optional().default(false),
+});
+
+// Production Chat §8 — zone-level Warnings/Announcements broadcast,
+// mirrors postWarningBroadcast's own market-level shape exactly.
+export const postZoneAnnouncementSchema = z.object({
+  zoneId: z.number().int().positive(),
+  body: z.string().trim().min(1).max(4000),
 });
 
 export const conversationPreferenceSchema = z
@@ -551,6 +769,24 @@ export const reviewWastedOverallReportSchema = z
     message: "A rejection reason is required",
     path: ["rejectionReason"],
   });
+
+// Repair Pass §4 — real backend replacement for the Reports & Problems
+// screen's previous mock data (Frontend's data/supervisorMockData.js).
+export const createMarketProblemSchema = z.object({
+  problemType: z.string().min(1).max(100),
+  location: z.string().min(1).max(200),
+  description: z.string().min(1).max(1000),
+  photoUrl: z.string().url().optional(),
+});
+
+export const updateMarketProblemStatusSchema = z.object({
+  status: z.enum(["OPEN", "IN_PROGRESS", "RESOLVED"]),
+});
+
+export const listMarketProblemsQuerySchema = z.object({
+  marketId: z.string().min(1),
+  view: z.enum(["active", "history"]).optional(),
+});
 
 export const listWastedOverallQuerySchema = z.object({
   marketId: z.string().min(1).optional(),
@@ -634,6 +870,83 @@ export const attendanceReportQuerySchema = z.object({
   month: z.coerce.number().int().min(1).max(12),
 });
 
+// Admin Phase 1 — company-wide attendance snapshot (§16). All optional:
+// an unfiltered call returns the whole company for `date` (default
+// today).
+export const companyAttendanceQuerySchema = z.object({
+  date: z.string().min(1).optional(),
+  marketId: z.string().min(1).optional(),
+  zoneId: z.coerce.number().int().positive().optional(),
+  role: z.enum(["WORKER", "CASHIER", "BUTCHER", "STAFF"]).optional(),
+  shift: z.string().min(1).optional(),
+  status: z.string().min(1).optional(),
+  search: z.string().min(1).optional(),
+});
+
+// Admin Phase 1 — company-wide Activities view (§17).
+export const companyActivitiesQuerySchema = z.object({
+  marketId: z.string().min(1).optional(),
+  zoneId: z.coerce.number().int().positive().optional(),
+  category: z.string().min(1).optional(),
+  status: z.string().min(1).optional(),
+  employeeId: z.string().min(1).optional(),
+  take: z.coerce.number().int().min(1).max(200).optional(),
+});
+
+// Admin Phase 1 — global search (§14).
+export const adminSearchQuerySchema = z.object({
+  q: z.string().trim().min(1).max(100),
+});
+
+// ---------------------------------------------------------------------
+// Admin Phase 3 — Market Visits / Administrative Inspections, Audit Log,
+// Reports.
+// ---------------------------------------------------------------------
+
+export const startMarketVisitSchema = z.object({
+  visitType: z.enum(["VISIT", "INSPECTION"]).optional().default("VISIT"),
+  notes: z.string().trim().max(2000).optional(),
+});
+
+export const completeMarketVisitSchema = z.object({
+  notes: z.string().trim().max(2000).optional(),
+});
+
+export const cancelMarketVisitSchema = z.object({
+  reason: z.string().trim().max(500).optional(),
+});
+
+const paginationFields = {
+  page: z.coerce.number().int().min(1).optional().default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).optional().default(25),
+};
+
+export const listMarketVisitsQuerySchema = z.object({
+  marketId: z.string().min(1).optional(),
+  zoneId: z.coerce.number().int().positive().optional(),
+  status: z.enum(["STARTED", "COMPLETED", "CANCELLED"]).optional(),
+  adminUserId: z.coerce.number().int().positive().optional(),
+  ...paginationFields,
+});
+
+export const listAuditLogQuerySchema = z.object({
+  actorUserId: z.coerce.number().int().positive().optional(),
+  action: z.string().min(1).optional(),
+  targetType: z.string().min(1).optional(),
+  marketId: z.string().min(1).optional(),
+  zoneId: z.coerce.number().int().positive().optional(),
+  dateFrom: z.string().min(1).optional(),
+  dateTo: z.string().min(1).optional(),
+  ...paginationFields,
+});
+
+export const adminReportsSummaryQuerySchema = z.object({
+  marketId: z.string().min(1).optional(),
+  zoneId: z.coerce.number().int().positive().optional(),
+  dateFrom: z.string().min(1).optional(),
+  dateTo: z.string().min(1).optional(),
+});
+
 // Extra-hours self-submission (spec §10-11) — an employee claims hours
 // worked beyond their normal schedule on a specific date; PENDING until a
 // Supervisor reviews it (see AttendanceAdjustmentRequest schema comment
@@ -649,6 +962,44 @@ export const submitExtraHoursSchema = z.object({
 export const reviewAttendanceAdjustmentSchema = z.object({
   status: z.enum(["APPROVED", "REJECTED"]),
   reviewNote: z.string().max(500).optional(),
+});
+
+// Check-in/check-out (Phase 1, cross-role) take no meaningful body — the
+// server's own clock is the only source of truth for the timestamp, so
+// these routes don't call validateBody at all (same convention already
+// used by this app's other no-body mutations, e.g. DELETE routes).
+
+export const staffAttendanceMonthQuerySchema = z.object({
+  year: z.coerce.number().int().min(2000).max(2100).optional(),
+  month: z.coerce.number().int().min(1).max(12).optional(),
+});
+
+// ---------------------------------------------------------------------
+// Break — Phase 1 foundation. confirmBreakSchema/cancelBreakSchema take
+// no meaningful body (identity comes from the URL param + req.user) —
+// kept as real schemas rather than skipping validateBody entirely so
+// every mutating route in this app goes through the same convention.
+// ---------------------------------------------------------------------
+export const createBreakSchema = z.object({
+  employeeId: z.string().min(1).optional(),
+  staffUserId: z.number().int().positive().optional(),
+});
+
+export const cancelBreakSchema = z.object({
+  reason: z.string().max(500).optional(),
+});
+
+// ---------------------------------------------------------------------
+// Fingerprint event ingestion boundary (Phase 1) — see
+// services/fingerprintAdapter.js's own comment. This is the CONTRACT the
+// real hardware/provider will eventually satisfy, not a live connection.
+// ---------------------------------------------------------------------
+export const fingerprintEventSchema = z.object({
+  externalEventId: z.string().min(1).max(200),
+  employeeCode: z.string().min(1).max(50),
+  eventType: z.enum(["BREAK_START"]),
+  eventTimestamp: z.coerce.date(),
+  sourceDeviceId: z.string().max(100).optional(),
 });
 
 export const listAttendanceAdjustmentsQuerySchema = z.object({
@@ -714,7 +1065,41 @@ export const listLeaveRequestsQuerySchema = z.object({
 // Department assignment.
 // ---------------------------------------------------------------------
 export const assignDepartmentSchema = z.object({
-  department: z.string().min(1).max(100),
+  department: departmentEnum,
+});
+
+// Night Shift §3-4 — additional (non-MAIN) department responsibility.
+export const additionalDepartmentSchema = z.object({
+  department: departmentEnum,
+});
+
+// ---------------------------------------------------------------------
+// Night Shift task definitions (§8) — ADMIN-only writes.
+// ---------------------------------------------------------------------
+export const createNightShiftTaskDefinitionSchema = z.object({
+  key: z.string().trim().min(2).max(50).regex(/^[A-Z0-9_]+$/, "key must be UPPER_SNAKE_CASE"),
+  name: z.string().trim().min(2).max(100),
+  description: z.string().trim().max(1000).optional(),
+  shift: z.enum(["MORNING", "EVENING", "NIGHT"]).optional(),
+  departmentRestriction: departmentEnum.optional(),
+  marketId: z.string().min(1).optional(),
+  zoneId: z.number().int().positive().optional(),
+  requiresEvidence: z.boolean().optional(),
+  minPhotos: z.number().int().min(0).max(100).optional(),
+  frequency: z.enum(["DAILY", "ONCE", "WEEKLY"]).optional(),
+  dueTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "dueTime must be HH:MM").optional(),
+  reviewRequired: z.boolean().optional(),
+});
+
+export const updateNightShiftTaskDefinitionSchema = z.object({
+  name: z.string().trim().min(2).max(100).optional(),
+  description: z.string().trim().max(1000).nullable().optional(),
+  departmentRestriction: departmentEnum.nullable().optional(),
+  requiresEvidence: z.boolean().optional(),
+  minPhotos: z.number().int().min(0).max(100).optional(),
+  dueTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).nullable().optional(),
+  reviewRequired: z.boolean().optional(),
+  active: z.boolean().optional(),
 });
 
 // ---------------------------------------------------------------------
@@ -745,6 +1130,20 @@ export const sendMarketFeedbackSchema = z.object({
 });
 
 // ---------------------------------------------------------------------
+// Department Monitoring / Completion / Final Report (Phase 2 §12-22).
+// ---------------------------------------------------------------------
+export const addMarketDepartmentSchema = z.object({
+  name: departmentEnum,
+});
+
+export const sendDepartmentReportSchema = z.object({
+  date: z.coerce.date(),
+  shift: z.enum(["MORNING", "EVENING", "NIGHT"]),
+  override: z.boolean().optional(),
+  overrideReason: z.string().max(500).optional(),
+});
+
+// ---------------------------------------------------------------------
 // Inventory Counting assignments (spec §1-3).
 // ---------------------------------------------------------------------
 export const createCountingAssignmentSchema = z.object({
@@ -764,4 +1163,62 @@ export const listCountingAssignmentsQuerySchema = z.object({
 // ---------------------------------------------------------------------
 export const confirmStillWorkingSchema = z.object({
   recordId: z.string().min(1),
+});
+
+// ---------------------------------------------------------------------
+// Warnings & Notifications — targeting shape shared by both the preview
+// and the send endpoints, so the two can never accidentally validate
+// slightly differently. Content-only fields (title/message/priority/
+// deadline/actionType) are required on send but irrelevant to preview
+// (preview only needs to know WHO would receive it), so they're kept in
+// a separate, send-only schema below.
+// ---------------------------------------------------------------------
+const communicationTargetingSchema = z.object({
+  scopeType: z.enum(["MARKET", "ZONE", "ALL_MARKETS", "SPECIFIC_SUPERVISOR"]),
+  zoneId: z.number().int().optional(),
+  marketId: z.string().min(1).optional(),
+  // Verification pass §1 — required only for SPECIFIC_SUPERVISOR scope
+  // (checked below, not here, since Zod can't cross-check sibling fields
+  // inline); targetRole/targetDepartment become irrelevant for that same
+  // scope, hence targetRole is optional here now instead of required.
+  targetSupervisorId: z.number().int().positive().optional(),
+  targetRole: z.enum(["WORKER", "CASHIER", "BUTCHER", "EVERYONE"]).optional(),
+  targetDepartment: departmentEnum.optional(),
+});
+
+// Cross-field rule shared by preview and send: SPECIFIC_SUPERVISOR needs
+// targetSupervisorId and nothing else from the role/department axis;
+// every other scope still needs a real targetRole. Applied via
+// superRefine (not baked into the object above) so both schemas can
+// still literally .extend() the same base object.
+function requireScopeAppropriateFields(v, ctx) {
+  if (v.scopeType === "SPECIFIC_SUPERVISOR") {
+    if (!v.targetSupervisorId) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["targetSupervisorId"], message: "targetSupervisorId is required for this scope" });
+    }
+  } else if (!v.targetRole) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["targetRole"], message: "targetRole is required" });
+  }
+}
+
+export const previewCommunicationSchema = communicationTargetingSchema.superRefine(requireScopeAppropriateFields);
+
+export const createCommunicationSchema = communicationTargetingSchema.extend({
+  type: z.enum(["ANNOUNCEMENT", "WARNING", "TASK", "INFORMATION"]),
+  category: z.enum(["STOCK_CHECK", "COUNTING", "CLEANING", "PRICE", "LABEL", "EXPIRY", "INVENTORY", "GENERAL"]),
+  title: z.string().trim().min(1).max(150),
+  message: z.string().trim().min(1).max(4000),
+  priority: z.enum(["NORMAL", "IMPORTANT", "HIGH", "URGENT"]).optional(),
+  deadline: z.coerce.date().optional(),
+  actionType: z.enum(["INFORMATIONAL", "ACKNOWLEDGEMENT", "COMPLETION"]).optional(),
+  // A client-generated idempotency key (spec §41 — protects against a
+  // double-click or a retried request creating two copies of the same
+  // send). Optional so nothing existing/other callers ever need one;
+  // when present it's enforced as a real unique constraint at the
+  // database level, not just a "best effort" in-memory check.
+  clientRequestId: z.string().trim().min(1).max(100).optional(),
+}).superRefine(requireScopeAppropriateFields);
+
+export const submitCommunicationResponseSchema = z.object({
+  response: z.record(z.string(), z.unknown()).optional(),
 });

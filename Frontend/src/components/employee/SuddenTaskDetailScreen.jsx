@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { ArrowLeft, Clock3, UserRound, CheckCircle2, Loader2 } from "lucide-react";
 import PriorityPill from "../common/PriorityPill";
+import AuthenticatedImage from "../common/AuthenticatedImage";
 import EvidenceCapture from "./EvidenceCapture";
 import { completeSuddenTask } from "../../services/suddenTaskService";
 import { ApiError } from "../../services/apiClient";
@@ -89,7 +90,7 @@ export default function SuddenTaskDetailScreen({ task, onBack, onCompleted }) {
       {task.status === "COMPLETED" && task.evidenceUrl && (
         <div className="mt-5 rounded-2xl p-5 bg-[#171C2E]/80 border border-white/[0.06] backdrop-blur-xl">
           <h2 className="text-sm font-semibold text-white mb-3">Submitted Evidence</h2>
-          <img src={task.evidenceUrl} alt="Submitted evidence" className="w-full rounded-xl max-h-72 object-cover" />
+          <AuthenticatedImage src={task.evidenceUrl} alt="Submitted evidence" className="w-full rounded-xl max-h-72 object-cover" />
         </div>
       )}
     </div>

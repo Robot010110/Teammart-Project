@@ -8,7 +8,9 @@
     "start": "node src/index.js",
     "prisma:migrate": "prisma migrate dev",
     "prisma:studio": "prisma studio",
-    "prisma:seed": "node prisma/seed.js"
+    "prisma:seed": "node prisma/seed.js",
+    "admin:provision": "node scripts/provisionAdmins.js",
+    "test": "node --test --test-concurrency=1 \"test/security/**/*.test.js\""
   },
   "dependencies": {
     "@prisma/client": "^5.16.1",

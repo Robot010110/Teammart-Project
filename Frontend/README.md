@@ -1,9 +1,15 @@
 # TEAMMART — Market Management Dashboard (Front End)
 
-Front end for TEAMMART, built with React + Tailwind CSS. The **Employee**
-role (login, profile, daily activity log) is now connected to the real
-backend via `src/services/`. Regional Manager and Supervisor still run on
-mock data in `src/data/mockData.js` — that part hasn't been migrated yet.
+Front end for TEAMMART, built with React + Tailwind CSS. Every role
+(Employee, Cashier, Supervisor, Regional Manager, Admin) is connected to
+the real backend via `src/services/` — there is no mock data anywhere in
+this app (`src/data/mockData.js` doesn't exist; `src/data/auth.js` is
+just the login screen's static role-picker labels). See the root
+[README.md](../README.md#current-project-status) for the up-to-date
+per-role feature list — the sections below describe the Employee module
+specifically and are the oldest part of this file, from before the other
+roles existed; treat "Project structure"/"Navigation" below as Employee-
+specific, not a description of the whole app.
 
 ## Getting started
 
@@ -163,22 +169,17 @@ The app opens on `LoginPage.jsx`, not a dashboard. Flow: **role → location
 
 | Role | Location step | Auth |
 |---|---|---|
-| Regional Manager | Pick your zone | Still prototype/hardcoded — `RM<zoneNumber>12` (see `src/data/auth.js`). Not migrated yet. |
-| Supervisor | Pick your market | Still prototype/hardcoded — **SP201**. Not migrated yet. |
+| Admin | Enter your email | **Real** — `POST /api/auth/login` via `services/authService.js`. |
+| Regional Manager | Enter your email | **Real** — `POST /api/auth/login`. Assigned zones come entirely from the account (`User.managedZones`), never picked in the UI. |
+| Supervisor | Enter your User ID | **Real** — `POST /api/auth/staff-id-login`, case-insensitive User ID. |
 | Employee | Enter your employee code | **Real** — `POST /api/auth/employee-login` via `services/authService.js`. The old "browse a directory, then type a shared demo password" flow was removed: the real backend has no public employee directory and each employee has their own private password, so a plain code + password form (like any normal login) replaced it. |
 
-Each role gets a genuinely different shell, not just a filtered view:
-
-- **Regional Manager** — full `Sidebar` + `Header`, lands on their own
-  `ZonePage`, can drill into any market/employee inside their zone only.
-  Never sees other zones. (Still mock data.)
-- **Supervisor** — same shell minus the "Zones" nav item, lands directly on
-  their one `MarketDashboard`. Breadcrumbs skip the zone level entirely.
-  (Still mock data.)
-- **Employee** — completely different, simpler shell: no `Sidebar` at all,
-  just `Header` + `EmployeeWorkspace` (their real profile, a grid of
-  submittable daily-activity categories, and a Draft/Pending/Completed/
-  Approved/Rejected activity history — all from the backend).
+Every role now shares the same mobile-first app shell (`AppShell.jsx` +
+`BottomNav.jsx` — bottom tab bar, one screen at a time), not a desktop
+sidebar — see `Frontend/src/pages/AdminWorkspace.jsx`,
+`RegionalManagerWorkspace.jsx`, `SupervisorWorkspace.jsx`,
+`EmployeeWorkspace.jsx`/`CashierWorkspace.jsx` for each role's own tab
+set, scoped to what that role actually does.
 
 An Employee session survives a page refresh: the JWT is kept in
 `localStorage` and `App.jsx` re-validates it against `GET /api/profile` on

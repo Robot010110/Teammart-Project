@@ -1,13 +1,28 @@
 import { verifyToken } from "../utils/jwt.js";
 import { prisma } from "../lib/prisma.js";
 
+function accountBlockMessage(status) {
+  if (status === "SUSPENDED") return "This account has been suspended. Contact an administrator.";
+  if (status === "BANNED") return "This account has been banned.";
+  return null;
+}
+
 // ---------------------------------------------------------------------
 // requireAuth — verifies the Bearer token and attaches its payload to
 // req.user. Everything after this middleware can trust req.user is real
 // and unexpired. req.user.kind is either "staff" or "employee" (see
 // utils/jwt.js for the exact shape of each).
-// ---------------------------------------------------------------------
-export function requireAuth(req, res, next) {
+//
+// Admin Phase 2 §19 — a JWT alone is stateless and can't be "revoked" by
+// a database change (suspending someone doesn't invalidate a token
+// already in their pocket). This is the smallest correct fix: one cheap
+// lookup per request, comparing the token's embedded `tv` (tokenVersion,
+// default 0 for tokens issued before this existed) against the
+// account's current value, and rejecting a non-ACTIVE account outright.
+// Bumping tokenVersion (password reset/suspend/ban/role change) makes
+// every previously-issued token for that account stop working on its
+// very next request — no session store, no new framework.
+export async function requireAuth(req, res, next) {
   const header = req.headers.authorization;
   if (!header || !header.startsWith("Bearer ")) {
     return res.status(401).json({ error: "Missing or malformed Authorization header" });
@@ -15,11 +30,34 @@ export function requireAuth(req, res, next) {
 
   const token = header.slice("Bearer ".length);
 
+  let payload;
   try {
-    req.user = verifyToken(token);
-    next();
+    payload = verifyToken(token);
   } catch (err) {
     return res.status(401).json({ error: "Invalid or expired token" });
+  }
+
+  try {
+    const account =
+      payload.kind === "staff"
+        ? await prisma.user.findUnique({ where: { id: payload.userId }, select: { tokenVersion: true, accountStatus: true } })
+        : await prisma.employee.findUnique({ where: { id: payload.employeeId }, select: { tokenVersion: true, accountStatus: true } });
+
+    if (!account) {
+      return res.status(401).json({ error: "Account no longer exists" });
+    }
+    if ((payload.tv ?? 0) !== account.tokenVersion) {
+      return res.status(401).json({ error: "Your session is no longer valid. Please log in again." });
+    }
+    const blockMessage = accountBlockMessage(account.accountStatus);
+    if (blockMessage) {
+      return res.status(403).json({ error: blockMessage });
+    }
+
+    req.user = payload;
+    next();
+  } catch (err) {
+    next(err);
   }
 }
 

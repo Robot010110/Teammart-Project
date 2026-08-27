@@ -113,3 +113,32 @@ select:focus-visible {
     font-size: 16px;
   }
 }
+
+/* Cleanup Phase §8 — every <select> in this app styles its CLOSED box
+   with a dark/near-transparent background + white text (Tailwind
+   bg-white/[0.04] + text-white, see e.g. ReportsProblemsSection.jsx),
+   but the OPEN native <option> popup is rendered by the OS/browser, not
+   by this app's CSS — on desktop Chrome/Edge/Firefox that popup defaults
+   to a plain white background while still inheriting the white text
+   color, so every option was white-on-white until the cursor's hover
+   highlight briefly made it readable. Mobile Safari/Chrome render their
+   own opaque picker UI, which is why this never showed up there — fixing
+   this must not touch the mobile picker's OS-native appearance, so this
+   only sets a real background+text color on the options themselves
+   (the one part of a <select> a browser lets a page style), never the
+   select's own appearance/mobile behavior. */
+select {
+  color-scheme: dark;
+}
+
+select option {
+  background-color: #171c2e;
+  color: #ffffff;
+}
+
+select option:checked,
+select option:hover,
+select option:focus {
+  background-color: #f47a20;
+  color: #ffffff;
+}

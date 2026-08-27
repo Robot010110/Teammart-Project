@@ -1,10 +1,10 @@
 import { apiRequest, setToken, clearToken, getToken } from "./apiClient";
 
 // authService.js — real authentication against the backend, replacing the
-// hardcoded checks that used to live in data/auth.js. Employee (Worker/
-// Cashier) and Supervisor login are both real now; Regional Manager still
-// uses the old mock flow (data/auth.js) — RM has no real frontend login
-// path yet, out of scope for Supervisor Mode.
+// hardcoded checks that used to live in data/auth.js. Every role
+// (Employee/Worker/Cashier, Supervisor, Regional Manager, Admin) logs in
+// against the real backend now — data/auth.js is just the login-page role
+// picker's static labels, nothing more.
 
 // POST /api/auth/employee-login — on success, stores the JWT so future
 // apiRequest() calls are authenticated automatically. `rememberMe`
@@ -36,9 +36,8 @@ export async function cashierLogin(username, password, rememberMe = false) {
 }
 
 // POST /api/auth/login — staff login (Admin/Regional Manager/Supervisor),
-// email+password, bcrypt-checked server-side. Used here only for
-// Supervisor (Supervisor Mode) — Regional Manager keeps the existing
-// prototype flow. Returns { id, name, role, zoneId, marketId }.
+// email+password, bcrypt-checked server-side. Returns
+// { id, name, role, zoneIds, marketId }.
 export async function staffLogin(email, password) {
   const data = await apiRequest("/auth/login", {
     method: "POST",
@@ -62,6 +61,20 @@ export async function staffIdLogin(loginId, password) {
   });
   setToken(data.token);
   return data.user;
+}
+
+// POST /api/auth/register — ADMIN-only. Creates a new staff account
+// (Admin/Regional Manager/Supervisor/Overlooking Supervisor). Used by
+// AdminStaffPage.jsx; doesn't touch the caller's own token.
+export function registerStaff({ name, email, password, role, loginId }) {
+  return apiRequest("/auth/register", { method: "POST", body: { name, email, password, role, loginId } });
+}
+
+// GET /api/auth/staff — ADMIN-only staff directory, optionally filtered
+// by role (e.g. "REGIONAL_MANAGER" for the zone-manager picker in
+// AdminZonesPage.jsx).
+export function listStaffAccounts(role) {
+  return apiRequest(`/auth/staff${role ? `?role=${role}` : ""}`);
 }
 
 export function logout() {
