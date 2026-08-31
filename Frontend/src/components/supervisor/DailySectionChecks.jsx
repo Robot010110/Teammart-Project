@@ -5,7 +5,11 @@ import { SkeletonCard } from "../common/SkeletonCard";
 import Modal from "../common/Modal";
 import EvidenceCapture from "../employee/EvidenceCapture";
 import MarketStructureGrid from "./MarketStructureGrid";
-import { MARKET_SECTIONS, listTodaySectionChecks, submitSectionCheck } from "../../data/supervisorMockData";
+import {
+  MARKET_SECTIONS,
+  listTodaySectionChecks,
+  submitSectionCheck,
+} from "../../data/supervisorMockData";
 
 // DailySectionChecks.jsx — Market Structure at the top, then a per-
 // section checklist for today's facing/condition verification (spec
@@ -14,7 +18,11 @@ import { MARKET_SECTIONS, listTodaySectionChecks, submitSectionCheck } from "../
 // (same Take Photo/Upload Photo/Retake flow used everywhere else in this
 // app) so the photo-capture UX is identical, not reinvented.
 export default function DailySectionChecks() {
-  const { data: checks, setData: setChecks, loading } = useAsync(listTodaySectionChecks, { deps: [] });
+  const {
+    data: checks,
+    setData: setChecks,
+    loading,
+  } = useAsync(listTodaySectionChecks, { deps: [] });
   const [activeSection, setActiveSection] = useState(null);
   const [photo, setPhoto] = useState(null);
   const [notes, setNotes] = useState("");
@@ -23,7 +31,9 @@ export default function DailySectionChecks() {
   if (loading) return <SkeletonCard className="h-64" />;
 
   const statusBySection = {};
-  checks.forEach((c) => { statusBySection[c.sectionKey] = c.checked ? "checked" : "unchecked"; });
+  checks.forEach((c) => {
+    statusBySection[c.sectionKey] = c.checked ? "checked" : "unchecked";
+  });
 
   function openSection(section) {
     setActiveSection(section);
@@ -35,8 +45,14 @@ export default function DailySectionChecks() {
   async function handleSubmit() {
     setSubmitting(true);
     try {
-      const record = await submitSectionCheck({ sectionKey: activeSection.key, photoUrl: photo, notes: notes.trim() || undefined });
-      setChecks((prev) => prev.map((c) => (c.sectionKey === record.sectionKey ? record : c)));
+      const record = await submitSectionCheck({
+        sectionKey: activeSection.key,
+        photoUrl: photo,
+        notes: notes.trim() || undefined,
+      });
+      setChecks((prev) =>
+        prev.map((c) => (c.sectionKey === record.sectionKey ? record : c)),
+      );
       setActiveSection(null);
     } finally {
       setSubmitting(false);
@@ -47,29 +63,20 @@ export default function DailySectionChecks() {
 
   return (
     <div>
-      <MarketStructureGrid sectionStatus={statusBySection} onSelect={openSection} />
+      <MarketStructureGrid
+        sectionStatus={statusBySection}
+        onSelect={openSection}
+      />
 
-      <p className="mt-3 text-xs text-[#8B93A8]">{checkedCount} of {MARKET_SECTIONS.length} sections checked today</p>
+      <p className="mt-3 text-xs text-[#8B93A8]">
+        {checkedCount} of {MARKET_SECTIONS.length} sections checked today
+      </p>
 
-      <div className="mt-3 space-y-2">
-        {checks.map((c) => {
-          const section = MARKET_SECTIONS.find((s) => s.key === c.sectionKey);
-          return (
-            <button
-              key={c.sectionKey}
-              type="button"
-              onClick={() => openSection(section)}
-              className="w-full flex items-center gap-3 rounded-xl p-3 bg-[#1A1F33]/70 border border-white/[0.06] hover:border-[#F47A20]/25 transition-colors"
-            >
-              {c.checked ? <CheckCircle2 size={16} className="text-emerald-400 shrink-0" /> : <Circle size={16} className="text-[#4C5266] shrink-0" />}
-              <span className="flex-1 text-left text-sm text-white">{section.label}</span>
-              {c.checkedAt && <span className="text-[11px] text-[#4C5266]">{new Date(c.checkedAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}</span>}
-            </button>
-          );
-        })}
-      </div>
-
-      <Modal open={!!activeSection} onClose={() => setActiveSection(null)} title={activeSection?.label}>
+      <Modal
+        open={!!activeSection}
+        onClose={() => setActiveSection(null)}
+        title={activeSection?.label}
+      >
         {activeSection && (
           <div className="space-y-4">
             <EvidenceCapture photo={photo} onPhotoChange={setPhoto} />

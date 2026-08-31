@@ -1,15 +1,36 @@
 import { useMemo, useState } from "react";
-import { CheckCircle2, PackageX, ClipboardList, Sparkles, XCircle, Loader2, Clock3, Trash2 } from "lucide-react";
+import {
+  CheckCircle2,
+  PackageX,
+  ClipboardList,
+  Sparkles,
+  XCircle,
+  Loader2,
+  Clock3,
+  Trash2,
+} from "lucide-react";
 import { useAsync } from "../../hooks/useAsync";
 import ErrorBanner from "../common/ErrorBanner";
 import AuthenticatedImage from "../common/AuthenticatedImage";
 import { SkeletonCard } from "../common/SkeletonCard";
 import Modal from "../common/Modal";
-import { listActivitiesForMarket, reviewActivity } from "../../services/activityService";
-import { listItemReportsForMarket, deleteItemReport } from "../../services/itemReportService";
-import { listWastedOverallReportsForMarket, reviewWastedOverallReport } from "../../services/wastedOverallService";
+import {
+  listActivitiesForMarket,
+  reviewActivity,
+} from "../../services/activityService";
+import {
+  listItemReportsForMarket,
+  deleteItemReport,
+} from "../../services/itemReportService";
+import {
+  listWastedOverallReportsForMarket,
+  reviewWastedOverallReport,
+} from "../../services/wastedOverallService";
 import { listSuddenTasks } from "../../services/suddenTaskService";
-import { listExtraHoursRequestsForMarket, reviewExtraHoursRequest } from "../../services/attendanceService";
+import {
+  listExtraHoursRequestsForMarket,
+  reviewExtraHoursRequest,
+} from "../../services/attendanceService";
 import { ApiError } from "../../services/apiClient";
 
 // Only these submission kinds have a real staff review endpoint today
@@ -26,32 +47,58 @@ const REVIEWABLE_KINDS = {
   ACTIVITY: reviewActivity,
   WASTED_OVERALL: reviewWastedOverallReport,
   EXTRA_HOURS: (id, body) =>
-    reviewExtraHoursRequest(id, body.status === "REJECTED" ? { status: body.status, reviewNote: body.rejectionReason } : { status: body.status }),
+    reviewExtraHoursRequest(
+      id,
+      body.status === "REJECTED"
+        ? { status: body.status, reviewNote: body.rejectionReason }
+        : { status: body.status },
+    ),
 };
 
 const CATEGORY_LABEL = {
-  EXPIRED_ITEMS: "expired items", SHELF_CLEANING: "shelf cleaning", PRODUCT_CUSTOMIZATION: "product customization",
-  DAILY_CLEANING: "daily cleaning", ITEM_COUNTING: "item counting", LABEL_CHECKING: "a label issue",
-  FACING: "facing", REFILLING: "refilling",
+  EXPIRED_ITEMS: "expired items",
+  SHELF_CLEANING: "shelf cleaning",
+  PRODUCT_CUSTOMIZATION: "product customization",
+  DAILY_CLEANING: "daily cleaning",
+  ITEM_COUNTING: "item counting",
+  LABEL_CHECKING: "a label issue",
+  FACING: "facing",
+  REFILLING: "refilling",
 };
-const WASTED_LABEL = { EGGS: "eggs", TOMATO: "tomato", POTATO: "potato", CUCUMBER: "cucumber", ONION: "onion", OTHER: "other" };
+const WASTED_LABEL = {
+  EGGS: "eggs",
+  TOMATO: "tomato",
+  POTATO: "potato",
+  CUCUMBER: "cucumber",
+  ONION: "onion",
+  OTHER: "other",
+};
 
 function wastedItemLabel(w) {
   if (w.item === "OTHER" && w.otherItemName) return w.otherItemName;
   return WASTED_LABEL[w.item] ?? w.item.toLowerCase();
 }
 function wastedQuantityLabel(w) {
-  return w.item === "EGGS" ? `${w.quantityCount} egg${w.quantityCount === 1 ? "" : "s"}` : `${w.quantityKg}kg`;
+  return w.item === "EGGS"
+    ? `${w.quantityCount} egg${w.quantityCount === 1 ? "" : "s"}`
+    : `${w.quantityKg}kg`;
 }
 
 function timeLabel(iso) {
-  return new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+  return new Date(iso).toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+  });
 }
 
 function isToday(iso) {
   const d = new Date(iso);
   const now = new Date();
-  return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate();
+  return (
+    d.getFullYear() === now.getFullYear() &&
+    d.getMonth() === now.getMonth() &&
+    d.getDate() === now.getDate()
+  );
 }
 
 // TodayActivityFeed.jsx — a real, automatic feed of what happened in the
@@ -64,13 +111,14 @@ function isToday(iso) {
 export default function TodayActivityFeed({ marketId }) {
   const { data, error, loading, reload } = useAsync(
     async () => {
-      const [activities, itemReports, wasted, suddenTasks, extraHours] = await Promise.all([
-        listActivitiesForMarket({ marketId }),
-        listItemReportsForMarket({ marketId }),
-        listWastedOverallReportsForMarket({ marketId }),
-        listSuddenTasks({ status: "COMPLETED" }),
-        listExtraHoursRequestsForMarket({ marketId }),
-      ]);
+      const [activities, itemReports, wasted, suddenTasks, extraHours] =
+        await Promise.all([
+          listActivitiesForMarket({ marketId, status: "PENDING" }),
+          listItemReportsForMarket({ marketId }),
+          listWastedOverallReportsForMarket({ marketId }),
+          listSuddenTasks({ status: "COMPLETED" }),
+          listExtraHoursRequestsForMarket({ marketId }),
+        ]);
 
       const items = [
         ...activities.map((a) => ({
@@ -79,7 +127,9 @@ export default function TodayActivityFeed({ marketId }) {
           icon: Sparkles,
           employeeName: a.employee?.name ?? "Unknown",
           title: `completed ${CATEGORY_LABEL[a.category] ?? a.category.toLowerCase()}`,
-          subtitle: a.notes || (a.images?.length ? `${a.images.length} photo(s)` : null),
+          subtitle:
+            a.notes ||
+            (a.images?.length ? `${a.images.length} photo(s)` : null),
           timestamp: a.updatedAt ?? a.createdAt,
           raw: a,
         })),
@@ -129,7 +179,7 @@ export default function TodayActivityFeed({ marketId }) {
 
       return items;
     },
-    { deps: [marketId], fallbackError: "Could not load today's activity." }
+    { deps: [marketId], fallbackError: "Could not load today's activity." },
   );
 
   const [selected, setSelected] = useState(null);
@@ -163,17 +213,28 @@ export default function TodayActivityFeed({ marketId }) {
               </span>
               <div className="min-w-0 flex-1">
                 <p className="text-sm text-white">
-                  <span className="font-semibold">{item.employeeName}</span> {item.title}
+                  <span className="font-semibold">{item.employeeName}</span>{" "}
+                  {item.title}
                 </p>
-                {item.subtitle && <p className="text-xs text-[#8B93A8] mt-0.5">{item.subtitle}</p>}
-                <p className="text-[11px] text-[#4C5266] mt-1">{timeLabel(item.timestamp)}</p>
+                {item.subtitle && (
+                  <p className="text-xs text-[#8B93A8] mt-0.5">
+                    {item.subtitle}
+                  </p>
+                )}
+                <p className="text-[11px] text-[#4C5266] mt-1">
+                  {timeLabel(item.timestamp)}
+                </p>
               </div>
             </button>
           );
         })}
       </div>
 
-      <Modal open={!!selected} onClose={() => setSelected(null)} title={selected ? `${selected.employeeName}` : ""}>
+      <Modal
+        open={!!selected}
+        onClose={() => setSelected(null)}
+        title={selected ? `${selected.employeeName}` : ""}
+      >
         {selected && (
           <FeedItemDetail
             item={selected}
@@ -229,10 +290,19 @@ function FeedItemDetail({ item, onReviewed }) {
     setBusy(status);
     setReviewError(null);
     try {
-      await reviewFn(raw.id, status === "REJECTED" ? { status, rejectionReason: reasonDraft.trim() } : { status });
+      await reviewFn(
+        raw.id,
+        status === "REJECTED"
+          ? { status, rejectionReason: reasonDraft.trim() }
+          : { status },
+      );
       onReviewed();
     } catch (err) {
-      setReviewError(err instanceof ApiError ? err.message : "Could not submit this review. Please try again.");
+      setReviewError(
+        err instanceof ApiError
+          ? err.message
+          : "Could not submit this review. Please try again.",
+      );
     } finally {
       setBusy(null);
     }
@@ -240,8 +310,21 @@ function FeedItemDetail({ item, onReviewed }) {
 
   return (
     <div>
-      {row("Date", new Date(item.timestamp).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }))}
-      {row("Time", new Date(item.timestamp).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }))}
+      {row(
+        "Date",
+        new Date(item.timestamp).toLocaleDateString("en-US", {
+          month: "short",
+          day: "numeric",
+          year: "numeric",
+        }),
+      )}
+      {row(
+        "Time",
+        new Date(item.timestamp).toLocaleTimeString("en-US", {
+          hour: "numeric",
+          minute: "2-digit",
+        }),
+      )}
 
       {kind === "ACTIVITY" && (
         <>
@@ -279,7 +362,14 @@ function FeedItemDetail({ item, onReviewed }) {
       )}
       {kind === "EXTRA_HOURS" && (
         <>
-          {row("Date worked", new Date(raw.date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }))}
+          {row(
+            "Date worked",
+            new Date(raw.date).toLocaleDateString("en-US", {
+              month: "short",
+              day: "numeric",
+              year: "numeric",
+            }),
+          )}
           {row("Employee declared", `${raw.hours}h`)}
           {/* Extra Hours spec §8: compare the declaration against the real
               attendance-derived figure for that same date — the
@@ -289,7 +379,7 @@ function FeedItemDetail({ item, onReviewed }) {
             "Attendance record shows",
             raw.hasAttendanceRecord
               ? `${raw.attendanceExtraHours?.toFixed(2)}h extra`
-              : "No attendance record for this date yet"
+              : "No attendance record for this date yet",
           )}
           {row("Status", raw.status)}
           {row("Reason", raw.reason)}
@@ -297,12 +387,29 @@ function FeedItemDetail({ item, onReviewed }) {
         </>
       )}
 
-      {raw.imageUrl && <AuthenticatedImage src={raw.imageUrl} alt="" className="mt-3 rounded-lg w-full max-h-64 object-cover" />}
-      {raw.photoUrl && <AuthenticatedImage src={raw.photoUrl} alt="" className="mt-3 rounded-lg w-full max-h-64 object-cover" />}
+      {raw.imageUrl && (
+        <AuthenticatedImage
+          src={raw.imageUrl}
+          alt=""
+          className="mt-3 rounded-lg w-full max-h-64 object-cover"
+        />
+      )}
+      {raw.photoUrl && (
+        <AuthenticatedImage
+          src={raw.photoUrl}
+          alt=""
+          className="mt-3 rounded-lg w-full max-h-64 object-cover"
+        />
+      )}
       {raw.images?.length > 0 && (
         <div className="mt-3 grid grid-cols-3 gap-2">
           {raw.images.map((img) => (
-            <AuthenticatedImage key={img.id} src={img.url} alt="" className="rounded-lg aspect-square object-cover" />
+            <AuthenticatedImage
+              key={img.id}
+              src={img.url}
+              alt=""
+              className="rounded-lg aspect-square object-cover"
+            />
           ))}
         </div>
       )}
@@ -319,7 +426,9 @@ function FeedItemDetail({ item, onReviewed }) {
               className="w-full mb-2 resize-none rounded-lg bg-white/[0.04] border border-white/[0.06] px-3 py-2 text-sm text-white placeholder:text-[#4C5266] outline-none focus:border-red-500/50"
             />
           )}
-          {reviewError && <p className="mb-2 text-xs text-red-400">{reviewError}</p>}
+          {reviewError && (
+            <p className="mb-2 text-xs text-red-400">{reviewError}</p>
+          )}
           <div className="flex items-center gap-2">
             <button
               type="button"
@@ -327,7 +436,11 @@ function FeedItemDetail({ item, onReviewed }) {
               disabled={busy != null || rejecting}
               className="flex-1 flex items-center justify-center gap-1.5 rounded-xl py-2.5 text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 transition-colors"
             >
-              {busy === "APPROVED" ? <Loader2 size={15} className="animate-spin" /> : <CheckCircle2 size={15} />}
+              {busy === "APPROVED" ? (
+                <Loader2 size={15} className="animate-spin" />
+              ) : (
+                <CheckCircle2 size={15} />
+              )}
               Approve
             </button>
             <button
@@ -336,7 +449,11 @@ function FeedItemDetail({ item, onReviewed }) {
               disabled={busy != null}
               className="flex-1 flex items-center justify-center gap-1.5 rounded-xl py-2.5 text-sm font-semibold text-white bg-red-600 hover:bg-red-500 disabled:opacity-50 transition-colors"
             >
-              {busy === "REJECTED" ? <Loader2 size={15} className="animate-spin" /> : <XCircle size={15} />}
+              {busy === "REJECTED" ? (
+                <Loader2 size={15} className="animate-spin" />
+              ) : (
+                <XCircle size={15} />
+              )}
               {rejecting ? "Confirm Reject" : "Reject"}
             </button>
           </div>
@@ -350,7 +467,12 @@ function FeedItemDetail({ item, onReviewed }) {
           disabled={deleting}
           className="mt-4 w-full flex items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-semibold text-red-400 bg-red-500/[0.06] border border-red-500/20 hover:bg-red-500/10 disabled:opacity-50 transition-colors"
         >
-          {deleting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />} Delete Report
+          {deleting ? (
+            <Loader2 size={14} className="animate-spin" />
+          ) : (
+            <Trash2 size={14} />
+          )}{" "}
+          Delete Report
         </button>
       )}
     </div>

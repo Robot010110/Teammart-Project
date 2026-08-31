@@ -13,7 +13,11 @@ function greeting() {
 }
 
 function todayLabel() {
-  return new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
+  return new Date().toLocaleDateString("en-US", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+  });
 }
 
 // SupervisorHomeTab.jsx — greeting header -> shift/attendance -> today's
@@ -28,7 +32,9 @@ export default function SupervisorHomeTab({ session, basePath }) {
   return (
     <div className="px-4 sm:px-6 py-6 max-w-4xl mx-auto animate-fade-up space-y-5">
       <div>
-        <h1 className="text-xl font-display font-bold text-white">{greeting()}, {session.displayName?.split(" ")[0]}</h1>
+        <h1 className="text-xl font-display font-bold text-white">
+          {greeting()}, {session.displayName?.split(" ")[0]}
+        </h1>
         <p className="text-xs text-[#8B93A8] mt-0.5">{todayLabel()}</p>
       </div>
 
@@ -37,25 +43,33 @@ export default function SupervisorHomeTab({ session, basePath }) {
       <AttendanceCheckInCard />
 
       <section>
-        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-[#8B93A8]">Today's Overview</h2>
+        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-[#8B93A8]">
+          Today's Overview
+        </h2>
         <SupervisorOverviewStats session={session} basePath={basePath} />
       </section>
 
       <section>
-        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-[#8B93A8]">Important Information</h2>
+        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-[#8B93A8]">
+          Important Information
+        </h2>
         <SupervisorAnnouncementsCard session={session} basePath={basePath} />
       </section>
 
       <section className="grid grid-cols-2 gap-3">
         <div>
-          <h2 className="mb-2 text-sm font-semibold uppercase tracking-wider text-[#8B93A8]">Today's Activity</h2>
-          <div className="w-full h-44 rounded-md border border-white/[0.06] overflow-y-auto p-2.5">
+          <h2 className="mb-2 text-sm font-semibold uppercase tracking-wider text-[#8B93A8]">
+            Today's Activity
+          </h2>
+          <div className="w-full h-72 rounded-md border border-white/[0.06] overflow-y-auto p-2.5">
             <TodayActivityFeed marketId={session.marketId} />
           </div>
         </div>
         <div>
-          <h2 className="mb-2 text-sm font-semibold uppercase tracking-wider text-[#8B93A8]">Reports</h2>
-          <div className="w-full h-44 rounded-md border border-white/[0.06] overflow-y-auto p-2.5">
+          <h2 className="mb-2 text-sm font-semibold uppercase tracking-wider text-[#8B93A8]">
+            Reports
+          </h2>
+          <div className="w-full h-72 rounded-md border border-white/[0.06] overflow-y-auto p-2.5">
             <ReportsSection marketId={session.marketId} />
           </div>
         </div>

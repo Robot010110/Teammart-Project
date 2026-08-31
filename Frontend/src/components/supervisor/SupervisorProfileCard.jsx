@@ -1,8 +1,15 @@
 import { useState } from "react";
-import { Sun, Moon, BadgeCheck, Store, MessageCircle, Camera, Pencil, Phone } from "lucide-react";
+import {
+  Sun,
+  Moon,
+  BadgeCheck,
+  Store,
+  MessageCircle,
+  Camera,
+} from "lucide-react";
 import AuthenticatedImage from "../common/AuthenticatedImage";
 import ChangePhotoModal from "../employee/ChangePhotoModal";
-import EditContactInfoModal from "./EditContactInfoModal";
+import WhatsAppField from "../employee/WhatsAppField";
 import { getProfile } from "../../services/profileService";
 import { useAsync } from "../../hooks/useAsync";
 
@@ -28,12 +35,12 @@ export default function SupervisorProfileCard({ session }) {
   const isEvening = session.shift === "EVENING";
   const ShiftIcon = isEvening ? Moon : Sun;
 
-  const { data: profile, setData: setProfile } = useAsync(getProfile, { deps: [] });
+  const { data: profile, setData: setProfile } = useAsync(getProfile, {
+    deps: [],
+  });
   const [photoOpen, setPhotoOpen] = useState(false);
-  const [contactOpen, setContactOpen] = useState(false);
 
   const profilePictureUrl = profile?.profilePictureUrl;
-  const phoneNumber = profile?.phoneNumber;
   const whatsappNumber = profile?.whatsappNumber ?? session.whatsappNumber;
 
   return (
@@ -46,67 +53,58 @@ export default function SupervisorProfileCard({ session }) {
           className="relative h-14 w-14 sm:h-16 sm:w-16 shrink-0 rounded-2xl bg-gradient-to-br from-[#F47A20] to-[#c95c10] grid place-items-center ring-4 ring-[#F47A20]/20 overflow-hidden group"
         >
           {profilePictureUrl ? (
-            <AuthenticatedImage src={profilePictureUrl} alt="" className="h-full w-full object-cover" />
+            <AuthenticatedImage
+              src={profilePictureUrl}
+              alt=""
+              className="h-full w-full object-cover"
+            />
           ) : (
-            <span className="text-base sm:text-lg font-display font-bold text-white">{session.initials}</span>
+            <span className="text-base sm:text-lg font-display font-bold text-white">
+              {session.initials}
+            </span>
           )}
           <span className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity">
             <Camera size={16} className="text-white" />
           </span>
         </button>
         <div className="min-w-0 flex-1">
-          <h1 className="font-display text-lg sm:text-xl font-bold text-white truncate">{session.displayName}</h1>
+          <h1 className="font-display text-lg sm:text-xl font-bold text-white truncate">
+            {session.displayName}
+          </h1>
           <p className="text-[#F47A20] text-sm font-medium">{session.title}</p>
         </div>
-        <button
-          type="button"
-          onClick={() => setContactOpen(true)}
-          aria-label="Edit contact info"
-          className="shrink-0 p-2 rounded-lg text-[#9AA1B4] hover:text-white hover:bg-white/[0.06] transition-colors"
-        >
-          <Pencil size={14} />
-        </button>
       </div>
 
       <div className="mt-4 grid grid-cols-2 gap-x-4 gap-y-2 text-xs text-[#9AA1B4]">
         <span className="flex items-center gap-1.5">
-          <ShiftIcon size={13} /> {isEvening ? "Evening Shift" : "Morning Shift"}
+          <ShiftIcon size={13} />{" "}
+          {isEvening ? "Evening Shift" : "Morning Shift"}
         </span>
         <span className="flex items-center gap-1.5">
-          <BadgeCheck size={13} /> {session.loginId || `Staff ID #${session.staffId}`}
+          <BadgeCheck size={13} />{" "}
+          {session.loginId || `Staff ID #${session.staffId}`}
         </span>
         <span className="flex items-center gap-1.5">
           <Store size={13} /> {session.marketName || "Your market"}
         </span>
-        {phoneNumber && (
-          <span className="flex items-center gap-1.5">
-            <Phone size={13} /> {phoneNumber}
-          </span>
-        )}
-        {whatsappNumber && (
-          <a
-            href={`https://wa.me/${whatsappNumber.replace(/[\s\-().]/g, "").replace(/^\+/, "")}`}
-            target="_blank"
-            rel="noreferrer"
-            className="flex items-center gap-1.5 text-emerald-400 hover:text-emerald-300"
-          >
-            <MessageCircle size={13} /> WhatsApp
-          </a>
-        )}
+
+        <WhatsAppField
+          number={whatsappNumber}
+          onSaved={(value) =>
+            setProfile((prev) =>
+              prev ? { ...prev, whatsappNumber: value } : prev,
+            )
+          }
+        />
       </div>
 
       <ChangePhotoModal
         open={photoOpen}
         onClose={() => setPhotoOpen(false)}
-        onSaved={(url) => setProfile((prev) => (prev ? { ...prev, profilePictureUrl: url } : prev))}
-      />
-      <EditContactInfoModal
-        open={contactOpen}
-        onClose={() => setContactOpen(false)}
-        initialPhone={phoneNumber}
-        initialWhatsapp={whatsappNumber}
-        onSaved={({ phoneNumber: p, whatsappNumber: w }) =>
-          setProfile((prev) => (prev ? { ...prev, phoneNumber: p, whatsappNumber: w } : prev))
+        onSaved={(url) =>
+          setProfile((prev) =>
+            prev ? { ...prev, profilePictureUrl: url } : prev,
+          )
         }
       />
     </section>

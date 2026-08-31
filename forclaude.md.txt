@@ -1,0 +1,40 @@
+# Claude Code Instructions
+
+## Project
+NEXA / TeamMart is an existing production-oriented application.
+
+## Before changing anything
+1. Read README.md.
+2. Read Frontend/README.md and backend/README.md.
+3. Read Frontend/docs/ARCHITECTURE.md.
+4. Inspect the relevant code before making changes.
+5. Understand existing backend APIs and Prisma models before modifying frontend behavior.
+
+## Critical rules
+- Do NOT rebuild the application from scratch.
+- Do NOT replace working systems with mock implementations.
+- Preserve existing RBAC and server-side authorization.
+- Prefer extending existing services/controllers/components over creating duplicate systems.
+- Do not introduce Axios when the project uses the existing fetch wrapper.
+- Do not move logic from backend authorization into frontend-only checks.
+- Do not change database structure unless the task actually requires it.
+- Do not remove existing functionality just to simplify an implementation.
+- Keep the existing mobile-first design language.
+- Before changing shared components, check which roles/features depend on them.
+
+## Development workflow
+For every task:
+1. Investigate.
+2. Explain what files/components are involved.
+3. Make the smallest appropriate change.
+4. Run relevant tests/build/lint.
+5. Verify frontend/backend integration.
+6. Report exactly what changed and any remaining issues.
+
+## When uncertain
+Inspect the repository and existing implementation first.
+Do not invent APIs, models, routes, or business rules that are not present in the project documentation/code.
+
+
+
+### The existing implementation is the source of truth. Documentation describes intended behavior, but when documentation and code differ, inspect both and do not blindly rewrite the working implementation.

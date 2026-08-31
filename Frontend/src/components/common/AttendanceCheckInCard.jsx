@@ -1,20 +1,31 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { LogIn, LogOut, Loader2, Coffee, Check } from "lucide-react";
-import { checkIn, checkOut, getTodayAttendance, startBreak, endBreak } from "../../services/attendanceService";
+import {
+  checkIn,
+  checkOut,
+  getTodayAttendance,
+  startBreak,
+  endBreak,
+} from "../../services/attendanceService";
 import { ApiError } from "../../services/apiClient";
 
 const BREAK_AVAILABLE_AFTER_MS = 4 * 60 * 60 * 1000;
+const BREAK_DURATION_MS = 60 * 60 * 1000;
 const CHECKOUT_AVAILABLE_AFTER_MS = 8 * 60 * 60 * 1000;
 
 function formatClockTime(iso) {
-  return new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+  return new Date(iso).toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+  });
 }
 
-function formatElapsed(ms) {
-  const totalMinutes = Math.floor(ms / 60000);
-  const h = Math.floor(totalMinutes / 60);
-  const m = totalMinutes % 60;
-  return h > 0 ? `${h}h ${m}m` : `${m}m`;
+function formatRemaining(ms) {
+  const totalSeconds = Math.max(0, Math.ceil(ms / 1000));
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+
+  return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
 }
 
 // AttendanceCheckInCard.jsx — Repair Pass §1: real check-in/check-out +
@@ -60,7 +71,7 @@ export default function AttendanceCheckInCard({ showBreak = true }) {
   // server's own clock (used only to decide what to SHOW, never to
   // decide what's allowed — see this file's own top comment).
   useEffect(() => {
-    const interval = setInterval(() => setNow(Date.now()), 30000);
+    const interval = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(interval);
   }, []);
 
@@ -72,7 +83,11 @@ export default function AttendanceCheckInCard({ showBreak = true }) {
       setRecord(updated);
       setNow(Date.now());
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Something went wrong. Please try again.");
+      setError(
+        err instanceof ApiError
+          ? err.message
+          : "Something went wrong. Please try again.",
+      );
     } finally {
       setBusy(false);
     }
@@ -84,11 +99,21 @@ export default function AttendanceCheckInCard({ showBreak = true }) {
 
   const onBreak = !!(record?.breakStart && !record?.breakEnd);
   const breakDone = !!(record?.breakStart && record?.breakEnd);
-  const breakAvailableAt = checkInMs ? checkInMs + BREAK_AVAILABLE_AFTER_MS : null;
-  const breakAvailable = isCheckedIn && !onBreak && !breakDone && breakAvailableAt !== null && now >= breakAvailableAt;
+  const breakAvailableAt = checkInMs
+    ? checkInMs + BREAK_AVAILABLE_AFTER_MS
+    : null;
+  const breakAvailable =
+    isCheckedIn &&
+    !onBreak &&
+    !breakDone &&
+    breakAvailableAt !== null &&
+    now >= breakAvailableAt;
 
-  const checkoutAvailableAt = checkInMs ? checkInMs + CHECKOUT_AVAILABLE_AFTER_MS : null;
-  const checkoutAvailable = checkoutAvailableAt !== null && now >= checkoutAvailableAt;
+  const checkoutAvailableAt = checkInMs
+    ? checkInMs + CHECKOUT_AVAILABLE_AFTER_MS
+    : null;
+  const checkoutAvailable =
+    checkoutAvailableAt !== null && now >= checkoutAvailableAt;
 
   if (!loaded) {
     return (
@@ -107,8 +132,8 @@ export default function AttendanceCheckInCard({ showBreak = true }) {
             {isCheckedIn
               ? `Checked in at ${formatClockTime(record.checkIn)}`
               : isCheckedOut
-              ? "Checked out for today"
-              : "Not checked in yet"}
+                ? "Checked out for today"
+                : "Not checked in yet"}
           </p>
         </div>
         {!isCheckedOut && (
@@ -116,12 +141,24 @@ export default function AttendanceCheckInCard({ showBreak = true }) {
             type="button"
             onClick={() => run(isCheckedIn ? checkOut : checkIn)}
             disabled={busy || (isCheckedIn && !checkoutAvailable)}
-            title={isCheckedIn && !checkoutAvailable ? `Check-out available at ${formatClockTime(checkoutAvailableAt)}` : undefined}
+            title={
+              isCheckedIn && !checkoutAvailable
+                ? `Check-out available at ${formatClockTime(checkoutAvailableAt)}`
+                : undefined
+            }
             className={`flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-xs font-semibold transition-colors duration-150 disabled:opacity-50 ${
-              isCheckedIn ? "text-white bg-red-500/80 hover:bg-red-500" : "text-white bg-[#F47A20] hover:bg-[#ff8b36]"
+              isCheckedIn
+                ? "text-white bg-red-500/80 hover:bg-red-500"
+                : "text-white bg-[#F47A20] hover:bg-[#ff8b36]"
             }`}
           >
-            {busy ? <Loader2 size={13} className="animate-spin" /> : isCheckedIn ? <LogOut size={13} /> : <LogIn size={13} />}
+            {busy ? (
+              <Loader2 size={13} className="animate-spin" />
+            ) : isCheckedIn ? (
+              <LogOut size={13} />
+            ) : (
+              <LogIn size={13} />
+            )}
             {isCheckedIn ? "Check Out" : "Check In"}
           </button>
         )}
@@ -130,15 +167,23 @@ export default function AttendanceCheckInCard({ showBreak = true }) {
       {error && <p className="mt-2 text-xs text-red-400">{error}</p>}
 
       {isCheckedIn && !checkoutAvailable && (
-        <p className="mt-2 text-[11px] text-[#8B93A8]">Check-out available at {formatClockTime(checkoutAvailableAt)}</p>
+        <p className="mt-2 text-[11px] text-[#8B93A8]">
+          Check-out available at {formatClockTime(checkoutAvailableAt)}
+        </p>
       )}
 
-      {showBreak && isCheckedIn && !onBreak && !breakDone && !breakAvailable && (
-        <div className="mt-3 flex items-center gap-2 rounded-xl p-3 bg-white/[0.04] border border-white/[0.06]">
-          <Coffee size={14} className="text-[#4C5266] shrink-0" />
-          <p className="text-xs text-[#8B93A8]">Break available at {formatClockTime(breakAvailableAt)}</p>
-        </div>
-      )}
+      {showBreak &&
+        isCheckedIn &&
+        !onBreak &&
+        !breakDone &&
+        !breakAvailable && (
+          <div className="mt-3 flex items-center gap-2 rounded-xl p-3 bg-white/[0.04] border border-white/[0.06]">
+            <Coffee size={14} className="text-[#4C5266] shrink-0" />
+            <p className="text-xs text-[#8B93A8]">
+              Break available at {formatClockTime(breakAvailableAt)}
+            </p>
+          </div>
+        )}
 
       {showBreak && breakAvailable && (
         <div className="mt-3 flex items-center justify-between gap-3 rounded-xl p-3 bg-[#F47A20]/10 border border-[#F47A20]/25">
@@ -151,7 +196,12 @@ export default function AttendanceCheckInCard({ showBreak = true }) {
             disabled={busy}
             className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-white bg-[#F47A20] hover:bg-[#ff8b36] disabled:opacity-50"
           >
-            {busy ? <Loader2 size={12} className="animate-spin" /> : <Coffee size={12} />} Start Break
+            {busy ? (
+              <Loader2 size={12} className="animate-spin" />
+            ) : (
+              <Coffee size={12} />
+            )}{" "}
+            Start Break
           </button>
         </div>
       )}
@@ -159,7 +209,8 @@ export default function AttendanceCheckInCard({ showBreak = true }) {
       {showBreak && onBreak && (
         <div className="mt-3 flex items-center justify-between gap-3 rounded-xl p-3 bg-sky-500/10 border border-sky-500/25">
           <p className="flex items-center gap-1.5 text-xs text-white">
-            <Coffee size={14} className="text-sky-400" /> On break — {formatElapsed(now - new Date(record.breakStart).getTime())}
+            <Coffee size={14} className="text-sky-400" /> On break —{" "}
+            {formatElapsed(now - new Date(record.breakStart).getTime())}
           </p>
           <button
             type="button"
@@ -167,7 +218,12 @@ export default function AttendanceCheckInCard({ showBreak = true }) {
             disabled={busy}
             className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-white bg-sky-500/80 hover:bg-sky-500 disabled:opacity-50"
           >
-            {busy ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />} End Break
+            {busy ? (
+              <Loader2 size={12} className="animate-spin" />
+            ) : (
+              <Check size={12} />
+            )}{" "}
+            End Break
           </button>
         </div>
       )}
@@ -176,7 +232,8 @@ export default function AttendanceCheckInCard({ showBreak = true }) {
         <div className="mt-3 flex items-center gap-2 rounded-xl p-3 bg-emerald-500/10 border border-emerald-500/25">
           <Coffee size={14} className="text-emerald-400 shrink-0" />
           <p className="text-xs text-white">
-            Break completed ({formatClockTime(record.breakStart)} - {formatClockTime(record.breakEnd)})
+            Break completed ({formatClockTime(record.breakStart)} -{" "}
+            {formatClockTime(record.breakEnd)})
           </p>
         </div>
       )}
