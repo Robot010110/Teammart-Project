@@ -45,8 +45,10 @@ router.get(
   listActivitiesForMarket
 );
 
-// Admin Phase 1 §17 — company-wide, no market scoping.
-router.get("/company", requireStaffRole("ADMIN"), validateQuery(companyActivitiesQuerySchema), listCompanyActivities);
+// Admin Phase 1 §17 — company-wide, no market scoping for ADMIN. Market
+// Activities §5 reuses this same route for REGIONAL_MANAGER too, scoped
+// to their own zone(s) inside the controller (see its own comment).
+router.get("/company", requireStaffRole("ADMIN", "REGIONAL_MANAGER"), validateQuery(companyActivitiesQuerySchema), listCompanyActivities);
 
 // Staff-only approve/reject — also registered before the employee-only
 // gate below. Market scoping happens inside reviewActivity itself

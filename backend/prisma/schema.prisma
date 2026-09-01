@@ -297,6 +297,10 @@ enum NotificationType {
   // A Supervisor or Overlooking account submitted a Card Sales report for
   // one shift — notifies the market's Regional Manager(s).
   CARD_SALES_SUBMITTED
+  // A Regional Manager sent a reminder that today's Card Sales reporting
+  // isn't complete yet — notifies the market's Supervisor and Overlooking
+  // account (Market Activities §4).
+  CARD_SALES_REMINDER
   // A Supervisor assigned an employee to count a DIFFERENT department
   // than their own — notifies the market's zone Regional/Zone Manager
   // that a CountingAssignment needs verification (see that model's own
@@ -552,6 +556,7 @@ model User {
   submittedTotalSalesReports TotalSalesReport[] @relation("TotalSalesSubmitter")
   reviewedTotalSalesReports  TotalSalesReport[] @relation("TotalSalesReviewer")
   submittedCardSalesReports  CardSalesReport[]  @relation("CardSalesSubmitter")
+  sentCardSalesReminders     CardSalesReminder[] @relation("CardSalesReminderSender")
   createdCountingAssignments  CountingAssignment[] @relation("CountingAssignmentAssigner")
   verifiedCountingAssignments CountingAssignment[] @relation("CountingAssignmentVerifier")
   uploadedFiles               UploadedFile[]
@@ -630,6 +635,7 @@ model Market {
 
   totalSalesReports TotalSalesReport[]
   cardSalesReports  CardSalesReport[]
+  cardSalesReminders CardSalesReminder[]
   auditLogs         AuditLog[]
   nightShiftTaskDefinitions NightShiftTaskDefinition[]
   communications Communication[]
@@ -2376,6 +2382,31 @@ enum CardSalesShift {
   MORNING
   AFTERNOON
   NIGHT
+}
+
+// CardSalesReminder — a Regional Manager nudging a market that hasn't
+// finished today's Card Sales reporting (Market Activities §4). No status
+// field, deliberately: "completed / still pending / not completed after
+// the reminder" is never stored, it's derived at read time in
+// cardSalesController.getZoneCardSalesSummary by comparing this row's
+// sentAt (+ a 10-minute grace period) against the market's current
+// CardSalesReport rows for the day — the same "no scheduler, derive
+// on read" approach maintenanceScheduler.js's own comment already
+// explains this app deliberately uses instead of a cron/job-queue
+// dependency. Sending another reminder is just another row — the most
+// recent one for a market/date is what the 10-minute window uses.
+model CardSalesReminder {
+  id       String @id @default(cuid())
+  marketId String
+  market   Market @relation(fields: [marketId], references: [id])
+
+  date DateTime // the reporting day this reminder is about; time part ignored
+
+  sentById Int
+  sentBy   User     @relation("CardSalesReminderSender", fields: [sentById], references: [id])
+  sentAt   DateTime @default(now())
+
+  @@index([marketId, date])
 }
 
 // ---------------------------------------------------------------------

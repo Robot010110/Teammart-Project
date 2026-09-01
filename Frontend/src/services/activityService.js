@@ -37,6 +37,18 @@ export function getActivity(id) {
   return apiRequest(`/activities/${id}`);
 }
 
+// Market Activities §5 — a Regional Manager's own-zone activity feed.
+// Backed by the same GET /api/activities/company Admin already used
+// (listCompanyActivities now also accepts REGIONAL_MANAGER and
+// self-scopes to their own zones — see that controller's own comment);
+// no separate zone-feed endpoint was added.
+export function listZoneActivities({ take } = {}) {
+  const params = new URLSearchParams();
+  if (take) params.set("take", String(take));
+  const query = params.toString();
+  return apiRequest(`/activities/company${query ? `?${query}` : ""}`);
+}
+
 // --- Staff-only (Supervisor Mode) ---
 export function listActivitiesForMarket({ marketId, employeeId, category, status } = {}) {
   const params = new URLSearchParams();

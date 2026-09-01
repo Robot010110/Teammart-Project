@@ -145,6 +145,99 @@ export async function reviewTotalSalesReport(req, res, next) {
   }
 }
 
+// GET /api/total-sales/zone-summary?date=&days= — Regional Manager/
+// Admin-only. Market Activities §2's landing-page Total Sales card: the
+// zone's (or, for Admin, every market's) most recent non-rejected report
+// per market per day, summed into today's total, yesterday's total for
+// the vs-yesterday comparison, and a `days`-long trend for the chart.
+// "Most recent per market per day" mirrors cardSalesController's
+// "most recent report per shift" — a corrected resubmission replaces the
+// earlier one in this total rather than double-counting both.
+export async function getZoneSalesSummary(req, res, next) {
+  try {
+    if (req.user.kind !== "staff" || (req.user.role !== "REGIONAL_MANAGER" && req.user.role !== "ADMIN")) {
+      return res.status(403).json({ error: "Only a Regional Manager or Admin account can view the zone Total Sales summary" });
+    }
+
+    let marketWhere;
+    if (req.user.role === "REGIONAL_MANAGER") {
+      marketWhere = { zoneId: { in: req.user.zoneIds } };
+    }
+    const markets = await prisma.market.findMany({ where: marketWhere, select: { id: true, name: true } });
+    const marketIds = markets.map((m) => m.id);
+    const marketNameById = new Map(markets.map((m) => [m.id, m.name]));
+
+    const targetDate = req.query.date ? dayOnly(req.query.date) : dayOnly(new Date());
+    const days = req.query.days ?? 7;
+    const dayList = [];
+    for (let i = days - 1; i >= 0; i--) {
+      const d = new Date(targetDate);
+      d.setDate(d.getDate() - i);
+      dayList.push(d);
+    }
+
+    if (marketIds.length === 0) {
+      return res.json({
+        date: targetDate,
+        todayTotal: 0,
+        yesterdayTotal: 0,
+        changePct: null,
+        trend: dayList.map((d) => ({ date: d, total: 0 })),
+        topMarkets: [],
+        markets: [],
+        marketCount: 0,
+      });
+    }
+
+    const reports = await prisma.totalSalesReport.findMany({
+      where: { marketId: { in: marketIds }, deletedAt: null, status: { not: "REJECTED" }, date: { gte: dayList[0], lte: targetDate } },
+      select: { marketId: true, date: true, amount: true, submittedAt: true },
+      orderBy: { submittedAt: "desc" },
+    });
+
+    // First hit per (marketId, date) key wins — reports are already
+    // ordered newest-submittedAt-first, so that's the latest resubmission.
+    const latestByMarketDay = new Map();
+    for (const r of reports) {
+      const key = `${r.marketId}|${r.date.toISOString()}`;
+      if (!latestByMarketDay.has(key)) latestByMarketDay.set(key, r.amount);
+    }
+
+    const totalsByDateIso = new Map();
+    for (const [key, amount] of latestByMarketDay) {
+      const dateIso = key.split("|")[1];
+      totalsByDateIso.set(dateIso, (totalsByDateIso.get(dateIso) ?? 0) + amount);
+    }
+    const trend = dayList.map((d) => ({ date: d, total: totalsByDateIso.get(d.toISOString()) ?? 0 }));
+    const todayTotal = trend[trend.length - 1].total;
+    const yesterdayTotal = trend.length >= 2 ? trend[trend.length - 2].total : 0;
+    const changePct = yesterdayTotal > 0 ? ((todayTotal - yesterdayTotal) / yesterdayTotal) * 100 : todayTotal > 0 ? 100 : 0;
+
+    const todayIso = targetDate.toISOString();
+    const yesterdayDate = dayList.length >= 2 ? dayList[dayList.length - 2] : null;
+    const yesterdayIso = yesterdayDate ? yesterdayDate.toISOString() : null;
+
+    // Every market in scope, today vs yesterday — the full breakdown
+    // RmAllMarketsSalesPage.jsx needs; topMarkets below is just its
+    // top-3 slice for the landing card, not a separate query.
+    const marketBreakdown = markets
+      .map((m) => ({
+        marketId: m.id,
+        name: m.name,
+        today: latestByMarketDay.get(`${m.id}|${todayIso}`) ?? 0,
+        yesterday: yesterdayIso ? latestByMarketDay.get(`${m.id}|${yesterdayIso}`) ?? 0 : 0,
+      }))
+      .map((m) => ({ ...m, changePct: m.yesterday > 0 ? ((m.today - m.yesterday) / m.yesterday) * 100 : m.today > 0 ? 100 : 0 }))
+      .sort((a, b) => b.today - a.today);
+
+    const topMarkets = marketBreakdown.slice(0, 3).map((m) => ({ marketId: m.marketId, name: m.name, amount: m.today }));
+
+    res.json({ date: targetDate, todayTotal, yesterdayTotal, changePct, trend, topMarkets, markets: marketBreakdown, marketCount: marketIds.length });
+  } catch (err) {
+    next(err);
+  }
+}
+
 // DELETE /api/total-sales/:id — Regional Manager/Admin-only, same
 // restriction as viewing/reviewing this report type (spec's own repeated
 // rule: a Supervisor never gets read access to Total Sales, so deletion

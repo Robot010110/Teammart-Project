@@ -28,6 +28,15 @@ export function notificationDestination(notification, basePath) {
       // Supervisor's Home tab (SupervisorHomeTab -> ReportsSection), same
       // "route to the screen that shows it" fallback as ACTIVITY above.
       return `${basePath}/home`;
+    case "CARD_SALES_MARKET":
+      // Market Activities §4 — a reminder notification, linkId is the
+      // market it's about (unlike the older "CARD_SALES" linkType, which
+      // points at a specific report and is intentionally left unrouted
+      // below). The Regional Manager who sent it lands on that market's
+      // Card Sales screen; the Supervisor/Overlooking who received it
+      // lands on their own Market tab, where Card Sales already lives.
+      if (!linkId) return null;
+      return basePath === "/rm" ? `${basePath}/markets/${linkId}/card-sales` : `${basePath}/market`;
     case "COMMUNICATION":
       // Warnings & Notifications — a real detail screen exists for this
       // one (CommunicationDetailScreen.jsx), unlike ACTIVITY/WASTED_OVERALL

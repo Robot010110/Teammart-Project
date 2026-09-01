@@ -32,3 +32,14 @@ export function reviewTotalSalesReport(id, payload) {
 export function deleteTotalSalesReport(id) {
   return apiRequest(`/total-sales/${id}`, { method: "DELETE" });
 }
+
+// Market Activities §2 — the zone-wide Total Sales summary behind the
+// landing page's big number + chart. Returns
+// { date, todayTotal, yesterdayTotal, changePct, trend: [{date,total}], topMarkets, marketCount }.
+export function getZoneSalesSummary({ date, days } = {}) {
+  const params = new URLSearchParams();
+  if (date) params.set("date", date);
+  if (days) params.set("days", String(days));
+  const query = params.toString();
+  return apiRequest(`/total-sales/zone-summary${query ? `?${query}` : ""}`);
+}

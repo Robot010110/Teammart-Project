@@ -705,6 +705,15 @@ export const reviewTotalSalesReportSchema = z.object({
   path: ["rejectionReason"],
 });
 
+// Market Activities §2 — Regional Manager's zone-wide Total Sales
+// summary. `days` controls how many trailing days the trend covers
+// (including the target date), capped well below anything that would
+// turn this into a heavy report query.
+export const zoneSalesSummaryQuerySchema = z.object({
+  date: z.coerce.date().optional(),
+  days: z.coerce.number().int().min(1).max(30).optional(),
+});
+
 // ---------------------------------------------------------------------
 // Card Sales — per-shift card-count verification (spec §6-8). At least
 // one photo required, a second optional ("up to two photos").
@@ -725,6 +734,17 @@ export const cardSalesHistoryQuerySchema = z.object({
   marketId: z.string().min(1),
   from: z.coerce.date().optional(),
   to: z.coerce.date().optional(),
+});
+
+// Market Activities §3-4 — Regional Manager's zone-wide Card Sales
+// completion summary, and sending a reminder for one market's day.
+export const zoneCardSalesSummaryQuerySchema = z.object({
+  date: z.coerce.date().optional(),
+});
+
+export const sendCardSalesReminderSchema = z.object({
+  marketId: z.string().min(1),
+  date: z.coerce.date().optional(),
 });
 
 // Fixed reaction set (spec §10) — kept small and workplace-appropriate on

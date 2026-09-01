@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import {
   Bell, BellOff, CheckCheck, X, ClipboardList, MessageCircle, ShieldAlert,
-  PackageX, CalendarOff, CheckCircle2, XCircle, Megaphone, Trash2,
+  PackageX, CalendarOff, CheckCircle2, XCircle, Megaphone, Trash2, CreditCard,
 } from "lucide-react";
 import { useAsync } from "../../hooks/useAsync";
 import ErrorBanner from "../common/ErrorBanner";
@@ -26,6 +26,7 @@ const TYPE_STYLE = {
   ANNOUNCEMENT: { icon: Megaphone, tone: "text-amber-400 bg-amber-500/10" },
   WASTED_OVERALL: { icon: PackageX, tone: "text-[#F47A20] bg-[#F47A20]/10" },
   SUBMISSION_REVIEWED: { icon: CheckCircle2, tone: "text-emerald-400 bg-emerald-500/10" },
+  CARD_SALES_REMINDER: { icon: CreditCard, tone: "text-amber-400 bg-amber-500/10" },
 };
 
 function iconFor(notification) {

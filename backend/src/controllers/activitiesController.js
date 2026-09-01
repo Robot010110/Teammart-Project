@@ -1,7 +1,7 @@
 import { unlink } from "fs/promises";
 import path from "path";
 import { prisma } from "../lib/prisma.js";
-import { assertMarketAccess, requireAccessibleEmployee } from "../middleware/auth.js";
+import { assertMarketAccess, assertZoneAccess, requireAccessibleEmployee, HttpError } from "../middleware/auth.js";
 import { createNotification, createNotificationForUser } from "../utils/notifications.js";
 import { UPLOADS_DIR } from "../utils/fileStorage.js";
 import { ensureMarketDepartment } from "../services/departmentMonitoringService.js";
@@ -216,9 +216,31 @@ export async function listActivitiesForMarket(req, res, next) {
 // enforces one market). Reuses the exact same Activity table/shape —
 // capped at `take` (default 100) most-recent-first so this never pulls
 // the entire company's activity history into one response.
+//
+// Market Activities §5 (Regional Manager's "Today's Zone Activity" feed)
+// reuses this same endpoint rather than a near-duplicate one — the only
+// difference is scope: ADMIN sees everything (unchanged); a
+// REGIONAL_MANAGER is confined to their own zone(s) no matter what
+// marketId/zoneId they pass (assertMarketAccess/assertZoneAccess below),
+// and defaults to all of their zones when neither is given, instead of
+// ADMIN's "everything" default.
 export async function listCompanyActivities(req, res, next) {
   try {
-    const { marketId, zoneId, category, status, employeeId, take } = req.query;
+    if (req.user.kind !== "staff" || (req.user.role !== "ADMIN" && req.user.role !== "REGIONAL_MANAGER")) {
+      return res.status(403).json({ error: "Only an Admin or Regional Manager account can view this activity feed" });
+    }
+
+    let { marketId, zoneId, category, status, employeeId, take } = req.query;
+
+    if (req.user.role === "REGIONAL_MANAGER") {
+      if (marketId) {
+        await assertMarketAccess(req.user, marketId);
+      } else if (zoneId) {
+        await assertZoneAccess(req.user, zoneId);
+      } else {
+        zoneId = { in: req.user.zoneIds };
+      }
+    }
 
     const where = {};
     if (marketId) {

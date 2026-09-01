@@ -1,7 +1,10 @@
 import { Routes, Route, Navigate, useNavigate, useParams } from "react-router-dom";
-import { Home, Store, Users, MessageCircle, Settings as SettingsIcon } from "lucide-react";
+import { Home, Store, Users, MessageCircle, Settings as SettingsIcon, Activity } from "lucide-react";
 import AppShell from "../components/employee/AppShell";
 import RegionalManagerProfile from "./RegionalManagerProfile";
+import RmMarketActivitiesPage from "./RmMarketActivitiesPage";
+import RmAllMarketsSalesPage from "./RmAllMarketsSalesPage";
+import RmCardSalesZoneStatusPage from "./RmCardSalesZoneStatusPage";
 import MarketsPage from "./MarketsPage";
 import RmMarketOverview from "./RmMarketOverview";
 import RmSectionDetail from "./RmSectionDetail";
@@ -30,6 +33,7 @@ const BASE_PATH = "/rm";
 //
 // Connected drill-down, all real routes (not fake local state):
 //   /rm/profile (Home tab)
+//   /rm/activities, /rm/activities/markets, /rm/activities/card-sales
 //   /rm/markets
 //   /rm/markets/:marketId
 //   /rm/markets/:marketId/sections/:department
@@ -43,6 +47,7 @@ export default function RegionalManagerWorkspace({ session, onLogout }) {
   const tabs = [
     { key: "profile", label: "Home", icon: Home },
     { key: "markets", label: "Markets", icon: Store },
+    { key: "activities", label: "Activities", icon: Activity },
     { key: "employees", label: "Employees", icon: Users },
     { key: "chat", label: "Chat", icon: MessageCircle },
     { key: "settings", label: "Settings", icon: SettingsIcon },
@@ -54,6 +59,9 @@ export default function RegionalManagerWorkspace({ session, onLogout }) {
         <Route index element={<Navigate to="profile" replace />} />
         <Route path="profile" element={<RegionalManagerProfile session={session} />} />
         <Route path="markets" element={<MarketsPage />} />
+        <Route path="activities" element={<RmMarketActivitiesPage />} />
+        <Route path="activities/markets" element={<RmAllMarketsSalesRoute />} />
+        <Route path="activities/card-sales" element={<RmCardSalesZoneStatusRoute />} />
         <Route path="markets/:marketId" element={<RmMarketOverviewRoute />} />
         <Route path="markets/:marketId/sections/:department" element={<RmSectionDetailRoute />} />
         <Route path="markets/:marketId/history" element={<RmMarketHistoryRoute />} />
@@ -87,6 +95,16 @@ function RmMarketOverviewRoute() {
       onBack={() => navigate(`${BASE_PATH}/markets`)}
     />
   );
+}
+
+function RmAllMarketsSalesRoute() {
+  const navigate = useNavigate();
+  return <RmAllMarketsSalesPage onBack={() => navigate(`${BASE_PATH}/activities`)} />;
+}
+
+function RmCardSalesZoneStatusRoute() {
+  const navigate = useNavigate();
+  return <RmCardSalesZoneStatusPage onBack={() => navigate(`${BASE_PATH}/activities`)} />;
 }
 
 function RmTotalSalesRoute() {

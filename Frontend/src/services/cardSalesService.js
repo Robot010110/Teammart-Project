@@ -28,3 +28,20 @@ export function listCardSalesHistory({ marketId, from, to } = {}) {
 export function deleteCardSalesReport(id) {
   return apiRequest(`/card-sales/${id}`, { method: "DELETE" });
 }
+
+// Market Activities §3 — the zone-wide Card Sales completion summary.
+// Returns { date, markets: [{marketId,name,completedCount,totalShifts,status,lastReminderAt}], summary }.
+// status is one of COMPLETED | PENDING_REMINDER | NOT_COMPLETED | PENDING.
+export function getZoneCardSalesSummary({ date } = {}) {
+  const params = new URLSearchParams();
+  if (date) params.set("date", date);
+  const query = params.toString();
+  return apiRequest(`/card-sales/zone-summary${query ? `?${query}` : ""}`);
+}
+
+// Market Activities §4 — nudge a market that hasn't finished today's Card
+// Sales reporting. Refused (409, surfaced as ApiError) once that market
+// has already fully reported.
+export function sendCardSalesReminder({ marketId, date }) {
+  return apiRequest("/card-sales/remind", { method: "POST", body: { marketId, date } });
+}

@@ -111,6 +111,145 @@ export async function listCardSalesHistory(req, res, next) {
   }
 }
 
+// 10 minutes — Market Activities §4: "give the market approximately 10
+// minutes to complete the requirement" after a reminder before it's
+// treated as Not Completed. Derived at read time in
+// getZoneCardSalesSummary (CardSalesReminder.sentAt + this window vs
+// now), never a stored status — see that model's own schema comment for
+// why (this app's existing "no scheduler, derive-on-read" convention).
+const REMINDER_GRACE_MS = 10 * 60 * 1000;
+
+// GET /api/card-sales/zone-summary?date= — Regional Manager/Admin-only.
+// Market Activities §3's landing-page Car/Card Sales card: every market
+// in the zone (or, for Admin, every market), how many of today's 3
+// shifts are submitted, and a derived completion status per market —
+// COMPLETED (3/3), NOT_COMPLETED (a reminder was sent 10+ minutes ago
+// and it's still incomplete), PENDING_REMINDER (a reminder was sent,
+// still inside the grace window), or PENDING (no reminder sent yet).
+export async function getZoneCardSalesSummary(req, res, next) {
+  try {
+    if (req.user.kind !== "staff" || (req.user.role !== "REGIONAL_MANAGER" && req.user.role !== "ADMIN")) {
+      return res.status(403).json({ error: "Only a Regional Manager or Admin account can view the zone Card Sales summary" });
+    }
+
+    let marketWhere;
+    if (req.user.role === "REGIONAL_MANAGER") {
+      marketWhere = { zoneId: { in: req.user.zoneIds } };
+    }
+    const markets = await prisma.market.findMany({ where: marketWhere, select: { id: true, name: true }, orderBy: { name: "asc" } });
+    const marketIds = markets.map((m) => m.id);
+    const targetDate = req.query.date ? dayOnly(req.query.date) : dayOnly(new Date());
+
+    if (marketIds.length === 0) {
+      return res.json({ date: targetDate, markets: [], summary: { completed: 0, pending: 0, notCompleted: 0 } });
+    }
+
+    const [reports, reminders] = await Promise.all([
+      prisma.cardSalesReport.findMany({
+        where: { marketId: { in: marketIds }, date: targetDate, deletedAt: null },
+        select: { marketId: true, shift: true },
+      }),
+      prisma.cardSalesReminder.findMany({
+        where: { marketId: { in: marketIds }, date: targetDate },
+        orderBy: { sentAt: "desc" },
+        select: { marketId: true, sentAt: true },
+      }),
+    ]);
+
+    const completedShiftsByMarket = new Map();
+    for (const r of reports) {
+      const set = completedShiftsByMarket.get(r.marketId) ?? new Set();
+      set.add(r.shift);
+      completedShiftsByMarket.set(r.marketId, set);
+    }
+    // First hit per market wins — reminders are already ordered
+    // newest-sentAt-first, so that's the most recent one.
+    const latestReminderByMarket = new Map();
+    for (const r of reminders) {
+      if (!latestReminderByMarket.has(r.marketId)) latestReminderByMarket.set(r.marketId, r.sentAt);
+    }
+
+    const now = Date.now();
+    const shaped = markets.map((m) => {
+      const completedCount = completedShiftsByMarket.get(m.id)?.size ?? 0;
+      const lastReminderAt = latestReminderByMarket.get(m.id) ?? null;
+      let status;
+      if (completedCount === SHIFTS.length) status = "COMPLETED";
+      else if (lastReminderAt && now - lastReminderAt.getTime() >= REMINDER_GRACE_MS) status = "NOT_COMPLETED";
+      else if (lastReminderAt) status = "PENDING_REMINDER";
+      else status = "PENDING";
+      return { marketId: m.id, name: m.name, completedCount, totalShifts: SHIFTS.length, status, lastReminderAt };
+    });
+
+    const summary = shaped.reduce(
+      (acc, m) => {
+        if (m.status === "COMPLETED") acc.completed++;
+        else if (m.status === "NOT_COMPLETED") acc.notCompleted++;
+        else acc.pending++;
+        return acc;
+      },
+      { completed: 0, pending: 0, notCompleted: 0 }
+    );
+
+    res.json({ date: targetDate, markets: shaped, summary });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// POST /api/card-sales/remind — Regional Manager/Admin-only. Market
+// Activities §4: nudges the market's Supervisor AND Overlooking account
+// (a real notification each, not a fake frontend-only banner) that
+// today's Card Sales reporting isn't complete, and starts this market's
+// 10-minute grace window (see REMINDER_GRACE_MS above). Sending another
+// reminder is allowed any time — it's just another row, and resets the
+// window. Refused once the day is already fully reported (nothing left
+// to remind about).
+export async function sendCardSalesReminder(req, res, next) {
+  try {
+    if (req.user.kind !== "staff" || (req.user.role !== "REGIONAL_MANAGER" && req.user.role !== "ADMIN")) {
+      return res.status(403).json({ error: "Only a Regional Manager or Admin account can send a Card Sales reminder" });
+    }
+    const { marketId } = req.body;
+    const date = req.body.date ? dayOnly(req.body.date) : dayOnly(new Date());
+    await assertMarketAccess(req.user, marketId);
+
+    const market = await prisma.market.findUnique({
+      where: { id: marketId },
+      select: { name: true, supervisorId: true, overlookingSupervisorId: true },
+    });
+    if (!market) return res.status(404).json({ error: "Market not found" });
+
+    const existing = await prisma.cardSalesReport.findMany({
+      where: { marketId, date, deletedAt: null },
+      select: { shift: true },
+    });
+    if (new Set(existing.map((r) => r.shift)).size === SHIFTS.length) {
+      return res.status(409).json({ error: "This market has already completed today's Card Sales reporting." });
+    }
+
+    const reminder = await prisma.cardSalesReminder.create({ data: { marketId, date, sentById: req.user.userId } });
+
+    const recipientIds = [market.supervisorId, market.overlookingSupervisorId].filter((id) => id != null);
+    await Promise.all(
+      recipientIds.map((userId) =>
+        createNotificationForUser({
+          userId,
+          type: "CARD_SALES_REMINDER",
+          title: "Card Sales Reminder",
+          body: `Please complete today's Card Sales reporting for ${market.name}.`,
+          linkType: "CARD_SALES_MARKET",
+          linkId: marketId,
+        })
+      )
+    );
+
+    res.status(201).json({ id: reminder.id, sentAt: reminder.sentAt });
+  } catch (err) {
+    next(err);
+  }
+}
+
 // DELETE /api/card-sales/:id — staff with market access (same
 // restriction as viewing this report type — see this file's own top
 // comment on why Card Sales isn't RM/Admin-restricted like Total Sales).
