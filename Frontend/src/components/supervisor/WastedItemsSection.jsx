@@ -46,8 +46,8 @@ export default function WastedItemsSection({ marketId }) {
 
   if (today.length === 0) {
     return (
-      <div className="rounded-2xl p-6 bg-[#171C2E]/80 border border-white/[0.06] text-center">
-        <PackageX size={22} className="mx-auto text-[#4C5266] mb-2" />
+      <div className="h-full min-h-[52px] flex items-center gap-2.5 rounded-2xl px-4 py-3.5 bg-[#171C2E]/80 border border-white/[0.06]">
+        <PackageX size={16} className="text-[#4C5266] shrink-0" />
         <p className="text-sm text-[#8B93A8]">No waste reported today.</p>
       </div>
     );

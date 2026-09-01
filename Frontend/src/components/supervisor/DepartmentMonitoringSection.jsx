@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Building2, Camera, ImageOff, Send, Loader2, CheckCircle2, AlertTriangle } from "lucide-react";
+import { Building2, Camera, ImageOff, Send, Loader2, CheckCircle2, AlertTriangle, Boxes } from "lucide-react";
 import { useAsync } from "../../hooks/useAsync";
 import ErrorBanner from "../common/ErrorBanner";
 import { SkeletonCard } from "../common/SkeletonCard";
@@ -54,10 +54,13 @@ export default function DepartmentMonitoringSection({ marketId }) {
         {departments.map((d) => {
           const style = STATE_STYLE[d.state];
           return (
-            <div key={d.marketDepartmentId} className="rounded-xl p-3.5 bg-[#1A1F33]/70 border border-white/[0.06]">
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <p className="text-sm font-semibold text-white">{d.department}</p>
+            <div key={d.marketDepartmentId} className="rounded-2xl p-4 bg-[#171C2E]/80 border border-white/[0.06]">
+              <div className="flex items-start gap-3">
+                <span className="grid place-items-center h-10 w-10 rounded-xl bg-violet-500/10 text-violet-400 shrink-0">
+                  <Boxes size={18} />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold text-white">{d.department} Department</p>
                   <p className="text-xs text-[#8B93A8] mt-0.5">
                     {d.assignedEmployees.length > 0 ? d.assignedEmployees.map((e) => e.name).join(", ") : "Unassigned"}
                   </p>
@@ -65,7 +68,7 @@ export default function DepartmentMonitoringSection({ marketId }) {
                 <span className={`shrink-0 text-[11px] font-semibold rounded-full px-2.5 py-1 ${style.tone}`}>{style.label}</span>
               </div>
               {d.submission && (
-                <p className="mt-1.5 flex items-center gap-1.5 text-[11px] text-[#6B7284]">
+                <p className="mt-2.5 ml-[52px] flex items-center gap-1.5 text-[11px] text-[#6B7284]">
                   {d.submission.photoAvailable ? <Camera size={11} /> : d.submission.photoExpired ? <ImageOff size={11} /> : null}
                   {d.submission.submittedBy.kind === "staff" ? "Supervisor" : d.submission.submittedBy.name} — {timeLabel(d.submission.submittedAt)}
                   {d.submission.photoExpired && " — Photo expired"}
@@ -75,7 +78,7 @@ export default function DepartmentMonitoringSection({ marketId }) {
                 <button
                   type="button"
                   onClick={() => setSubmittingFor(d.department)}
-                  className="mt-2.5 flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold text-white bg-[#F47A20] hover:bg-[#ff8b36] transition-colors duration-150"
+                  className="mt-3 ml-[52px] flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold text-white bg-[#F47A20] hover:bg-[#ff8b36] transition-colors duration-150"
                 >
                   <Camera size={12} /> Complete This Department
                 </button>
@@ -86,26 +89,29 @@ export default function DepartmentMonitoringSection({ marketId }) {
       </div>
 
       {completion && (
-        <div className="mt-4 rounded-xl p-4 bg-[#171C2E]/80 border border-white/[0.06]">
+        <div className="mt-3 rounded-2xl p-4 bg-[#171C2E]/80 border border-white/[0.06]">
           <div className="flex items-center justify-between">
-            <p className="text-sm text-white">
-              <span className="font-semibold">{completion.completedCount}/{completion.requiredCount}</span> departments completed
-            </p>
+            <div>
+              <p className="text-sm font-semibold text-white">Departments Completed</p>
+              <p className="text-xs text-[#8B93A8] mt-0.5">
+                <span className="font-semibold text-white">{completion.completedCount}/{completion.requiredCount}</span> departments completed
+              </p>
+              {!completion.isComplete && completion.missing.length > 0 && (
+                <p className="text-xs text-[#8B93A8] mt-0.5">Missing: {completion.missing.map((m) => m.department).join(", ")}</p>
+              )}
+            </div>
             {completion.isComplete ? (
-              <CheckCircle2 size={16} className="text-emerald-400" />
+              <CheckCircle2 size={18} className="text-emerald-400 shrink-0" />
             ) : (
-              <AlertTriangle size={16} className="text-amber-400" />
+              <AlertTriangle size={18} className="text-amber-400 shrink-0" />
             )}
           </div>
-          {!completion.isComplete && completion.missing.length > 0 && (
-            <p className="mt-1.5 text-xs text-[#8B93A8]">Missing: {completion.missing.map((m) => m.department).join(", ")}</p>
-          )}
           <button
             type="button"
             onClick={() => setReportOpen(true)}
-            className="mt-3 w-full flex items-center justify-center gap-2 rounded-xl py-3 text-sm font-semibold text-white bg-[#F47A20] hover:bg-[#ff8b36] active:bg-[#e06f18] transition-colors duration-200"
+            className="mt-3.5 w-full flex items-center justify-center gap-2 rounded-xl py-3 text-sm font-semibold text-white bg-[#F47A20] hover:bg-[#ff8b36] active:bg-[#e06f18] transition-colors duration-200"
           >
-            <Send size={14} /> Send Department Report
+            <Send size={14} /> Send Report
           </button>
         </div>
       )}

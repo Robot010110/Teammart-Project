@@ -72,30 +72,35 @@ export default function ReportsProblemsSection({ marketId }) {
 
   return (
     <div>
-      <div className="flex items-center gap-2 mb-3">
-        <button
-          type="button"
-          onClick={() => setTab("active")}
-          className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${tab === "active" ? "bg-[#F47A20] text-white" : "bg-white/[0.06] text-[#9AA1B4] hover:text-white"}`}
-        >
-          Active
-        </button>
-        <button
-          type="button"
-          onClick={() => setTab("history")}
-          className={`flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${tab === "history" ? "bg-[#F47A20] text-white" : "bg-white/[0.06] text-[#9AA1B4] hover:text-white"}`}
-        >
-          <History size={12} /> History
-        </button>
-        <div className="flex-1" />
+      <div className="flex items-center justify-between gap-3 mb-3">
+        <div className="flex items-center gap-1 rounded-xl bg-white/[0.04] p-1">
+          <button
+            type="button"
+            onClick={() => setTab("active")}
+            className={`rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-colors ${tab === "active" ? "bg-[#F47A20] text-white" : "text-[#9AA1B4] hover:text-white"}`}
+          >
+            Active
+          </button>
+          <button
+            type="button"
+            onClick={() => setTab("history")}
+            className={`flex items-center gap-1 rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-colors ${tab === "history" ? "bg-[#F47A20] text-white" : "text-[#9AA1B4] hover:text-white"}`}
+          >
+            <History size={12} /> History
+          </button>
+        </div>
         {tab === "active" && (
-          <button type="button" onClick={() => setShowForm(true)} className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold text-white bg-[#F47A20] hover:bg-[#ff8b36]">
+          <button
+            type="button"
+            onClick={() => setShowForm(true)}
+            className="shrink-0 flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold text-[#F47A20] border border-[#F47A20]/40 hover:bg-[#F47A20]/10 transition-colors"
+          >
             <Plus size={14} /> Report Problem
           </button>
         )}
       </div>
 
-      {tab === "active" && openCount !== null && <p className="text-xs text-[#8B93A8] mb-2">{openCount} unresolved</p>}
+      {tab === "active" && openCount !== null && <p className="text-xs text-[#8B93A8] mb-2">{openCount} unresolved issue{openCount === 1 ? "" : "s"}</p>}
 
       {problems.length === 0 ? (
         <p className="text-sm text-[#4C5266] text-center py-8">

@@ -16,7 +16,7 @@ export default function CartonFillingButton({ marketName }) {
       href={href}
       target="_blank"
       rel="noreferrer"
-      className="w-full flex items-center justify-center gap-2 rounded-xl py-3.5 text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 transition-colors duration-200 shadow-lg shadow-emerald-900/20"
+      className="w-full h-full min-h-[52px] flex items-center justify-center gap-2 rounded-2xl py-3.5 px-4 text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 transition-colors duration-200 shadow-lg shadow-emerald-900/20"
     >
       <PackageOpen size={17} /> Request Carton Collection
     </a>
