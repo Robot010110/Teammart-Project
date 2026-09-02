@@ -59,6 +59,36 @@ body {
   }
 }
 
+/* Soft, slow ambient glow — used behind the Home performance ring and
+   any other "neon" accent this app wants without introducing a heavy
+   animation library. Deliberately gentle (long duration, small opacity
+   swing) — see the brief this was built for: "smooth and cool soft loop
+   animations", never a hard pulse/bounce. */
+@keyframes glowPulse {
+  0%,
+  100% {
+    opacity: 0.55;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.9;
+    transform: scale(1.05);
+  }
+}
+
+/* Very subtle ambient drift for a large background glow blob — moves
+   just enough to feel alive, never enough to distract from content
+   sitting on top of it. */
+@keyframes ambientDrift {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+  50% {
+    transform: translate(-2%, 2%) scale(1.08);
+  }
+}
+
 .animate-fade-up {
   animation: fadeUp 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
@@ -75,12 +105,22 @@ body {
   animation: slideIn 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
+.animate-glow-pulse {
+  animation: glowPulse 3.2s ease-in-out infinite;
+}
+
+.animate-ambient-drift {
+  animation: ambientDrift 9s ease-in-out infinite;
+}
+
 /* Respect reduced-motion preferences */
 @media (prefers-reduced-motion: reduce) {
   .animate-fade-up,
   .animate-fade-in,
   .animate-modal-in,
-  .animate-slide-in {
+  .animate-slide-in,
+  .animate-glow-pulse,
+  .animate-ambient-drift {
     animation: none !important;
   }
 }
