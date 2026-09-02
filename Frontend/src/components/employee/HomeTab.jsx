@@ -151,7 +151,7 @@ export default function HomeTab({ onNavigate, basePath }) {
 
   if (showPerformanceHistory) {
     return (
-      <div className="min-h-full bg-[#1A1A1A]">
+      <div className="min-h-full bg-[#050A18]">
         <PerformanceHistoryScreen onBack={() => setShowPerformanceHistory(false)} />
       </div>
     );
@@ -159,7 +159,7 @@ export default function HomeTab({ onNavigate, basePath }) {
 
   if (showWorkLog) {
     return (
-      <div className="min-h-full bg-[#1A1A1A]">
+      <div className="min-h-full bg-[#050A18]">
         <TodayWorkLogScreen onBack={() => setShowWorkLog(false)} />
       </div>
     );

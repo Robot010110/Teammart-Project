@@ -26,12 +26,29 @@ body {
    glows instead of each component inventing its own box-shadow. Applied
    to a small tinted icon container, never the whole card — restrained,
    matching this session's explicit "luxury enterprise, not gaming RGB"
-   brief. */
-.glow-orange { box-shadow: 0 0 14px 1px rgba(244, 122, 32, 0.35); }
-.glow-emerald { box-shadow: 0 0 14px 1px rgba(52, 211, 153, 0.3); }
-.glow-sky { box-shadow: 0 0 14px 1px rgba(56, 189, 248, 0.3); }
-.glow-violet { box-shadow: 0 0 14px 1px rgba(167, 139, 250, 0.3); }
-.glow-red { box-shadow: 0 0 14px 1px rgba(248, 113, 113, 0.3); }
+   brief.
+
+   Global Visual System Evolution — each glow is now two layered
+   shadows: a tighter, brighter inner glow (the icon's own light) plus a
+   wider, very-low-opacity outer spill (the "ambient color spill" onto
+   the surface around it) — reads as noticeably more illuminated against
+   the deeper #050A18 page background without the icon itself looking
+   larger or gaudier. */
+.glow-orange { box-shadow: 0 0 10px 1px rgba(244, 122, 32, 0.45), 0 0 26px 6px rgba(244, 122, 32, 0.16); }
+.glow-emerald { box-shadow: 0 0 10px 1px rgba(52, 211, 153, 0.4), 0 0 26px 6px rgba(52, 211, 153, 0.14); }
+.glow-sky { box-shadow: 0 0 10px 1px rgba(56, 189, 248, 0.4), 0 0 26px 6px rgba(56, 189, 248, 0.14); }
+.glow-violet { box-shadow: 0 0 10px 1px rgba(167, 139, 250, 0.4), 0 0 26px 6px rgba(167, 139, 250, 0.14); }
+.glow-red { box-shadow: 0 0 10px 1px rgba(248, 113, 113, 0.4), 0 0 26px 6px rgba(248, 113, 113, 0.14); }
+.glow-amber { box-shadow: 0 0 10px 1px rgba(251, 191, 36, 0.4), 0 0 26px 6px rgba(251, 191, 36, 0.14); }
+
+/* Secondary/inactive tier — same five tones at roughly a third the
+   intensity, for elements that should read as present but not primary
+   (see the brief's own glow-hierarchy request: primary/secondary/
+   inactive/disabled). */
+.glow-orange-soft { box-shadow: 0 0 8px 0.5px rgba(244, 122, 32, 0.2); }
+.glow-emerald-soft { box-shadow: 0 0 8px 0.5px rgba(52, 211, 153, 0.18); }
+.glow-sky-soft { box-shadow: 0 0 8px 0.5px rgba(56, 189, 248, 0.18); }
+.glow-violet-soft { box-shadow: 0 0 8px 0.5px rgba(167, 139, 250, 0.18); }
 
 /* Premium card — a hairline top highlight simulating the reference's
    "physical surface floating above the background" depth, layered on

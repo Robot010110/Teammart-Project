@@ -14,14 +14,23 @@ import Logo from "../common/Logo";
 // what makes the Android/browser Back button walk back through tabs and
 // drill-down screens correctly instead of leaving the app.
 //
-// TeamMart visual system pass — the two fixed ambient glow blobs below
-// are the single "living background" layer shared by every screen this
-// shell renders (Home/Tasks/Activity/Chat/Profile all inherit it for
-// free rather than each page building its own). Purely decorative,
-// `pointer-events-none`, low-opacity, slow-looping (same
-// `animate-ambient-drift` keyframe already used on the Home hero card),
-// and disabled under prefers-reduced-motion via that class's own
-// index.css rule — never interferes with scrolling or tap targets.
+// Global Visual System Evolution — the page background moved from a
+// near-black neutral (#1A1A1A) to a deep midnight navy (#050A18), the
+// same base tone Home's Performance card already established (see
+// PerformanceAtmosphere.jsx). Set once here, this single change is what
+// makes every screen (Home/Tasks/Activity/Chat/Profile all mount
+// through this one shell) share the same environment — the "hierarchy"
+// the brief asks for (deepest navy = page, lighter navy = cards, still
+// lighter = chrome like the top bar/BottomNav) needs no further edits
+// per page, since every existing card already uses a lighter #171C2E/
+// #1A1F33 surface that now reads correctly against this darker base.
+//
+// The two fixed ambient glow blobs below are the single "living
+// background" layer shared by every screen this shell renders. Purely
+// decorative, `pointer-events-none`, slow-looping (same
+// `animate-ambient-drift` keyframe used on Home's hero card), and
+// disabled under prefers-reduced-motion via that class's own index.css
+// rule — never interferes with scrolling or tap targets.
 //
 // tabs: [{ key, label, icon: LucideIcon, badge?: number }] — no `content`
 // anymore; each tab's screen is a nested <Route path={key}> the caller
@@ -35,14 +44,14 @@ export default function AppShell({ tabs, basePath, showNotificationBell = false 
   const activeTab = tabs.find((t) => location.pathname.startsWith(`${basePath}/${t.key}`))?.key ?? tabs[0]?.key;
 
   return (
-    <div className="relative min-h-screen flex flex-col bg-[#1A1A1A] overflow-hidden">
+    <div className="relative min-h-screen flex flex-col bg-[#050A18] overflow-hidden">
       <div className="fixed inset-0 pointer-events-none overflow-hidden" aria-hidden="true">
-        <div className="absolute -top-24 -right-20 w-72 h-72 rounded-full bg-[#F47A20]/[0.05] blur-3xl animate-ambient-drift" />
-        <div className="absolute top-1/2 -left-24 w-72 h-72 rounded-full bg-[#1D2D5C]/40 blur-3xl animate-ambient-drift" style={{ animationDelay: "-4.5s" }} />
+        <div className="absolute -top-24 -right-20 w-80 h-80 rounded-full bg-[#F47A20]/[0.07] blur-3xl animate-ambient-drift" />
+        <div className="absolute top-1/2 -left-24 w-80 h-80 rounded-full bg-[#1D2D5C]/50 blur-3xl animate-ambient-drift" style={{ animationDelay: "-4.5s" }} />
       </div>
 
       {showNotificationBell && (
-        <div className="relative sticky top-0 z-20 h-14 flex items-center justify-between px-4 sm:px-6 bg-[#1A1A1A]/85 backdrop-blur-xl border-b border-white/[0.05]">
+        <div className="relative sticky top-0 z-20 h-14 flex items-center justify-between px-4 sm:px-6 bg-[#050A18]/85 backdrop-blur-xl border-b border-white/[0.05]">
           {/* Cleanup Phase §9 — logo click -> homepage, reusing the exact
               same routing this shell already does for a bottom-nav tab
               switch (navigate to `${basePath}/<tab>`), not a second

@@ -31,6 +31,20 @@ function elapsedLabel(ms) {
 // "do NOT use a giant hero card for every active task" rule). Icon comes
 // from the task's real `category` field via suddenTaskVisuals.js, never
 // per-task artwork.
+//
+// Global Visual System Evolution — a thin status-colored left edge
+// (emerald=completed, amber=in progress, neutral=still pending) so a
+// task's state reads at a glance across a long list without needing to
+// read the pill text — real status only, never a fabricated indicator.
+// A plain absolutely-positioned span, not a `::before` pseudo-element —
+// card-premium already owns `::before` for its own gradient highlight,
+// so this stays a real DOM node to avoid colliding with that.
+const STATUS_EDGE = {
+  COMPLETED: "bg-emerald-400",
+  IN_PROGRESS: "bg-[#F47A20]",
+  ASSIGNED: "bg-white/10",
+};
+
 export default function TaskCard({ task, onClick }) {
   const visual = categoryVisual(task.category);
   const Icon = visual.icon;
@@ -46,8 +60,9 @@ export default function TaskCard({ task, onClick }) {
     <button
       type="button"
       onClick={onClick}
-      className="card-premium w-full text-left rounded-2xl p-4 bg-[#171C2E]/80 border border-white/[0.06] backdrop-blur-xl hover:border-[#F47A20]/25 active:scale-[0.99] transition-all"
+      className="card-premium relative w-full text-left rounded-2xl p-4 pl-[18px] bg-[#171C2E]/80 border border-white/[0.06] backdrop-blur-xl hover:border-[#F47A20]/25 active:scale-[0.99] transition-all"
     >
+      <span className={`absolute left-0 top-3 bottom-3 w-[3px] rounded-full ${STATUS_EDGE[task.status] ?? STATUS_EDGE.ASSIGNED}`} aria-hidden="true" />
       <div className="flex items-center justify-between gap-2 mb-2.5">
         <span className={`text-[10px] font-bold uppercase tracking-wide ${PRIORITY_TONE[task.priority] ?? "text-sky-400"}`}>
           {PRIORITY_LABEL[task.priority] ?? task.priority}
