@@ -40,7 +40,7 @@ export default function ChatConversationCard({ conversation, onOpen, onMore }) {
 
   return (
     <div
-      className={`w-full flex items-center gap-3 rounded-2xl p-3.5 border transition-colors ${
+      className={`card-premium w-full flex items-center gap-3 rounded-2xl p-3.5 border transition-all duration-150 active:scale-[0.99] ${
         isAnnouncement ? "bg-amber-500/[0.06] border-amber-500/20 hover:border-amber-500/35" : "bg-[#171C2E]/80 border-white/[0.06] hover:border-[#F47A20]/25"
       }`}
     >
@@ -76,7 +76,7 @@ export default function ChatConversationCard({ conversation, onOpen, onMore }) {
             <div className="flex items-center gap-1.5 shrink-0">
               {conversation.lastMessage && <span className="text-[10px] text-[#4C5266]">{timeLabel(conversation.lastMessage.createdAt)}</span>}
               {conversation.unreadCount > 0 && (
-                <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-[#F47A20] text-white text-[10px] font-bold flex items-center justify-center">
+                <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-[#F47A20] text-white text-[10px] font-bold flex items-center justify-center glow-orange">
                   {conversation.unreadCount > 99 ? "99+" : conversation.unreadCount}
                 </span>
               )}

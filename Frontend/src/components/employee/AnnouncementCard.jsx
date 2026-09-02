@@ -26,9 +26,9 @@ export default function AnnouncementCard({ announcement, onClick }) {
     <button
       type="button"
       onClick={onClick}
-      className="w-full flex items-center gap-3 rounded-2xl p-4 bg-gradient-to-br from-[#F47A20]/[0.12] to-[#171C2E]/80 border border-[#F47A20]/20 backdrop-blur-xl hover:border-[#F47A20]/35 transition-colors text-left"
+      className="card-premium w-full flex items-center gap-3 rounded-2xl p-4 bg-gradient-to-br from-[#F47A20]/[0.12] to-[#171C2E]/80 border border-[#F47A20]/20 backdrop-blur-xl hover:border-[#F47A20]/35 active:scale-[0.99] transition-all duration-150"
     >
-      <span className="w-10 h-10 rounded-xl bg-[#F47A20]/15 flex items-center justify-center text-[#F47A20] shrink-0">
+      <span className="w-10 h-10 rounded-xl bg-[#F47A20]/15 flex items-center justify-center text-[#F47A20] glow-orange shrink-0">
         <Megaphone size={18} />
       </span>
       <div className="min-w-0 flex-1">

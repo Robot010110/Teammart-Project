@@ -11,10 +11,10 @@ import { getProfile } from "../../services/profileService";
 import { useAsync } from "../../hooks/useAsync";
 
 const MENU = [
-  { key: "attendance", label: "Attendance", icon: CalendarDays },
-  { key: "performance", label: "Performance History", icon: TrendingUp },
-  { key: "leave", label: "Off Days / Leave", icon: CalendarOff },
-  { key: "settings", label: "Settings", icon: SettingsIcon },
+  { key: "attendance", label: "Attendance", icon: CalendarDays, bg: "bg-sky-500/10", tone: "text-sky-400", glow: "glow-sky" },
+  { key: "performance", label: "Performance History", icon: TrendingUp, bg: "bg-violet-500/10", tone: "text-violet-400", glow: "glow-violet" },
+  { key: "leave", label: "Off Days / Leave", icon: CalendarOff, bg: "bg-emerald-500/10", tone: "text-emerald-400", glow: "glow-emerald" },
+  { key: "settings", label: "Settings", icon: SettingsIcon, bg: "bg-[#F47A20]/10", tone: "text-[#F47A20]", glow: "glow-orange" },
 ];
 
 function ProfileMenu({ basePath }) {
@@ -31,15 +31,17 @@ function ProfileMenu({ basePath }) {
         <ProfileHeaderCard profile={profile} />
       )}
 
-      <div className="mt-5 rounded-2xl bg-[#171C2E]/80 border border-white/[0.06] backdrop-blur-xl overflow-hidden divide-y divide-white/[0.06]">
-        {MENU.map(({ key, label, icon: Icon }) => (
+      <div className="card-premium mt-5 rounded-2xl bg-[#171C2E]/80 border border-white/[0.06] backdrop-blur-xl overflow-hidden divide-y divide-white/[0.06]">
+        {MENU.map(({ key, label, icon: Icon, bg, tone, glow }) => (
           <button
             key={key}
             type="button"
             onClick={() => navigate(`${basePath}/${key}`)}
-            className="w-full flex items-center gap-3 px-4 py-3.5 text-left hover:bg-white/[0.03] transition-colors"
+            className="w-full flex items-center gap-3 px-4 py-3.5 text-left hover:bg-white/[0.03] active:bg-white/[0.05] transition-colors duration-150"
           >
-            <Icon size={17} className="text-[#8B93A8]" />
+            <span className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${bg} ${tone} ${glow}`}>
+              <Icon size={16} />
+            </span>
             <span className="flex-1 text-sm text-white">{label}</span>
             <ChevronRight size={16} className="text-[#4C5266]" />
           </button>

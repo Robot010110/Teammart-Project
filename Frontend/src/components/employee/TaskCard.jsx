@@ -46,7 +46,7 @@ export default function TaskCard({ task, onClick }) {
     <button
       type="button"
       onClick={onClick}
-      className="w-full text-left rounded-2xl p-4 bg-[#171C2E]/80 border border-white/[0.06] backdrop-blur-xl hover:border-[#F47A20]/25 active:scale-[0.99] transition-all"
+      className="card-premium w-full text-left rounded-2xl p-4 bg-[#171C2E]/80 border border-white/[0.06] backdrop-blur-xl hover:border-[#F47A20]/25 active:scale-[0.99] transition-all"
     >
       <div className="flex items-center justify-between gap-2 mb-2.5">
         <span className={`text-[10px] font-bold uppercase tracking-wide ${PRIORITY_TONE[task.priority] ?? "text-sky-400"}`}>
@@ -62,7 +62,7 @@ export default function TaskCard({ task, onClick }) {
       </div>
 
       <div className="flex items-start gap-3">
-        <span className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${visual.bg} ${visual.tone}`}>
+        <span className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${visual.bg} ${visual.tone} ${visual.glow}`}>
           <Icon size={19} />
         </span>
         <div className="min-w-0 flex-1">

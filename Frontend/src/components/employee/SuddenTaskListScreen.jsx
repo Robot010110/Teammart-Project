@@ -136,8 +136,10 @@ export default function SuddenTaskListScreen({ basePath }) {
             <TaskEmptyState variant={tab === "active" ? "active" : "completed"} />
           ) : (
             <div className="space-y-2.5">
-              {shownTasks.map((task) => (
-                <TaskCard key={task.id} task={task} onClick={() => navigate(`${basePath}/tasks/${task.id}`)} />
+              {shownTasks.map((task, i) => (
+                <div key={task.id} className="animate-fade-up" style={{ animationDelay: `${Math.min(i, 8) * 40}ms` }}>
+                  <TaskCard task={task} onClick={() => navigate(`${basePath}/tasks/${task.id}`)} />
+                </div>
               ))}
             </div>
           )}

@@ -79,7 +79,7 @@ export default function TodayWorkLogScreen({ onBack }) {
                 return (
                   <div key={t.id} className="rounded-xl p-3.5 bg-[#1A1F33]/70 border border-white/[0.06]">
                     <div className="flex items-start gap-3">
-                      <span className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${visual.bg} ${visual.tone}`}>
+                      <span className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${visual.bg} ${visual.tone} ${visual.glow}`}>
                         <Icon size={16} />
                       </span>
                       <div className="min-w-0 flex-1">

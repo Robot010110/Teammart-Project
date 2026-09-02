@@ -65,7 +65,7 @@ export default function EmployeeTasksSection({ employeeId, employeeName, onBack 
               <div key={t.id} className="rounded-xl p-3.5 bg-[#1A1F33]/70 border border-white/[0.06]">
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex items-center gap-2 min-w-0">
-                    <span className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${visual.bg} ${visual.tone}`}>
+                    <span className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${visual.bg} ${visual.tone} ${visual.glow}`}>
                       <Icon size={14} />
                     </span>
                     <span className="text-sm font-medium text-white truncate">{t.title}</span>

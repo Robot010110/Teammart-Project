@@ -234,8 +234,10 @@ export default function WorkerActivityTab() {
           <p className="text-sm text-[#4C5266] text-center py-6">No tasks assigned right now.</p>
         ) : (
           <div className="space-y-2">
-            {myTasks.map((t) => (
-              <TaskRow key={t.id} task={t} onClick={() => navigate(`/me/tasks/${t.id}`)} />
+            {myTasks.map((t, i) => (
+              <div key={t.id} className="animate-fade-up" style={{ animationDelay: `${i * 40}ms` }}>
+                <TaskRow task={t} onClick={() => navigate(`/me/tasks/${t.id}`)} />
+              </div>
             ))}
           </div>
         )}

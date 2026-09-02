@@ -19,6 +19,40 @@ body {
   background-color: var(--dark-gray);
 }
 
+/* TeamMart visual system — neon glow utilities. One reusable class per
+   semantic tone (orange=primary/active, emerald=success, sky=info,
+   violet=performance/analytics, red=urgent) so every icon
+   container/active-state across the app reaches for the same five
+   glows instead of each component inventing its own box-shadow. Applied
+   to a small tinted icon container, never the whole card — restrained,
+   matching this session's explicit "luxury enterprise, not gaming RGB"
+   brief. */
+.glow-orange { box-shadow: 0 0 14px 1px rgba(244, 122, 32, 0.35); }
+.glow-emerald { box-shadow: 0 0 14px 1px rgba(52, 211, 153, 0.3); }
+.glow-sky { box-shadow: 0 0 14px 1px rgba(56, 189, 248, 0.3); }
+.glow-violet { box-shadow: 0 0 14px 1px rgba(167, 139, 250, 0.3); }
+.glow-red { box-shadow: 0 0 14px 1px rgba(248, 113, 113, 0.3); }
+
+/* Premium card — a hairline top highlight simulating the reference's
+   "physical surface floating above the background" depth, layered on
+   top of this app's existing bg-[#171C2E]/80 + border treatment (never
+   a replacement for it — apply alongside those Tailwind classes). */
+.card-premium {
+  position: relative;
+}
+.card-premium::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0));
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
 @keyframes fadeUp {
   from {
     opacity: 0;

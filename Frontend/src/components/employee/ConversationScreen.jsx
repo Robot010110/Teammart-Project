@@ -1005,7 +1005,9 @@ export default function ConversationScreen({ conversation, currentUserId, curren
                   type="button"
                   onClick={handleSend}
                   disabled={sending || (!draft.trim() && !pendingAttachment)}
-                  className="shrink-0 w-11 h-11 rounded-xl flex items-center justify-center text-white bg-[#F47A20] hover:bg-[#ff8b36] active:bg-[#e06f18] disabled:bg-white/10 disabled:text-[#4C5266] transition-colors duration-200"
+                  className={`shrink-0 w-11 h-11 rounded-xl flex items-center justify-center text-white bg-[#F47A20] hover:bg-[#ff8b36] active:bg-[#e06f18] active:scale-90 disabled:bg-white/10 disabled:text-[#4C5266] disabled:shadow-none transition-all duration-200 ${
+                    !sending && (draft.trim() || pendingAttachment) ? "glow-orange" : ""
+                  }`}
                 >
                   {sending ? <Loader2 size={17} className="animate-spin" /> : <Send size={17} />}
                 </button>

@@ -9,6 +9,7 @@ import { useUnreadBadges } from "../../hooks/useUnreadBadges";
 import PerformanceCircle from "./PerformanceCircle";
 import PerformanceHistoryScreen from "./PerformanceHistoryScreen";
 import TodayWorkLogScreen from "./TodayWorkLogScreen";
+import WeeklyHoursChart from "./WeeklyHoursChart";
 import AttendanceSection from "./AttendanceSection";
 import QuickActionCard from "./QuickActionCard";
 import AnnouncementCard from "./AnnouncementCard";
@@ -16,6 +17,7 @@ import TaskRow from "./TaskRow";
 import ActivityMetricCard from "./ActivityMetricCard";
 import ErrorBanner from "../common/ErrorBanner";
 import { SkeletonCard } from "../common/SkeletonCard";
+import AnimatedNumber from "../common/AnimatedNumber";
 import { getProfile } from "../../services/profileService";
 import { getPerformanceSummary } from "../../services/activityService";
 import { listSuddenTasks } from "../../services/suddenTaskService";
@@ -220,7 +222,9 @@ export default function HomeTab({ onNavigate, basePath }) {
           <div className="flex-1 min-w-0 divide-y divide-white/[0.06]">
             <div className="flex items-center justify-between py-2 first:pt-0">
               <span className="flex items-center gap-1.5 text-xs text-[#9AA1B4]"><CheckCircle2 size={13} className="text-emerald-400" /> Tasks Today</span>
-              <span className="text-xs font-semibold text-white">{completedToday.length} / {completedToday.length + pendingCount}</span>
+              <span className="text-xs font-semibold text-white">
+                <AnimatedNumber value={completedToday.length} /> / <AnimatedNumber value={completedToday.length + pendingCount} />
+              </span>
             </div>
             <div className="flex items-center justify-between py-2">
               <span className="flex items-center gap-1.5 text-xs text-[#9AA1B4]"><Users size={13} className="text-sky-400" /> Attendance</span>
@@ -272,8 +276,10 @@ export default function HomeTab({ onNavigate, basePath }) {
           <p className="text-sm text-[#4C5266] text-center py-6">You're all caught up — no tasks are waiting for you.</p>
         ) : (
           <div className="space-y-2">
-            {todaysTasks.map((t) => (
-              <TaskRow key={t.id} task={t} onClick={() => navigate(`${basePath}/tasks/${t.id}`)} />
+            {todaysTasks.map((t, i) => (
+              <div key={t.id} className="animate-fade-up" style={{ animationDelay: `${i * 40}ms` }}>
+                <TaskRow task={t} onClick={() => navigate(`${basePath}/tasks/${t.id}`)} />
+              </div>
             ))}
           </div>
         )}
@@ -299,12 +305,13 @@ export default function HomeTab({ onNavigate, basePath }) {
             </button>
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 mb-3">
           <ActivityMetricCard icon={CalendarCheck2} value={periodCompletedCount} label="Completed" tone="emerald" />
           <ActivityMetricCard icon={Clock} value={hoursLabel(periodHours)} label="Hours" tone="orange" />
           <ActivityMetricCard icon={CheckCircle2} value={complianceLabel} label="Compliance" tone="emerald" />
           <ActivityMetricCard icon={BarChart3} value={performanceLabel} label="Performance" tone="violet" />
         </div>
+        <WeeklyHoursChart days={monthAttendance?.days} />
       </section>
 
       <section ref={attendanceRef} className="scroll-mt-4">

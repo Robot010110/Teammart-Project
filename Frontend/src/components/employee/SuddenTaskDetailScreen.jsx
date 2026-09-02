@@ -125,7 +125,7 @@ export default function SuddenTaskDetailScreen({ task, onBack, onUpdated }) {
           <h1 className="text-lg font-bold text-white">Task Completed!</h1>
 
           <div className="mt-4 flex items-center justify-center gap-3">
-            <span className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${visual.bg} ${visual.tone}`}>
+            <span className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${visual.bg} ${visual.tone} ${visual.glow}`}>
               <Icon size={18} />
             </span>
             <div className="text-left">
@@ -178,7 +178,7 @@ export default function SuddenTaskDetailScreen({ task, onBack, onUpdated }) {
         </div>
 
         <div className="flex items-center gap-3 mb-3">
-          <span className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${visual.bg} ${visual.tone}`}>
+          <span className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${visual.bg} ${visual.tone} ${visual.glow}`}>
             <Icon size={22} />
           </span>
           <div className="min-w-0">

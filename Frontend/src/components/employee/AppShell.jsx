@@ -14,6 +14,15 @@ import Logo from "../common/Logo";
 // what makes the Android/browser Back button walk back through tabs and
 // drill-down screens correctly instead of leaving the app.
 //
+// TeamMart visual system pass — the two fixed ambient glow blobs below
+// are the single "living background" layer shared by every screen this
+// shell renders (Home/Tasks/Activity/Chat/Profile all inherit it for
+// free rather than each page building its own). Purely decorative,
+// `pointer-events-none`, low-opacity, slow-looping (same
+// `animate-ambient-drift` keyframe already used on the Home hero card),
+// and disabled under prefers-reduced-motion via that class's own
+// index.css rule — never interferes with scrolling or tap targets.
+//
 // tabs: [{ key, label, icon: LucideIcon, badge?: number }] — no `content`
 // anymore; each tab's screen is a nested <Route path={key}> the caller
 // defines, matching the URL instead of being picked by local state.
@@ -26,9 +35,14 @@ export default function AppShell({ tabs, basePath, showNotificationBell = false 
   const activeTab = tabs.find((t) => location.pathname.startsWith(`${basePath}/${t.key}`))?.key ?? tabs[0]?.key;
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#1A1A1A]">
+    <div className="relative min-h-screen flex flex-col bg-[#1A1A1A] overflow-hidden">
+      <div className="fixed inset-0 pointer-events-none overflow-hidden" aria-hidden="true">
+        <div className="absolute -top-24 -right-20 w-72 h-72 rounded-full bg-[#F47A20]/[0.05] blur-3xl animate-ambient-drift" />
+        <div className="absolute top-1/2 -left-24 w-72 h-72 rounded-full bg-[#1D2D5C]/40 blur-3xl animate-ambient-drift" style={{ animationDelay: "-4.5s" }} />
+      </div>
+
       {showNotificationBell && (
-        <div className="sticky top-0 z-20 h-14 flex items-center justify-between px-4 sm:px-6 bg-[#1A1A1A]/85 backdrop-blur-xl border-b border-white/[0.05]">
+        <div className="relative sticky top-0 z-20 h-14 flex items-center justify-between px-4 sm:px-6 bg-[#1A1A1A]/85 backdrop-blur-xl border-b border-white/[0.05]">
           {/* Cleanup Phase §9 — logo click -> homepage, reusing the exact
               same routing this shell already does for a bottom-nav tab
               switch (navigate to `${basePath}/<tab>`), not a second
@@ -39,7 +53,7 @@ export default function AppShell({ tabs, basePath, showNotificationBell = false 
           <NotificationBell basePath={basePath} />
         </div>
       )}
-      <div className="flex-1 overflow-y-auto pb-24">
+      <div className="relative flex-1 overflow-y-auto pb-28">
         <Outlet />
       </div>
       <BottomNav tabs={tabs} activeTab={activeTab} onSelect={(key) => navigate(`${basePath}/${key}`)} />
