@@ -197,7 +197,7 @@ export default function NotificationBell({ basePath }) {
       >
         <Bell size={17} className="text-[#E8E8E8]" strokeWidth={1.8} />
         {unreadCount > 0 && (
-          <span className="absolute -top-0.5 -right-0.5 h-4 w-4 rounded-full bg-[#F47A20] text-[10px] font-bold text-white grid place-items-center ring-2 ring-[#1A1A1A]">
+          <span className="absolute -top-0.5 -right-0.5 h-4 w-4 rounded-full bg-[#F47A20] text-[10px] font-bold text-white grid place-items-center ring-2 ring-[#1A1A1A] glow-orange animate-glow-pulse">
             {unreadCount > 9 ? "9+" : unreadCount}
           </span>
         )}

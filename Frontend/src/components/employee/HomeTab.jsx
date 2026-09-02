@@ -10,6 +10,7 @@ import PerformanceCircle from "./PerformanceCircle";
 import PerformanceHistoryScreen from "./PerformanceHistoryScreen";
 import TodayWorkLogScreen from "./TodayWorkLogScreen";
 import WeeklyHoursChart from "./WeeklyHoursChart";
+import PerformanceAtmosphere from "./PerformanceAtmosphere";
 import AttendanceSection from "./AttendanceSection";
 import QuickActionCard from "./QuickActionCard";
 import AnnouncementCard from "./AnnouncementCard";
@@ -166,7 +167,7 @@ export default function HomeTab({ onNavigate, basePath }) {
 
   if (profileLoading) {
     return (
-      <div className="px-4 sm:px-6 py-6 max-w-4xl mx-auto space-y-4">
+      <div className="min-h-full bg-[#050A18] px-4 sm:px-6 py-6 max-w-4xl mx-auto space-y-4">
         <SkeletonCard className="h-16" />
         <SkeletonCard className="h-40" />
         <SkeletonCard className="h-24" />
@@ -175,14 +176,14 @@ export default function HomeTab({ onNavigate, basePath }) {
   }
   if (profileError) {
     return (
-      <div className="px-4 sm:px-6 py-6 max-w-4xl mx-auto">
+      <div className="min-h-full bg-[#050A18] px-4 sm:px-6 py-6 max-w-4xl mx-auto">
         <ErrorBanner message={profileError} onRetry={reloadProfile} />
       </div>
     );
   }
 
   return (
-    <div className="px-4 sm:px-6 py-6 max-w-4xl mx-auto animate-fade-up">
+    <div className="min-h-full bg-[#050A18] px-4 sm:px-6 py-6 max-w-4xl mx-auto animate-fade-up">
       <div className="mb-5">
         <p className="text-sm text-[#8B93A8]">{greeting()}</p>
         <h1 className="font-display text-2xl font-bold text-white flex items-center gap-2 flex-wrap">
@@ -210,12 +211,17 @@ export default function HomeTab({ onNavigate, basePath }) {
         </button>
       )}
 
-      {/* Today's Performance — hero card */}
-      <section className="relative mb-5 rounded-2xl p-5 bg-gradient-to-br from-[#1D2D5C]/50 to-[#171C2E]/90 border border-white/[0.06] backdrop-blur-xl overflow-hidden">
-        <div
-          className="absolute -bottom-16 -right-10 w-52 h-52 rounded-full bg-[#F47A20]/[0.07] blur-3xl animate-ambient-drift pointer-events-none"
-          aria-hidden="true"
-        />
+      {/* Today's Performance — hero card. The centerpiece: a deep navy
+          glass surface (per the brief's #050A18-#0B1830 family) with the
+          canvas-based ambient particle+wave atmosphere layered behind
+          the ring/stats — see PerformanceAtmosphere.jsx's own comment
+          for why this is canvas+refs rather than DOM particles (kept
+          fully isolated from React's render cycle for performance). A
+          hairline inner highlight (card-premium) plus a soft outer glow
+          give it the "physical glass surface" depth the brief asks for,
+          without tipping into heavy glassmorphism. */}
+      <section className="card-premium relative mb-5 rounded-2xl p-5 bg-gradient-to-br from-[#0B1830]/85 to-[#050A18]/95 border border-white/[0.07] backdrop-blur-xl overflow-hidden shadow-[0_0_40px_-12px_rgba(244,122,32,0.15)]">
+        <PerformanceAtmosphere />
         <h2 className="relative mb-4 text-sm font-semibold text-white">Today's Performance</h2>
         <div className="relative flex items-center gap-5">
           <PerformanceCircle rate={performance?.rate} onClick={() => setShowPerformanceHistory(true)} bare size={112} />
