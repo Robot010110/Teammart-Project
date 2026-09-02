@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Tag, PackageX, Building2, Sparkles, Palette, ClipboardList,
@@ -90,8 +90,12 @@ export default function WorkerActivityTab() {
     listMyWastedOverallReports,
     { fallbackError: "Could not load your waste reports." }
   );
-  const { data: pendingTasks } = useAsync(() => listSuddenTasks({ status: "ASSIGNED" }), { deps: [] });
-  const { data: completedTasks } = useAsync(() => listSuddenTasks({ status: "COMPLETED" }), { deps: [] });
+  // One fetch, sliced client-side by real status — My Tasks redesign
+  // added a real IN_PROGRESS state between ASSIGNED and COMPLETED, so
+  // "pending" here means "not yet completed" (ASSIGNED or IN_PROGRESS).
+  const { data: allTasks } = useAsync(listSuddenTasks, { deps: [] });
+  const pendingTasks = useMemo(() => (allTasks ?? []).filter((t) => t.status !== "COMPLETED"), [allTasks]);
+  const completedTasks = useMemo(() => (allTasks ?? []).filter((t) => t.status === "COMPLETED"), [allTasks]);
   const { data: performance } = useAsync(getPerformanceSummary, { deps: [] });
 
   const [activeOption, setActiveOption] = useState(null);

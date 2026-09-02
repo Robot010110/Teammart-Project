@@ -446,19 +446,33 @@ export const listActivitiesMarketQuerySchema = z.object({
 // employee. Separate module from both Tasks and Activities.
 // ---------------------------------------------------------------------
 const SUDDEN_TASK_PRIORITIES = ["NORMAL", "HIGH", "URGENT"];
+const SUDDEN_TASK_CATEGORIES = ["GENERAL", "RESTOCKING", "CLEANING", "INVENTORY", "PRICE_LABEL", "EXPIRED_WASTE", "DEPARTMENT_CLOSING"];
 
+// My Tasks redesign — category/dueAt/location/notes are all optional,
+// exactly as specified: a supervisor is never forced to provide a due
+// time or location just to push an urgent task.
 export const createSuddenTaskSchema = z.object({
   employeeId: z.string().min(1),
   title: z.string().min(2).max(150),
   description: z.string().min(2).max(1000),
   priority: z.enum(SUDDEN_TASK_PRIORITIES).optional().default("NORMAL"),
+  category: z.enum(SUDDEN_TASK_CATEGORIES).optional().default("GENERAL"),
+  dueAt: z.coerce.date().optional(),
+  location: z.string().trim().min(1).max(100).optional(),
+  notes: z.string().trim().min(1).max(1000).optional(),
 });
 
 export const listSuddenTasksQuerySchema = z.object({
-  status: z.enum(["ASSIGNED", "COMPLETED"]).optional(),
+  status: z.enum(["ASSIGNED", "IN_PROGRESS", "COMPLETED"]).optional(),
   priority: z.enum(SUDDEN_TASK_PRIORITIES).optional(),
   employeeId: z.string().optional(),
   marketId: z.string().optional(),
+});
+
+// Closes a real pre-existing gap — this route previously had NO body
+// validation at all, so evidenceUrl was read raw and unchecked.
+export const completeSuddenTaskSchema = z.object({
+  evidenceUrl: z.string().url().optional(),
 });
 
 // ---------------------------------------------------------------------

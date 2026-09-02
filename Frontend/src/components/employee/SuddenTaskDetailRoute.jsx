@@ -8,8 +8,8 @@ import { useAsync } from "../../hooks/useAsync";
 
 // SuddenTaskDetailRoute.jsx — route wrapper for "tasks/:taskId": fetches
 // the full task record (list rows don't carry assignedBy) and renders
-// SuddenTaskDetailScreen, whose own onBack/onCompleted already fit a
-// route-driven caller unchanged.
+// SuddenTaskDetailScreen, whose own onBack/onUpdated (fired after both a
+// real start and a real complete) already fit a route-driven caller.
 export default function SuddenTaskDetailRoute({ basePath }) {
   const { taskId } = useParams();
   const navigate = useNavigate();
@@ -17,7 +17,7 @@ export default function SuddenTaskDetailRoute({ basePath }) {
     () => getSuddenTask(taskId),
     { deps: [taskId], fallbackError: "Could not load this task." }
   );
-  const [justCompleted, setJustCompleted] = useState(null);
+  const [locallyUpdated, setLocallyUpdated] = useState(null);
 
   if (loading) {
     return <div className="px-4 sm:px-6 py-6 max-w-4xl mx-auto"><SkeletonCard className="h-[220px]" /></div>;
@@ -28,9 +28,9 @@ export default function SuddenTaskDetailRoute({ basePath }) {
 
   return (
     <SuddenTaskDetailScreen
-      task={justCompleted ?? task}
+      task={locallyUpdated ?? task}
       onBack={() => navigate(`${basePath}/tasks`)}
-      onCompleted={(updated) => { setTask(updated); setJustCompleted(updated); }}
+      onUpdated={(updated) => { setTask(updated); setLocallyUpdated(updated); }}
     />
   );
 }

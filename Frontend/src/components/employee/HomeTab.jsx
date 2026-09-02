@@ -8,6 +8,7 @@ import { useAsync } from "../../hooks/useAsync";
 import { useUnreadBadges } from "../../hooks/useUnreadBadges";
 import PerformanceCircle from "./PerformanceCircle";
 import PerformanceHistoryScreen from "./PerformanceHistoryScreen";
+import TodayWorkLogScreen from "./TodayWorkLogScreen";
 import AttendanceSection from "./AttendanceSection";
 import QuickActionCard from "./QuickActionCard";
 import AnnouncementCard from "./AnnouncementCard";
@@ -84,14 +85,20 @@ export default function HomeTab({ onNavigate, basePath }) {
 
   const { data: profile, error: profileError, loading: profileLoading, reload: reloadProfile } = useAsync(getProfile, { deps: [] });
   const { data: performance } = useAsync(getPerformanceSummary, { deps: [] });
-  const { data: pendingTasks } = useAsync(() => listSuddenTasks({ status: "ASSIGNED" }), { deps: [] });
-  const { data: completedTasks } = useAsync(() => listSuddenTasks({ status: "COMPLETED" }), { deps: [] });
+  // One fetch, sliced client-side by real status — My Tasks redesign
+  // added a real IN_PROGRESS state between ASSIGNED and COMPLETED, so
+  // "pending" here means "not yet completed" (ASSIGNED or IN_PROGRESS),
+  // not just ASSIGNED.
+  const { data: allTasks } = useAsync(listSuddenTasks, { deps: [] });
+  const pendingTasks = useMemo(() => (allTasks ?? []).filter((t) => t.status !== "COMPLETED"), [allTasks]);
+  const completedTasks = useMemo(() => (allTasks ?? []).filter((t) => t.status === "COMPLETED"), [allTasks]);
   const { data: todayAttendance } = useAsync(getTodayAttendance, { deps: [] });
   const now = new Date();
   const { data: monthAttendance } = useAsync(() => getAttendanceMonth({ year: now.getFullYear(), month: now.getMonth() + 1 }), { deps: [] });
   const { data: communications } = useAsync(listMyCommunications, { deps: [] });
 
   const [showPerformanceHistory, setShowPerformanceHistory] = useState(false);
+  const [showWorkLog, setShowWorkLog] = useState(false);
   const [period, setPeriod] = useState("week"); // "week" | "month"
   const attendanceRef = useRef(null);
 
@@ -143,6 +150,14 @@ export default function HomeTab({ onNavigate, basePath }) {
     return (
       <div className="min-h-full bg-[#1A1A1A]">
         <PerformanceHistoryScreen onBack={() => setShowPerformanceHistory(false)} />
+      </div>
+    );
+  }
+
+  if (showWorkLog) {
+    return (
+      <div className="min-h-full bg-[#1A1A1A]">
+        <TodayWorkLogScreen onBack={() => setShowWorkLog(false)} />
       </div>
     );
   }
@@ -215,7 +230,9 @@ export default function HomeTab({ onNavigate, basePath }) {
             </div>
             <div className="flex items-center justify-between py-2">
               <span className="flex items-center gap-1.5 text-xs text-[#9AA1B4]"><Clock size={13} className="text-[#F47A20]" /> Hours Today</span>
-              <span className="text-xs font-semibold text-white">{hoursLabel(hoursToday)}</span>
+              <button type="button" onClick={() => setShowWorkLog(true)} className="text-xs font-semibold text-white hover:text-[#F47A20]">
+                {hoursLabel(hoursToday)}
+              </button>
             </div>
             <div className="flex items-center justify-between py-2 last:pb-0">
               <span className="flex items-center gap-1.5 text-xs text-[#9AA1B4]"><ClipboardList size={13} className="text-violet-400" /> Department</span>

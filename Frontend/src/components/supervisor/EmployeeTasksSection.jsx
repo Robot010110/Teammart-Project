@@ -1,19 +1,22 @@
 import { useState } from "react";
-import { ArrowLeft, Plus, Loader2, Check, Clock3, CheckCircle2 } from "lucide-react";
+import { ArrowLeft, Plus, Loader2, Check, Clock3, CheckCircle2, MapPin, StickyNote } from "lucide-react";
 import { useAsync } from "../../hooks/useAsync";
 import ErrorBanner from "../common/ErrorBanner";
 import { SkeletonCard } from "../common/SkeletonCard";
 import PriorityPill from "../common/PriorityPill";
+import { CATEGORY_VISUALS, categoryVisual } from "../../utils/suddenTaskVisuals";
 import { listSuddenTasks, assignSuddenTask } from "../../services/suddenTaskService";
 import { ApiError } from "../../services/apiClient";
 
 const assignedTimeLabel = (iso) => new Date(iso).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+const dueLabel = (iso) => new Date(iso).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 
 // EmployeeTasksSection.jsx — Sudden Tasks the Supervisor has pushed to
 // this employee (real: GET /api/sudden-tasks?employeeId=, force-scoped
 // to the caller's own market) plus a real assign form
-// (POST /api/sudden-tasks/assign — existed on the backend already, no
-// Supervisor UI ever called it before this).
+// (POST /api/sudden-tasks/assign). My Tasks redesign added optional
+// category/dueAt/location/notes here, all genuinely optional — nothing
+// is required beyond the original title/description/priority.
 export default function EmployeeTasksSection({ employeeId, employeeName, onBack }) {
   const { data: tasks, setData: setTasks, error, loading, reload } = useAsync(
     () => listSuddenTasks({ employeeId }),
@@ -55,23 +58,46 @@ export default function EmployeeTasksSection({ employeeId, employeeName, onBack 
         <p className="text-sm text-[#4C5266] text-center py-10">No tasks assigned yet.</p>
       ) : (
         <div className="space-y-2.5">
-          {tasks.map((t) => (
-            <div key={t.id} className="rounded-xl p-3.5 bg-[#1A1F33]/70 border border-white/[0.06]">
-              <div className="flex items-start justify-between gap-3">
-                <span className="text-sm font-medium text-white">{t.title}</span>
-                <PriorityPill priority={t.priority} />
+          {tasks.map((t) => {
+            const visual = categoryVisual(t.category);
+            const Icon = visual.icon;
+            return (
+              <div key={t.id} className="rounded-xl p-3.5 bg-[#1A1F33]/70 border border-white/[0.06]">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${visual.bg} ${visual.tone}`}>
+                      <Icon size={14} />
+                    </span>
+                    <span className="text-sm font-medium text-white truncate">{t.title}</span>
+                  </div>
+                  <PriorityPill priority={t.priority} />
+                </div>
+                {t.description && <p className="mt-1.5 text-xs text-[#8B93A8]">{t.description}</p>}
+                {t.location && (
+                  <p className="mt-1.5 flex items-center gap-1 text-[11px] text-[#9AA1B4]"><MapPin size={11} /> {t.location}</p>
+                )}
+                {t.notes && (
+                  <p className="mt-1.5 flex items-center gap-1 text-[11px] text-[#9AA1B4]"><StickyNote size={11} /> {t.notes}</p>
+                )}
+                {t.dueAt && (
+                  <p className="mt-1.5 text-[11px] text-amber-400">Due {dueLabel(t.dueAt)}</p>
+                )}
+                <div className="mt-1.5 flex items-center gap-1 text-xs text-[#9AA1B4]">
+                  <Clock3 size={12} /> Assigned {assignedTimeLabel(t.assignedAt)}
+                </div>
+                {t.status === "COMPLETED" && t.completedAt && (
+                  <p className="mt-1.5 flex items-center gap-1 text-[11px] text-emerald-400">
+                    <CheckCircle2 size={12} /> Completed {assignedTimeLabel(t.completedAt)}
+                  </p>
+                )}
+                {t.status === "IN_PROGRESS" && (
+                  <p className="mt-1.5 flex items-center gap-1 text-[11px] text-[#F47A20]">
+                    <Clock3 size={12} /> In progress since {assignedTimeLabel(t.startedAt)}
+                  </p>
+                )}
               </div>
-              {t.description && <p className="mt-1.5 text-xs text-[#8B93A8]">{t.description}</p>}
-              <div className="mt-1.5 flex items-center gap-1 text-xs text-[#9AA1B4]">
-                <Clock3 size={12} /> Assigned {assignedTimeLabel(t.assignedAt)}
-              </div>
-              {t.status === "COMPLETED" && t.completedAt && (
-                <p className="mt-1.5 flex items-center gap-1 text-[11px] text-emerald-400">
-                  <CheckCircle2 size={12} /> Completed {assignedTimeLabel(t.completedAt)}
-                </p>
-              )}
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
@@ -82,6 +108,11 @@ function AssignTaskForm({ employeeId, onAssigned, onCancel }) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [priority, setPriority] = useState("NORMAL");
+  const [category, setCategory] = useState("GENERAL");
+  const [dueDate, setDueDate] = useState("");
+  const [dueTime, setDueTime] = useState("");
+  const [location, setLocation] = useState("");
+  const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
 
@@ -93,7 +124,16 @@ function AssignTaskForm({ employeeId, onAssigned, onCancel }) {
     setSubmitting(true);
     setError(null);
     try {
-      const task = await assignSuddenTask({ employeeId, title: title.trim(), description: description.trim(), priority });
+      const task = await assignSuddenTask({
+        employeeId,
+        title: title.trim(),
+        description: description.trim(),
+        priority,
+        category,
+        ...(dueDate ? { dueAt: new Date(`${dueDate}T${dueTime || "09:00"}`).toISOString() } : {}),
+        ...(location.trim() ? { location: location.trim() } : {}),
+        ...(notes.trim() ? { notes: notes.trim() } : {}),
+      });
       onAssigned(task);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Could not assign this task.");
@@ -121,6 +161,45 @@ function AssignTaskForm({ employeeId, onAssigned, onCancel }) {
             </button>
           ))}
         </div>
+      </div>
+      <div>
+        <label className="block text-[10px] uppercase tracking-wide text-[#8B93A8] mb-1.5">Category</label>
+        <div className="grid grid-cols-4 gap-1.5">
+          {Object.entries(CATEGORY_VISUALS).map(([key, v]) => {
+            const Icon = v.icon;
+            const selected = category === key;
+            return (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setCategory(key)}
+                title={v.label}
+                className={`flex flex-col items-center gap-1 rounded-lg py-2 transition-colors ${selected ? "bg-[#F47A20]/15 border border-[#F47A20]/40" : "bg-white/[0.04] border border-white/[0.06]"}`}
+              >
+                <Icon size={14} className={selected ? "text-[#F47A20]" : "text-[#9AA1B4]"} />
+                <span className={`text-[9px] leading-tight text-center ${selected ? "text-white" : "text-[#9AA1B4]"}`}>{v.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <label className="block text-[10px] uppercase tracking-wide text-[#8B93A8] mb-1.5">Due Date (optional)</label>
+          <input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} className="w-full rounded-lg bg-white/[0.04] border border-white/[0.06] px-2.5 py-2 text-sm text-white outline-none focus:border-[#F47A20]/50" />
+        </div>
+        <div>
+          <label className="block text-[10px] uppercase tracking-wide text-[#8B93A8] mb-1.5">Due Time (optional)</label>
+          <input type="time" value={dueTime} onChange={(e) => setDueTime(e.target.value)} disabled={!dueDate} className="w-full rounded-lg bg-white/[0.04] border border-white/[0.06] px-2.5 py-2 text-sm text-white outline-none focus:border-[#F47A20]/50 disabled:opacity-40" />
+        </div>
+      </div>
+      <div>
+        <label className="block text-[10px] uppercase tracking-wide text-[#8B93A8] mb-1.5">Location (optional)</label>
+        <input value={location} onChange={(e) => setLocation(e.target.value)} placeholder="e.g. Shelf A3" className="w-full rounded-lg bg-white/[0.04] border border-white/[0.06] px-2.5 py-2 text-sm text-white placeholder:text-[#4C5266] outline-none focus:border-[#F47A20]/50" />
+      </div>
+      <div>
+        <label className="block text-[10px] uppercase tracking-wide text-[#8B93A8] mb-1.5">Notes (optional)</label>
+        <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} placeholder="Anything else the employee should know" className="w-full rounded-lg bg-white/[0.04] border border-white/[0.06] px-2.5 py-2 text-sm text-white placeholder:text-[#4C5266] outline-none focus:border-[#F47A20]/50 resize-none" />
       </div>
       {error && <p className="text-xs text-red-400">{error}</p>}
       <div className="flex gap-2">

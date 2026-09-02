@@ -143,11 +143,31 @@ enum SuddenTaskPriority {
   URGENT
 }
 
-// ASSIGNED  -> pushed to the employee, not done yet
-// COMPLETED -> employee marked it done
+// ASSIGNED    -> pushed to the employee, not started yet
+// IN_PROGRESS -> employee tapped Start Task (see SuddenTask.startedAt) —
+//                completion is only allowed from this state, not directly
+//                from ASSIGNED (My Tasks redesign's Start->timer->Complete
+//                lifecycle).
+// COMPLETED   -> employee marked it done
 enum SuddenTaskStatus {
   ASSIGNED
+  IN_PROGRESS
   COMPLETED
+}
+
+// My Tasks redesign — supervisor-selected at creation (defaults GENERAL),
+// purely to drive a consistent icon per task in the employee UI. Never
+// derived by guessing at the task's free-text title/description — see
+// Frontend/src/utils/suddenTaskVisuals.js, the one place this maps to an
+// icon.
+enum SuddenTaskCategory {
+  GENERAL
+  RESTOCKING
+  CLEANING
+  INVENTORY
+  PRICE_LABEL
+  EXPIRED_WASTE
+  DEPARTMENT_CLOSING
 }
 
 // ---------------------------------------------------------------------
@@ -1123,10 +1143,19 @@ model SuddenTask {
   description String
   priority    SuddenTaskPriority @default(NORMAL)
   status      SuddenTaskStatus   @default(ASSIGNED)
+  category    SuddenTaskCategory @default(GENERAL)
   // Set by completeSuddenTask when the supervisor requires photo evidence
   // — previously completion was a bare status flip with nowhere to put
   // the photo the spec explicitly asks for.
   evidenceUrl String?
+
+  // My Tasks redesign — all optional, exactly as specified: a supervisor
+  // is never forced to provide a due time or location just to push an
+  // urgent task. The frontend hides each of these entirely when null
+  // rather than rendering an empty placeholder.
+  dueAt    DateTime?
+  location String?
+  notes    String?
 
   employeeId String
   employee   Employee @relation(fields: [employeeId], references: [id])
@@ -1136,7 +1165,11 @@ model SuddenTask {
   assignedById Int
   assignedBy   User   @relation("SuddenTaskAssigner", fields: [assignedById], references: [id])
 
-  assignedAt  DateTime  @default(now())
+  assignedAt DateTime @default(now())
+  // Set by startSuddenTask (ASSIGNED -> IN_PROGRESS) — the real timestamp
+  // "Time Taken" is computed from (completedAt - startedAt) rather than
+  // any fabricated/estimated duration.
+  startedAt   DateTime?
   completedAt DateTime?
 
   @@index([employeeId])

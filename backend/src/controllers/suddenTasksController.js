@@ -15,7 +15,7 @@ import { createNotification } from "../utils/notifications.js";
 // specific employee.
 export async function assignSuddenTask(req, res, next) {
   try {
-    const { employeeId, title, description, priority } = req.body;
+    const { employeeId, title, description, priority, category, dueAt, location, notes } = req.body;
 
     const employee = await requireAccessibleEmployee(req.user, employeeId);
 
@@ -24,6 +24,10 @@ export async function assignSuddenTask(req, res, next) {
         title,
         description,
         priority,
+        category,
+        dueAt: dueAt ?? null,
+        location: location ?? null,
+        notes: notes ?? null,
         status: "ASSIGNED",
         employeeId,
         marketId: employee.marketId,
@@ -108,9 +112,11 @@ export async function getSuddenTask(req, res, next) {
   }
 }
 
-// PATCH /api/sudden-tasks/:id/complete — employee marks their own sudden
-// task as done.
-export async function completeSuddenTask(req, res, next) {
+// PATCH /api/sudden-tasks/:id/start — employee starts their own sudden
+// task (My Tasks redesign's Start->timer->Complete lifecycle). Real
+// timestamp, not a client-side-only status flip — "Time Taken" on
+// completion is computed from (completedAt - startedAt).
+export async function startSuddenTask(req, res, next) {
   try {
     const suddenTask = await prisma.suddenTask.findUnique({ where: { id: req.params.id } });
     if (!suddenTask) return res.status(404).json({ error: "Sudden task not found" });
@@ -119,7 +125,39 @@ export async function completeSuddenTask(req, res, next) {
       return res.status(403).json({ error: "This task was not assigned to you" });
     }
     if (suddenTask.status !== "ASSIGNED") {
-      return res.status(400).json({ error: `Task is already ${suddenTask.status.toLowerCase()}` });
+      return res.status(400).json({ error: `Task is already ${suddenTask.status.toLowerCase().replace("_", " ")}` });
+    }
+
+    const updated = await prisma.suddenTask.update({
+      where: { id: req.params.id },
+      data: { status: "IN_PROGRESS", startedAt: new Date() },
+    });
+
+    res.json(updated);
+  } catch (err) {
+    next(err);
+  }
+}
+
+// PATCH /api/sudden-tasks/:id/complete — employee marks their own sudden
+// task as done. Only allowed from IN_PROGRESS now (must have started
+// first) — matches the reference's Start->Complete flow rather than
+// letting completion skip straight from ASSIGNED.
+export async function completeSuddenTask(req, res, next) {
+  try {
+    const suddenTask = await prisma.suddenTask.findUnique({ where: { id: req.params.id } });
+    if (!suddenTask) return res.status(404).json({ error: "Sudden task not found" });
+
+    if (suddenTask.employeeId !== req.user.employeeId) {
+      return res.status(403).json({ error: "This task was not assigned to you" });
+    }
+    if (suddenTask.status !== "IN_PROGRESS") {
+      return res.status(400).json({
+        error:
+          suddenTask.status === "ASSIGNED"
+            ? "Start this task before completing it"
+            : `Task is already ${suddenTask.status.toLowerCase()}`,
+      });
     }
 
     const { evidenceUrl } = req.body;
