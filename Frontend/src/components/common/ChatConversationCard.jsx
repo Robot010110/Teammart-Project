@@ -1,8 +1,12 @@
 import { Users2, ShieldAlert, MessageCircle, ChevronRight, Pin, BellOff, MoreVertical } from "lucide-react";
 import AuthenticatedImage from "./AuthenticatedImage";
+import { ANNOUNCEMENT_TYPES } from "../../utils/chatCategories";
 
+// This card's own "is it group-shaped" check is deliberately narrower
+// than chatCategories.GROUP_TYPES (which includes WARNINGS/
+// ZONE_ANNOUNCEMENTS) — those two get the ANNOUNCEMENT_TYPES amber
+// treatment below instead of the default Users2/orange one.
 const GROUP_TYPES = new Set(["MARKET_GROUP", "ZONE_GROUP", "CUSTOM_GROUP"]);
-const ANNOUNCEMENT_TYPES = new Set(["WARNINGS", "ZONE_ANNOUNCEMENTS"]);
 
 function timeLabel(iso) {
   const d = new Date(iso);

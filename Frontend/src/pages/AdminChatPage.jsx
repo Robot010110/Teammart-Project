@@ -101,7 +101,7 @@ export default function AdminChatPage({ session }) {
             conversationId={openConversation.id}
             groupName={openConversation.title}
             groupPictureUrl={openConversation.pictureUrl}
-            marketId={openConversation.marketId}
+            groupOpenJoin={openConversation.openJoin}
             currentUserId={session.staffId}
             currentUserKind="staff"
             onClose={() => setGroupInfoOpen(false)}
@@ -143,7 +143,7 @@ export default function AdminChatPage({ session }) {
         />
       )}
 
-      {creatingGroup && <AdminCreateGroupModal onClose={() => setCreatingGroup(false)} onCreated={handleGroupCreated} />}
+      {creatingGroup && <AdminCreateGroupModal session={session} onClose={() => setCreatingGroup(false)} onCreated={handleGroupCreated} />}
 
       {optionsFor && (
         <ConversationOptionsSheet

@@ -1,6 +1,28 @@
 import { prisma } from "../lib/prisma.js";
-import { assertMarketAccess, assertZoneAccess, staffCanAccessMarket, requireAccessibleEmployee } from "../middleware/auth.js";
+import { assertMarketAccess, assertZoneAccess, staffCanAccessMarket, requireAccessibleEmployee, HttpError } from "../middleware/auth.js";
 import { createNotification, createNotificationForUser, createNotificationForMarket, createNotificationForZone } from "../utils/notifications.js";
+
+// Chat UI redesign — presence. "Online" is always derived from
+// lastActiveAt (see middleware/auth.js's throttled write path), never
+// stored — one threshold, used everywhere online status is computed.
+const ONLINE_THRESHOLD_MS = 2 * 60 * 1000;
+function isOnline(lastActiveAt) {
+  return !!lastActiveAt && Date.now() - new Date(lastActiveAt).getTime() < ONLINE_THRESHOLD_MS;
+}
+
+// Chat UI redesign — Groups tab categorization (Zone / Announcements /
+// General / Task & Operations). Computed, never stored beyond
+// Conversation.category (CUSTOM_GROUP only) — every fixed channel type's
+// category is implied entirely by its ConversationType/groupType, so
+// there's nothing to store for those. Shared by every conversation-list
+// builder below so the four roles' Chat screens can never disagree on
+// which section a given conversation belongs in.
+function categoryOf(conversation) {
+  if (conversation.type === "ZONE_GROUP") return "zone";
+  if (conversation.type === "WARNINGS" || conversation.type === "ZONE_ANNOUNCEMENTS" || conversation.groupType === "WARNING") return "announcements";
+  if (conversation.type === "CUSTOM_GROUP" && conversation.category === "TASK_OPERATIONS") return "tasks";
+  return "general";
+}
 
 // chatController.js — market-scoped chat: one Market Group conversation,
 // one Warnings (supervisor-announcement, employee-read-only) conversation,
@@ -576,6 +598,9 @@ async function buildEmployeeConversationList(req) {
         otherEmployeeId: c.type === "DIRECT" ? (c.participantAId === employeeId ? c.participantBId : c.participantAId) : null,
         marketId: c.marketId,
         zoneId: c.zoneId,
+        groupType: c.groupType,
+        category: categoryOf(c),
+        openJoin: c.openJoin,
         pictureUrl: c.pictureUrl,
         locked: c.type === "RM_DIRECT" ? c.locked : false,
         lastMessage: last ? { body: last.deletedAt ? "" : last.body, deleted: !!last.deletedAt, createdAt: last.createdAt } : null,
@@ -866,6 +891,8 @@ async function buildStaffConversationList(req) {
         marketId: c.marketId,
         zoneId: c.zoneId,
         groupType: c.groupType,
+        category: categoryOf(c),
+        openJoin: c.openJoin,
         pictureUrl: c.pictureUrl,
         lastMessage: lastMessages[i] ? { body: lastMessages[i].deletedAt ? "" : lastMessages[i].body, createdAt: lastMessages[i].createdAt } : null,
         unreadCount: unreadCounts[i],
@@ -972,6 +999,8 @@ async function buildRmConversationList(req) {
         marketId: c.marketId,
         zoneId: c.zoneId,
         groupType: c.groupType,
+        category: categoryOf(c),
+        openJoin: c.openJoin,
         pictureUrl: c.pictureUrl,
         lastMessage: lastMessages[i] ? { body: lastMessages[i].deletedAt ? "" : lastMessages[i].body, createdAt: lastMessages[i].createdAt } : null,
         unreadCount: unreadCounts[i],
@@ -1057,6 +1086,8 @@ async function buildAdminConversationList(req) {
         marketId: c.marketId,
         zoneId: c.zoneId,
         groupType: c.groupType,
+        category: categoryOf(c),
+        openJoin: c.openJoin,
         pictureUrl: c.pictureUrl,
         lastMessage: lastMessages[i] ? { body: lastMessages[i].deletedAt ? "" : lastMessages[i].body, createdAt: lastMessages[i].createdAt } : null,
         unreadCount: unreadCounts[i],
@@ -1379,14 +1410,15 @@ async function shapeGroupMembers(conversationId) {
   const members = await prisma.conversationMember.findMany({
     where: { conversationId },
     include: {
-      employee: { select: { id: true, name: true, position: true } },
-      user: { select: { id: true, name: true, role: true } },
+      employee: { select: { id: true, name: true, position: true, lastActiveAt: true } },
+      user: { select: { id: true, name: true, role: true, lastActiveAt: true } },
     },
     orderBy: { addedAt: "asc" },
   });
   return members.map((m) => ({
     id: m.id,
     kind: m.employeeId ? "employee" : "staff",
+    online: isOnline(m.employee?.lastActiveAt ?? m.user?.lastActiveAt),
     employeeId: m.employeeId,
     userId: m.userId,
     name: m.employee?.name ?? m.user?.name,
@@ -1402,49 +1434,61 @@ async function shapeGroupMembers(conversationId) {
 // only gates the initial creation action.
 const GROUP_CREATOR_ROLES = ["SUPERVISOR", "ADMIN", "REGIONAL_MANAGER"];
 
-// Resolves a proposed staff member's own market/zone so createGroup can
-// verify they're actually in scope for a market- or zone-scoped group.
-async function staffScopeOf(user) {
-  const full = await prisma.user.findUnique({
-    where: { id: user.id },
-    include: {
-      managedMarket: { select: { id: true, zoneId: true } },
-      managedOverlookingMarket: { select: { id: true, zoneId: true } },
-      managedZones: { select: { id: true } },
-    },
-  });
-  const market = full.managedMarket ?? full.managedOverlookingMarket ?? null;
-  return { marketId: market?.id ?? null, zoneId: market?.zoneId ?? null, managedZoneIds: full.managedZones.map((z) => z.id) };
+// Chat UI redesign — the authorization rule for "who may THIS staff
+// member add to a group", now that group creation/invites are
+// person-by-person rather than scoped to one pre-chosen market/zone (see
+// createGroup/addGroupMember/listGroupMemberCandidates below). Reuses the
+// exact same per-role reach every other staff-facing chat feature
+// already uses — staffCanAccessMarket for an employee target (their own
+// market for Supervisor/Overlooking, any market in their zones for a
+// Regional Manager, anyone for Admin), authorizedStaffContactsFor for a
+// staff target — instead of inventing a new access model.
+async function canAddPersonToGroup(actor, { employeeId, userId }) {
+  if (employeeId) {
+    const employee = await prisma.employee.findUnique({ where: { id: employeeId }, select: { marketId: true } });
+    if (!employee) return false;
+    return (await staffCanAccessMarket(actor, employee.marketId)) === true;
+  }
+  if (userId) {
+    if (userId === actor.userId) return true;
+    return isAuthorizedStaffContact(actor, userId);
+  }
+  return false;
 }
 
-// POST /api/conversations/groups — spec §6/§9-11. Body: { name, marketId?,
-// zoneId?, memberEmployeeIds?, memberStaffUserIds? } — exactly one of
-// marketId/zoneId scopes the group (a single market, e.g. a Supervisor's
-// "Morning Shift Team"; or a whole zone, e.g. a Regional Manager's
-// cross-market "Supervisors Group"). Every proposed member (employee or
-// staff) must actually belong within that scope — reusing
-// assertMarketAccess/assertZoneAccess for the CALLER's own access, plus a
-// per-member scope check here, so nobody can add a person from a
-// market/zone they don't manage. The creator is always added as the
-// group's first admin.
+// POST /api/conversations/groups — Chat UI redesign: person-by-person
+// group creation. Body: { name, memberEmployeeIds?, memberStaffUserIds?,
+// groupType?, category?, openJoin?, pictureUrl?, marketId?, zoneId? }.
+// marketId/zoneId are now optional display metadata only (e.g. "which
+// market is this Night Shift group for") — they no longer constrain who
+// can be a member. Every proposed member is instead checked individually
+// against canAddPersonToGroup, the same per-role reach used everywhere
+// else in chat (own market's employees for Supervisor/Overlooking, any
+// employee in-zone for a Regional Manager, anyone for Admin; an
+// authorized staff contact either way) — so a Supervisor can now build a
+// group out of specific people without first "selecting a market", while
+// still never reaching outside who they're actually allowed to contact.
+// The creator is always added as the group's first admin.
 export async function createGroup(req, res, next) {
   try {
     if (req.user.kind !== "staff" || !GROUP_CREATOR_ROLES.includes(req.user.role)) {
       return res.status(403).json({ error: "This action requires a Supervisor, Regional Manager, or Admin account" });
     }
-    const { name, marketId, zoneId, memberEmployeeIds = [], memberStaffUserIds = [], groupType = "NORMAL", pictureUrl } = req.body;
+    const {
+      name,
+      marketId = null,
+      zoneId = null,
+      memberEmployeeIds = [],
+      memberStaffUserIds = [],
+      groupType = "NORMAL",
+      category = "GENERAL",
+      openJoin = false,
+      pictureUrl,
+    } = req.body;
 
-    if (!marketId && !zoneId) return res.status(400).json({ error: "Provide either marketId or zoneId" });
-    if (marketId && zoneId) return res.status(400).json({ error: "Provide only one of marketId or zoneId" });
-    if (zoneId && req.user.role === "SUPERVISOR") {
-      return res.status(403).json({ error: "A Supervisor can only create a group scoped to their own market" });
-    }
     if (memberEmployeeIds.length === 0 && memberStaffUserIds.length === 0) {
       return res.status(400).json({ error: "Select at least one member" });
     }
-
-    if (marketId) await assertMarketAccess(req.user, marketId);
-    else await assertZoneAccess(req.user, zoneId);
 
     let employees = [];
     if (memberEmployeeIds.length) {
@@ -1452,34 +1496,24 @@ export async function createGroup(req, res, next) {
       if (employees.length !== memberEmployeeIds.length) {
         return res.status(400).json({ error: "One or more selected employees could not be found" });
       }
-      const market = marketId ? null : await prisma.market.findMany({ where: { zoneId }, select: { id: true } });
-      const zoneMarketIds = market ? new Set(market.map((m) => m.id)) : null;
       for (const e of employees) {
-        const inScope = marketId ? e.marketId === marketId : zoneMarketIds.has(e.marketId);
-        if (!inScope) return res.status(400).json({ error: `${e.name} is not in this group's market/zone` });
+        if (!(await canAddPersonToGroup(req.user, { employeeId: e.id }))) {
+          return res.status(400).json({ error: `You are not authorized to add ${e.name} to a group` });
+        }
       }
     }
 
     const staffIds = memberStaffUserIds.filter((id) => id !== req.user.userId);
     let staffMembers = [];
     if (staffIds.length) {
-      staffMembers = await prisma.user.findMany({
-        where: { id: { in: staffIds } },
-        include: {
-          managedMarket: { select: { id: true, zoneId: true } },
-          managedOverlookingMarket: { select: { id: true, zoneId: true } },
-          managedZones: { select: { id: true } },
-        },
-      });
+      staffMembers = await prisma.user.findMany({ where: { id: { in: staffIds } } });
       if (staffMembers.length !== staffIds.length) {
         return res.status(400).json({ error: "One or more selected staff accounts could not be found" });
       }
       for (const s of staffMembers) {
-        const staffMarket = s.managedMarket ?? s.managedOverlookingMarket ?? null;
-        const inScope = marketId
-          ? staffMarket?.id === marketId
-          : staffMarket?.zoneId === zoneId || s.managedZones.some((z) => z.id === zoneId);
-        if (!inScope) return res.status(400).json({ error: `${s.name} is not in this group's market/zone` });
+        if (!(await canAddPersonToGroup(req.user, { userId: s.id }))) {
+          return res.status(400).json({ error: `You are not authorized to add ${s.name} to a group` });
+        }
       }
     }
 
@@ -1490,6 +1524,10 @@ export async function createGroup(req, res, next) {
         zoneId: zoneId ?? null,
         name,
         groupType,
+        // A WARNING-type group is always shown under Announcements
+        // regardless of category (see categoryOf) — no point storing one.
+        category: groupType === "WARNING" ? null : category,
+        openJoin: !!openJoin,
         pictureUrl: pictureUrl ?? null,
         createdById: req.user.userId,
         members: {
@@ -1587,46 +1625,379 @@ export async function listGroupMembers(req, res, next) {
   }
 }
 
-// POST /api/conversations/:id/members — spec §7. Body: { employeeId } or
-// { userId } (exactly one). The new member must be in scope for the
-// group (its market, or its zone if zone-scoped) — same check as
-// createGroup, just for one person at a time. Admin-only.
+// Chat UI redesign — real "members/online" counts for the four implicit-
+// membership types (MARKET_GROUP/WARNINGS/ZONE_GROUP/ZONE_ANNOUNCEMENTS),
+// which have no ConversationMember rows to count at all (see
+// ConversationMember's own schema comment — it's only ever populated for
+// CUSTOM_GROUP). Mirrors the exact same "who's actually in this
+// market/zone" logic already used to decide read access
+// (conversationAccessFor/isZoneMember) and to build each role's
+// conversation list, so this count can never disagree with who can
+// actually see the channel. Returns null for any other type — there is
+// no "members" concept for a 1:1 thread.
+async function implicitGroupPresence(conversation) {
+  if (conversation.type === "MARKET_GROUP" || conversation.type === "WARNINGS") {
+    const [employees, market] = await Promise.all([
+      prisma.employee.findMany({ where: { marketId: conversation.marketId }, select: { lastActiveAt: true } }),
+      prisma.market.findUnique({ where: { id: conversation.marketId }, select: { supervisorId: true, overlookingSupervisorId: true } }),
+    ]);
+    const staffIds = [market?.supervisorId, market?.overlookingSupervisorId].filter(Boolean);
+    const staff = staffIds.length ? await prisma.user.findMany({ where: { id: { in: staffIds } }, select: { lastActiveAt: true } }) : [];
+    const all = [...employees, ...staff];
+    return { memberCount: all.length, onlineCount: all.filter((p) => isOnline(p.lastActiveAt)).length };
+  }
+
+  if (conversation.type === "ZONE_GROUP" || conversation.type === "ZONE_ANNOUNCEMENTS") {
+    const [employees, markets, zone] = await Promise.all([
+      prisma.employee.findMany({ where: { market: { zoneId: conversation.zoneId } }, select: { lastActiveAt: true } }),
+      prisma.market.findMany({ where: { zoneId: conversation.zoneId }, select: { supervisorId: true, overlookingSupervisorId: true } }),
+      prisma.zone.findUnique({ where: { id: conversation.zoneId }, select: { managerId: true } }),
+    ]);
+    const staffIds = [...markets.flatMap((m) => [m.supervisorId, m.overlookingSupervisorId]), zone?.managerId].filter(Boolean);
+    const staff = staffIds.length ? await prisma.user.findMany({ where: { id: { in: staffIds } }, select: { lastActiveAt: true } }) : [];
+    const all = [...employees, ...staff];
+    return { memberCount: all.length, onlineCount: all.filter((p) => isOnline(p.lastActiveAt)).length };
+  }
+
+  return null;
+}
+
+// GET /api/conversations/:id/presence-summary — Chat UI redesign: real
+// "X members, Y online" for a group-like conversation, gated by the same
+// conversationAccessFor every other per-conversation read already uses.
+// { memberCount: null, onlineCount: null } for a 1:1 thread — there's no
+// "members" concept for two people, and ConversationScreen.jsx simply
+// doesn't render a subtitle in that case.
+export async function getPresenceSummary(req, res, next) {
+  try {
+    const conversation = await conversationAccessFor(req.user, req.params.id);
+    if (!conversation) return res.status(404).json({ error: "Conversation not found" });
+
+    if (conversation.type === "CUSTOM_GROUP") {
+      const members = await shapeGroupMembers(conversation.id);
+      return res.json({ memberCount: members.length, onlineCount: members.filter((m) => m.online).length });
+    }
+
+    const presence = await implicitGroupPresence(conversation);
+    res.json(presence ?? { memberCount: null, onlineCount: null });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// Actually adds { employeeId | userId } as a real ConversationMember of
+// `conversation` — the one place both an admin's direct add and an
+// openJoin group's member-initiated add end up. Re-validates
+// canAddPersonToGroup even for an admin caller, since "I'm an admin of
+// this group" was never itself a reason to bypass "is this specific
+// person someone I'm allowed to reach" — same caution createGroup
+// already takes for every proposed member.
+async function insertGroupMember(actor, conversation, { employeeId, userId }) {
+  if (employeeId) {
+    if (!(await canAddPersonToGroup(actor, { employeeId }))) {
+      throw new HttpError(400, "You are not authorized to add this employee");
+    }
+    await prisma.conversationMember.upsert({
+      where: { conversationId_employeeId: { conversationId: conversation.id, employeeId } },
+      update: {},
+      create: { conversationId: conversation.id, employeeId },
+    });
+  } else if (userId) {
+    if (!(await canAddPersonToGroup(actor, { userId }))) {
+      throw new HttpError(400, "You are not authorized to add this staff account");
+    }
+    await prisma.conversationMember.upsert({
+      where: { conversationId_userId: { conversationId: conversation.id, userId } },
+      update: {},
+      create: { conversationId: conversation.id, userId },
+    });
+  } else {
+    throw new HttpError(400, "Provide either employeeId or userId");
+  }
+}
+
+// POST /api/conversations/:id/members — Chat UI redesign: Body:
+// { employeeId } or { userId } (exactly one). Three cases, depending on
+// the caller's standing in THIS group:
+//   - A group admin adds directly, same as before.
+//   - Any other MEMBER (staff only — matches createGroup's own staff-
+//     only boundary) may still propose someone: if the group has
+//     openJoin=true, that lands directly too (the admin already opted
+//     into "let anyone in without approval"); otherwise it creates a
+//     GroupJoinRequest for an admin to approve/reject instead of adding
+//     anyone, and notifies the group's admin(s).
+//   - Anyone else (a non-member, or an employee member) gets the same
+//     403 this endpoint always returned for a non-admin.
 export async function addGroupMember(req, res, next) {
+  try {
+    const conversation = await prisma.conversation.findUnique({ where: { id: req.params.id } });
+    if (!conversation || conversation.type !== "CUSTOM_GROUP") return res.status(404).json({ error: "Group not found" });
+
+    const { employeeId, userId } = req.body;
+    const admin = await isGroupAdmin(conversation.id, req.user);
+
+    if (admin || conversation.openJoin) {
+      if (!admin) {
+        if (req.user.kind !== "staff") return res.status(403).json({ error: "Only a group member can do this" });
+        const membership = await prisma.conversationMember.findFirst({ where: { conversationId: conversation.id, userId: req.user.userId } });
+        if (!membership) return res.status(403).json({ error: "Only a group member can do this" });
+      }
+      await insertGroupMember(req.user, conversation, { employeeId, userId });
+      return res.status(201).json(await shapeGroupMembers(conversation.id));
+    }
+
+    if (req.user.kind !== "staff") return res.status(403).json({ error: "Only a group admin can do this" });
+    const membership = await prisma.conversationMember.findFirst({ where: { conversationId: conversation.id, userId: req.user.userId } });
+    if (!membership) return res.status(403).json({ error: "Only a group admin can do this" });
+    if (!employeeId && !userId) return res.status(400).json({ error: "Provide either employeeId or userId" });
+    if (!(await canAddPersonToGroup(req.user, { employeeId, userId }))) {
+      return res.status(400).json({ error: "You are not authorized to add this person" });
+    }
+
+    const alreadyMember = employeeId
+      ? await prisma.conversationMember.findUnique({ where: { conversationId_employeeId: { conversationId: conversation.id, employeeId } } })
+      : await prisma.conversationMember.findFirst({ where: { conversationId: conversation.id, userId } });
+    if (alreadyMember) return res.status(400).json({ error: "This person is already a member" });
+
+    const request = await prisma.groupJoinRequest.upsert({
+      where: employeeId
+        ? { conversationId_employeeId: { conversationId: conversation.id, employeeId } }
+        : { conversationId_userId: { conversationId: conversation.id, userId } },
+      update: {
+        status: "PENDING",
+        invitedByUserId: req.user.userId,
+        invitedByEmployeeId: null,
+        requestedAt: new Date(),
+        reviewedAt: null,
+        reviewedByUserId: null,
+        reviewedByEmployeeId: null,
+      },
+      create: { conversationId: conversation.id, employeeId: employeeId ?? null, userId: userId ?? null, invitedByUserId: req.user.userId },
+    });
+
+    const admins = await prisma.conversationMember.findMany({ where: { conversationId: conversation.id, isAdmin: true } });
+    await Promise.all(
+      admins.map((a) =>
+        a.userId
+          ? createNotificationForUser({
+              userId: a.userId,
+              type: "GROUP_JOIN_REQUESTED",
+              title: "New group join request",
+              body: `${req.user.name ?? "A member"} proposed adding someone to "${conversation.name ?? "a group"}"`,
+              linkType: "CONVERSATION",
+              linkId: conversation.id,
+            })
+          : createNotification({
+              employeeId: a.employeeId,
+              type: "GROUP_JOIN_REQUESTED",
+              title: "New group join request",
+              body: `${req.user.name ?? "A member"} proposed adding someone to "${conversation.name ?? "a group"}"`,
+              linkType: "CONVERSATION",
+              linkId: conversation.id,
+            })
+      )
+    );
+
+    res.status(202).json({ pending: true, request });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// GET /api/conversations/:id/join-requests — group admin only. Pending
+// requests waiting on this admin's approve/reject.
+export async function listGroupJoinRequests(req, res, next) {
   try {
     const conversation = await requireGroupAdmin(req, res);
     if (!conversation) return;
-    const { employeeId, userId } = req.body;
+    const requests = await prisma.groupJoinRequest.findMany({
+      where: { conversationId: conversation.id, status: "PENDING" },
+      include: {
+        employee: { select: { id: true, name: true, position: true } },
+        user: { select: { id: true, name: true, role: true } },
+        invitedByEmployee: { select: { id: true, name: true } },
+        invitedByUser: { select: { id: true, name: true } },
+      },
+      orderBy: { requestedAt: "asc" },
+    });
+    res.json(
+      requests.map((r) => ({
+        id: r.id,
+        employeeId: r.employeeId,
+        userId: r.userId,
+        name: r.employee?.name ?? r.user?.name,
+        position: r.employee?.position ?? r.user?.role,
+        invitedByName: r.invitedByEmployee?.name ?? r.invitedByUser?.name,
+        requestedAt: r.requestedAt,
+      }))
+    );
+  } catch (err) {
+    next(err);
+  }
+}
 
-    if (employeeId) {
-      const employee = await prisma.employee.findUnique({ where: { id: employeeId } });
-      if (!employee) return res.status(400).json({ error: "Employee not found" });
-      const inScope = conversation.marketId
-        ? employee.marketId === conversation.marketId
-        : (await prisma.market.findUnique({ where: { id: employee.marketId }, select: { zoneId: true } }))?.zoneId === conversation.zoneId;
-      if (!inScope) return res.status(400).json({ error: "This employee is not in this group's market/zone" });
+// Shared by approve/reject below — loads a PENDING request that actually
+// belongs to a group this caller admins, or responds with the
+// appropriate error and returns null (same "check inside, res already
+// handled" convention as requireGroupAdmin itself).
+async function requirePendingJoinRequest(req, res) {
+  const conversation = await requireGroupAdmin(req, res);
+  if (!conversation) return null;
+  const request = await prisma.groupJoinRequest.findFirst({
+    where: { id: req.params.requestId, conversationId: conversation.id },
+  });
+  if (!request) {
+    res.status(404).json({ error: "Join request not found" });
+    return null;
+  }
+  if (request.status !== "PENDING") {
+    res.status(400).json({ error: "This request has already been reviewed" });
+    return null;
+  }
+  return { conversation, request };
+}
 
-      await prisma.conversationMember.upsert({
-        where: { conversationId_employeeId: { conversationId: conversation.id, employeeId } },
+// POST /api/conversations/:id/join-requests/:requestId/approve — admin
+// only. Creates the real ConversationMember row and notifies the person
+// who was proposed.
+export async function approveGroupJoinRequest(req, res, next) {
+  try {
+    const loaded = await requirePendingJoinRequest(req, res);
+    if (!loaded) return;
+    const { conversation, request } = loaded;
+
+    await prisma.$transaction([
+      prisma.conversationMember.upsert({
+        where: request.employeeId
+          ? { conversationId_employeeId: { conversationId: conversation.id, employeeId: request.employeeId } }
+          : { conversationId_userId: { conversationId: conversation.id, userId: request.userId } },
         update: {},
-        create: { conversationId: conversation.id, employeeId },
-      });
-    } else if (userId) {
-      const scope = await staffScopeOf({ id: userId });
-      const inScope = conversation.marketId
-        ? scope.marketId === conversation.marketId
-        : scope.zoneId === conversation.zoneId || scope.managedZoneIds.includes(conversation.zoneId);
-      if (!inScope) return res.status(400).json({ error: "This staff account is not in this group's market/zone" });
+        create: { conversationId: conversation.id, employeeId: request.employeeId, userId: request.userId },
+      }),
+      prisma.groupJoinRequest.update({
+        where: { id: request.id },
+        data: { status: "APPROVED", reviewedAt: new Date(), reviewedByUserId: req.user.userId },
+      }),
+    ]);
 
-      await prisma.conversationMember.upsert({
-        where: { conversationId_userId: { conversationId: conversation.id, userId } },
-        update: {},
-        create: { conversationId: conversation.id, userId },
-      });
+    const notify = request.employeeId
+      ? createNotification({
+          employeeId: request.employeeId,
+          type: "GROUP_JOIN_REVIEWED",
+          title: "You were added to a group",
+          body: `Your request to join "${conversation.name ?? "a group"}" was approved.`,
+          linkType: "CONVERSATION",
+          linkId: conversation.id,
+        })
+      : createNotificationForUser({
+          userId: request.userId,
+          type: "GROUP_JOIN_REVIEWED",
+          title: "You were added to a group",
+          body: `Your request to join "${conversation.name ?? "a group"}" was approved.`,
+          linkType: "CONVERSATION",
+          linkId: conversation.id,
+        });
+    await notify;
+
+    res.json(await shapeGroupMembers(conversation.id));
+  } catch (err) {
+    next(err);
+  }
+}
+
+// POST /api/conversations/:id/join-requests/:requestId/reject — admin
+// only. No membership row is ever created; the requester is notified.
+export async function rejectGroupJoinRequest(req, res, next) {
+  try {
+    const loaded = await requirePendingJoinRequest(req, res);
+    if (!loaded) return;
+    const { conversation, request } = loaded;
+
+    await prisma.groupJoinRequest.update({
+      where: { id: request.id },
+      data: { status: "REJECTED", reviewedAt: new Date(), reviewedByUserId: req.user.userId },
+    });
+
+    const notify = request.employeeId
+      ? createNotification({
+          employeeId: request.employeeId,
+          type: "GROUP_JOIN_REVIEWED",
+          title: "Group join request declined",
+          body: `Your request to join "${conversation.name ?? "a group"}" was not approved.`,
+          linkType: "CONVERSATION",
+          linkId: conversation.id,
+        })
+      : createNotificationForUser({
+          userId: request.userId,
+          type: "GROUP_JOIN_REVIEWED",
+          title: "Group join request declined",
+          body: `Your request to join "${conversation.name ?? "a group"}" was not approved.`,
+          linkType: "CONVERSATION",
+          linkId: conversation.id,
+        });
+    await notify;
+
+    res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// PATCH /api/conversations/:id/settings — admin only. Body: { openJoin }.
+// Same admin-gated single-field-update shape as renameGroup/
+// changeGroupPicture.
+export async function updateGroupSettings(req, res, next) {
+  try {
+    const conversation = await requireGroupAdmin(req, res);
+    if (!conversation) return;
+    const { openJoin } = req.body;
+    const updated = await prisma.conversation.update({
+      where: { id: conversation.id },
+      data: { ...(openJoin !== undefined ? { openJoin: !!openJoin } : {}) },
+    });
+    res.json(updated);
+  } catch (err) {
+    next(err);
+  }
+}
+
+// GET /api/conversations/groups/candidates?search= — staff-only
+// (GROUP_CREATOR_ROLES, same as createGroup — a Supervisor/RM/Admin
+// picking who to invite either at creation time or via GroupInfoModal's
+// "Add member"). Scoped by the same canAddPersonToGroup rule everything
+// else here already uses: employees reachable via staffCanAccessMarket
+// (own market for Supervisor/Overlooking, in-zone for a Regional
+// Manager, everyone for Admin), staff via authorizedStaffContactsFor.
+// This is what makes "pick a person, not a market" possible on the
+// frontend — the candidate pool is already correctly scoped server-side,
+// no client-side filtering of an unscoped list.
+export async function listGroupMemberCandidates(req, res, next) {
+  try {
+    if (req.user.kind !== "staff" || !GROUP_CREATOR_ROLES.includes(req.user.role)) {
+      return res.status(403).json({ error: "This action requires a Supervisor, Regional Manager, or Admin account" });
+    }
+    const search = (req.query.search ?? "").trim();
+    const nameFilter = search ? { name: { contains: search, mode: "insensitive" } } : {};
+
+    let employeeWhere;
+    if (req.user.role === "ADMIN") {
+      employeeWhere = { ...nameFilter };
+    } else if (req.user.role === "REGIONAL_MANAGER") {
+      employeeWhere = { ...nameFilter, market: { zoneId: { in: req.user.zoneIds ?? [] } } };
     } else {
-      return res.status(400).json({ error: "Provide either employeeId or userId" });
+      employeeWhere = { ...nameFilter, marketId: req.user.marketId };
     }
 
-    res.status(201).json(await shapeGroupMembers(conversation.id));
+    const [employees, staffContacts] = await Promise.all([
+      prisma.employee.findMany({ where: employeeWhere, select: { id: true, name: true, position: true, marketId: true }, orderBy: { name: "asc" }, take: 50 }),
+      authorizedStaffContactsFor(req.user),
+    ]);
+
+    const staff = search
+      ? staffContacts.filter((s) => s.name.toLowerCase().includes(search.toLowerCase()))
+      : staffContacts;
+
+    res.json({ employees, staff });
   } catch (err) {
     next(err);
   }

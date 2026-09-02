@@ -625,6 +625,11 @@ export const editMessageSchema = z.object({
 // Supervisor/Admin/Regional-Manager group chat (spec §6-8). Phase 3
 // §7-8 adds groupType — NORMAL (default, everyone can post) or WARNING
 // (only group admins can post, enforced in chatController.sendMessage).
+// Chat UI redesign — marketId/zoneId are now optional display metadata
+// only (membership is decided per-person via canAddPersonToGroup in the
+// controller, not by a required market/zone scope); category/openJoin
+// added for the same redesign (Groups tab categorization, member-invite
+// approval — see chatController.createGroup's own comment).
 export const createGroupSchema = z
   .object({
     name: z.string().trim().min(1).max(100),
@@ -633,13 +638,12 @@ export const createGroupSchema = z
     memberEmployeeIds: z.array(z.string().min(1)).max(200).optional().default([]),
     memberStaffUserIds: z.array(z.number().int().positive()).max(200).optional().default([]),
     groupType: z.enum(["NORMAL", "WARNING"]).optional().default("NORMAL"),
+    category: z.enum(["GENERAL", "TASK_OPERATIONS"]).optional().default("GENERAL"),
+    openJoin: z.boolean().optional().default(false),
     // Chat Hub §6 — a group photo can now be set at creation time, not
     // only afterward via PATCH /:id/picture (changeGroupPicture still
     // exists unchanged for editing it later).
     pictureUrl: z.string().url().optional(),
-  })
-  .refine((data) => !!data.marketId !== !!data.zoneId, {
-    message: "Provide exactly one of marketId or zoneId",
   })
   .refine((data) => data.memberEmployeeIds.length + data.memberStaffUserIds.length > 0, {
     message: "Add at least one member",
@@ -664,6 +668,12 @@ export const addGroupMemberSchema = z
 
 export const setGroupMemberAdminSchema = z.object({
   isAdmin: z.boolean(),
+});
+
+// Chat UI redesign — group admin's "let anyone in without approval"
+// toggle (Conversation.openJoin).
+export const updateGroupSettingsSchema = z.object({
+  openJoin: z.boolean().optional(),
 });
 
 // Important People (Phase 3 §3-4) — a staff owner's personal, reorderable

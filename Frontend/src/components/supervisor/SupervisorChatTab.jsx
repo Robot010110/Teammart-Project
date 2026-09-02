@@ -121,7 +121,7 @@ export default function SupervisorChatTab({ session, basePath }) {
             conversationId={openConversation.id}
             groupName={openConversation.title}
             groupPictureUrl={openConversation.pictureUrl}
-            marketId={openConversation.marketId}
+            groupOpenJoin={openConversation.openJoin}
             currentUserId={session.staffId}
             currentUserKind="staff"
             onClose={() => setGroupInfoOpen(false)}

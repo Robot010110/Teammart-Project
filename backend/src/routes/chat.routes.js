@@ -26,6 +26,12 @@ import {
   addGroupMember,
   removeGroupMember,
   setGroupMemberAdmin,
+  listGroupJoinRequests,
+  approveGroupJoinRequest,
+  rejectGroupJoinRequest,
+  updateGroupSettings,
+  listGroupMemberCandidates,
+  getPresenceSummary,
   listMessages,
   getMessageSeenBy,
   listConversationMedia,
@@ -54,6 +60,7 @@ import {
   changeGroupPictureSchema,
   addGroupMemberSchema,
   setGroupMemberAdminSchema,
+  updateGroupSettingsSchema,
   addImportantContactSchema,
   reorderImportantContactSchema,
   postZoneAnnouncementSchema,
@@ -127,15 +134,33 @@ router.post(
   validateBody(createGroupSchema),
   createGroup
 );
+// Chat UI redesign — the person-by-person picker's data source (creation
+// modal and GroupInfoModal's "Add member" both use this), scoped to
+// whoever this caller may actually reach — same GROUP_CREATOR_ROLES gate
+// as createGroup itself.
+router.get("/groups/candidates", requireStaffRole("SUPERVISOR", "ADMIN", "REGIONAL_MANAGER"), listGroupMemberCandidates);
 router.patch("/:id/name", validateBody(renameGroupSchema), renameGroup);
 router.delete("/:id", deleteGroup);
 router.patch("/:id/picture", validateBody(changeGroupPictureSchema), changeGroupPicture);
+// Chat UI redesign — admin-only settings toggle (currently just
+// openJoin); same admin-gated single-field-update shape as the two
+// routes above.
+router.patch("/:id/settings", validateBody(updateGroupSettingsSchema), updateGroupSettings);
 router.post("/:id/members", validateBody(addGroupMemberSchema), addGroupMember);
 router.delete("/:id/members/:memberId", removeGroupMember);
 router.patch("/:id/members/:memberId", validateBody(setGroupMemberAdminSchema), setGroupMemberAdmin);
+// Chat UI redesign — a non-admin member's proposed add sits here until a
+// group admin reviews it (see addGroupMember's own comment on when a
+// GroupJoinRequest gets created instead of a direct add).
+router.get("/:id/join-requests", listGroupJoinRequests);
+router.post("/:id/join-requests/:requestId/approve", approveGroupJoinRequest);
+router.post("/:id/join-requests/:requestId/reject", rejectGroupJoinRequest);
 // Viewing the roster is open to anyone with access to the group (an
 // actual member) — conversationAccessFor decides, not a role gate.
 router.get("/:id/members", listGroupMembers);
+// Chat UI redesign — real "X members, Y online" for a group-like
+// conversation header; same conversationAccessFor gate as /:id/messages.
+router.get("/:id/presence-summary", getPresenceSummary);
 // Group Information's real Media/Voice/Files browser — access is the
 // same conversationAccessFor check as everything else on this
 // conversation, not a group-admin restriction (any real member can

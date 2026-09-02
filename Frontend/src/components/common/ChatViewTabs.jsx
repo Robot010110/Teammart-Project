@@ -1,23 +1,25 @@
 import { useState } from "react";
 import ImportantPeopleSection from "./ImportantPeopleSection";
+import { GROUP_TYPES, INDIVIDUAL_TYPES, GROUP_CATEGORIES, categoryOf } from "../../utils/chatCategories";
 
 // ChatViewTabs.jsx — Phase 3.5: the mobile-first switcher between the
 // four Chat organizational views (Important People / Groups /
 // Individuals / Unread). These are VIEWS over one already-fetched
 // `conversations` array (each shaped conversation object already carries
-// `type`/`unreadCount` from the backend — see chatController.js's
-// buildStaffConversationList/buildRmConversationList/
+// `type`/`unreadCount`/`category` from the backend — see
+// chatController.js's buildStaffConversationList/buildRmConversationList/
 // buildAdminConversationList) — not a second data source, and not a
 // separate fetch per tab. A conversation naturally appears in more than
 // one tab (e.g. an unread group shows up under both Groups and Unread)
 // since each tab is just a filter over the same array.
 //
 // Row rendering stays with the caller (`renderRow`) so each role keeps
-// its own existing row component/styling (ChannelRow in
-// SupervisorChatTab.jsx, ConversationRow in RmChatPage.jsx/AdminChatPage.jsx)
-// instead of a new one being invented here.
-const GROUP_TYPES = new Set(["MARKET_GROUP", "WARNINGS", "ZONE_GROUP", "ZONE_ANNOUNCEMENTS", "CUSTOM_GROUP"]);
-const INDIVIDUAL_TYPES = new Set(["DIRECT", "SUPERVISOR_DIRECT", "RM_DIRECT", "STAFF_DIRECT"]);
+// its own existing row component/styling (ChatConversationCard, shared
+// across every role's Chat screen) instead of a new one being invented
+// here. The Groups view itself splits into four sections (Chat UI
+// redesign — Zone/Announcements/General/Task & Operations), each just a
+// filter over the same array via chatCategories.categoryOf — a section
+// with nothing in it is simply omitted, never shown empty.
 
 const VIEWS = [
   { key: "important", label: "Important" },
@@ -84,9 +86,22 @@ export default function ChatViewTabs({
       )}
 
       {view === "groups" && (
-        <div className="space-y-2">
+        <div className="space-y-5">
           {groupsHeaderAction}
-          {groups.length === 0 ? <EmptyText>No groups available.</EmptyText> : groups.map((c) => renderRow(c))}
+          {groups.length === 0 ? (
+            <EmptyText>No groups available.</EmptyText>
+          ) : (
+            GROUP_CATEGORIES.map(({ key, label }) => {
+              const sectionGroups = groups.filter((c) => categoryOf(c) === key);
+              if (sectionGroups.length === 0) return null;
+              return (
+                <section key={key}>
+                  <h2 className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-[#8B93A8]">{label}</h2>
+                  <div className="space-y-2">{sectionGroups.map((c) => renderRow(c))}</div>
+                </section>
+              );
+            })
+          )}
         </div>
       )}
 

@@ -110,7 +110,11 @@ async function findOrCreateNightShiftGroup(marketId) {
 
   let group = await prisma.conversation.findFirst({ where: { type: "CUSTOM_GROUP", marketId, name } });
   if (!group) {
-    group = await prisma.conversation.create({ data: { type: "CUSTOM_GROUP", marketId, name, groupType: "NORMAL" } });
+    // Chat UI redesign — the one existing real "operational group"
+    // precedent now gets tagged TASK_OPERATIONS instead of being
+    // distinguishable only by its name pattern (see Conversation.category's
+    // own schema comment).
+    group = await prisma.conversation.create({ data: { type: "CUSTOM_GROUP", marketId, name, groupType: "NORMAL", category: "TASK_OPERATIONS" } });
   }
   return group;
 }

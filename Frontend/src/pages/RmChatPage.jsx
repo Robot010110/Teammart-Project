@@ -20,6 +20,19 @@ import {
 import { useAsync } from "../hooks/useAsync";
 import { usePolling } from "../hooks/usePolling";
 import { initialsOf } from "../utils/initials";
+import { categoryOf } from "../utils/chatCategories";
+
+// RM's own Groups view splits into three of the four Chat UI redesign
+// sections (Zone/General/Task & Operations) — Announcements is
+// deliberately excluded here since ZONE_ANNOUNCEMENTS never lands in
+// RM's own GROUP_TYPES set to begin with (see this file's own comment
+// above — RM already has a richer, dedicated Awareness tab for that
+// content).
+const RM_GROUP_SECTIONS = [
+  { key: "zone", label: "Zone" },
+  { key: "general", label: "General" },
+  { key: "tasks", label: "Task & Operations" },
+];
 
 const LIST_POLL_MS = 15000;
 
@@ -167,7 +180,7 @@ export default function RmChatPage({ session }) {
             conversationId={openConversation.id}
             groupName={openConversation.title}
             groupPictureUrl={openConversation.pictureUrl}
-            marketId={openConversation.marketId}
+            groupOpenJoin={openConversation.openJoin}
             currentUserId={session.staffId}
             currentUserKind="staff"
             onClose={() => setGroupInfoOpen(false)}
@@ -233,7 +246,18 @@ export default function RmChatPage({ session }) {
               {groups.length === 0 ? (
                 <p className="text-sm text-[#6B7284] text-center py-8">No groups yet.</p>
               ) : (
-                groups.map((c) => <ChatConversationCard key={c.id} conversation={c} onOpen={() => navigate(`/rm/chat/${c.id}`)} onMore={setOptionsFor} />)
+                RM_GROUP_SECTIONS.map(({ key, label }) => {
+                  const sectionGroups = groups.filter((c) => categoryOf(c) === key);
+                  if (sectionGroups.length === 0) return null;
+                  return (
+                    <section key={key} className="mb-4">
+                      <h2 className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-[#8B93A8]">{label}</h2>
+                      <div className="space-y-2">
+                        {sectionGroups.map((c) => <ChatConversationCard key={c.id} conversation={c} onOpen={() => navigate(`/rm/chat/${c.id}`)} onMore={setOptionsFor} />)}
+                      </div>
+                    </section>
+                  );
+                })
               )}
             </div>
           )}

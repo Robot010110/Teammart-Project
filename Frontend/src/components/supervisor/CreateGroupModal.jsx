@@ -1,56 +1,53 @@
 import { useState } from "react";
 import { Check, Loader2 } from "lucide-react";
 import Modal from "../common/Modal";
+import GroupMemberPicker from "../common/GroupMemberPicker";
 import { createGroup } from "../../services/chatService";
-import { listEmployeesByMarket } from "../../services/staffEmployeeService";
-import { getMarket } from "../../services/marketService";
-import { useAsync } from "../../hooks/useAsync";
-import { initialsOf } from "../../utils/initials";
 import { ApiError } from "../../services/apiClient";
 
-// CreateGroupModal.jsx — spec §6: Supervisor names a group, picks members
-// from their own market's employees (and, if one exists, the market's
-// own Overlooking account — spec §1 doesn't limit group members to
-// employees), creates it. Uses the same Conversation/Message architecture
-// as every other chat here (a real CUSTOM_GROUP conversation, not a
-// separate system) — see chatController.createGroup.
+// CreateGroupModal.jsx — Supervisor names a group, picks members
+// person-by-person (Chat UI redesign — replaces the old "employees of my
+// own market only" list with GroupMemberPicker, already scoped
+// server-side to whoever this Supervisor may actually reach), creates
+// it. Uses the same Conversation/Message architecture as every other
+// chat here (a real CUSTOM_GROUP conversation, not a separate system) —
+// see chatController.createGroup.
 export default function CreateGroupModal({ marketId, onClose, onCreated }) {
-  const { data: employees, loading: loadingEmployees } = useAsync(() => listEmployeesByMarket(marketId), { deps: [marketId] });
-  const { data: market } = useAsync(() => getMarket(marketId), { deps: [marketId] });
   const [name, setName] = useState("");
-  const [selected, setSelected] = useState(new Set());
-  const [includeOverlooking, setIncludeOverlooking] = useState(false);
+  const [selected, setSelected] = useState({ employeeIds: new Set(), staffUserIds: new Set() });
   // Phase 3 §7-8: NORMAL (everyone can post, default) vs WARNING (an
   // announcement group — only group admins, starting with the creator,
   // can post; everyone else is read-only). Reuses the existing group-
   // admin concept, no new permission system.
   const [groupType, setGroupType] = useState("NORMAL");
+  // Chat UI redesign — Groups tab categorization (irrelevant once
+  // groupType=WARNING, which is always shown under Announcements).
+  const [category, setCategory] = useState("GENERAL");
+  const [openJoin, setOpenJoin] = useState(false);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState(null);
-
-  function toggle(employeeId) {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(employeeId)) next.delete(employeeId);
-      else next.add(employeeId);
-      return next;
-    });
-  }
 
   async function handleCreate() {
     if (!name.trim()) {
       setError("Enter a group name.");
       return;
     }
-    const memberStaffUserIds = includeOverlooking && market?.overlookingSupervisor ? [market.overlookingSupervisor.id] : [];
-    if (selected.size === 0 && memberStaffUserIds.length === 0) {
+    if (selected.employeeIds.size === 0 && selected.staffUserIds.size === 0) {
       setError("Select at least one member.");
       return;
     }
     setCreating(true);
     setError(null);
     try {
-      const conversation = await createGroup({ name: name.trim(), marketId, memberEmployeeIds: [...selected], memberStaffUserIds, groupType });
+      const conversation = await createGroup({
+        name: name.trim(),
+        marketId,
+        memberEmployeeIds: [...selected.employeeIds],
+        memberStaffUserIds: [...selected.staffUserIds],
+        groupType,
+        category,
+        openJoin,
+      });
       onCreated(conversation);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Could not create this group.");
@@ -101,65 +98,46 @@ export default function CreateGroupModal({ marketId, onClose, onCreated }) {
           )}
         </div>
 
-        {market?.overlookingSupervisor && (
-          <button
-            type="button"
-            onClick={() => setIncludeOverlooking((v) => !v)}
-            className={`w-full flex items-center gap-3 rounded-xl p-2.5 border transition-colors ${
-              includeOverlooking ? "bg-[#F47A20]/10 border-[#F47A20]/40" : "bg-[#1A1F33]/70 border-white/[0.06] hover:border-white/[0.15]"
-            }`}
-          >
-            <span className="w-8 h-8 rounded-full bg-white/[0.06] flex items-center justify-center text-xs font-semibold text-white shrink-0">
-              {initialsOf(market.overlookingSupervisor.name)}
-            </span>
-            <div className="min-w-0 flex-1 text-left">
-              <p className="text-sm font-medium text-white truncate">{market.overlookingSupervisor.name}</p>
-              <p className="text-[11px] text-[#8B93A8]">Overlooking</p>
+        {groupType === "NORMAL" && (
+          <div>
+            <label className="block text-xs uppercase tracking-wide text-[#8B93A8] mb-1.5">Category</label>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setCategory("GENERAL")}
+                className={`rounded-lg py-2.5 text-xs font-semibold transition-colors ${
+                  category === "GENERAL" ? "text-white bg-[#F47A20]" : "text-[#9AA1B4] bg-white/[0.04] hover:bg-white/[0.08]"
+                }`}
+              >
+                General
+              </button>
+              <button
+                type="button"
+                onClick={() => setCategory("TASK_OPERATIONS")}
+                className={`rounded-lg py-2.5 text-xs font-semibold transition-colors ${
+                  category === "TASK_OPERATIONS" ? "text-white bg-[#F47A20]" : "text-[#9AA1B4] bg-white/[0.04] hover:bg-white/[0.08]"
+                }`}
+              >
+                Task & Operations
+              </button>
             </div>
-            <span className={`shrink-0 w-5 h-5 rounded-md border flex items-center justify-center ${includeOverlooking ? "bg-[#F47A20] border-[#F47A20]" : "border-white/20"}`}>
-              {includeOverlooking && <Check size={12} className="text-white" />}
-            </span>
-          </button>
+          </div>
         )}
 
+        <button
+          type="button"
+          onClick={() => setOpenJoin((v) => !v)}
+          className="w-full flex items-center justify-between rounded-lg px-3 py-2.5 bg-white/[0.03] border border-white/[0.06]"
+        >
+          <span className="text-xs text-[#9AA1B4]">Let anyone in without approval</span>
+          <span className={`shrink-0 w-9 h-5 rounded-full p-0.5 transition-colors ${openJoin ? "bg-[#F47A20]" : "bg-white/10"}`}>
+            <span className={`block w-4 h-4 rounded-full bg-white transition-transform ${openJoin ? "translate-x-4" : ""}`} />
+          </span>
+        </button>
+
         <div>
-          <label className="block text-xs uppercase tracking-wide text-[#8B93A8] mb-1.5">
-            Members {selected.size > 0 ? `(${selected.size} selected)` : ""}
-          </label>
-          {loadingEmployees ? (
-            <p className="text-xs text-[#4C5266] py-4 text-center">Loading employees...</p>
-          ) : (
-            <div className="space-y-2 max-h-[280px] overflow-y-auto">
-              {(employees ?? []).map((e) => {
-                const isSelected = selected.has(e.id);
-                return (
-                  <button
-                    key={e.id}
-                    type="button"
-                    onClick={() => toggle(e.id)}
-                    className={`w-full flex items-center gap-3 rounded-xl p-2.5 border transition-colors ${
-                      isSelected ? "bg-[#F47A20]/10 border-[#F47A20]/40" : "bg-[#1A1F33]/70 border-white/[0.06] hover:border-white/[0.15]"
-                    }`}
-                  >
-                    <span className="w-8 h-8 rounded-full bg-white/[0.06] flex items-center justify-center text-xs font-semibold text-white shrink-0">
-                      {initialsOf(e.name)}
-                    </span>
-                    <div className="min-w-0 flex-1 text-left">
-                      <p className="text-sm font-medium text-white truncate">{e.name}</p>
-                      <p className="text-[11px] text-[#8B93A8]">{e.position}</p>
-                    </div>
-                    <span
-                      className={`shrink-0 w-5 h-5 rounded-md border flex items-center justify-center ${
-                        isSelected ? "bg-[#F47A20] border-[#F47A20]" : "border-white/20"
-                      }`}
-                    >
-                      {isSelected && <Check size={12} className="text-white" />}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          )}
+          <label className="block text-xs uppercase tracking-wide text-[#8B93A8] mb-1.5">Members</label>
+          <GroupMemberPicker selected={selected} onChange={setSelected} />
         </div>
 
         {error && <p className="text-xs text-red-400">{error}</p>}

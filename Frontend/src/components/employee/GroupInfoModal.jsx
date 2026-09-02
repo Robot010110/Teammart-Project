@@ -1,7 +1,8 @@
 import { useState } from "react";
-import { Pencil, Check, X, UserPlus, UserMinus, Loader2, ShieldCheck, Shield, Camera, Image as ImageIcon, Mic, File as FileIcon, Download, Users2, Trash2 } from "lucide-react";
+import { Pencil, Check, X, UserPlus, UserMinus, Loader2, ShieldCheck, Shield, Camera, Image as ImageIcon, Mic, File as FileIcon, Download, Users2, Trash2, ClipboardCheck, ThumbsUp, ThumbsDown } from "lucide-react";
 import Modal from "../common/Modal";
 import AuthenticatedImage from "../common/AuthenticatedImage";
+import GroupMemberPicker from "../common/GroupMemberPicker";
 import {
   listGroupMembers,
   renameGroup,
@@ -11,8 +12,11 @@ import {
   setGroupMemberAdmin,
   listConversationMedia,
   deleteGroup,
+  listGroupJoinRequests,
+  approveGroupJoinRequest,
+  rejectGroupJoinRequest,
+  updateGroupSettings,
 } from "../../services/chatService";
-import { listEmployeesByMarket } from "../../services/staffEmployeeService";
 import { prepareImageForUpload } from "../../services/activityService";
 import { formatFileSize } from "../../utils/fileEncoding";
 import { useAsync } from "../../hooks/useAsync";
@@ -115,26 +119,106 @@ function MediaTabs({ conversationId }) {
   );
 }
 
+// GroupJoinRequestsSection — Chat UI redesign: a group admin's queue of
+// pending GroupJoinRequests (created when a non-admin member proposes
+// adding someone to a non-openJoin group — see
+// chatController.addGroupMember). Only rendered for canManage viewers;
+// the server re-checks admin status independently on approve/reject
+// regardless (requireGroupAdmin), same as every other admin action here.
+function GroupJoinRequestsSection({ conversationId, onReviewed }) {
+  const { data: requests, setData: setRequests, loading } = useAsync(
+    () => listGroupJoinRequests(conversationId),
+    { deps: [conversationId] }
+  );
+  const [busyId, setBusyId] = useState(null);
+
+  async function handleApprove(request) {
+    setBusyId(request.id);
+    try {
+      await approveGroupJoinRequest(conversationId, request.id);
+      setRequests((prev) => prev.filter((r) => r.id !== request.id));
+      onReviewed?.();
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function handleReject(request) {
+    setBusyId(request.id);
+    try {
+      await rejectGroupJoinRequest(conversationId, request.id);
+      setRequests((prev) => prev.filter((r) => r.id !== request.id));
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  if (loading || !requests || requests.length === 0) return null;
+
+  return (
+    <div>
+      <p className="mb-2 flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-[#8B93A8]">
+        <ClipboardCheck size={11} /> Join Requests ({requests.length})
+      </p>
+      <div className="space-y-2">
+        {requests.map((r) => (
+          <div key={r.id} className="flex items-center gap-3 rounded-xl p-2.5 bg-amber-500/[0.06] border border-amber-500/20">
+            <span className="w-8 h-8 rounded-full bg-white/[0.06] flex items-center justify-center text-xs font-semibold text-white shrink-0">
+              {initialsOf(r.name)}
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-medium text-white truncate">{r.name}</p>
+              <p className="text-[11px] text-[#8B93A8] truncate">Proposed by {r.invitedByName}</p>
+            </div>
+            <div className="flex items-center gap-1 shrink-0">
+              <button
+                type="button"
+                onClick={() => handleApprove(r)}
+                disabled={busyId === r.id}
+                className="p-1.5 text-emerald-400 hover:text-emerald-300 disabled:opacity-50"
+                aria-label={`Approve ${r.name}`}
+              >
+                {busyId === r.id ? <Loader2 size={14} className="animate-spin" /> : <ThumbsUp size={14} />}
+              </button>
+              <button
+                type="button"
+                onClick={() => handleReject(r)}
+                disabled={busyId === r.id}
+                className="p-1.5 text-red-400 hover:text-red-300 disabled:opacity-50"
+                aria-label={`Reject ${r.name}`}
+              >
+                <ThumbsDown size={14} />
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // GroupInfoModal.jsx — spec §1/§7-8/§13: view a Custom Group's roster,
-// and (for a group admin) rename it, change its picture, add/remove
-// members, and promote/demote other members to admin. Every mutation
-// here is re-checked server-side by requireGroupAdmin regardless of what
-// this modal computes locally — `canManage` below is derived from the
-// CURRENT VIEWER's own membership row (isAdmin), not from their role, per
-// the spec's own rule that being a Supervisor/Regional Manager never
-// automatically grants control over a group (see chatController.js's
-// isGroupAdmin). currentUserId/currentUserKind identify the viewer so
-// that lookup can happen; marketId (if the group is market-scoped) drives
-// the "Add Member" employee picker — zone-scoped groups don't get that
-// picker here (adding to those happens at creation, or removing here).
-export default function GroupInfoModal({ conversationId, groupName, groupPictureUrl, marketId, currentUserId, currentUserKind, onClose, onRenamed, onDeleted }) {
+// and (for a group admin) rename it, change its picture, remove members,
+// promote/demote other members to admin, review pending join requests,
+// and toggle "let anyone in without approval". Every mutation here is
+// re-checked server-side (requireGroupAdmin for admin-only actions)
+// regardless of what this modal computes locally — `canManage` below is
+// derived from the CURRENT VIEWER's own membership row (isAdmin), not
+// from their role, per the spec's own rule that being a Supervisor/
+// Regional Manager never automatically grants control over a group (see
+// chatController.js's isGroupAdmin). currentUserId/currentUserKind
+// identify the viewer so that lookup can happen.
+//
+// Chat UI redesign — "Add Member" is now available to ANY member (not
+// just an admin), via the same person-by-person GroupMemberPicker group
+// creation uses. Whether a proposed add lands immediately or waits for a
+// group admin depends entirely on the server's response (addGroupMember
+// returns either the updated roster or { pending: true }) — this modal
+// never has to guess in advance.
+export default function GroupInfoModal({ conversationId, groupName, groupPictureUrl, groupOpenJoin, currentUserId, currentUserKind, onClose, onRenamed, onDeleted }) {
   const { data: members, setData: setMembers, loading, error, reload } = useAsync(
     () => listGroupMembers(conversationId),
     { deps: [conversationId] }
-  );
-  const { data: marketEmployees } = useAsync(
-    () => (marketId ? listEmployeesByMarket(marketId) : Promise.resolve([])),
-    { deps: [marketId] }
   );
 
   const [section, setSection] = useState("members"); // "members" | "media"
@@ -145,10 +229,15 @@ export default function GroupInfoModal({ conversationId, groupName, groupPicture
   const [pictureBusy, setPictureBusy] = useState(false);
   const [savingName, setSavingName] = useState(false);
   const [addingOpen, setAddingOpen] = useState(false);
+  const [inviteSelection, setInviteSelection] = useState({ employeeIds: new Set(), staffUserIds: new Set() });
+  const [inviting, setInviting] = useState(false);
+  const [inviteResult, setInviteResult] = useState(null); // { added, pending }
   const [busyId, setBusyId] = useState(null);
   const [actionError, setActionError] = useState(null);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [openJoin, setOpenJoin] = useState(!!groupOpenJoin);
+  const [savingOpenJoin, setSavingOpenJoin] = useState(false);
 
   async function handleDeleteGroup() {
     setDeleting(true);
@@ -202,16 +291,36 @@ export default function GroupInfoModal({ conversationId, groupName, groupPicture
     }
   }
 
-  async function handleAddMember(employee) {
-    setBusyId(employee.id);
+  // Chat UI redesign — sends one addGroupMember call per person selected
+  // in the picker. Each call independently lands as either a direct add
+  // (admin, or a member in an openJoin group) or a pending
+  // GroupJoinRequest (see chatController.addGroupMember) — this just
+  // tallies which happened for the summary message, then refetches the
+  // real roster once.
+  async function handleSendInvites() {
+    const targets = [
+      ...[...inviteSelection.employeeIds].map((employeeId) => ({ employeeId })),
+      ...[...inviteSelection.staffUserIds].map((userId) => ({ userId })),
+    ];
+    if (targets.length === 0) return;
+    setInviting(true);
     setActionError(null);
+    setInviteResult(null);
     try {
-      const updated = await addGroupMember(conversationId, { employeeId: employee.id });
-      setMembers(updated);
+      let added = 0;
+      let pending = 0;
+      for (const target of targets) {
+        const result = await addGroupMember(conversationId, target);
+        if (result?.pending) pending += 1;
+        else added += 1;
+      }
+      setInviteResult({ added, pending });
+      setInviteSelection({ employeeIds: new Set(), staffUserIds: new Set() });
+      await reload();
     } catch (err) {
-      setActionError(err instanceof ApiError ? err.message : "Could not add this member.");
+      setActionError(err instanceof ApiError ? err.message : "Could not send this invite.");
     } finally {
-      setBusyId(null);
+      setInviting(false);
     }
   }
 
@@ -242,8 +351,19 @@ export default function GroupInfoModal({ conversationId, groupName, groupPicture
     }
   }
 
-  const memberEmployeeIds = new Set((members ?? []).map((m) => m.employeeId).filter(Boolean));
-  const addableEmployees = (marketEmployees ?? []).filter((e) => !memberEmployeeIds.has(e.id));
+  async function handleToggleOpenJoin() {
+    const next = !openJoin;
+    setSavingOpenJoin(true);
+    setActionError(null);
+    try {
+      await updateGroupSettings(conversationId, { openJoin: next });
+      setOpenJoin(next);
+    } catch (err) {
+      setActionError(err instanceof ApiError ? err.message : "Could not update this setting.");
+    } finally {
+      setSavingOpenJoin(false);
+    }
+  }
 
   return (
     <Modal open onClose={onClose} title="Group Info">
@@ -332,8 +452,9 @@ export default function GroupInfoModal({ conversationId, groupName, groupPicture
             <div className="space-y-2 max-h-[280px] overflow-y-auto">
               {members.map((m) => (
                 <div key={m.id} className="flex items-center gap-3 rounded-xl p-2.5 bg-[#1A1F33]/70 border border-white/[0.06]">
-                  <span className="w-8 h-8 rounded-full bg-white/[0.06] flex items-center justify-center text-xs font-semibold text-white shrink-0">
+                  <span className="relative w-8 h-8 rounded-full bg-white/[0.06] flex items-center justify-center text-xs font-semibold text-white shrink-0">
                     {initialsOf(m.name)}
+                    {m.online && <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-400 ring-2 ring-[#1A1F33]" aria-hidden="true" />}
                   </span>
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-medium text-white truncate flex items-center gap-1.5">
@@ -371,40 +492,58 @@ export default function GroupInfoModal({ conversationId, groupName, groupPicture
           )}
         </div>
 
-        {canManage && marketId && (
+        {myMembership && (
           <div>
             <button
               type="button"
-              onClick={() => setAddingOpen((v) => !v)}
+              onClick={() => { setAddingOpen((v) => !v); setInviteResult(null); }}
               className="w-full flex items-center justify-center gap-2 rounded-xl py-2.5 text-xs font-semibold text-white bg-white/[0.06] hover:bg-white/[0.1] transition-colors duration-150"
             >
               <UserPlus size={14} /> Add Member
             </button>
             {addingOpen && (
-              <div className="mt-2 space-y-2 max-h-[200px] overflow-y-auto">
-                {addableEmployees.length === 0 ? (
-                  <p className="text-xs text-[#4C5266] text-center py-3">No other employees to add.</p>
-                ) : (
-                  addableEmployees.map((e) => (
-                    <button
-                      key={e.id}
-                      type="button"
-                      onClick={() => handleAddMember(e)}
-                      disabled={busyId === e.id}
-                      className="w-full flex items-center gap-3 rounded-xl p-2.5 bg-[#1A1F33]/70 border border-white/[0.06] hover:border-[#F47A20]/25 disabled:opacity-50 transition-colors"
-                    >
-                      <span className="w-8 h-8 rounded-full bg-white/[0.06] flex items-center justify-center text-xs font-semibold text-white shrink-0">
-                        {initialsOf(e.name)}
-                      </span>
-                      <span className="flex-1 min-w-0 text-left text-sm text-white truncate">{e.name}</span>
-                      {busyId === e.id ? <Loader2 size={14} className="animate-spin text-[#9AA1B4]" /> : <UserPlus size={14} className="text-[#4C5266]" />}
-                    </button>
-                  ))
+              <div className="mt-2 space-y-2">
+                {!canManage && (
+                  <p className="text-[11px] text-[#8B93A8]">
+                    {openJoin ? "Anyone you add joins immediately." : "A group admin will need to approve anyone you add."}
+                  </p>
                 )}
+                <GroupMemberPicker selected={inviteSelection} onChange={setInviteSelection} />
+                {inviteResult && (
+                  <p className="text-[11px] text-emerald-400">
+                    {inviteResult.added > 0 ? `${inviteResult.added} added. ` : ""}
+                    {inviteResult.pending > 0 ? `${inviteResult.pending} pending admin approval.` : ""}
+                  </p>
+                )}
+                <button
+                  type="button"
+                  onClick={handleSendInvites}
+                  disabled={inviting || (inviteSelection.employeeIds.size === 0 && inviteSelection.staffUserIds.size === 0)}
+                  className="w-full flex items-center justify-center gap-2 rounded-xl py-2.5 text-xs font-semibold text-white bg-[#F47A20] hover:bg-[#ff8b36] disabled:bg-white/10 disabled:text-[#4C5266] transition-colors"
+                >
+                  {inviting ? <Loader2 size={13} className="animate-spin" /> : <UserPlus size={13} />}
+                  {inviting ? "Sending..." : "Send"}
+                </button>
               </div>
             )}
           </div>
         )}
+
+        {canManage && (
+          <button
+            type="button"
+            onClick={handleToggleOpenJoin}
+            disabled={savingOpenJoin}
+            className="w-full flex items-center justify-between rounded-lg px-3 py-2.5 bg-white/[0.03] border border-white/[0.06] disabled:opacity-50"
+          >
+            <span className="text-xs text-[#9AA1B4]">Let anyone in without approval</span>
+            <span className={`shrink-0 w-9 h-5 rounded-full p-0.5 transition-colors ${openJoin ? "bg-[#F47A20]" : "bg-white/10"}`}>
+              <span className={`block w-4 h-4 rounded-full bg-white transition-transform ${openJoin ? "translate-x-4" : ""}`} />
+            </span>
+          </button>
+        )}
+
+        {canManage && <GroupJoinRequestsSection conversationId={conversationId} onReviewed={reload} />}
 
         {canManage && (
           <div className="pt-2 border-t border-white/[0.06]">

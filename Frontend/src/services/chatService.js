@@ -203,8 +203,12 @@ export function listMyAdminConversations() {
 // listGroupMembers is the one exception open to any member at all,
 // admin or not.
 //
-// payload: { name, marketId?, zoneId?, memberEmployeeIds?, memberStaffUserIds? }
-// — exactly one of marketId/zoneId scopes the group.
+// payload: { name, memberEmployeeIds?, memberStaffUserIds?, groupType?,
+// category?, openJoin?, pictureUrl?, marketId?, zoneId? } — Chat UI
+// redesign: marketId/zoneId are now optional display metadata only,
+// membership is person-by-person (each id re-validated server-side
+// against who this caller may actually reach — see
+// chatController.canAddPersonToGroup).
 export function createGroup(payload) {
   return apiRequest(`/conversations/groups`, { method: "POST", body: payload });
 }
@@ -244,6 +248,40 @@ export function setGroupMemberAdmin(conversationId, memberId, isAdmin) {
 // `memberId` is the ConversationMember row's own id, same as setGroupMemberAdmin.
 export function removeGroupMember(conversationId, memberId) {
   return apiRequest(`/conversations/${conversationId}/members/${memberId}`, { method: "DELETE" });
+}
+
+// Chat UI redesign — person-by-person group member picker's data source
+// (creation modal and GroupInfoModal's "Add member" both call this),
+// already scoped server-side to whoever the caller may actually reach —
+// never a full list filtered client-side. Returns { employees, staff }.
+export function listGroupMemberCandidates(search = "") {
+  return apiRequest(`/conversations/groups/candidates${search ? `?search=${encodeURIComponent(search)}` : ""}`);
+}
+
+// Chat UI redesign — group admin's "let anyone in without approval"
+// toggle.
+export function updateGroupSettings(conversationId, { openJoin }) {
+  return apiRequest(`/conversations/${conversationId}/settings`, { method: "PATCH", body: { openJoin } });
+}
+
+// Chat UI redesign — pending GroupJoinRequests waiting on this admin.
+export function listGroupJoinRequests(conversationId) {
+  return apiRequest(`/conversations/${conversationId}/join-requests`);
+}
+
+export function approveGroupJoinRequest(conversationId, requestId) {
+  return apiRequest(`/conversations/${conversationId}/join-requests/${requestId}/approve`, { method: "POST" });
+}
+
+export function rejectGroupJoinRequest(conversationId, requestId) {
+  return apiRequest(`/conversations/${conversationId}/join-requests/${requestId}/reject`, { method: "POST" });
+}
+
+// Chat UI redesign — real "X members, Y online" for a group-like
+// conversation's header. { memberCount, onlineCount }, both null for a
+// 1:1 thread (see chatController.getPresenceSummary's own comment).
+export function getPresenceSummary(conversationId) {
+  return apiRequest(`/conversations/${conversationId}/presence-summary`);
 }
 
 // --- Phase 3: Chat organization (Important People / Groups / Individuals

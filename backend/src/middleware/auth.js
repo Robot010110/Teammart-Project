@@ -7,6 +7,35 @@ function accountBlockMessage(status) {
   return null;
 }
 
+// Chat UI presence — "online" is derived from lastActiveAt (see
+// chatController.js's ONLINE_THRESHOLD_MS), so this is the one place that
+// timestamp gets touched: every authenticated request. Writing it on every
+// single request would be the same write-storm anti-pattern this codebase
+// deliberately avoids elsewhere (see markConversationRead's own comment on
+// "once per open, not per message") — at a much larger blast radius, since
+// requireAuth runs on every route, not just chat. So this is throttled to
+// at most one write per account per PRESENCE_THROTTLE_MS, tracked in a
+// plain in-memory Map (fine for a single-process deployment; a multi-
+// instance deployment would just get a slightly less precise "online"
+// signal, never wrong data). Always fire-and-forget — never awaited, never
+// allowed to slow down or fail the actual request.
+const PRESENCE_THROTTLE_MS = 60 * 1000;
+const lastPresenceWrite = new Map();
+
+function touchPresence(kind, id) {
+  const key = `${kind}:${id}`;
+  const now = Date.now();
+  const last = lastPresenceWrite.get(key);
+  if (last && now - last < PRESENCE_THROTTLE_MS) return;
+  lastPresenceWrite.set(key, now);
+
+  const write =
+    kind === "staff"
+      ? prisma.user.update({ where: { id }, data: { lastActiveAt: new Date() } })
+      : prisma.employee.update({ where: { id }, data: { lastActiveAt: new Date() } });
+  write.catch(() => {});
+}
+
 // ---------------------------------------------------------------------
 // requireAuth — verifies the Bearer token and attaches its payload to
 // req.user. Everything after this middleware can trust req.user is real
@@ -55,6 +84,7 @@ export async function requireAuth(req, res, next) {
     }
 
     req.user = payload;
+    touchPresence(payload.kind === "staff" ? "staff" : "employee", payload.kind === "staff" ? payload.userId : payload.employeeId);
     next();
   } catch (err) {
     next(err);

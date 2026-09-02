@@ -1,70 +1,40 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Check, Loader2 } from "lucide-react";
 import Modal from "../components/common/Modal";
+import GroupMemberPicker from "../components/common/GroupMemberPicker";
 import { createGroup } from "../services/chatService";
-import { listEmployees } from "../services/staffEmployeeService";
-import { listMarkets, getMarket } from "../services/marketService";
-import { useAsync } from "../hooks/useAsync";
-import { initialsOf } from "../utils/initials";
 import { ApiError } from "../services/apiClient";
 
-// AdminCreateGroupModal.jsx — Phase 3.5: an Admin builds a group scoped
-// to one market (Admin always passes the backend's market-access check —
-// see staffCanAccessMarket's ADMIN branch — so any market can be picked,
-// unlike a Supervisor who's locked to their own). Same createGroup
-// endpoint/architecture as CreateGroupModal.jsx/RmCreateGroupModal.jsx —
-// only the market picker (every market, not just one/a zone) differs.
-export default function AdminCreateGroupModal({ onClose, onCreated }) {
-  const [marketId, setMarketId] = useState("");
+// AdminCreateGroupModal.jsx — an Admin builds a group by picking people
+// one by one (Chat UI redesign — replaces the old "pick a market first,
+// then checkbox its employees/staff" flow with GroupMemberPicker,
+// already scoped server-side to every employee/staff account in the
+// company for an Admin caller — see chatController.canAddPersonToGroup's
+// ADMIN branch). Same createGroup endpoint/architecture as
+// CreateGroupModal.jsx/RmCreateGroupModal.jsx.
+export default function AdminCreateGroupModal({ session, onClose, onCreated }) {
   const [name, setName] = useState("");
-  const [selectedEmployeeIds, setSelectedEmployeeIds] = useState(new Set());
-  const [selectedStaffIds, setSelectedStaffIds] = useState(new Set());
+  const [selected, setSelected] = useState({ employeeIds: new Set(), staffUserIds: new Set() });
   const [groupType, setGroupType] = useState("NORMAL");
+  const [category, setCategory] = useState("GENERAL");
+  const [openJoin, setOpenJoin] = useState(false);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState(null);
 
-  const { data: allMarkets } = useAsync(listMarkets, { deps: [] });
-
-  useEffect(() => {
-    if (!marketId && allMarkets?.length) setMarketId(allMarkets[0].id);
-  }, [marketId, allMarkets]);
-
-  const { data: employees } = useAsync(() => (marketId ? listEmployees({ marketId }) : Promise.resolve([])), { deps: [marketId] });
-  const { data: market } = useAsync(() => (marketId ? getMarket(marketId) : Promise.resolve(null)), { deps: [marketId] });
-  const staffMembers = [
-    market?.supervisor ? { id: market.supervisor.id, name: market.supervisor.name, role: "Supervisor" } : null,
-    market?.overlookingSupervisor ? { id: market.overlookingSupervisor.id, name: market.overlookingSupervisor.name, role: "Overlooking" } : null,
-  ].filter(Boolean);
-
-  function toggleEmployee(id) {
-    setSelectedEmployeeIds((prev) => {
-      const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
-      return next;
-    });
-  }
-  function toggleStaff(id) {
-    setSelectedStaffIds((prev) => {
-      const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
-      return next;
-    });
-  }
-
   async function handleCreate() {
     if (!name.trim()) return setError("Enter a group name.");
-    if (!marketId) return setError("Select a market.");
-    if (selectedEmployeeIds.size === 0 && selectedStaffIds.size === 0) return setError("Select at least one member.");
+    if (selected.employeeIds.size === 0 && selected.staffUserIds.size === 0) return setError("Select at least one member.");
 
     setCreating(true);
     setError(null);
     try {
       const conversation = await createGroup({
         name: name.trim(),
-        marketId,
-        memberEmployeeIds: [...selectedEmployeeIds],
-        memberStaffUserIds: [...selectedStaffIds],
+        memberEmployeeIds: [...selected.employeeIds],
+        memberStaffUserIds: [...selected.staffUserIds],
         groupType,
+        category,
+        openJoin,
       });
       onCreated(conversation);
     } catch (err) {
@@ -116,83 +86,46 @@ export default function AdminCreateGroupModal({ onClose, onCreated }) {
           )}
         </div>
 
-        <div>
-          <label className="block text-xs uppercase tracking-wide text-[#8B93A8] mb-1.5">Market</label>
-          <select
-            value={marketId}
-            onChange={(e) => {
-              setMarketId(e.target.value);
-              setSelectedEmployeeIds(new Set());
-              setSelectedStaffIds(new Set());
-            }}
-            className="w-full rounded-lg bg-white/[0.04] border border-white/[0.06] px-3 py-2.5 text-sm text-white outline-none focus:border-[#F47A20]/50"
-          >
-            {(allMarkets ?? []).map((m) => (
-              <option key={m.id} value={m.id}>{m.name}</option>
-            ))}
-          </select>
-        </div>
-
-        {staffMembers.length > 0 && (
+        {groupType === "NORMAL" && (
           <div>
-            <label className="block text-xs uppercase tracking-wide text-[#8B93A8] mb-1.5">
-              Supervisors / Overlooking {selectedStaffIds.size > 0 ? `(${selectedStaffIds.size} selected)` : ""}
-            </label>
-            <div className="space-y-2 max-h-[140px] overflow-y-auto">
-              {staffMembers.map((s) => {
-                const isSelected = selectedStaffIds.has(s.id);
-                return (
-                  <button
-                    key={s.id}
-                    type="button"
-                    onClick={() => toggleStaff(s.id)}
-                    className={`w-full flex items-center gap-3 rounded-xl p-2.5 border transition-colors ${isSelected ? "bg-[#F47A20]/10 border-[#F47A20]/40" : "bg-[#1A1F33]/70 border-white/[0.06] hover:border-white/[0.15]"}`}
-                  >
-                    <span className="w-8 h-8 rounded-full bg-white/[0.06] flex items-center justify-center text-xs font-semibold text-white shrink-0">{initialsOf(s.name)}</span>
-                    <div className="min-w-0 flex-1 text-left">
-                      <p className="text-sm font-medium text-white truncate">{s.name}</p>
-                      <p className="text-[11px] text-[#8B93A8]">{s.role}</p>
-                    </div>
-                    <span className={`shrink-0 w-5 h-5 rounded-md border flex items-center justify-center ${isSelected ? "bg-[#F47A20] border-[#F47A20]" : "border-white/20"}`}>
-                      {isSelected && <Check size={12} className="text-white" />}
-                    </span>
-                  </button>
-                );
-              })}
+            <label className="block text-xs uppercase tracking-wide text-[#8B93A8] mb-1.5">Category</label>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setCategory("GENERAL")}
+                className={`rounded-lg py-2.5 text-xs font-semibold transition-colors ${
+                  category === "GENERAL" ? "text-white bg-[#F47A20]" : "text-[#9AA1B4] bg-white/[0.04] hover:bg-white/[0.08]"
+                }`}
+              >
+                General
+              </button>
+              <button
+                type="button"
+                onClick={() => setCategory("TASK_OPERATIONS")}
+                className={`rounded-lg py-2.5 text-xs font-semibold transition-colors ${
+                  category === "TASK_OPERATIONS" ? "text-white bg-[#F47A20]" : "text-[#9AA1B4] bg-white/[0.04] hover:bg-white/[0.08]"
+                }`}
+              >
+                Task & Operations
+              </button>
             </div>
           </div>
         )}
 
+        <button
+          type="button"
+          onClick={() => setOpenJoin((v) => !v)}
+          className="w-full flex items-center justify-between rounded-lg px-3 py-2.5 bg-white/[0.03] border border-white/[0.06]"
+        >
+          <span className="text-xs text-[#9AA1B4]">Let anyone in without approval</span>
+          <span className={`shrink-0 w-9 h-5 rounded-full p-0.5 transition-colors ${openJoin ? "bg-[#F47A20]" : "bg-white/10"}`}>
+            <span className={`block w-4 h-4 rounded-full bg-white transition-transform ${openJoin ? "translate-x-4" : ""}`} />
+          </span>
+        </button>
+
         <div>
-          <label className="block text-xs uppercase tracking-wide text-[#8B93A8] mb-1.5">
-            Employees {selectedEmployeeIds.size > 0 ? `(${selectedEmployeeIds.size} selected)` : ""}
-          </label>
-          <div className="space-y-2 max-h-[200px] overflow-y-auto">
-            {(employees ?? []).length === 0 ? (
-              <p className="text-xs text-[#4C5266] text-center py-3">No employees in this market.</p>
-            ) : (
-              employees.map((e) => {
-                const isSelected = selectedEmployeeIds.has(e.id);
-                return (
-                  <button
-                    key={e.id}
-                    type="button"
-                    onClick={() => toggleEmployee(e.id)}
-                    className={`w-full flex items-center gap-3 rounded-xl p-2.5 border transition-colors ${isSelected ? "bg-[#F47A20]/10 border-[#F47A20]/40" : "bg-[#1A1F33]/70 border-white/[0.06] hover:border-white/[0.15]"}`}
-                  >
-                    <span className="w-8 h-8 rounded-full bg-white/[0.06] flex items-center justify-center text-xs font-semibold text-white shrink-0">{initialsOf(e.name)}</span>
-                    <div className="min-w-0 flex-1 text-left">
-                      <p className="text-sm font-medium text-white truncate">{e.name}</p>
-                      <p className="text-[11px] text-[#8B93A8]">{e.position}</p>
-                    </div>
-                    <span className={`shrink-0 w-5 h-5 rounded-md border flex items-center justify-center ${isSelected ? "bg-[#F47A20] border-[#F47A20]" : "border-white/20"}`}>
-                      {isSelected && <Check size={12} className="text-white" />}
-                    </span>
-                  </button>
-                );
-              })
-            )}
-          </div>
+          <label className="block text-xs uppercase tracking-wide text-[#8B93A8] mb-1.5">Members</label>
+          <GroupMemberPicker selected={selected} onChange={setSelected} excludeStaffUserIds={session?.staffId ? [session.staffId] : []} />
         </div>
 
         {error && <p className="text-xs text-red-400">{error}</p>}

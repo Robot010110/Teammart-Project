@@ -368,6 +368,15 @@ enum NotificationType {
   // Overlooking/Regional Manager/Admin) sent a Management Recognition
   // reaction to this employee's message (see MessageReaction.isRecognition).
   MANAGEMENT_RECOGNITION
+  // Chat UI redesign — a non-admin group member proposed adding someone
+  // and the group isn't openJoin — notifies the group's admin(s) that a
+  // GroupJoinRequest is waiting on them.
+  GROUP_JOIN_REQUESTED
+  // Chat UI redesign — a group admin approved or rejected a
+  // GroupJoinRequest — notifies the person who was proposed. One shared
+  // type for both outcomes, same convention as LEAVE_REVIEWED/
+  // SUBMISSION_REVIEWED/ACCOUNT_STATUS_CHANGED above.
+  GROUP_JOIN_REVIEWED
 }
 
 // ---------------------------------------------------------------------
@@ -481,6 +490,16 @@ model User {
   phoneNumber       String?
   whatsappNumber    String?
 
+  // Chat UI presence — updated by requireAuth (throttled, at most once per
+  // ~60s per account — see middleware/auth.js's own comment) on every
+  // authenticated request this account makes. "Online" is derived, never
+  // stored: lastActiveAt within ONLINE_THRESHOLD_MS of now (see
+  // chatController.js). Nullable: an account that has never made an
+  // authenticated request (or predates this field) simply has no presence
+  // data yet, and is correctly treated as offline rather than defaulted
+  // to some fabricated timestamp.
+  lastActiveAt DateTime?
+
   // Set only when this User account was created by promoting an
   // existing Employee (Worker/Cashier/Butcher -> Supervisor/Regional
   // Manager/Overlooking Supervisor) — see
@@ -570,6 +589,10 @@ model User {
   importantContacts      ImportantContact[] @relation("ImportantContactOwner")
   importantContactOf     ImportantContact[] @relation("ImportantContactTargetUser")
   nightShiftTaskDefinitionsCreated NightShiftTaskDefinition[] @relation("NightShiftTaskDefinitionCreator")
+
+  groupJoinRequestsAsTarget   GroupJoinRequest[] @relation("GroupJoinTargetUser")
+  groupJoinRequestsInvitedBy  GroupJoinRequest[] @relation("GroupJoinInviterUser")
+  groupJoinRequestsReviewedBy GroupJoinRequest[] @relation("GroupJoinReviewerUser")
 }
 
 // ---------------------------------------------------------------------
@@ -737,6 +760,9 @@ model Employee {
   employmentStatus EmploymentStatus @default(ACTIVE)
   whatsappNumber   String?                   // tap-to-open wa.me link on the profile
 
+  // Chat UI presence — same field/semantics as User.lastActiveAt above.
+  lastActiveAt DateTime?
+
   activities Activity[]
   suddenTasks SuddenTask[]
   itemReports ItemReport[]
@@ -764,6 +790,10 @@ model Employee {
   breaks                Break[]
   fingerprintEvents     FingerprintEvent[]
   importantContactOf    ImportantContact[] @relation("ImportantContactTargetEmployee")
+
+  groupJoinRequestsAsTarget   GroupJoinRequest[] @relation("GroupJoinTargetEmployee")
+  groupJoinRequestsInvitedBy  GroupJoinRequest[] @relation("GroupJoinInviterEmployee")
+  groupJoinRequestsReviewedBy GroupJoinRequest[] @relation("GroupJoinReviewerEmployee")
 
   @@index([marketId])
   @@index([operationalShift])
@@ -1846,11 +1876,27 @@ model Conversation {
   // Null for every other ConversationType.
   groupType GroupType?
 
+  // CUSTOM_GROUP + groupType=NORMAL only: a display-only categorization
+  // (Chat UI redesign — Groups tab splits into Zone/Announcements/
+  // General/Task & Operations sections). A WARNING-type custom group is
+  // always shown under Announcements regardless of this field, so
+  // there's no ANNOUNCEMENT value here — see chatController.categoryOf.
+  // Defaults GENERAL: an uncategorized group is just a general group,
+  // never miscategorized as something more specific it didn't ask for.
+  category GroupCategory? @default(GENERAL)
+
+  // CUSTOM_GROUP only: when true, a non-admin member's addGroupMember
+  // call adds the person directly instead of creating a GroupJoinRequest
+  // for an admin to review (see chatController.addGroupMember). Admins
+  // can always add directly regardless of this flag.
+  openJoin Boolean @default(false)
+
   createdAt DateTime @default(now())
 
   messages Message[]
   reads    ConversationRead[]
   members  ConversationMember[]
+  joinRequests GroupJoinRequest[]
 
   @@unique([marketId, type, participantAId, participantBId, staffParticipantId])
   @@unique([type, staffParticipantId, staffParticipantBId])
@@ -1863,6 +1909,11 @@ model Conversation {
 enum GroupType {
   NORMAL
   WARNING
+}
+
+enum GroupCategory {
+  GENERAL
+  TASK_OPERATIONS
 }
 
 // ConversationMember — explicit membership for a CUSTOM_GROUP (spec
@@ -1900,6 +1951,49 @@ model ConversationMember {
   @@unique([conversationId, employeeId])
   @@unique([conversationId, userId])
   @@index([conversationId])
+}
+
+// GroupJoinRequest — Chat UI redesign: lets any existing CUSTOM_GROUP
+// member (not just an admin) propose adding someone, subject to a group
+// admin's approval, UNLESS Conversation.openJoin is true (in which case
+// addGroupMember never creates one of these — it adds directly, same as
+// an admin-initiated add). Same dual-nullable-FK convention as
+// ConversationMember for the target, and again for who invited them and
+// who reviewed the request, since any of those three roles can be either
+// an Employee or a staff User.
+model GroupJoinRequest {
+  id             String       @id @default(cuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  employeeId String?
+  employee   Employee? @relation("GroupJoinTargetEmployee", fields: [employeeId], references: [id])
+  userId     Int?
+  user       User?     @relation("GroupJoinTargetUser", fields: [userId], references: [id])
+
+  invitedByEmployeeId String?
+  invitedByEmployee   Employee? @relation("GroupJoinInviterEmployee", fields: [invitedByEmployeeId], references: [id])
+  invitedByUserId     Int?
+  invitedByUser       User?     @relation("GroupJoinInviterUser", fields: [invitedByUserId], references: [id])
+
+  status      JoinRequestStatus @default(PENDING)
+  requestedAt DateTime          @default(now())
+
+  reviewedByEmployeeId String?
+  reviewedByEmployee   Employee? @relation("GroupJoinReviewerEmployee", fields: [reviewedByEmployeeId], references: [id])
+  reviewedByUserId     Int?
+  reviewedByUser       User?     @relation("GroupJoinReviewerUser", fields: [reviewedByUserId], references: [id])
+  reviewedAt  DateTime?
+
+  @@unique([conversationId, employeeId])
+  @@unique([conversationId, userId])
+  @@index([conversationId, status])
+}
+
+enum JoinRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
 }
 
 // Message — sender is EITHER an Employee OR a staff User (Warnings

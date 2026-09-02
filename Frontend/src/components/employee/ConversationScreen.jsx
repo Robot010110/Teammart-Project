@@ -5,7 +5,7 @@ import {
   MoreHorizontal, Reply, Copy, Pencil, Trash2, Check, CheckCheck, Users2, Forward, Award, Eye,
   Search, MessageCircle,
 } from "lucide-react";
-import { listMessages, sendMessage, markConversationRead, editMessage, deleteMessage, reactToMessage, listMentionCandidates, getMessageSeenBy, listGroupMembers } from "../../services/chatService";
+import { listMessages, sendMessage, markConversationRead, editMessage, deleteMessage, reactToMessage, listMentionCandidates, getMessageSeenBy, getPresenceSummary } from "../../services/chatService";
 import { usePolling } from "../../hooks/usePolling";
 import { prepareImageForUpload } from "../../services/activityService";
 import { uploadAttachment, formatFileSize, formatDuration } from "../../utils/fileEncoding";
@@ -307,14 +307,16 @@ function ReactionPills({ reactions, currentUserId, currentUserKind, onToggle }) 
 // unset, Warnings stays fully read-only here (the Employee Chat tab's
 // case, and a non-Supervisor staff viewer).
 export default function ConversationScreen({ conversation, currentUserId, currentUserKind = "employee", onBack, onBroadcast, onOpenGroupInfo }) {
-  // Real member count — only fetched (and only ever shown) for CUSTOM_GROUP,
-  // the one conversation type with an actual ConversationMember table to
-  // count (see listGroupMembers's own comment in chatController.js).
-  // MARKET_GROUP/ZONE_GROUP membership is implicit (derived from
-  // market/zone), so there's no honest count to show there — the header
-  // just omits the subtitle rather than inventing one.
-  const { data: groupMembers } = useAsync(
-    () => (conversation.type === "CUSTOM_GROUP" ? listGroupMembers(conversation.id) : Promise.resolve(null)),
+  // Real "X members, Y online" — Chat UI redesign: fetched for every
+  // group-like conversation via the shared presence-summary endpoint
+  // (chatController.getPresenceSummary), which already mirrors the exact
+  // membership logic each conversation type actually uses (real
+  // ConversationMember rows for CUSTOM_GROUP, implicit market/zone
+  // membership for the rest — see implicitGroupPresence's own comment).
+  // Never fetched (and never shown) for a 1:1 thread — no "members"
+  // concept there.
+  const { data: presence } = useAsync(
+    () => (GROUP_LIKE_TYPES.has(conversation.type) ? getPresenceSummary(conversation.id) : Promise.resolve(null)),
     { deps: [conversation.id, conversation.type] }
   );
   const [searchOpen, setSearchOpen] = useState(false);
@@ -657,11 +659,17 @@ export default function ConversationScreen({ conversation, currentUserId, curren
               ) : (
                 <MessageCircle size={16} />
               )}
+              {presence?.onlineCount > 0 && (
+                <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-400 ring-2 ring-[#1A1A1A]" aria-hidden="true" />
+              )}
             </span>
             <div className="flex-1 min-w-0">
               <h1 className="text-sm font-semibold text-white truncate">{conversation.title}</h1>
-              {conversation.type === "CUSTOM_GROUP" && groupMembers && (
-                <p className="text-[11px] text-[#8B93A8]">{groupMembers.length} member{groupMembers.length === 1 ? "" : "s"}</p>
+              {presence?.memberCount != null && (
+                <p className="text-[11px] text-[#8B93A8]">
+                  {presence.memberCount} member{presence.memberCount === 1 ? "" : "s"}
+                  {presence.onlineCount > 0 ? `, ${presence.onlineCount} online` : ""}
+                </p>
               )}
             </div>
             <button
