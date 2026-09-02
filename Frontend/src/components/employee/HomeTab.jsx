@@ -13,7 +13,7 @@ import WeeklyHoursChart from "./WeeklyHoursChart";
 import PerformanceAtmosphere from "./PerformanceAtmosphere";
 import AttendanceSection from "./AttendanceSection";
 import QuickActionCard from "./QuickActionCard";
-import AnnouncementCard from "./AnnouncementCard";
+import AttendanceQuickBar from "./AttendanceQuickBar";
 import TaskRow from "./TaskRow";
 import ActivityMetricCard from "./ActivityMetricCard";
 import ErrorBanner from "../common/ErrorBanner";
@@ -23,7 +23,6 @@ import { getProfile } from "../../services/profileService";
 import { getPerformanceSummary } from "../../services/activityService";
 import { listSuddenTasks } from "../../services/suddenTaskService";
 import { getTodayAttendance, getAttendanceMonth } from "../../services/attendanceService";
-import { listMyCommunications } from "../../services/communicationsService";
 
 function greeting() {
   const hour = new Date().getHours();
@@ -74,10 +73,22 @@ function hoursLabel(hours) {
 //   - Compliance: this app has no such stored metric anywhere (see
 //     WorkerActivityTab.jsx's identical note) — shown as the same honest
 //     completed/(completed+pending) ratio used there, not invented.
-//   - Team Announcement: the most recent real Communication of type
-//     ANNOUNCEMENT this employee can see (GET /communications/my),
-//     opening the real CommunicationDetailScreen — an honest empty state
-//     when there isn't one.
+//
+// Attendance Quick-Action Bar adjustment — the Team Announcement card
+// that used to occupy the slot right under Today's Performance is gone
+// from Home (the underlying Communication/announcement feature is
+// completely untouched — still real, still reachable via Chat's
+// Awareness/Warnings surfaces and via a tapped notification; this page
+// simply no longer renders a preview of it). That slot is now
+// AttendanceQuickBar.jsx — a compact, ACTION-only presentation of the
+// exact same real GET /attendance/today state and
+// checkIn/checkOut/startBreak/endBreak calls AttendanceCheckInCard.jsx
+// already used on the Attendance page (deliberately not refactored into
+// a shared hook — see that component's own comment on why duplicating
+// two timing constants was the lower-risk choice here). Today's
+// Performance keeps its own concise attendance SUMMARY line unchanged;
+// nothing here duplicates the full Attendance page's calendar/month
+// view, which stays exactly where it was.
 //
 // Photo-change and WhatsApp self-service (previously on this page via
 // ProfileHeaderCard) remain fully available — ProfileHeaderCard.jsx is
@@ -98,7 +109,6 @@ export default function HomeTab({ onNavigate, basePath }) {
   const { data: todayAttendance } = useAsync(getTodayAttendance, { deps: [] });
   const now = new Date();
   const { data: monthAttendance } = useAsync(() => getAttendanceMonth({ year: now.getFullYear(), month: now.getMonth() + 1 }), { deps: [] });
-  const { data: communications } = useAsync(listMyCommunications, { deps: [] });
 
   const [showPerformanceHistory, setShowPerformanceHistory] = useState(false);
   const [showWorkLog, setShowWorkLog] = useState(false);
@@ -127,8 +137,6 @@ export default function HomeTab({ onNavigate, basePath }) {
     }
     return Math.max(ms / (1000 * 60 * 60), 0);
   }, [todayAttendance]);
-
-  const announcement = (communications ?? []).find((c) => c.type === "ANNOUNCEMENT") ?? null;
 
   const periodCompletedCount = useMemo(() => {
     const list = completedTasks ?? [];
@@ -253,7 +261,7 @@ export default function HomeTab({ onNavigate, basePath }) {
       </section>
 
       <section className="mb-5">
-        <AnnouncementCard announcement={announcement} onClick={() => navigate(`${basePath}/communications/${announcement.id}`)} />
+        <AttendanceQuickBar />
       </section>
 
       <section className="mb-6">
