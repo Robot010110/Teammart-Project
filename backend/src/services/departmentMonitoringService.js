@@ -108,6 +108,16 @@ export async function getMarketDepartmentStatus(marketId, { date = new Date() } 
               : { kind: "employee", id: submission.employee.id, name: submission.employee.name },
             photoAvailable: !!image && !image.expiredAt,
             photoExpired: !!image && !!image.expiredAt,
+            // Market Activities' department-review workflow (Supervisor
+            // Market page redesign) needs every photo + the employee's own
+            // notes to actually review a submission, not just the
+            // first-image booleans above (kept for existing callers).
+            // expiredAt-flagged images still appear here — the frontend
+            // renders them as expired placeholders rather than dropping
+            // them, so the supervisor can see a photo WAS attached.
+            notes: submission.notes,
+            images: submission.images.map((img) => ({ id: img.id, url: img.expiredAt ? null : img.url, expired: !!img.expiredAt })),
+            rejectionReason: submission.rejectionReason,
           }
         : null,
     };

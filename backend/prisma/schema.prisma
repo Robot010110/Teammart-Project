@@ -597,6 +597,14 @@ model Market {
   id           String       @id @default(cuid())
   name         String
   status       MarketStatus @default(ACTIVE)
+  // The market's own official storefront photo — its visual identity
+  // across the app (Markets list, market header), distinct from any
+  // employee's profile picture. Nullable: most markets start with none
+  // (a Regional Manager assigns one later via PATCH /api/markets/:id,
+  // same generic update endpoint name/status already use — see
+  // marketsController.updateMarket) — the frontend shows a NEXA fallback
+  // placeholder, never a broken image or an employee photo, until then.
+  photoUrl     String?
   zoneId       Int
   zone         Zone         @relation(fields: [zoneId], references: [id])
   supervisorId Int?         @unique
@@ -714,7 +722,12 @@ model Employee {
   // username/cashierShift stay Cashier-only (null for a WORKER) — separate
   // login identifier namespace, a Worker keeps logging in with employeeCode.
   username     String?       @unique
-  cashierShift CashierShift? // drives whether Cleaning is shown
+  // Displayed as shift information only — every Cashier gets the same
+  // standardized Daily Activity checklist regardless of this value (see
+  // CashierActivityTab.jsx; it used to gate the cleaning checklist to
+  // MORNING only, but that was a frontend restriction, never enforced
+  // here or in cashierCleaningController.js).
+  cashierShift CashierShift?
 
   // department applies to EVERY employee now (Worker or Cashier) — kept
   // as a fast denormalized "current department" cache, synced whenever a

@@ -1,5 +1,6 @@
 import { MapPinned, Users2, UserCheck, Star, CalendarClock } from "lucide-react";
 import StatusPill from "../common/StatusPill";
+import MarketPhoto from "./MarketPhoto";
 
 function titleCaseStatus(status) {
   return status.charAt(0) + status.slice(1).toLowerCase();
@@ -25,11 +26,14 @@ export default function MarketCard({ market, onOpen }) {
                  hover:border-[#F47A20]/30 hover:-translate-y-0.5 transition-all duration-200"
     >
       <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          <h3 className="font-display text-base font-bold text-white truncate">{market.name}</h3>
-          <p className="mt-0.5 flex items-center gap-1 text-xs text-[#8B93A8]">
-            <MapPinned size={11} /> Zone {market.zoneNumber} &middot; Supervisor: {market.supervisor}
-          </p>
+        <div className="min-w-0 flex items-center gap-3">
+          <MarketPhoto photoUrl={market.photoUrl} size="sm" />
+          <div className="min-w-0">
+            <h3 className="font-display text-base font-bold text-white truncate">{market.name}</h3>
+            <p className="mt-0.5 flex items-center gap-1 text-xs text-[#8B93A8]">
+              <MapPinned size={11} /> Zone {market.zoneNumber} &middot; Supervisor: {market.supervisor}
+            </p>
+          </div>
         </div>
         <StatusPill status={titleCaseStatus(market.status)} />
       </div>

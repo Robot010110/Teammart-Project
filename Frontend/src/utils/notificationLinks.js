@@ -2,10 +2,10 @@
 // backend/src/utils/notifications.js — every notification-creating
 // action already sets these) to a real route under the caller's
 // basePath, so tapping a notification actually goes somewhere instead of
-// being a dead end. Exactly the 5 linkType values the backend ever
-// writes are handled here (grep-verified against every createNotification
-// call site) — anything else falls back to no navigation rather than a
-// guessed/broken route.
+// being a dead end. Every linkType the backend ever writes is handled
+// here (grep-verified against every createNotification call site) —
+// anything else falls back to no navigation rather than a guessed/broken
+// route.
 export function notificationDestination(notification, basePath) {
   const { linkType, linkId } = notification;
   switch (linkType) {
@@ -37,6 +37,14 @@ export function notificationDestination(notification, basePath) {
       // lands on their own Market tab, where Card Sales already lives.
       if (!linkId) return null;
       return basePath === "/rm" ? `${basePath}/markets/${linkId}/card-sales` : `${basePath}/market`;
+    case "MARKET_FEEDBACK":
+      // Supervisor <-> Regional Manager connectivity fix — a Warning or
+      // Recognition (see marketManagementController.sendMarketFeedback).
+      // This notification is only ever created for a market's own
+      // Supervisor (never the sending RM/Admin), so a flat basePath-
+      // relative route is correct with no role branching, same as
+      // SUDDEN_TASK above. linkId is the MarketFeedback's own id.
+      return linkId ? `${basePath}/market-feedback/${linkId}` : null;
     case "COMMUNICATION":
       // Warnings & Notifications — a real detail screen exists for this
       // one (CommunicationDetailScreen.jsx), unlike ACTIVITY/WASTED_OVERALL

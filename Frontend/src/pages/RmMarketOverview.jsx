@@ -5,6 +5,7 @@ import {
 } from "lucide-react";
 import Breadcrumb from "../components/layout/Breadcrumb";
 import StatusPill from "../components/common/StatusPill";
+import MarketPhoto from "../components/markets/MarketPhoto";
 import ErrorBanner from "../components/common/ErrorBanner";
 import { SkeletonCard } from "../components/common/SkeletonCard";
 import { RateMarketModal, AddNoteModal, SendFeedbackModal } from "../components/regionalManager/InspectionModals";
@@ -100,14 +101,23 @@ export default function RmMarketOverview({ marketId, onOpenEmployee, onOpenSecti
       <Breadcrumb items={[{ label: "Markets", onClick: onBack }, { label: overview.name }]} />
 
       <div className="mt-4 flex flex-col md:flex-row md:items-start md:justify-between gap-4">
-        <div>
-          <h1 className="font-display text-3xl font-bold text-white">{overview.name}</h1>
-          <p className="mt-1.5 text-sm text-[#9AA1B4]">
-            Zone {overview.zone.number} &middot; Supervisor: {overview.supervisor?.name ?? "Unassigned"}
-            {overview.overlookingSupervisor && (
-              <span className="flex items-center gap-1 inline-flex ml-1"> &middot; <Moon size={12} className="text-[#8B93A8]" /> {overview.overlookingSupervisor.name}</span>
-            )}
-          </p>
+        <div className="flex items-center gap-4">
+          <MarketPhoto
+            photoUrl={overview.photoUrl}
+            size="lg"
+            editable
+            marketId={marketId}
+            onUploaded={() => reload()}
+          />
+          <div>
+            <h1 className="font-display text-3xl font-bold text-white">{overview.name}</h1>
+            <p className="mt-1.5 text-sm text-[#9AA1B4]">
+              Zone {overview.zone.number} &middot; Supervisor: {overview.supervisor?.name ?? "Unassigned"}
+              {overview.overlookingSupervisor && (
+                <span className="flex items-center gap-1 inline-flex ml-1"> &middot; <Moon size={12} className="text-[#8B93A8]" /> {overview.overlookingSupervisor.name}</span>
+              )}
+            </p>
+          </div>
         </div>
         <StatusPill status={titleCaseStatus(overview.status)} />
       </div>

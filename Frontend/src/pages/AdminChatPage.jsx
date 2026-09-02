@@ -1,12 +1,12 @@
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Users2, MessageCircle, ChevronRight, UsersRound, ArrowLeft, ShieldAlert, Pin, BellOff, MoreVertical } from "lucide-react";
+import { UsersRound, ArrowLeft } from "lucide-react";
 import ErrorBanner from "../components/common/ErrorBanner";
-import AuthenticatedImage from "../components/common/AuthenticatedImage";
 import { SkeletonCard } from "../components/common/SkeletonCard";
 import ConversationScreen from "../components/employee/ConversationScreen";
 import GroupInfoModal from "../components/employee/GroupInfoModal";
 import ConversationOptionsSheet from "../components/common/ConversationOptionsSheet";
+import ChatConversationCard from "../components/common/ChatConversationCard";
 import ChatViewTabs from "../components/common/ChatViewTabs";
 import AdminCreateGroupModal from "./AdminCreateGroupModal";
 import { listMyAdminConversations, postZoneAnnouncement, setConversationPreference } from "../services/chatService";
@@ -14,57 +14,6 @@ import { useAsync } from "../hooks/useAsync";
 import { usePolling } from "../hooks/usePolling";
 
 const LIST_POLL_MS = 15000;
-
-function timeLabel(iso) {
-  const d = new Date(iso);
-  const now = new Date();
-  const sameDay = d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate();
-  return sameDay ? d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) : d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-}
-
-function ConversationRow({ conversation, onOpen, onMore }) {
-  const Icon = conversation.type === "CUSTOM_GROUP" ? Users2 : MessageCircle;
-  return (
-    <div className="w-full flex items-center gap-3 rounded-xl p-3.5 bg-[#171C2E]/80 border border-white/[0.06] hover:border-[#F47A20]/25 transition-colors">
-      <button type="button" onClick={onOpen} className="flex-1 min-w-0 flex items-center gap-3 text-left">
-        <span className="relative w-10 h-10 rounded-full bg-[#F47A20]/10 text-[#F47A20] flex items-center justify-center shrink-0 overflow-hidden">
-          {conversation.pictureUrl ? <AuthenticatedImage src={conversation.pictureUrl} alt="" className="w-full h-full object-cover" /> : <Icon size={18} />}
-          {conversation.pinned && (
-            <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-[#1A1A1A] flex items-center justify-center">
-              <Pin size={9} className="text-[#F47A20]" fill="currentColor" />
-            </span>
-          )}
-        </span>
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center justify-between gap-2">
-            <p className="text-sm font-medium text-white truncate flex items-center gap-1.5">
-              {conversation.title}
-              {conversation.muted && <BellOff size={11} className="text-[#4C5266] shrink-0" />}
-              {conversation.groupType === "WARNING" && (
-                <span className="shrink-0 flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide bg-amber-500/15 text-amber-400">
-                  <ShieldAlert size={9} /> Announce
-                </span>
-              )}
-            </p>
-            {conversation.lastMessage && <span className="text-[10px] text-[#4C5266] shrink-0">{timeLabel(conversation.lastMessage.createdAt)}</span>}
-          </div>
-          <p className="text-xs text-[#8B93A8] truncate mt-0.5">{conversation.lastMessage ? conversation.lastMessage.body || "Sent an attachment" : "No messages yet"}</p>
-        </div>
-        {conversation.unreadCount > 0 && (
-          <span className="shrink-0 min-w-[18px] h-[18px] px-1 rounded-full bg-[#F47A20] text-white text-[10px] font-semibold flex items-center justify-center">
-            {conversation.unreadCount > 99 ? "99+" : conversation.unreadCount}
-          </span>
-        )}
-      </button>
-      {onMore && (
-        <button type="button" onClick={() => onMore(conversation)} className="p-1.5 text-[#4C5266] hover:text-white shrink-0" aria-label="More options">
-          <MoreVertical size={16} />
-        </button>
-      )}
-      <ChevronRight size={16} className="text-[#4C5266] shrink-0" />
-    </div>
-  );
-}
 
 // AdminChatPage.jsx — Phase 3.5: the missing Admin Chat screen, built on
 // the exact same conversation architecture and endpoints as every other
@@ -166,7 +115,10 @@ export default function AdminChatPage({ session }) {
 
   return (
     <div className="px-4 sm:px-6 py-6 max-w-4xl mx-auto animate-fade-up">
-      <h1 className="text-lg font-semibold text-white mb-4">Chat</h1>
+      <div className="mb-4">
+        <h1 className="text-xl font-bold text-white">Chat</h1>
+        <p className="text-sm text-[#8B93A8] mt-0.5">Company-wide communication hub</p>
+      </div>
 
       {loading ? (
         <div className="space-y-2">
@@ -178,7 +130,7 @@ export default function AdminChatPage({ session }) {
         <ChatViewTabs
           conversations={conversations}
           onOpenImportantContact={handleOpenImportantContact}
-          renderRow={(c) => <ConversationRow key={c.id} conversation={c} onOpen={() => navigate(`/admin/chat/${c.id}`)} onMore={setOptionsFor} />}
+          renderRow={(c) => <ChatConversationCard key={c.id} conversation={c} onOpen={() => navigate(`/admin/chat/${c.id}`)} onMore={setOptionsFor} />}
           groupsHeaderAction={
             <button
               type="button"

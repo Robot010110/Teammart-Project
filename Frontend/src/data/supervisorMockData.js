@@ -1,11 +1,14 @@
 // supervisorMockData.js — realistic local/mock data for the parts of
-// Supervisor Mode that have no backend model yet: Zone Manager
-// announcements, market physical structure/sections, daily section
-// checks, and market problem reports. Chat is entirely real now — Market
-// Group, Warnings, every employee's SUPERVISOR_DIRECT, and Custom Groups
-// all come from chatService.listMyStaffConversations (see
-// chatController.js and SupervisorChatTab.jsx) — no longer backed by
-// this file at all.
+// Supervisor Mode that have no backend model yet: the market's physical
+// structure/section catalog (MARKET_SECTIONS — labels/icons only; the
+// actual daily report status per section is real data now, see
+// DepartmentReportBoard.jsx). Chat, Zone Announcements, and Market
+// Feedback (Warning/Recognition) are all entirely real now — nothing in
+// Supervisor Mode reads mock notification data from this file anymore
+// (the old zoneManagerNotification mock + ZoneManagerNotificationCard.jsx
+// were confirmed unused and removed in the Supervisor<->Regional Manager
+// connectivity fix — SupervisorHomeTab uses the real Zone Announcements
+// conversation via SupervisorAnnouncementsCard.jsx instead).
 //
 // Every function here returns a Promise, deliberately — this is the
 // exact "service -> UI" shape every *real* service file in this app
@@ -16,30 +19,6 @@
 // component. Nothing here pretends to be a network call it isn't (no
 // fake latency, no fabricated "real-time" claim) — it's synchronous mock
 // data wrapped in Promise.resolve, plainly.
-
-// ---------------------------------------------------------------------
-// Zone Manager notification — a single most-recent high-priority
-// message, shown on Home. No Zone Manager <-> Supervisor messaging
-// backend exists yet (see chatController.js — every real endpoint is
-// employee-only except the Warnings broadcast).
-// ---------------------------------------------------------------------
-let zoneManagerNotification = {
-  id: "zm-note-1",
-  from: "Zone Manager",
-  title: "Freezer inspection required",
-  body: "All markets must complete the freezer inspection before 8 PM today. Submit a photo once done.",
-  read: false,
-  createdAt: new Date(Date.now() - 1000 * 60 * 55).toISOString(),
-};
-
-export function getZoneManagerNotification() {
-  return Promise.resolve(zoneManagerNotification);
-}
-
-export function markZoneManagerNotificationRead() {
-  zoneManagerNotification = { ...zoneManagerNotification, read: true };
-  return Promise.resolve(zoneManagerNotification);
-}
 
 // ---------------------------------------------------------------------
 // Market structure — physical sections. Fixed set per the reference
@@ -60,39 +39,6 @@ export const MARKET_SECTIONS = [
   { key: "SNACKS", label: "Snacks", row: 3, col: 2, span: 1 },
   { key: "NUTS", label: "Nuts", row: 3, col: 3, span: 1 },
 ];
-
-// ---------------------------------------------------------------------
-// Daily section checks — Supervisor-side monitoring, per calendar day.
-// Keyed by "<sectionKey>:<YYYY-MM-DD>" so re-checking the same section
-// twice in one day just overwrites the earlier submission (matches how
-// AttendanceRecord/CashierCleaningLog upsert per-day elsewhere in this
-// app).
-// ---------------------------------------------------------------------
-const sectionChecks = new Map();
-
-function todayKey() {
-  return new Date().toISOString().slice(0, 10);
-}
-
-export function listTodaySectionChecks() {
-  const date = todayKey();
-  const result = MARKET_SECTIONS.map((section) => sectionChecks.get(`${section.key}:${date}`) ?? {
-    sectionKey: section.key,
-    date,
-    checked: false,
-    photoUrl: null,
-    notes: null,
-    checkedAt: null,
-  });
-  return Promise.resolve(result);
-}
-
-export function submitSectionCheck({ sectionKey, photoUrl, notes }) {
-  const date = todayKey();
-  const record = { sectionKey, date, checked: true, photoUrl: photoUrl ?? null, notes: notes ?? null, checkedAt: new Date().toISOString() };
-  sectionChecks.set(`${sectionKey}:${date}`, record);
-  return Promise.resolve(record);
-}
 
 // ---------------------------------------------------------------------
 // Reports & Problems — physical/technical market issues.

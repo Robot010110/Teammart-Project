@@ -56,22 +56,18 @@ export default function SupervisorHomeTab({ session, basePath }) {
         <SupervisorAnnouncementsCard session={session} basePath={basePath} />
       </section>
 
-      <section className="grid grid-cols-2 gap-3">
+      <section className="grid grid-cols-1 lg:grid-cols-2 gap-x-6 gap-y-5">
         <div>
-          <h2 className="mb-2 text-sm font-semibold uppercase tracking-wider text-[#8B93A8]">
+          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-[#8B93A8]">
             Today's Activity
           </h2>
-          <div className="w-full h-72 rounded-md border border-white/[0.06] overflow-y-auto p-2.5">
-            <TodayActivityFeed marketId={session.marketId} />
-          </div>
+          <TodayActivityFeed marketId={session.marketId} />
         </div>
         <div>
-          <h2 className="mb-2 text-sm font-semibold uppercase tracking-wider text-[#8B93A8]">
+          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-[#8B93A8]">
             Reports
           </h2>
-          <div className="w-full h-72 rounded-md border border-white/[0.06] overflow-y-auto p-2.5">
-            <ReportsSection marketId={session.marketId} />
-          </div>
+          <ReportsSection marketId={session.marketId} />
         </div>
       </section>
     </div>

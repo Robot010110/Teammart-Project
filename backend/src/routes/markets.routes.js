@@ -17,6 +17,7 @@ import {
   listMarketRatings,
   addMarketNote,
   sendMarketFeedback,
+  getMarketFeedbackDetail,
   getMarketHistory,
   listMarketDepartments,
   addMarketDepartment,
@@ -51,6 +52,12 @@ const router = Router();
 router.use(requireAuth, requireStaffRole("ADMIN", "REGIONAL_MANAGER", "SUPERVISOR", "OVERLOOKING_SUPERVISOR"));
 
 router.get("/", listMarkets);
+
+// Registered before "/:id" so this fixed path is never swallowed as an
+// id — see getMarketFeedbackDetail's own comment on why there is no
+// marketId segment here at all (access is checked against the feedback
+// row's own real marketId, not a client-supplied one).
+router.get("/feedback/:feedbackId", getMarketFeedbackDetail);
 
 router.get("/:id", requireOwnMarketOrElevated((req) => req.params.id), getMarket);
 

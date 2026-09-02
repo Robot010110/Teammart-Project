@@ -227,6 +227,10 @@ export const createMarketSchema = z.object({
 export const updateMarketSchema = z.object({
   name: z.string().min(2).max(100).optional(),
   status: z.enum(["ACTIVE", "MAINTENANCE", "CLOSED"]).optional(),
+  // The market's own storefront photo — a real hosted URL from
+  // POST /api/uploads (see uploadsController.js), same convention as
+  // every other *Url field in this schema. null explicitly clears it.
+  photoUrl: z.string().url().nullable().optional(),
 });
 
 export const assignMarketSupervisorSchema = z.object({
@@ -629,6 +633,10 @@ export const createGroupSchema = z
     memberEmployeeIds: z.array(z.string().min(1)).max(200).optional().default([]),
     memberStaffUserIds: z.array(z.number().int().positive()).max(200).optional().default([]),
     groupType: z.enum(["NORMAL", "WARNING"]).optional().default("NORMAL"),
+    // Chat Hub §6 — a group photo can now be set at creation time, not
+    // only afterward via PATCH /:id/picture (changeGroupPicture still
+    // exists unchanged for editing it later).
+    pictureUrl: z.string().url().optional(),
   })
   .refine((data) => !!data.marketId !== !!data.zoneId, {
     message: "Provide exactly one of marketId or zoneId",
@@ -803,10 +811,17 @@ export const updateMarketProblemStatusSchema = z.object({
   status: z.enum(["OPEN", "IN_PROGRESS", "RESOLVED"]),
 });
 
-export const listMarketProblemsQuerySchema = z.object({
-  marketId: z.string().min(1),
-  view: z.enum(["active", "history"]).optional(),
-});
+export const listMarketProblemsQuerySchema = z
+  .object({
+    marketId: z.string().min(1).optional(),
+    // Chat Hub Reports §8 — a Regional Manager viewing every market
+    // problem across their zone at once, instead of one market at a
+    // time. Exactly one of marketId/zoneId, same convention as
+    // createGroup's own marketId/zoneId pair.
+    zoneId: z.coerce.number().int().positive().optional(),
+    view: z.enum(["active", "history"]).optional(),
+  })
+  .refine((v) => !!v.marketId !== !!v.zoneId, { message: "Provide exactly one of marketId or zoneId" });
 
 export const listWastedOverallQuerySchema = z.object({
   marketId: z.string().min(1).optional(),

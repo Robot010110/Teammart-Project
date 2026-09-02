@@ -1,9 +1,11 @@
-import { useEffect, useState } from "react";
-import { Check, Loader2 } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Check, Loader2, Camera, Users2 } from "lucide-react";
 import Modal from "../components/common/Modal";
+import AuthenticatedImage from "../components/common/AuthenticatedImage";
 import { createGroup } from "../services/chatService";
 import { listEmployees } from "../services/staffEmployeeService";
 import { listMarkets, getMarket } from "../services/marketService";
+import { prepareImageForUpload } from "../services/activityService";
 import { useAsync } from "../hooks/useAsync";
 import { initialsOf } from "../utils/initials";
 import { ApiError } from "../services/apiClient";
@@ -28,6 +30,23 @@ export default function RmCreateGroupModal({ session, onClose, onCreated }) {
   const [groupType, setGroupType] = useState("NORMAL");
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState(null);
+  const [photoUrl, setPhotoUrl] = useState(null);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const photoInputRef = useRef(null);
+
+  async function handlePhoto(file) {
+    if (!file) return;
+    setUploadingPhoto(true);
+    setError(null);
+    try {
+      const url = await prepareImageForUpload(file);
+      setPhotoUrl(url);
+    } catch {
+      setError("Could not upload that photo. Please try again.");
+    } finally {
+      setUploadingPhoto(false);
+    }
+  }
 
   const { data: allMarkets } = useAsync(listMarkets, { deps: [] });
   const zoneMarkets = (allMarkets ?? []).filter((m) => scopeKind === "zone" ? m.zoneId === Number(zoneId) : m.id === marketId);
@@ -85,6 +104,7 @@ export default function RmCreateGroupModal({ session, onClose, onCreated }) {
         memberEmployeeIds: [...selectedEmployeeIds],
         memberStaffUserIds: [...selectedStaffIds],
         groupType,
+        ...(photoUrl ? { pictureUrl: photoUrl } : {}),
       });
       onCreated(conversation);
     } catch (err) {
@@ -97,6 +117,36 @@ export default function RmCreateGroupModal({ session, onClose, onCreated }) {
   return (
     <Modal open onClose={onClose} title="Create Group">
       <div className="space-y-4">
+        <div className="flex justify-center">
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => photoInputRef.current?.click()}
+              disabled={uploadingPhoto}
+              aria-label="Add group photo"
+              className="h-16 w-16 rounded-2xl bg-white/[0.04] border border-white/[0.08] grid place-items-center overflow-hidden text-[#4C5266] hover:border-[#F47A20]/40 transition-colors"
+            >
+              {uploadingPhoto ? (
+                <Loader2 size={18} className="animate-spin" />
+              ) : photoUrl ? (
+                <AuthenticatedImage src={photoUrl} alt="" className="h-full w-full object-cover" />
+              ) : (
+                <Users2 size={20} />
+              )}
+            </button>
+            <span className="absolute -bottom-1.5 -right-1.5 h-6 w-6 rounded-full bg-[#F47A20] ring-2 ring-[#1F2436] grid place-items-center text-white">
+              <Camera size={11} />
+            </span>
+            <input
+              ref={photoInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => handlePhoto(e.target.files[0])}
+            />
+          </div>
+        </div>
+
         <div>
           <label className="block text-xs uppercase tracking-wide text-[#8B93A8] mb-1.5">Group Name</label>
           <input

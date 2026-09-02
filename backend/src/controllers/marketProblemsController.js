@@ -1,5 +1,5 @@
 import { prisma } from "../lib/prisma.js";
-import { assertMarketAccess } from "../middleware/auth.js";
+import { assertMarketAccess, assertZoneAccess } from "../middleware/auth.js";
 
 // marketProblemsController.js — Repair Pass §4: real backend for the
 // Supervisor's "Reports & Problems" screen (physical/technical market
@@ -15,14 +15,34 @@ import { assertMarketAccess } from "../middleware/auth.js";
 // scoped to a market this caller can actually access (assertMarketAccess
 // — same IDOR guard every other market-scoped endpoint in this app
 // uses).
+//
+// GET /api/market-problems?zoneId=&view= — Chat Hub Reports §8: the
+// Regional-Manager-wide equivalent, every problem across every market in
+// one of their own zones (assertZoneAccess — Admin/RM only, same guard
+// getZoneSalesSummary/listCompanyActivities already use for their own
+// zone-wide views). Same shape either way, with `market` now always
+// included so a zone-wide list can show which market each report is
+// from.
 export async function listMarketProblems(req, res, next) {
   try {
-    const { marketId, view = "active" } = req.query;
-    await assertMarketAccess(req.user, marketId);
+    const { marketId, zoneId, view = "active" } = req.query;
+    const statusWhere = view === "history" ? "RESOLVED" : { not: "RESOLVED" };
+
+    let where;
+    if (marketId) {
+      await assertMarketAccess(req.user, marketId);
+      where = { marketId, deletedAt: null, status: statusWhere };
+    } else {
+      await assertZoneAccess(req.user, zoneId);
+      where = { market: { zoneId }, deletedAt: null, status: statusWhere };
+    }
 
     const problems = await prisma.marketProblem.findMany({
-      where: { marketId, deletedAt: null, status: view === "history" ? "RESOLVED" : { not: "RESOLVED" } },
-      include: { reportedByUser: { select: { id: true, name: true } } },
+      where,
+      include: {
+        reportedByUser: { select: { id: true, name: true } },
+        market: { select: { id: true, name: true } },
+      },
       orderBy: view === "history" ? { resolvedAt: "desc" } : { createdAt: "desc" },
     });
     res.json(problems);

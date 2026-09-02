@@ -63,6 +63,7 @@ export async function getMarketOverview(req, res, next) {
       id: market.id,
       name: market.name,
       status: market.status,
+      photoUrl: market.photoUrl,
       zone: market.zone,
       supervisor: market.supervisor,
       overlookingSupervisor: market.overlookingSupervisor,
@@ -300,6 +301,37 @@ export async function sendMarketFeedback(req, res, next) {
     }
 
     res.status(201).json(feedback);
+  } catch (err) {
+    next(err);
+  }
+}
+
+// GET /api/markets/feedback/:feedbackId — Supervisor <-> Regional
+// Manager connectivity fix: a single MarketFeedback (Warning or
+// Recognition), for the notification detail screen the frontend never
+// had (a Supervisor tapping their MARKET_FEEDBACK notification used to
+// dead-end — see notificationLinks.js's own comment). No marketId path
+// segment — the notification's linkId is only ever the feedback's own
+// id (see sendMarketFeedback below), so the real marketId is read off
+// the row itself and THAT is what assertMarketAccess checks, never a
+// client-supplied one. This is what actually prevents a Supervisor from
+// reading another market's feedback by guessing an id — a market id in
+// the URL would only be decoration, never the real check.
+export async function getMarketFeedbackDetail(req, res, next) {
+  try {
+    const feedback = await prisma.marketFeedback.findUnique({
+      where: { id: req.params.feedbackId },
+      include: {
+        market: { select: { id: true, name: true } },
+        regionalManager: { select: { id: true, name: true, role: true } },
+        visit: { select: { id: true, visitDate: true } },
+      },
+    });
+    if (!feedback) return res.status(404).json({ error: "Feedback not found" });
+
+    await assertMarketAccess(req.user, feedback.marketId);
+
+    res.json(feedback);
   } catch (err) {
     next(err);
   }

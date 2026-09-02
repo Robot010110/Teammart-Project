@@ -410,9 +410,13 @@ function shapeMessage(m) {
   };
 }
 
+// Chat UI redesign — profilePictureUrl + role added so the message list
+// can render a real avatar + role label per bubble (see reference's
+// "Rehan Ahmed · Regional Manager" treatment) instead of a name-only
+// label. Purely additive selects, nothing else about this shape changed.
 const MESSAGE_INCLUDE = {
-  senderEmployee: { select: { id: true, name: true } },
-  senderUser: { select: { id: true, name: true } },
+  senderEmployee: { select: { id: true, name: true, profilePictureUrl: true } },
+  senderUser: { select: { id: true, name: true, role: true, profilePictureUrl: true } },
   replyTo: {
     select: {
       id: true,
@@ -1428,7 +1432,7 @@ export async function createGroup(req, res, next) {
     if (req.user.kind !== "staff" || !GROUP_CREATOR_ROLES.includes(req.user.role)) {
       return res.status(403).json({ error: "This action requires a Supervisor, Regional Manager, or Admin account" });
     }
-    const { name, marketId, zoneId, memberEmployeeIds = [], memberStaffUserIds = [], groupType = "NORMAL" } = req.body;
+    const { name, marketId, zoneId, memberEmployeeIds = [], memberStaffUserIds = [], groupType = "NORMAL", pictureUrl } = req.body;
 
     if (!marketId && !zoneId) return res.status(400).json({ error: "Provide either marketId or zoneId" });
     if (marketId && zoneId) return res.status(400).json({ error: "Provide only one of marketId or zoneId" });
@@ -1486,6 +1490,7 @@ export async function createGroup(req, res, next) {
         zoneId: zoneId ?? null,
         name,
         groupType,
+        pictureUrl: pictureUrl ?? null,
         createdById: req.user.userId,
         members: {
           create: [

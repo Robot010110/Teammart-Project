@@ -60,6 +60,7 @@ export async function listMarkets(req, res, next) {
           id: m.id,
           name: m.name,
           status: m.status,
+          photoUrl: m.photoUrl,
           zoneId: m.zoneId,
           zoneNumber: m.zone.number,
           supervisor: m.supervisor?.name ?? "Unassigned",

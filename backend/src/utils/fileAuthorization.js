@@ -38,14 +38,32 @@ const OWNER_RESOLVERS = [
       marketId: img.activity.employee?.marketId ?? img.activity.marketId,
     };
   },
-  // Profile pictures.
+  // Profile pictures — identity photos, not restricted evidence, so the
+  // rule is deliberately "any authenticated account" (see the
+  // "profilePicture" branch in canAccessFile below), not employeeOwned/
+  // marketStaffOnly. Chat UI redesign — message bubbles now show a real
+  // avatar per sender (see chatController.js's MESSAGE_INCLUDE); this
+  // also fixes a real pre-existing gap the old employeeOwned rule had
+  // (a DIFFERENT employee — e.g. the other side of a DIRECT chat —
+  // could never actually view a coworker's own profile picture).
   async function employeeProfilePicture(filename) {
     const emp = await prisma.employee.findFirst({
       where: { profilePictureUrl: { contains: filename } },
-      select: { id: true, marketId: true },
+      select: { id: true },
     });
-    if (!emp) return null;
-    return { rule: "employeeOwned", employeeId: emp.id, marketId: emp.marketId };
+    return emp ? { rule: "profilePicture" } : null;
+  },
+  // Staff (Supervisor/RM/Admin) profile pictures — same reasoning as
+  // employeeProfilePicture above. Previously had NO resolver at all,
+  // meaning a staff member's own avatar silently fell through to
+  // uploaderFallback (viewable only by themselves) — broken for every
+  // other viewer, including a group chat showing their message avatar.
+  async function staffProfilePicture(filename) {
+    const user = await prisma.user.findFirst({
+      where: { profilePictureUrl: { contains: filename } },
+      select: { id: true },
+    });
+    return user ? { rule: "profilePicture" } : null;
   },
   // Sudden Task completion evidence.
   async function suddenTaskEvidence(filename) {
@@ -130,6 +148,18 @@ const OWNER_RESOLVERS = [
     if (!r) return null;
     return { rule: "marketRmAdminOnly", marketId: r.marketId };
   },
+  // A market's own official storefront photo (Market.photoUrl) —
+  // viewable by any staff with access to that market, same rule as
+  // marketFeedbackPhoto/cardSalesPhoto above (not sensitive financial
+  // evidence like Total Sales, no reason to restrict it further).
+  async function marketPhoto(filename) {
+    const m = await prisma.market.findFirst({
+      where: { photoUrl: { contains: filename } },
+      select: { id: true },
+    });
+    if (!m) return null;
+    return { rule: "marketStaffOnly", marketId: m.id };
+  },
   // Chat message image/file/voice attachments.
   async function messageAttachment(filename) {
     const m = await prisma.message.findFirst({
@@ -182,6 +212,11 @@ export async function resolveFile(filename) {
 // The actual yes/no check, given an owner descriptor from resolveFile.
 export async function canAccessFile(user, owner) {
   if (!owner) return false;
+
+  // Identity photo — every caller reaching this point is already
+  // authenticated (requireAuth gates the whole /api/uploads route), so
+  // there is nothing further to check.
+  if (owner.rule === "profilePicture") return true;
 
   if (owner.rule === "employeeOwned") {
     if (user.kind === "employee") return String(user.employeeId) === String(owner.employeeId);

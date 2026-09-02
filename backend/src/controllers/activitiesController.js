@@ -435,6 +435,15 @@ export async function createActivity(req, res, next) {
 
     if (category === "DEPARTMENT_CLOSING" && ["PENDING", "APPROVED"].includes(activity.status)) {
       const employee = await prisma.employee.findUnique({ where: { id: req.user.employeeId }, select: { name: true, marketId: true } });
+      // Department Reporting redesign — an employee's own submission is
+      // now the ONLY way most departments ever get reported (the
+      // Supervisor no longer submits on anyone's behalf from the Market
+      // page), so this catalog registration can no longer stay limited
+      // to the unassigned-department staff path below — without it, a
+      // department nobody has explicitly registered yet would silently
+      // never appear on the board even after a real submission. Safe to
+      // call every time (findFirst-then-create, see its own comment).
+      await ensureMarketDepartment(employee.marketId, department, null);
       await notifyDepartmentClosingSubmitted(activity, employee.marketId, employee.name);
     }
 
@@ -470,6 +479,7 @@ export async function createDepartmentClosingForEmployee(req, res, next) {
     });
 
     if (["PENDING", "APPROVED"].includes(activity.status)) {
+      await ensureMarketDepartment(employee.marketId, employee.department, req.user.userId);
       await notifyDepartmentClosingSubmitted(activity, employee.marketId, `Supervisor (for ${employee.name})`);
     }
 

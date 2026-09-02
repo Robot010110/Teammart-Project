@@ -1,92 +1,16 @@
 import { useMemo, useState } from "react";
-import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
-import { Users2, ShieldAlert, MessageCircle, ChevronRight, Search, Pin, PinOff, BellOff, Bell, MoreVertical, X } from "lucide-react";
+import { ChevronRight, Search, X } from "lucide-react";
 import ErrorBanner from "../common/ErrorBanner";
 import { SkeletonCard } from "../common/SkeletonCard";
 import ChatViewTabs from "../common/ChatViewTabs";
+import ChatConversationCard from "../common/ChatConversationCard";
+import ConversationOptionsSheet from "../common/ConversationOptionsSheet";
 import { listMyConversations, listCoworkers, getOrCreateDirect, setConversationPreference, searchMessages } from "../../services/chatService";
 import { useAsync } from "../../hooks/useAsync";
 import { usePolling } from "../../hooks/usePolling";
 
 const LIST_POLL_MS = 12000;
-
-function timeLabel(iso) {
-  const d = new Date(iso);
-  const now = new Date();
-  const sameDay = d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate();
-  return sameDay ? d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) : d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-}
-
-function ConversationRow({ conversation, onOpen, onMore }) {
-  const isWarnings = conversation.type === "WARNINGS" || conversation.type === "ZONE_ANNOUNCEMENTS";
-  const isGroup = conversation.type === "MARKET_GROUP" || conversation.type === "ZONE_GROUP" || conversation.type === "CUSTOM_GROUP";
-  const Icon = isWarnings ? ShieldAlert : isGroup ? Users2 : MessageCircle;
-
-  return (
-    <div
-      className={`w-full flex items-center gap-3 rounded-xl p-3.5 border transition-colors ${
-        isWarnings
-          ? "bg-amber-500/[0.06] border-amber-500/20 hover:border-amber-500/35"
-          : "bg-[#1A1F33]/70 border-white/[0.06] hover:border-[#F47A20]/25"
-      }`}
-    >
-      <button type="button" onClick={() => onOpen(conversation)} className="flex-1 min-w-0 flex items-center gap-3 text-left">
-        <span
-          className={`relative w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${
-            isWarnings ? "bg-amber-500/15 text-amber-400" : "bg-[#F47A20]/10 text-[#F47A20]"
-          }`}
-        >
-          <Icon size={18} />
-          {conversation.pinned && (
-            <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-[#1A1A1A] flex items-center justify-center">
-              <Pin size={9} className="text-[#F47A20]" fill="currentColor" />
-            </span>
-          )}
-        </span>
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center justify-between gap-2">
-            <p className={`text-sm font-medium truncate flex items-center gap-1.5 ${isWarnings ? "text-amber-300" : "text-white"}`}>
-              {conversation.title}
-              {conversation.muted && <BellOff size={11} className="text-[#4C5266] shrink-0" />}
-            </p>
-            <div className="flex items-center gap-1.5 shrink-0">
-              {conversation.lastMessage && <span className="text-[10px] text-[#4C5266]">{timeLabel(conversation.lastMessage.createdAt)}</span>}
-              {conversation.unreadCount > 0 && (
-                <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-[#F47A20] text-white text-[10px] font-bold flex items-center justify-center">
-                  {conversation.unreadCount > 9 ? "9+" : conversation.unreadCount}
-                </span>
-              )}
-            </div>
-          </div>
-          <p className="text-xs text-[#8B93A8] truncate mt-0.5">
-            {conversation.lastMessage ? (conversation.lastMessage.deleted ? "Message deleted" : conversation.lastMessage.body || "Sent an attachment") : "No messages yet"}
-          </p>
-        </div>
-      </button>
-      <button type="button" onClick={() => onMore(conversation)} className="p-1.5 text-[#4C5266] hover:text-white shrink-0" aria-label="More options">
-        <MoreVertical size={16} />
-      </button>
-    </div>
-  );
-}
-
-function ConversationOptionsSheet({ conversation, onClose, onTogglePin, onToggleMute }) {
-  return createPortal(
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center sm:justify-center" role="dialog" aria-modal="true">
-      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full sm:max-w-sm sm:mx-4 rounded-t-2xl sm:rounded-2xl bg-[#1F2436] border border-white/10 shadow-2xl animate-fade-up overflow-hidden py-1.5">
-        <button type="button" onClick={onTogglePin} className="w-full flex items-center gap-3 px-4 py-3 text-sm text-white hover:bg-white/[0.05]">
-          {conversation.pinned ? <PinOff size={16} /> : <Pin size={16} />} {conversation.pinned ? "Unpin" : "Pin"} conversation
-        </button>
-        <button type="button" onClick={onToggleMute} className="w-full flex items-center gap-3 px-4 py-3 text-sm text-white hover:bg-white/[0.05]">
-          {conversation.muted ? <Bell size={16} /> : <BellOff size={16} />} {conversation.muted ? "Unmute" : "Mute"} notifications
-        </button>
-      </div>
-    </div>,
-    document.body
-  );
-}
 
 // ChatListScreen.jsx — the Chat tab's content, shared by BOTH Employee
 // and Cashier (EmployeeWorkspace.jsx/CashierWorkspace.jsx both mount
@@ -174,7 +98,10 @@ export default function ChatListScreen({ currentEmployeeId, basePath }) {
 
   return (
     <div className="px-4 sm:px-6 py-6 max-w-4xl mx-auto animate-fade-up">
-      <h1 className="text-lg font-semibold text-white mb-4">Chat</h1>
+      <div className="mb-4">
+        <h1 className="text-xl font-bold text-white">Chat</h1>
+        <p className="text-sm text-[#8B93A8] mt-0.5">Your team's communication hub</p>
+      </div>
 
       <div className="relative mb-4">
         <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#4C5266]" />
@@ -200,7 +127,7 @@ export default function ChatListScreen({ currentEmployeeId, basePath }) {
         <>
           <div className="space-y-2">
             {filteredConversations.map((c) => (
-              <ConversationRow
+              <ChatConversationCard
                 key={c.id}
                 conversation={c}
                 onOpen={(conv) => navigate(`${basePath}/chat/${conv.id}`)}
@@ -242,7 +169,7 @@ export default function ChatListScreen({ currentEmployeeId, basePath }) {
           conversations={conversations}
           showImportantPeople={false}
           renderRow={(c) => (
-            <ConversationRow
+            <ChatConversationCard
               key={c.id}
               conversation={c}
               onOpen={(conv) => navigate(`${basePath}/chat/${conv.id}`)}

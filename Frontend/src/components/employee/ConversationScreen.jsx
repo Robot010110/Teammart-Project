@@ -3,8 +3,9 @@ import { createPortal } from "react-dom";
 import {
   ArrowLeft, Send, ShieldAlert, Loader2, Paperclip, Camera, File as FileIcon, Mic, Download, X,
   MoreHorizontal, Reply, Copy, Pencil, Trash2, Check, CheckCheck, Users2, Forward, Award, Eye,
+  Search, MessageCircle,
 } from "lucide-react";
-import { listMessages, sendMessage, markConversationRead, editMessage, deleteMessage, reactToMessage, listMentionCandidates, getMessageSeenBy } from "../../services/chatService";
+import { listMessages, sendMessage, markConversationRead, editMessage, deleteMessage, reactToMessage, listMentionCandidates, getMessageSeenBy, listGroupMembers } from "../../services/chatService";
 import { usePolling } from "../../hooks/usePolling";
 import { prepareImageForUpload } from "../../services/activityService";
 import { uploadAttachment, formatFileSize, formatDuration } from "../../utils/fileEncoding";
@@ -306,6 +307,22 @@ function ReactionPills({ reactions, currentUserId, currentUserKind, onToggle }) 
 // unset, Warnings stays fully read-only here (the Employee Chat tab's
 // case, and a non-Supervisor staff viewer).
 export default function ConversationScreen({ conversation, currentUserId, currentUserKind = "employee", onBack, onBroadcast, onOpenGroupInfo }) {
+  // Real member count — only fetched (and only ever shown) for CUSTOM_GROUP,
+  // the one conversation type with an actual ConversationMember table to
+  // count (see listGroupMembers's own comment in chatController.js).
+  // MARKET_GROUP/ZONE_GROUP membership is implicit (derived from
+  // market/zone), so there's no honest count to show there — the header
+  // just omits the subtitle rather than inventing one.
+  const { data: groupMembers } = useAsync(
+    () => (conversation.type === "CUSTOM_GROUP" ? listGroupMembers(conversation.id) : Promise.resolve(null)),
+    { deps: [conversation.id, conversation.type] }
+  );
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const { data: searchResults, loading: searchingMessages } = useAsync(
+    () => (searchQuery.trim().length >= 2 ? listMessages(conversation.id, { search: searchQuery.trim() }) : Promise.resolve(null)),
+    { deps: [searchQuery, conversation.id] }
+  );
   const [messages, setMessages] = useState([]);
   const [loadingInitial, setLoadingInitial] = useState(true);
   const [loadingOlder, setLoadingOlder] = useState(false);
@@ -599,24 +616,99 @@ export default function ConversationScreen({ conversation, currentUserId, curren
 
   return (
     <div className="flex flex-col h-full min-h-[calc(100vh-96px)]">
-      <div className="px-4 sm:px-6 py-4 flex items-center gap-2 border-b border-white/[0.06]">
-        <button type="button" onClick={onBack} className="p-1.5 -ml-1.5 text-[#9AA1B4] hover:text-white">
+      <div className="px-4 sm:px-6 py-3.5 flex items-center gap-2.5 border-b border-white/[0.06]">
+        <button type="button" onClick={onBack} className="shrink-0 p-1.5 -ml-1.5 text-[#9AA1B4] hover:text-white">
           <ArrowLeft size={18} />
         </button>
-        {isWarnings && <ShieldAlert size={16} className="text-amber-400" />}
-        <h1 className="flex-1 text-sm font-semibold text-white truncate">{conversation.title}</h1>
-        {conversation.type === "CUSTOM_GROUP" && onOpenGroupInfo && (
-          <button
-            type="button"
-            onClick={onOpenGroupInfo}
-            className="shrink-0 p-1.5 -mr-1.5 text-[#9AA1B4] hover:text-white"
-            aria-label="Group info"
-          >
-            <Users2 size={17} />
-          </button>
+
+        {searchOpen ? (
+          <div className="flex-1 flex items-center gap-2">
+            <Search size={15} className="shrink-0 text-[#4C5266]" />
+            <input
+              autoFocus
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search in this conversation..."
+              className="flex-1 min-w-0 bg-transparent text-sm text-white placeholder:text-[#4C5266] outline-none"
+            />
+            <button
+              type="button"
+              onClick={() => { setSearchOpen(false); setSearchQuery(""); }}
+              className="shrink-0 p-1.5 text-[#4C5266] hover:text-white"
+              aria-label="Close search"
+            >
+              <X size={16} />
+            </button>
+          </div>
+        ) : (
+          <>
+            <span
+              className={`relative w-9 h-9 rounded-full flex items-center justify-center shrink-0 overflow-hidden ${
+                isWarnings ? "bg-amber-500/15 text-amber-400" : "bg-[#F47A20]/10 text-[#F47A20]"
+              }`}
+            >
+              {conversation.pictureUrl ? (
+                <AuthenticatedImage src={conversation.pictureUrl} alt="" className="w-full h-full object-cover" />
+              ) : isWarnings ? (
+                <ShieldAlert size={16} />
+              ) : conversation.type === "CUSTOM_GROUP" || conversation.type === "MARKET_GROUP" || conversation.type === "ZONE_GROUP" ? (
+                <Users2 size={16} />
+              ) : (
+                <MessageCircle size={16} />
+              )}
+            </span>
+            <div className="flex-1 min-w-0">
+              <h1 className="text-sm font-semibold text-white truncate">{conversation.title}</h1>
+              {conversation.type === "CUSTOM_GROUP" && groupMembers && (
+                <p className="text-[11px] text-[#8B93A8]">{groupMembers.length} member{groupMembers.length === 1 ? "" : "s"}</p>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={() => setSearchOpen(true)}
+              className="shrink-0 p-1.5 text-[#9AA1B4] hover:text-white"
+              aria-label="Search in conversation"
+            >
+              <Search size={17} />
+            </button>
+            {conversation.type === "CUSTOM_GROUP" && onOpenGroupInfo && (
+              <button
+                type="button"
+                onClick={onOpenGroupInfo}
+                className="shrink-0 p-1.5 -mr-1.5 text-[#9AA1B4] hover:text-white"
+                aria-label="Group info"
+              >
+                <Users2 size={17} />
+              </button>
+            )}
+          </>
         )}
       </div>
 
+      {searchOpen ? (
+        <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4">
+          {searchQuery.trim().length < 2 ? (
+            <p className="text-center text-xs text-[#4C5266] py-6">Type at least 2 characters to search.</p>
+          ) : searchingMessages ? (
+            <p className="text-center text-xs text-[#4C5266] py-6">Searching...</p>
+          ) : searchResults?.messages?.length ? (
+            <div className="space-y-2">
+              {searchResults.messages.map((m) => (
+                <div key={m.id} className="rounded-xl p-3 bg-[#1A1F33]/70 border border-white/[0.06]">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-xs font-semibold text-[#F47A20]">{m.senderEmployee?.name || m.senderUser?.name}</p>
+                    <p className="text-[10px] text-[#4C5266] shrink-0">{timeLabel(m.createdAt)}</p>
+                  </div>
+                  <p className="text-sm text-white mt-0.5">{m.body}</p>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-center text-xs text-[#4C5266] py-6">No messages found.</p>
+          )}
+        </div>
+      ) : (
       <div ref={scrollRef} onScroll={handleScroll} className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 space-y-2.5">
         {loadingInitial ? (
           <p className="text-center text-xs text-[#4C5266] py-6">Loading messages...</p>
@@ -628,13 +720,24 @@ export default function ConversationScreen({ conversation, currentUserId, curren
             {messages.map((m) => {
               const isMine = currentUserKind === "staff" ? m.senderUserId === currentUserId : m.senderEmployeeId === currentUserId;
               const senderName = m.senderEmployee?.name || m.senderUser?.name;
+              const senderPictureUrl = m.senderEmployee?.profilePictureUrl || m.senderUser?.profilePictureUrl;
               const isDeleted = !!m.deletedAt;
               const isEditing = editingId === m.id;
               const replySenderName = m.replyTo?.senderEmployee?.name || m.replyTo?.senderUser?.name;
+              const showSenderInfo = !isMine && GROUP_LIKE_TYPES.has(conversation.type);
 
               return (
                 <div key={m.id} className={`flex ${isMine ? "justify-end" : "justify-start"}`}>
-                  <div className={`group flex items-end gap-1 max-w-[82%] ${isMine ? "flex-row-reverse" : ""}`}>
+                  <div className={`group flex items-end gap-2 max-w-[82%] ${isMine ? "flex-row-reverse" : ""}`}>
+                    {showSenderInfo && (
+                      <span className="shrink-0 mb-1 w-7 h-7 rounded-full bg-white/[0.06] flex items-center justify-center text-[10px] font-semibold text-white overflow-hidden">
+                        {senderPictureUrl ? (
+                          <AuthenticatedImage src={senderPictureUrl} alt="" className="w-full h-full object-cover" />
+                        ) : (
+                          initialsOf(senderName || "?")
+                        )}
+                      </span>
+                    )}
                     <div
                       className={`rounded-2xl px-3.5 py-2.5 ${
                         isDeleted
@@ -646,8 +749,17 @@ export default function ConversationScreen({ conversation, currentUserId, curren
                           : "bg-[#1A1F33]/80 border border-white/[0.06] text-white rounded-bl-md"
                       }`}
                     >
-                      {!isMine && senderName && !isDeleted && (
+                      {showSenderInfo && senderName && !isDeleted && (
+                        <p className="text-[11px] font-semibold text-[#F47A20] mb-0.5">
+                          {senderName}
+                          {m.senderUser?.role && <span className="font-normal text-[#8B93A8]"> · {roleLabel(m.senderUser.role)}</span>}
+                        </p>
+                      )}
+                      {!showSenderInfo && !isMine && senderName && !isDeleted && (
                         <p className="text-[11px] font-semibold text-[#F47A20] mb-0.5">{senderName}</p>
+                      )}
+                      {isMine && GROUP_LIKE_TYPES.has(conversation.type) && !isDeleted && (
+                        <p className="text-[11px] font-semibold text-white/80 mb-0.5">You</p>
                       )}
                       {m.forwardedFromSenderName && !isDeleted && (
                         <p className={`flex items-center gap-1 text-[11px] italic mb-0.5 ${isMine ? "text-white/70" : "text-[#8B93A8]"}`}>
@@ -725,6 +837,7 @@ export default function ConversationScreen({ conversation, currentUserId, curren
           </>
         )}
       </div>
+      )}
 
       {isWarnings && onBroadcast ? (
         <div className="px-4 sm:px-6 py-3 border-t border-white/[0.06]">

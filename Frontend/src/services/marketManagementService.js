@@ -45,3 +45,12 @@ export function addMarketNote(marketId, payload) {
 export function sendMarketFeedback(marketId, payload) {
   return apiRequest(`/markets/${marketId}/feedback`, { method: "POST", body: payload });
 }
+
+// getMarketFeedback — a single Warning/Recognition record, for the
+// notification detail screen (see notificationLinks.js's MARKET_FEEDBACK
+// case). No marketId needed — the backend derives it from the feedback
+// row itself and checks access against that (see
+// marketManagementController.getMarketFeedbackDetail's own comment).
+export function getMarketFeedback(feedbackId) {
+  return apiRequest(`/markets/feedback/${feedbackId}`);
+}

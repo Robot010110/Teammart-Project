@@ -45,17 +45,24 @@ export default function ChatViewTabs({
   // — never a blank screen, never an unauthorized request (spec: "do not
   // invent unauthorized contacts").
   showImportantPeople = true,
+  // Optional fifth "Reports" tab — a real, already-backed section (e.g.
+  // ReportsProblemsSection.jsx, backed by the real MarketProblem model)
+  // passed in by whichever role's Chat screen has one, so this stays one
+  // shared tab bar rather than each role inventing its own. Omitted
+  // entirely (no tab shown) when the caller has nothing real to put there.
+  reportsContent = null,
 }) {
   const [view, setView] = useState(defaultView);
 
   const groups = conversations.filter((c) => GROUP_TYPES.has(c.type));
   const individuals = conversations.filter((c) => INDIVIDUAL_TYPES.has(c.type));
   const unread = conversations.filter((c) => c.unreadCount > 0);
+  const views = reportsContent ? [...VIEWS, { key: "reports", label: "Reports" }] : VIEWS;
 
   return (
     <div>
       <div className="flex gap-2 mb-4 overflow-x-auto -mx-1 px-1 pb-1">
-        {VIEWS.map((v) => (
+        {views.map((v) => (
           <button
             key={v.key}
             type="button"
@@ -96,6 +103,8 @@ export default function ChatViewTabs({
           {unread.length === 0 ? <EmptyText>You're all caught up.</EmptyText> : unread.map((c) => renderRow(c))}
         </div>
       )}
+
+      {view === "reports" && reportsContent}
     </div>
   );
 }

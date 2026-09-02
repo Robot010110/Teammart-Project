@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { Megaphone } from "lucide-react";
+import { Megaphone, ChevronRight } from "lucide-react";
 import { useAsync } from "../../hooks/useAsync";
 import { SkeletonCard } from "../common/SkeletonCard";
 import { getZoneAnnouncements, listMessages } from "../../services/chatService";
@@ -61,6 +61,7 @@ export default function SupervisorAnnouncementsCard({ session, basePath }) {
             <p className="text-xs text-[#8B93A8] mt-0.5">No announcements yet.</p>
           )}
         </div>
+        <ChevronRight size={16} className="text-amber-400/60 shrink-0 mt-1" />
       </div>
     </button>
   );

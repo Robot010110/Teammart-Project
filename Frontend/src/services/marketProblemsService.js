@@ -11,6 +11,13 @@ export function listMarketProblems(marketId, view = "active") {
   return apiRequest(`/market-problems?marketId=${encodeURIComponent(marketId)}&view=${view}`);
 }
 
+// Chat Hub Reports §8 — a Regional Manager's zone-wide equivalent (every
+// market problem across every market in one of their own zones, not
+// just one market at a time).
+export function listZoneMarketProblems(zoneId, view = "active") {
+  return apiRequest(`/market-problems?zoneId=${encodeURIComponent(zoneId)}&view=${view}`);
+}
+
 export function createMarketProblem({ marketId: _marketId, problemType, location, description, photoUrl }) {
   return apiRequest("/market-problems", { method: "POST", body: { problemType, location, description, photoUrl } });
 }

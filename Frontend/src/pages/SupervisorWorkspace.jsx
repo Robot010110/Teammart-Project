@@ -8,6 +8,7 @@ import SupervisorEmployeeProfileRoute from "../components/supervisor/SupervisorE
 import SupervisorChatTab from "../components/supervisor/SupervisorChatTab";
 import MarketTab from "../components/supervisor/MarketTab";
 import CommunicationDetailScreen from "../components/employee/CommunicationDetailScreen";
+import MarketFeedbackDetailScreen from "../components/supervisor/MarketFeedbackDetailScreen";
 
 const BASE_PATH = "/supervisor";
 
@@ -55,6 +56,13 @@ export default function SupervisorWorkspace({ session, onLogout }) {
             it is employee-specific), reached the same way an employee
             reaches it: the notification bell's linkType "COMMUNICATION". */}
         <Route path="communications/:id" element={<CommunicationDetailScreen basePath={BASE_PATH} />} />
+        {/* Supervisor <-> Regional Manager connectivity fix — a
+            Supervisor's MARKET_FEEDBACK notification (a Warning or
+            Recognition) used to dead-end with no route to open; this is
+            that real detail screen (see notificationLinks.js's
+            MARKET_FEEDBACK case and MarketFeedbackDetailScreen's own
+            comment). */}
+        <Route path="market-feedback/:id" element={<MarketFeedbackDetailScreen basePath={BASE_PATH} />} />
         <Route path="settings" element={<SettingsScreen onLogout={onLogout} />} />
         <Route path="*" element={<Navigate to="home" replace />} />
       </Route>

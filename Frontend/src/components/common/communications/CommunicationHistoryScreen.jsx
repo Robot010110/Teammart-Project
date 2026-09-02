@@ -66,21 +66,21 @@ function ProgressStat({ label, value }) {
 // only). Sender-scoping (a Zone Manager only ever sees their OWN sends)
 // is enforced by the backend (GET /api/communications/sent), not by
 // anything filtered here.
-export default function CommunicationHistoryScreen({ session, basePath }) {
+// bare — Chat Hub §4: when embedded as the Awareness tab's content
+// (RmChatPage.jsx), the hub already owns page-level padding/max-width
+// and its own "Awareness" heading, so this skips its standalone
+// heading/wrapper and returns just the list + New button. The
+// standalone /rm/communications route (still reachable from Settings/
+// elsewhere) is unaffected — bare defaults to false.
+export default function CommunicationHistoryScreen({ session, basePath, bare = false }) {
   const navigate = useNavigate();
   const { data: communications, error, loading, reload } = useAsync(listSentCommunications, { deps: [] });
   // Zone.number, not Zone.id — see CommunicationComposer.jsx's identical
   // comment on senderZoneNumber.
   const { data: zones } = useAsync(listZones, { deps: [] });
 
-  return (
-    <div className="px-4 sm:px-6 py-6 max-w-3xl mx-auto animate-fade-up">
-      <div className="flex items-center justify-between mb-1">
-        <h1 className="text-lg font-semibold text-white">Warnings & Notifications</h1>
-        <SenderIdentityBadge senderRole={session.staffRole} senderZone={zones?.[0]?.number} size="sm" />
-      </div>
-      <p className="text-xs text-[#6B7284] mb-5">Communications you've sent</p>
-
+  const body = (
+    <>
       <button
         type="button"
         onClick={() => navigate(`${basePath}/communications/new`)}
@@ -102,6 +102,19 @@ export default function CommunicationHistoryScreen({ session, basePath }) {
           {communications.map((c) => <ProgressRow key={c.id} communication={c} />)}
         </div>
       )}
+    </>
+  );
+
+  if (bare) return body;
+
+  return (
+    <div className="px-4 sm:px-6 py-6 max-w-3xl mx-auto animate-fade-up">
+      <div className="flex items-center justify-between mb-1">
+        <h1 className="text-lg font-semibold text-white">Warnings & Notifications</h1>
+        <SenderIdentityBadge senderRole={session.staffRole} senderZone={zones?.[0]?.number} size="sm" />
+      </div>
+      <p className="text-xs text-[#6B7284] mb-5">Communications you've sent</p>
+      {body}
     </div>
   );
 }

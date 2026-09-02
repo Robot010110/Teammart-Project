@@ -13,6 +13,14 @@ export function getMarket(id) {
   return apiRequest(`/markets/${id}`);
 }
 
+// updateMarket — Admin or the owning Regional Manager. Currently used
+// for photoUrl (a market's own storefront photo — see Market.photoUrl's
+// schema comment); the same generic endpoint also accepts name/status,
+// unchanged from before this was added.
+export function updateMarket(id, body) {
+  return apiRequest(`/markets/${id}`, { method: "PATCH", body });
+}
+
 // Admin Phase 2 — ADMIN-only (or the owning Regional Manager). Pass null
 // to unassign. Reassigning to a different market automatically clears
 // the stale prior assignment server-side (see marketsController's own
