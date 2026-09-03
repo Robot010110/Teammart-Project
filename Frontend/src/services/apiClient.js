@@ -5,7 +5,41 @@
 // profileService, activityService) calls `apiRequest` instead of using
 // fetch() directly, so none of that logic has to be repeated per feature.
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:4000/api";
+// Where the backend lives, resolved in priority order:
+//
+//   1. VITE_API_URL, when set — always wins. This is what a production
+//      build sets, and it's still the way to point the app at a backend
+//      on a different host than the one serving the frontend.
+//   2. Otherwise: same hostname the frontend was loaded from, port 4000.
+//
+// Rule 2 exists for LAN phone testing. The frontend dev server already
+// binds to the LAN (`server.host: true` in vite.config.js), so a phone
+// opening http://<laptop-ip>:5173 resolves the API to
+// http://<laptop-ip>:4000/api on its own — no hardcoded IP to update
+// every time DHCP hands out a different address, which was the previous
+// failure mode (a stale pinned IP surfaces only as the generic "Could
+// not reach the server" error below). localhost keeps working
+// unchanged: hostname "localhost" simply resolves to
+// http://localhost:4000/api.
+//
+// PORT is set in backend/.env (defaults to 4000) and every route is
+// mounted under /api — see backend/src/app.js.
+const DEV_API_PORT = 4000;
+
+function resolveApiBaseUrl() {
+  const configured = import.meta.env.VITE_API_URL?.trim();
+  // Trailing slash would produce a double slash once a path like
+  // "/profile" is appended, which some proxies treat as a distinct route.
+  if (configured) return configured.replace(/\/+$/, "");
+
+  if (typeof window !== "undefined" && window.location?.hostname) {
+    return `${window.location.protocol}//${window.location.hostname}:${DEV_API_PORT}/api`;
+  }
+
+  return `http://localhost:${DEV_API_PORT}/api`;
+}
+
+const API_BASE_URL = resolveApiBaseUrl();
 const TOKEN_KEY = "teammart_token";
 
 export function getToken() {

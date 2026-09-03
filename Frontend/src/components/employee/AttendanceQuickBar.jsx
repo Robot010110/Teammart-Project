@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { LogIn, LogOut, Coffee, Check, Loader2 } from "lucide-react";
+import { LogIn, LogOut, Coffee, Check, Loader2, AlertTriangle, RotateCcw } from "lucide-react";
 import { checkIn, checkOut, getTodayAttendance, startBreak, endBreak } from "../../services/attendanceService";
 import { ApiError } from "../../services/apiClient";
 
@@ -40,20 +40,32 @@ function formatElapsed(ms) {
 export default function AttendanceQuickBar() {
   const [record, setRecord] = useState(null);
   const [loaded, setLoaded] = useState(false);
+  // See AttendanceCheckInCard.jsx's own comment — `record === null` is
+  // the real "not checked in yet today" state, so a failed load must NOT
+  // reuse it. Otherwise an unreachable backend renders a confident "Not
+  // Checked In" + an active Check In button to someone who is already
+  // checked in.
+  const [loadFailed, setLoadFailed] = useState(false);
   const [now, setNow] = useState(() => Date.now());
   const [busy, setBusy] = useState(null); // which action is in flight
   const [error, setError] = useState(null);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
+    setLoadFailed(false);
     getTodayAttendance()
-      .then((r) => !cancelled && setRecord(r))
-      .catch(() => {})
+      .then((r) => {
+        if (cancelled) return;
+        setRecord(r);
+        setLoadFailed(false);
+      })
+      .catch(() => !cancelled && setLoadFailed(true))
       .finally(() => !cancelled && setLoaded(true));
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [reloadKey]);
 
   useEffect(() => {
     const interval = setInterval(() => setNow(Date.now()), 1000);
@@ -86,6 +98,30 @@ export default function AttendanceQuickBar() {
 
   if (!loaded) {
     return <div className="rounded-2xl h-[60px] bg-[#171C2E]/60 border border-white/[0.06] animate-pulse" />;
+  }
+
+  // Unknown state renders as unknown — never as "Not Checked In". Kept in
+  // this bar's own compact px-4/py-3 shape (rather than the taller shared
+  // ErrorBanner) so the Home tab's layout doesn't jump when the network
+  // drops.
+  if (loadFailed) {
+    return (
+      <div className="rounded-2xl px-4 py-3 bg-red-500/5 border border-red-500/20 flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-[10px] uppercase tracking-wide text-[#8B93A8]">Attendance</p>
+          <p className="text-sm font-semibold flex items-center gap-1.5 text-red-300">
+            <AlertTriangle size={14} className="shrink-0" /> Status unavailable
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setReloadKey((k) => k + 1)}
+          className="shrink-0 flex items-center gap-1.5 rounded-xl px-4 py-2.5 text-xs font-semibold text-white bg-white/10 hover:bg-white/15 active:scale-95 transition-all duration-150"
+        >
+          <RotateCcw size={14} /> Retry
+        </button>
+      </div>
+    );
   }
 
   // Status label + accent tone, one of: not checked in / checked in /

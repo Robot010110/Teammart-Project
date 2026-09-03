@@ -11,6 +11,7 @@ import { getProfile } from "./services/profileService";
 import { listMarkets } from "./services/marketService";
 import { onUnauthorized } from "./services/apiClient";
 import { initialsOf } from "./utils/initials";
+import ErrorBoundary from "./components/common/ErrorBoundary";
 
 // App.jsx — root shell, driven by real browser history
 // (react-router-dom's BrowserRouter) instead of plain React state. Every
@@ -217,10 +218,16 @@ function AppRoutes() {
   );
 }
 
+// ErrorBoundary sits OUTSIDE BrowserRouter deliberately — it's the
+// last-resort net for a render crash anywhere in the app, including one
+// thrown by routing itself. It only catches render errors; failed API
+// calls keep their existing per-screen handling (ErrorBanner/ApiError).
 export default function App() {
   return (
-    <BrowserRouter>
-      <AppRoutes />
-    </BrowserRouter>
+    <ErrorBoundary>
+      <BrowserRouter>
+        <AppRoutes />
+      </BrowserRouter>
+    </ErrorBoundary>
   );
 }

@@ -8,6 +8,7 @@ import {
   endBreak,
 } from "../../services/attendanceService";
 import { ApiError } from "../../services/apiClient";
+import ErrorBanner from "./ErrorBanner";
 
 const BREAK_AVAILABLE_AFTER_MS = 4 * 60 * 60 * 1000;
 const BREAK_DURATION_MS = 60 * 60 * 1000;
@@ -26,6 +27,18 @@ function formatRemaining(ms) {
   const seconds = totalSeconds % 60;
 
   return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+}
+
+// Was called by the "On break — <elapsed>" row below but never actually
+// defined in this file, so rendering that row threw a ReferenceError and
+// crashed the card for anyone currently on a break. Same implementation
+// as AttendanceQuickBar.jsx's, which is where the only working copy
+// lived.
+function formatElapsed(ms) {
+  const totalMinutes = Math.max(0, Math.floor(ms / 60000));
+  const h = Math.floor(totalMinutes / 60);
+  const m = totalMinutes % 60;
+  return h > 0 ? `${h}h ${m}m` : `${m}m`;
 }
 
 // AttendanceCheckInCard.jsx — Repair Pass §1: real check-in/check-out +
@@ -51,20 +64,34 @@ function formatRemaining(ms) {
 export default function AttendanceCheckInCard({ showBreak = true }) {
   const [record, setRecord] = useState(null);
   const [loaded, setLoaded] = useState(false);
+  // Distinct from `record === null`, which is the legitimate "checked
+  // nothing in yet today" state. Without this the two were
+  // indistinguishable: a failed request left record null and the card
+  // confidently rendered "Not checked in yet" plus an active Check In
+  // button, so someone who WAS already checked in could be shown — and
+  // could tap — the wrong action on business-critical clock data.
+  const [loadFailed, setLoadFailed] = useState(false);
   const [now, setNow] = useState(() => Date.now());
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
+  // Bumped by Retry to re-run the loader below.
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
+    setLoadFailed(false);
     getTodayAttendance()
-      .then((r) => !cancelled && setRecord(r))
-      .catch(() => {})
+      .then((r) => {
+        if (cancelled) return;
+        setRecord(r);
+        setLoadFailed(false);
+      })
+      .catch(() => !cancelled && setLoadFailed(true))
       .finally(() => !cancelled && setLoaded(true));
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [reloadKey]);
 
   // Re-render every 30s so "available in Xm" / elapsed timers stay
   // current without a client-side countdown that could drift from the
@@ -120,6 +147,20 @@ export default function AttendanceCheckInCard({ showBreak = true }) {
       <div className="rounded-2xl p-4 bg-[#171C2E]/80 border border-white/[0.06] backdrop-blur-xl">
         <p className="text-xs text-[#8B93A8]">Loading attendance...</p>
       </div>
+    );
+  }
+
+  // Never fall through to the normal card here: showing any check-in /
+  // check-out control while today's real state is unknown is exactly the
+  // false-state bug this guards against. Reuses the app's existing
+  // shared failure treatment (ErrorBanner.jsx) rather than inventing a
+  // second one.
+  if (loadFailed) {
+    return (
+      <ErrorBanner
+        message="Couldn't load today's attendance."
+        onRetry={() => setReloadKey((k) => k + 1)}
+      />
     );
   }
 
