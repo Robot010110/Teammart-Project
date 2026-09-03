@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   ClipboardList, Megaphone, Users, Moon,
@@ -11,7 +11,6 @@ import PerformanceHistoryScreen from "./PerformanceHistoryScreen";
 import TodayWorkLogScreen from "./TodayWorkLogScreen";
 import WeeklyHoursChart from "./WeeklyHoursChart";
 import PerformanceAtmosphere from "./PerformanceAtmosphere";
-import AttendanceSection from "./AttendanceSection";
 import QuickActionCard from "./QuickActionCard";
 import AttendanceQuickBar from "./AttendanceQuickBar";
 import TaskRow from "./TaskRow";
@@ -54,19 +53,16 @@ function hoursLabel(hours) {
   return m > 0 ? `${h}h ${m}m` : `${h}h`;
 }
 
-// HomeTab.jsx — the Worker/Cashier personal dashboard, redesigned around
-// a "Today's Performance" hero card + real Quick Actions + Today's
-// Tasks + a period-scoped Activity Overview, replacing the older
-// Profile-header-plus-two-tiles layout. Every number here is real:
+// HomeTab.jsx — the Worker/Cashier personal dashboard: a "Today's
+// Performance" hero card + real Quick Actions + Today's Tasks + a
+// period-scoped Activity Overview. Every number here is real:
 //   - Performance: the existing GET /activities/performance approval
-//     rate (unchanged data source, just a bigger ring — see
-//     PerformanceCircle.jsx's new `bare`/`size` props).
-//   - Attendance status / hours today: derived from GET
-//     /attendance/today's real checkIn/checkOut/breakStart/breakEnd,
-//     same fields AttendanceCheckInCard.jsx already reads — "hours
-//     today" while still checked in has no backend field (confirmed —
-//     none exists), so it's computed client-side from real timestamps,
-//     same live-elapsed convention AttendanceCheckInCard already uses.
+//     rate (see PerformanceCircle.jsx's `bare`/`size` props).
+//   - Hours today: derived from GET /attendance/today's real
+//     checkIn/checkOut/breakStart/breakEnd — "hours today" while still
+//     checked in has no backend field (confirmed — none exists), so
+//     it's computed client-side from real timestamps, same live-elapsed
+//     convention AttendanceCheckInCard.jsx uses.
 //   - Tasks today / Activity Overview: real SuddenTask data, period-
 //     filtered client-side (This Week = last 7 days, This Month = the
 //     real GET /attendance/month response's own days[]/summary).
@@ -74,21 +70,18 @@ function hoursLabel(hours) {
 //     WorkerActivityTab.jsx's identical note) — shown as the same honest
 //     completed/(completed+pending) ratio used there, not invented.
 //
-// Attendance Quick-Action Bar adjustment — the Team Announcement card
-// that used to occupy the slot right under Today's Performance is gone
-// from Home (the underlying Communication/announcement feature is
-// completely untouched — still real, still reachable via Chat's
-// Awareness/Warnings surfaces and via a tapped notification; this page
-// simply no longer renders a preview of it). That slot is now
-// AttendanceQuickBar.jsx — a compact, ACTION-only presentation of the
-// exact same real GET /attendance/today state and
-// checkIn/checkOut/startBreak/endBreak calls AttendanceCheckInCard.jsx
-// already used on the Attendance page (deliberately not refactored into
-// a shared hook — see that component's own comment on why duplicating
-// two timing constants was the lower-risk choice here). Today's
-// Performance keeps its own concise attendance SUMMARY line unchanged;
-// nothing here duplicates the full Attendance page's calendar/month
-// view, which stays exactly where it was.
+// Attendance on this page is intentionally partial, not absent: a
+// compact status row in the hero, a "View Attendance" Quick Action, and
+// AttendanceQuickBar.jsx's real check-in/checkOut/startBreak/endBreak
+// actions (the exact same GET /attendance/today state and calls
+// AttendanceCheckInCard.jsx already uses on the Attendance page — see
+// that component's own comment on why the two timing constants are
+// deliberately duplicated rather than shared). What Home does NOT
+// contain is the full Attendance page's calendar/month grid/history —
+// that stays exactly one place, Profile -> Attendance
+// (ProfileTab.jsx's own AttendanceSection), which is what both the
+// hero's Attendance row and the Quick Action tile navigate to now that
+// there's no local attendance section on this page to scroll to.
 //
 // Photo-change and WhatsApp self-service (previously on this page via
 // ProfileHeaderCard) remain fully available — ProfileHeaderCard.jsx is
@@ -113,7 +106,6 @@ export default function HomeTab({ onNavigate, basePath }) {
   const [showPerformanceHistory, setShowPerformanceHistory] = useState(false);
   const [showWorkLog, setShowWorkLog] = useState(false);
   const [period, setPeriod] = useState("week"); // "week" | "month"
-  const attendanceRef = useRef(null);
 
   const pendingCount = (pendingTasks ?? []).length;
   const completedToday = (completedTasks ?? []).filter((t) => isToday(t.completedAt));
@@ -122,6 +114,7 @@ export default function HomeTab({ onNavigate, basePath }) {
   const isCheckedIn = !!(todayAttendance?.checkIn && !todayAttendance?.checkOut);
   const isCheckedOut = !!todayAttendance?.checkOut;
   const attendanceLabel = isCheckedIn ? "Checked in" : isCheckedOut ? "Checked out" : "Not checked in";
+  const goToAttendance = () => navigate(`${basePath}/profile/attendance`);
 
   // Hours worked today — real timestamps, computed client-side (no
   // backend field exists for an in-progress day, see this file's own
@@ -242,7 +235,7 @@ export default function HomeTab({ onNavigate, basePath }) {
             </div>
             <div className="flex items-center justify-between py-2">
               <span className="flex items-center gap-1.5 text-xs text-[#9AA1B4]"><Users size={13} className="text-sky-400" /> Attendance</span>
-              <button type="button" onClick={() => attendanceRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })} className="text-xs font-semibold text-sky-400 hover:text-sky-300">
+              <button type="button" onClick={goToAttendance} className="text-xs font-semibold text-sky-400 hover:text-sky-300">
                 {attendanceLabel}
               </button>
             </div>
@@ -274,7 +267,7 @@ export default function HomeTab({ onNavigate, basePath }) {
         <div className="flex gap-3 overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0" style={{ scrollbarWidth: "none" }}>
           <QuickActionCard icon={ClipboardList} label="My Tasks" tone="orange" badge={pendingCount} onClick={() => onNavigate?.("tasks")} />
           <QuickActionCard icon={Megaphone} label="Daily Activity" tone="orange" onClick={() => onNavigate?.("activity")} />
-          <QuickActionCard icon={Users} label="Attendance" tone="blue" onClick={() => attendanceRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })} />
+          <QuickActionCard icon={Users} label="Attendance" tone="blue" onClick={goToAttendance} />
           <QuickActionCard icon={MessageCircle} label="Chat" tone="violet" badge={chatUnread} onClick={() => onNavigate?.("chat")} />
         </div>
       </section>
@@ -326,11 +319,6 @@ export default function HomeTab({ onNavigate, basePath }) {
           <ActivityMetricCard icon={BarChart3} value={performanceLabel} label="Performance" tone="violet" />
         </div>
         <WeeklyHoursChart days={monthAttendance?.days} />
-      </section>
-
-      <section ref={attendanceRef} className="scroll-mt-4">
-        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-[#8B93A8]">Attendance</h2>
-        <AttendanceSection />
       </section>
     </div>
   );
