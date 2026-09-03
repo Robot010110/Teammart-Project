@@ -27,6 +27,7 @@ import {
   getMyStaffAttendanceMonth,
   previewBreakExport,
   listCompanyAttendance,
+  getMarketAttendanceToday,
 } from "../controllers/attendanceController.js";
 import { requireAuth, requireStaffRole, requireEmployeeAuth } from "../middleware/auth.js";
 import {
@@ -42,6 +43,7 @@ import {
   listAttendanceAdjustmentsQuerySchema,
   confirmStillWorkingSchema,
   companyAttendanceQuerySchema,
+  marketAttendanceTodayQuerySchema,
 } from "../utils/validate.js";
 
 // Memory storage — the file is parsed (utils/attendanceExcel.js) and
@@ -80,6 +82,16 @@ router.get("/me/month", validateQuery(staffAttendanceMonthQuerySchema), getMySta
 router.get("/month", requireEmployeeAuth, validateQuery(attendanceMonthQuerySchema), getAttendanceMonth);
 // Admin Phase 1 §16 — company-wide, no market/zone scoping.
 router.get("/company", requireStaffRole("ADMIN"), validateQuery(companyAttendanceQuerySchema), listCompanyAttendance);
+
+// Supervisor Home's Team Status — market-scoped (assertMarketAccess
+// inside the controller), unlike /company above which is deliberately
+// ADMIN-only and unscoped.
+router.get(
+  "/market/today",
+  requireStaffRole("ADMIN", "REGIONAL_MANAGER", "SUPERVISOR", "OVERLOOKING_SUPERVISOR"),
+  validateQuery(marketAttendanceTodayQuerySchema),
+  getMarketAttendanceToday
+);
 router.get("/performance-history", requireEmployeeAuth, getPerformanceHistory);
 router.get("/extra-hours-balance", requireEmployeeAuth, getExtraHoursBalance);
 

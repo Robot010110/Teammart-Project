@@ -1438,3 +1438,94 @@ export async function listCompanyAttendance(req, res, next) {
     next(err);
   }
 }
+
+// GET /api/attendance/market/today?marketId= — staff-only
+// (ADMIN/REGIONAL_MANAGER/SUPERVISOR/OVERLOOKING_SUPERVISOR), scoped via
+// assertMarketAccess. Unlike listCompanyAttendance above (deliberately
+// ADMIN-only, no market-access check — see that function's own comment),
+// this is the properly-authorized, market-scoped sibling a Supervisor
+// actually needs: "who on my own team is present/late/off right now."
+// Reuses the same Employee + AttendanceRecord tables and the same
+// deriveAttendanceState helper — not a parallel attendance system, just
+// the entry point Supervisor Home's Team Status chart and its "View Team
+// Attendance" detail screen both call.
+//
+// `marketId` defaults to the caller's own token-embedded market
+// (req.user.marketId) so a Supervisor never has to pass one; a
+// Regional/Admin caller may pass one explicitly, still checked by
+// assertMarketAccess.
+//
+// Bucketing is deliberately honest about what "today" data can actually
+// claim in real time: a live check-in system has no automatic end-of-day
+// sweep that marks someone ABSENT (that only ever happens via the Excel
+// import, retrospectively) — so an employee with no record yet is
+// reported as "not checked in", never as "absent", which would assert
+// something this data can't actually back up mid-day.
+export async function getMarketAttendanceToday(req, res, next) {
+  try {
+    const marketId = req.query.marketId ?? req.user.marketId;
+    if (!marketId) {
+      return res.status(400).json({ error: "marketId is required" });
+    }
+    await assertMarketAccess(req.user, marketId);
+
+    const today = dayOnly(new Date());
+
+    const [employees, records] = await Promise.all([
+      prisma.employee.findMany({
+        where: { marketId },
+        select: { id: true, name: true, role: true, employeeCode: true },
+        orderBy: { name: "asc" },
+      }),
+      prisma.attendanceRecord.findMany({ where: { employee: { marketId }, date: today } }),
+    ]);
+
+    const recordByEmployeeId = new Map(records.map((r) => [r.employeeId, r]));
+
+    const rows = employees.map((e) => {
+      const record = recordByEmployeeId.get(e.id) ?? null;
+      // The self-service check-in/break flow (checkIn/startBreak/endBreak
+      // above) lives entirely on AttendanceRecord.breakStart/breakEnd —
+      // the separate `Break` model is a distinct fingerprint-event-driven
+      // system (see startBreak's own comment on why they're deliberately
+      // different), so "on break right now" must be read from THIS
+      // record, not from prisma.break.
+      const onBreak = !!(record?.breakStart && !record?.breakEnd);
+      // "present" folds in EARLY_LEAVE (they did attend, just left early)
+      // — everything else that isn't a real off/leave day and has no
+      // usable check-in is honestly "not checked in", never "absent".
+      let bucket;
+      if (record?.status === "DAY_OFF" || record?.status === "APPROVED_LEAVE") bucket = "offLeave";
+      else if (record?.status === "LATE") bucket = "late";
+      else if (record?.status === "PRESENT" || record?.status === "EARLY_LEAVE") bucket = "present";
+      else bucket = "notCheckedIn";
+
+      return {
+        id: e.id,
+        name: e.name,
+        role: e.role,
+        employeeCode: e.employeeCode,
+        status: record?.status ?? null,
+        state: deriveAttendanceState(record, onBreak),
+        bucket,
+        checkIn: record?.checkIn ?? null,
+        checkOut: record?.checkOut ?? null,
+      };
+    });
+
+    res.json({
+      marketId,
+      date: today,
+      total: rows.length,
+      counts: {
+        present: rows.filter((r) => r.bucket === "present").length,
+        late: rows.filter((r) => r.bucket === "late").length,
+        offLeave: rows.filter((r) => r.bucket === "offLeave").length,
+        notCheckedIn: rows.filter((r) => r.bucket === "notCheckedIn").length,
+      },
+      employees: rows,
+    });
+  } catch (err) {
+    next(err);
+  }
+}

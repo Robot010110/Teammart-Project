@@ -9,6 +9,10 @@ import SupervisorChatTab from "../components/supervisor/SupervisorChatTab";
 import MarketTab from "../components/supervisor/MarketTab";
 import CommunicationDetailScreen from "../components/employee/CommunicationDetailScreen";
 import MarketFeedbackDetailScreen from "../components/supervisor/MarketFeedbackDetailScreen";
+import SupervisorAlertsPage from "../components/supervisor/home/SupervisorAlertsPage";
+import SupervisorRecentActivityPage from "../components/supervisor/home/SupervisorRecentActivityPage";
+import SupervisorPendingTasksPage from "../components/supervisor/home/SupervisorPendingTasksPage";
+import SupervisorTeamAttendancePage from "../components/supervisor/home/SupervisorTeamAttendancePage";
 
 const BASE_PATH = "/supervisor";
 
@@ -44,6 +48,14 @@ export default function SupervisorWorkspace({ session, onLogout }) {
       <Route element={<AppShell tabs={tabs} basePath={BASE_PATH} showNotificationBell />}>
         <Route index element={<Navigate to="home" replace />} />
         <Route path="home" element={<SupervisorHomeTab session={session} basePath={BASE_PATH} />} />
+        {/* Supervisor Home redesign — the Today Overview cards each open
+            one of these dedicated pages instead of Home carrying full
+            lists. All four are real data, see each page's own comment
+            for its exact backend source. */}
+        <Route path="alerts" element={<SupervisorAlertsPage session={session} basePath={BASE_PATH} />} />
+        <Route path="activity" element={<SupervisorRecentActivityPage session={session} basePath={BASE_PATH} />} />
+        <Route path="pending-tasks" element={<SupervisorPendingTasksPage session={session} basePath={BASE_PATH} />} />
+        <Route path="team-attendance" element={<SupervisorTeamAttendancePage session={session} basePath={BASE_PATH} />} />
         <Route path="employees" element={<EmployeesListScreen session={session} basePath={BASE_PATH} />} />
         <Route path="employees/:employeeId/*" element={<SupervisorEmployeeProfileRoute basePath={BASE_PATH} />} />
         <Route path="chat" element={<SupervisorChatTab session={session} basePath={BASE_PATH} />} />

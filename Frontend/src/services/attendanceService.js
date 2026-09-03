@@ -174,3 +174,14 @@ export function listExtraHoursRequestsForMarket({ marketId, status, employeeId }
 export function reviewExtraHoursRequest(requestId, payload) {
   return apiRequest(`/attendance/extra-hours/${requestId}/review`, { method: "POST", body: payload });
 }
+
+// getMarketAttendanceToday — Supervisor Home's Team Status. marketId
+// optional (defaults server-side to the caller's own market via
+// GET /api/attendance/market/today, still authorized either way via
+// assertMarketAccess). Returns real per-employee status/bucket for
+// today plus aggregate counts — powers both the Team Status donut and
+// the Team Attendance detail screen from the same call shape.
+export function getMarketAttendanceToday(marketId) {
+  const query = marketId ? `?marketId=${encodeURIComponent(marketId)}` : "";
+  return apiRequest(`/attendance/market/today${query}`);
+}

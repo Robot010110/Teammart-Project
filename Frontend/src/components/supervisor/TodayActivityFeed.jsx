@@ -102,18 +102,41 @@ function isToday(iso) {
 }
 
 // TodayActivityFeed.jsx — a real, automatic feed of what happened in the
-// Supervisor's market today, merged from every real source that already
+// Supervisor's market, merged from every real source that already
 // exists: Activities (shelf cleaning, facing, item counting, etc.),
 // Expired/Wasted Item reports, Wasted Overall reports, and completed
 // Sudden Tasks. Nothing here is invented — this is "Automatically
 // Received Information" (spec category A), a pure read/merge over
-// endpoints that already exist, sorted by time, today only.
-export default function TodayActivityFeed({ marketId }) {
+// endpoints that already exist, sorted by time.
+//
+// Two optional props reuse this exact same merge/detail/review machinery
+// for the Supervisor Home redesign's two dedicated pages, instead of
+// duplicating it:
+//   todayOnly   (default true — Home's own original behaviour,
+//               unchanged) false widens the window to the most recent
+//               `recentLimit` items regardless of date, for
+//               SupervisorRecentActivityPage.jsx's full chronological
+//               feed.
+//   pendingOnly (default false) true additionally restricts to items
+//               with a real PENDING status — i.e. things still awaiting
+//               the Supervisor's own decision — for
+//               SupervisorPendingTasksPage.jsx's worklist. Distinct from
+//               Alerts (real MarketProblem rows), so the four Today
+//               Overview cards never show the same underlying list twice
+//               under two names.
+export default function TodayActivityFeed({ marketId, todayOnly = true, pendingOnly = false, recentLimit = 60 }) {
   const { data, error, loading, reload } = useAsync(
     async () => {
+      // Activities are the one source with a real server-side status
+      // filter already wired up. Home's original request (and Pending
+      // Tasks below) only ever wanted PENDING ones; Recent Activity
+      // deliberately omits the filter to show the real, full history
+      // (including already-approved/rejected) instead of silently
+      // hiding everything that's already been decided.
+      const activitiesStatus = todayOnly || pendingOnly ? "PENDING" : undefined;
       const [activities, itemReports, wasted, suddenTasks, extraHours] =
         await Promise.all([
-          listActivitiesForMarket({ marketId, status: "PENDING" }),
+          listActivitiesForMarket({ marketId, status: activitiesStatus }),
           listItemReportsForMarket({ marketId }),
           listWastedOverallReportsForMarket({ marketId }),
           listSuddenTasks({ status: "COMPLETED" }),
@@ -173,13 +196,19 @@ export default function TodayActivityFeed({ marketId }) {
           timestamp: r.createdAt,
           raw: r,
         })),
-      ]
-        .filter((item) => isToday(item.timestamp))
+      ];
+
+      const filtered = items
+        .filter((item) => !todayOnly || isToday(item.timestamp))
+        .filter((item) => !pendingOnly || item.raw.status === "PENDING")
         .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
 
-      return items;
+      return todayOnly ? filtered : filtered.slice(0, recentLimit);
     },
-    { deps: [marketId], fallbackError: "Could not load today's activity." },
+    {
+      deps: [marketId, todayOnly, pendingOnly, recentLimit],
+      fallbackError: todayOnly ? "Could not load today's activity." : "Could not load activity.",
+    },
   );
 
   const [selected, setSelected] = useState(null);
@@ -188,10 +217,15 @@ export default function TodayActivityFeed({ marketId }) {
   if (error) return <ErrorBanner message={error} onRetry={reload} />;
 
   if (data.length === 0) {
+    const emptyMessage = pendingOnly
+      ? "You're all caught up."
+      : todayOnly
+        ? "No activity yet today."
+        : "No recent activity yet.";
     return (
       <div className="rounded-2xl p-6 bg-[#171C2E]/80 border border-white/[0.06] text-center">
         <ClipboardList size={22} className="mx-auto text-[#4C5266] mb-2" />
-        <p className="text-sm text-[#8B93A8]">No activity yet today.</p>
+        <p className="text-sm text-[#8B93A8]">{emptyMessage}</p>
       </div>
     );
   }

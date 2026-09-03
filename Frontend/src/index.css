@@ -222,6 +222,51 @@ body {
   text-shadow: 0 0 18px rgba(244, 122, 32, 0.55), 0 0 42px rgba(244, 122, 32, 0.25);
 }
 
+/* Supervisor Home hero — the flowing orange/gold wind behind the glass
+   card. Seamless-loop technique: each wave layer is drawn TWICE at full
+   tile-width side by side inside a group twice as wide as its viewBox,
+   then that whole group is translated left by exactly one tile-width
+   (-50% of its own width = 100% of one tile). Because the two copies are
+   pixel-identical, the instant the first tile has scrolled fully out of
+   view the second tile is sitting exactly where the first one started —
+   there is no reset frame to see, `infinite` just keeps repeating an
+   already-seamless cycle. Three independent speeds (28s/42s/60s) on
+   three separate groups is what reads as layered depth rather than one
+   flat line moving in lockstep. */
+@keyframes windFlowFast {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+@keyframes windFlowSlow {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+@keyframes windFlowFaint {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+.animate-wind-fast {
+  animation: windFlowFast 28s linear infinite;
+}
+.animate-wind-slow {
+  animation: windFlowSlow 42s linear infinite;
+}
+.animate-wind-faint {
+  animation: windFlowFaint 60s linear infinite;
+}
+
 /* Respect reduced-motion preferences */
 @media (prefers-reduced-motion: reduce) {
   .animate-fade-up,
@@ -231,7 +276,10 @@ body {
   .animate-glow-pulse,
   .animate-ambient-drift,
   .animate-draw-line,
-  .animate-grow-bar {
+  .animate-grow-bar,
+  .animate-wind-fast,
+  .animate-wind-slow,
+  .animate-wind-faint {
     animation: none !important;
   }
   .shimmer::after {
