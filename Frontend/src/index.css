@@ -161,14 +161,18 @@ body {
 }
 
 /* NexaSplash.jsx — the app-open brand reveal. Kept in its own clearly-
-   labelled block since it's a one-shot sequence, not a reusable utility
-   like everything else in this file: each letter goes from a dark
-   metallic silhouette to a luminous silver fill (opacity + brightness
-   together, so it reads as "emerging from light" rather than a plain
-   fade), the wordmark gets exactly one light sweep after it assembles,
-   and the subtitle settles in afterward. All timing lives in
-   NexaSplash.jsx's own per-letter `animationDelay` — these keyframes
-   only define the motion shape, not the schedule. */
+   labelled block since these are one-shot-sequence keyframes, not
+   reusable utilities like everything else in this file.
+   nexaLetterIn — the badge's "N" fading in from a dark metallic
+   silhouette to a luminous silver fill (opacity + brightness together,
+   so it reads as "emerging from light" rather than a plain fade);
+   applied inline via `animation:` in NexaSplash.jsx (not this class)
+   since its delay is computed alongside the ring-draw timing there.
+   nexaSweep — the single light sweep across the assembled wordmark.
+   The badge ring-draw/glow keyframes (nexaRingDraw/nexaBadgeGlow) live
+   scoped inside NexaSplash.jsx itself instead of here, since
+   nexaRingDraw's dashoffset depends on the ring's own radius computed
+   in JS. */
 @keyframes nexaLetterIn {
   0% {
     opacity: 0;
@@ -202,25 +206,8 @@ body {
   }
 }
 
-@keyframes nexaSubtitleIn {
-  from {
-    opacity: 0;
-    letter-spacing: 0.5em;
-  }
-  to {
-    opacity: 1;
-    letter-spacing: 0.32em;
-  }
-}
-
-.animate-nexa-letter {
-  animation: nexaLetterIn 0.55s cubic-bezier(0.16, 1, 0.3, 1) both;
-}
 .animate-nexa-sweep {
   animation: nexaSweep 0.85s ease-in-out both;
-}
-.animate-nexa-subtitle {
-  animation: nexaSubtitleIn 0.7s ease-out both;
 }
 
 .animate-ambient-drift {
@@ -343,9 +330,7 @@ body {
   .animate-wind-fast,
   .animate-wind-slow,
   .animate-wind-faint,
-  .animate-nexa-letter,
-  .animate-nexa-sweep,
-  .animate-nexa-subtitle {
+  .animate-nexa-sweep {
     animation: none !important;
   }
   .shimmer::after {
