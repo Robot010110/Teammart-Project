@@ -1,8 +1,12 @@
-import { useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight, AlertTriangle, SlidersHorizontal, MinusCircle } from "lucide-react";
+import { useMemo, useRef, useState } from "react";
+import { ChevronLeft, ChevronRight, AlertTriangle, SlidersHorizontal, MinusCircle, Plus } from "lucide-react";
+import OffDaySheet from "./OffDaySheet";
 
 // AttendanceMonthGrid.jsx — a real month calendar grid for the employee's
 // own attendance, replacing the previous vertical day-list on this page.
+// Also the entry point for the Off-Day picker: tapping a blank, valid
+// (today-or-future) date opens OffDaySheet.jsx — "Attendance -> Calendar
+// -> Tap Date -> Choose Off Type".
 //
 // AttendanceCalendar.jsx (the list) is deliberately NOT modified: it is
 // shared with Supervisor Mode's EmployeeAttendanceScreen.jsx, so changing
@@ -14,11 +18,13 @@ import { ChevronLeft, ChevronRight, AlertTriangle, SlidersHorizontal, MinusCircl
 // returns days that actually have a record, and nothing here invents a
 // status for the rest.
 //
-// Status -> colour uses only values that exist in the AttendanceStatus
-// enum (schema.prisma). There is no "Half Day" in this data model, so
-// none is shown; DAY_OFF/APPROVED_LEAVE share the violet "Off / Leave"
-// bucket and EARLY_LEAVE/INCOMPLETE/PENDING_REVIEW share the sky
-// "Needs review" bucket.
+// Status -> colour uses only values that exist in this app's real data
+// model. DAY_OFF is split by its real dayOffType (WEEKLY/MONTHLY/
+// EMERGENCY/OTHER) rather than one merged "Off" bucket, so the calendar
+// visually distinguishes the three calendar-picked off types from each
+// other and from an Earned Day Off. EARLY_LEAVE/INCOMPLETE/
+// PENDING_REVIEW share the sky "Needs review" bucket — there is no
+// "Half Day" anywhere in this data model, so none is shown.
 
 const WEEK_START_MON = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
@@ -26,12 +32,27 @@ const BUCKETS = {
   PRESENT: { key: "present", label: "Present", dot: "#34D399", glow: "rgba(52,211,153,0.85)" },
   LATE: { key: "late", label: "Late", dot: "#F9A03C", glow: "rgba(249,160,60,0.85)" },
   ABSENT: { key: "absent", label: "Absent", dot: "#FF5C5C", glow: "rgba(255,92,92,0.85)" },
-  DAY_OFF: { key: "off", label: "Off / Leave", dot: "#A78BFA", glow: "rgba(167,139,250,0.85)" },
-  APPROVED_LEAVE: { key: "off", label: "Off / Leave", dot: "#A78BFA", glow: "rgba(167,139,250,0.85)" },
+  APPROVED_LEAVE: { key: "leave", label: "Personal Leave", dot: "#2DD4BF", glow: "rgba(45,212,191,0.85)" },
   EARLY_LEAVE: { key: "review", label: "Needs review", dot: "#38BDF8", glow: "rgba(56,189,248,0.85)" },
   INCOMPLETE: { key: "review", label: "Needs review", dot: "#38BDF8", glow: "rgba(56,189,248,0.85)" },
   PENDING_REVIEW: { key: "review", label: "Needs review", dot: "#38BDF8", glow: "rgba(56,189,248,0.85)" },
 };
+
+// DAY_OFF's real dayOffType decides its colour — Weekly/Monthly/
+// Emergency are visually distinct on purpose (spec: orange/purple/red),
+// and OTHER (Earned Day Off) gets its own tone rather than being lumped
+// in with any of the three.
+const DAY_OFF_BUCKETS = {
+  WEEKLY: { key: "weekly", label: "Weekly Off", dot: "#F9A03C", glow: "rgba(249,160,60,0.85)" },
+  MONTHLY: { key: "monthly", label: "Monthly Off", dot: "#A78BFA", glow: "rgba(167,139,250,0.85)" },
+  EMERGENCY: { key: "emergency", label: "Emergency Off", dot: "#FF5C5C", glow: "rgba(255,92,92,0.85)" },
+  OTHER: { key: "earned", label: "Earned Day Off", dot: "#38BDF8", glow: "rgba(56,189,248,0.85)" },
+};
+
+function bucketFor(record) {
+  if (record.status === "DAY_OFF") return DAY_OFF_BUCKETS[record.dayOffType] ?? DAY_OFF_BUCKETS.OTHER;
+  return BUCKETS[record.status] ?? null;
+}
 
 const STATUS_LABEL = {
   PRESENT: "Present",
@@ -39,7 +60,7 @@ const STATUS_LABEL = {
   EARLY_LEAVE: "Early Leave",
   ABSENT: "Absent",
   DAY_OFF: "Day Off",
-  APPROVED_LEAVE: "Approved Leave",
+  APPROVED_LEAVE: "Personal Leave",
   INCOMPLETE: "Incomplete",
   PENDING_REVIEW: "Pending Review",
 };
@@ -52,8 +73,16 @@ const MONTHS = [
 const timeLabel = (iso) =>
   iso ? new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) : "--:--";
 
-export default function AttendanceMonthGrid({ year, month, days, onChangeMonth }) {
+export default function AttendanceMonthGrid({ year, month, days, onChangeMonth, onOffDayCreated }) {
   const [selectedDay, setSelectedDay] = useState(null);
+  // The UTC-midnight Date of a tapped blank, valid date — opens
+  // OffDaySheet when set. Distinct from selectedDay (which shows detail
+  // for an EXISTING record) since these are two different interactions.
+  const [pickerDate, setPickerDate] = useState(null);
+  // Whether the currently-open sheet actually created something — a
+  // ref, not state, since setting it must never itself trigger a
+  // re-render (see the sheet's onClose below for why).
+  const createdRef = useRef(false);
 
   // Index real records by day-of-month for O(1) lookup while building the
   // grid, rather than scanning the array per cell.
@@ -83,7 +112,7 @@ export default function AttendanceMonthGrid({ year, month, days, onChangeMonth }
 
     const counts = {};
     for (const rec of days ?? []) {
-      const b = BUCKETS[rec.status];
+      const b = bucketFor(rec);
       if (!b) continue;
       counts[b.key] = counts[b.key] ?? { ...b, count: 0 };
       counts[b.key].count += 1;
@@ -93,6 +122,17 @@ export default function AttendanceMonthGrid({ year, month, days, onChangeMonth }
 
   const today = new Date();
   const isThisMonth = today.getFullYear() === year && today.getMonth() + 1 === month;
+
+  // UTC-midnight "today", matching how AttendanceRecord/LeaveRequest
+  // dates are actually stored (see leaveRequestsController's own
+  // comment on this exact convention) — a blank cell is only offered as
+  // a real off-day pick when its date is >= this. Past blank cells stay
+  // disabled and non-interactive, never opening the picker.
+  const todayUtc = useMemo(
+    () => new Date(Date.UTC(today.getFullYear(), today.getMonth(), today.getDate())),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    []
+  );
 
   return (
     <div>
@@ -131,34 +171,52 @@ export default function AttendanceMonthGrid({ year, month, days, onChangeMonth }
             <div key={c.key} />
           ) : (
             (() => {
-              const bucket = c.record ? BUCKETS[c.record.status] : null;
+              const bucket = c.record ? bucketFor(c.record) : null;
               const isToday = isThisMonth && c.day === today.getDate();
               const isSelected = selectedDay === c.day;
+              const cellDateUtc = new Date(Date.UTC(year, month - 1, c.day));
+              // A blank date only becomes a real off-day pick when it's
+              // today or later — a past blank date has no record simply
+              // because it predates this employee's history/imports, not
+              // because it's available to claim.
+              const isPickable = !c.record && cellDateUtc >= todayUtc;
+              const disabled = !c.record && !isPickable;
+
+              const handleClick = () => {
+                if (c.record) {
+                  setSelectedDay(isSelected ? null : c.day);
+                } else if (isPickable) {
+                  setPickerDate(cellDateUtc);
+                }
+              };
+
               return (
                 <button
                   key={c.key}
                   type="button"
-                  disabled={!c.record}
-                  onClick={() => setSelectedDay(isSelected ? null : c.day)}
+                  disabled={disabled}
+                  onClick={handleClick}
                   aria-label={
                     c.record
                       ? `${MONTHS[month - 1]} ${c.day}: ${STATUS_LABEL[c.record.status] ?? c.record.status}`
-                      : `${MONTHS[month - 1]} ${c.day}: no record`
+                      : isPickable
+                        ? `${MONTHS[month - 1]} ${c.day}: add an off day`
+                        : `${MONTHS[month - 1]} ${c.day}: no record`
                   }
                   aria-pressed={isSelected}
-                  className={`relative mx-auto flex h-9 w-9 sm:h-10 sm:w-10 flex-col items-center justify-center rounded-xl transition-all duration-200 ${
+                  className={`group relative mx-auto flex h-9 w-9 sm:h-10 sm:w-10 flex-col items-center justify-center rounded-xl transition-all duration-200 ${
                     isSelected
                       ? "bg-violet-500/[0.18] ring-1 ring-violet-400/60 shadow-[0_0_16px_-2px_rgba(167,139,250,0.7)]"
                       : isToday
                         ? "ring-1 ring-[#F47A20]/50"
-                        : c.record
+                        : c.record || isPickable
                           ? "hover:bg-white/[0.05]"
                           : ""
-                  } ${c.record ? "cursor-pointer" : "cursor-default"}`}
+                  } ${c.record || isPickable ? "cursor-pointer" : "cursor-default"}`}
                 >
                   <span
                     className={`text-[12px] sm:text-[13px] leading-none tabular-nums ${
-                      c.record ? "text-white font-medium" : "text-[#3C4256]"
+                      c.record ? "text-white font-medium" : isPickable ? "text-[#8B93A8]" : "text-[#3C4256]"
                     }`}
                   >
                     {c.day}
@@ -168,6 +226,14 @@ export default function AttendanceMonthGrid({ year, month, days, onChangeMonth }
                       className="mt-1 h-[5px] w-[5px] rounded-full"
                       style={{ background: bucket.dot, boxShadow: `0 0 6px 1px ${bucket.glow}` }}
                     />
+                  )}
+                  {/* Faint "+" affordance on a pickable blank date — only
+                      on hover/focus so the grid doesn't look cluttered
+                      with plus signs on every open day at rest. */}
+                  {isPickable && (
+                    <span className="absolute -top-1 -right-1 opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 transition-opacity text-[#F47A20]">
+                      <Plus size={9} strokeWidth={3} />
+                    </span>
                   )}
                 </button>
               );
@@ -195,13 +261,40 @@ export default function AttendanceMonthGrid({ year, month, days, onChangeMonth }
       {selectedDay != null && byDay.get(selectedDay) && (
         <SelectedDay record={byDay.get(selectedDay)} monthLabel={MONTHS[month - 1]} day={selectedDay} />
       )}
+
+      {pickerDate && (
+        <OffDaySheet
+          date={pickerDate}
+          onClose={() => {
+            setPickerDate(null);
+            // Deferred to close, not fired the instant creation succeeds:
+            // onOffDayCreated ultimately calls the parent's reload(),
+            // which flips AttendanceSection's `loading` back to true and
+            // unmounts the whole calendar block THIS component lives in
+            // (see AttendanceSection.jsx's `{!loading && ... && (<>)}`)
+            // — including this sheet. Calling it eagerly was yanking the
+            // success screen out from under the employee before they
+            // ever saw it. Waiting until the sheet is actually being
+            // closed (Done, X, or Escape) means the confirmation is
+            // always shown first; the calendar still refreshes from real
+            // backend data immediately after, same as a reload would.
+            if (createdRef.current) {
+              createdRef.current = false;
+              onOffDayCreated?.();
+            }
+          }}
+          onCreated={() => {
+            createdRef.current = true;
+          }}
+        />
+      )}
     </div>
   );
 }
 
 function SelectedDay({ record, monthLabel, day }) {
   const isOff = record.status === "DAY_OFF" || record.status === "APPROVED_LEAVE";
-  const bucket = BUCKETS[record.status];
+  const bucket = bucketFor(record);
 
   return (
     <div className="animate-fade-up mt-4 rounded-2xl p-3.5 bg-[#12172A]/80 border border-white/[0.07]">
@@ -214,7 +307,7 @@ function SelectedDay({ record, monthLabel, day }) {
           style={{ color: bucket?.dot ?? "#9AA1B4", background: `${bucket?.dot ?? "#9AA1B4"}1A` }}
         >
           <span className="h-1.5 w-1.5 rounded-full" style={{ background: bucket?.dot ?? "#9AA1B4" }} />
-          {STATUS_LABEL[record.status] ?? record.status}
+          {bucket?.label ?? STATUS_LABEL[record.status] ?? record.status}
         </span>
       </div>
 
@@ -239,12 +332,6 @@ function SelectedDay({ record, monthLabel, day }) {
           {record.status === "INCOMPLETE" ? "Missing check-in or check-out" : "Awaiting supervisor review"}
         </p>
       )}
-      {record.status === "DAY_OFF" && record.dayOffType && (
-        <p className="mt-2 text-[11.5px] text-[#9AA1B4]">
-          {record.dayOffType.charAt(0) + record.dayOffType.slice(1).toLowerCase()} off day
-        </p>
-      )}
-
       {record.punishmentHours > 0 && (
         <p className="mt-2 flex items-center gap-1.5 text-[11.5px] text-[#FF5C5C]">
           <MinusCircle size={12} /> Penalty −{record.punishmentHours.toFixed(1)}h

@@ -942,6 +942,13 @@ export const companyAttendanceQuerySchema = z.object({
   search: z.string().min(1).optional(),
 });
 
+// GET /api/attendance/market/today — Supervisor Home's Team Status.
+// marketId optional: defaults to the caller's own token-embedded market
+// in the controller, still checked by assertMarketAccess either way.
+export const marketAttendanceTodayQuerySchema = z.object({
+  marketId: z.string().min(1).optional(),
+});
+
 // Admin Phase 1 — company-wide Activities view (§17).
 export const companyActivitiesQuerySchema = z.object({
   marketId: z.string().min(1).optional(),
@@ -1094,25 +1101,47 @@ export const listPriceReportsQuerySchema = z.object({
 });
 
 // ---------------------------------------------------------------------
-// Leave Requests — Off Day / Personal Leave, employee-submitted,
-// Supervisor-reviewed.
+// Leave Requests — Off Day / Personal Leave, employee-submitted.
+//
+// WEEKLY_OFF / MONTHLY_OFF / EMERGENCY_OFF (Attendance calendar picker)
+// were added here alongside the original three — the create endpoint
+// previously 400'd on all three with "Invalid enum value" because only
+// the Prisma enum had been extended, not this schema. See
+// leaveRequestsController.createLeaveRequest for how these three differ
+// from PERSONAL_LEAVE/EARNED_DAY_OFF (instant-approved, no Supervisor
+// review step, real backend quota checks).
 // ---------------------------------------------------------------------
 export const createLeaveRequestSchema = z
   .object({
     date: z.coerce.date(),
-    type: z.enum(["MONTHLY_OFF", "PERSONAL_LEAVE", "EARNED_DAY_OFF"]),
+    type: z.enum(["WEEKLY_OFF", "MONTHLY_OFF", "EMERGENCY_OFF", "PERSONAL_LEAVE", "EARNED_DAY_OFF"]),
     reason: z.string().min(2).max(500).optional(),
   })
-  // Reason is required for Personal Leave but not for a scheduled Monthly
-  // Off day — matches spec §10 exactly ("The employee must provide a
-  // written reason" only under Personal Leave / Other Reason).
+  // Reason is required for Personal Leave (spec §10: "The employee must
+  // provide a written reason") and for Emergency Off — an urgent/
+  // unexpected absence is exactly the case where the Supervisor's
+  // informational notification needs to say WHY, not just that it
+  // happened. Not required for Weekly/Monthly Off, which are routine and
+  // scheduled. Two separate refinements so each type gets its own
+  // accurate error message instead of one generic one.
   .refine((data) => data.type !== "PERSONAL_LEAVE" || !!data.reason, {
     message: "A reason is required for Personal Leave",
+    path: ["reason"],
+  })
+  .refine((data) => data.type !== "EMERGENCY_OFF" || !!data.reason, {
+    message: "A reason is required for Emergency Off",
     path: ["reason"],
   });
 
 export const reviewLeaveRequestSchema = z.object({
   reviewNote: z.string().max(500).optional(),
+});
+
+// GET /api/leave-requests/quota?date= — real weekly/monthly off-day usage
+// for the week/month containing `date`, so the calendar picker can
+// disable an already-exhausted option before the employee taps it.
+export const leaveQuotaQuerySchema = z.object({
+  date: z.coerce.date(),
 });
 
 export const listLeaveRequestsQuerySchema = z.object({

@@ -50,6 +50,13 @@ import { useToast } from "../../hooks/useToast";
 // `onBack` is optional so any existing caller that renders this without
 // a header (or inside its own chrome) keeps working unchanged; the
 // header only appears when a back handler is actually supplied.
+//
+// NOTE: this page no longer links out to Personal Leave / Earned Day
+// Off (the "More Leave Options" row was removed on request). The
+// underlying route (/me/profile/leave, LeaveRequestSection) and its
+// backend are untouched and still fully functional — there is just no
+// UI entry point into them anymore. See ProfileTab.jsx's own comment on
+// the same route.
 export default function AttendanceSection({ onBack }) {
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
@@ -154,6 +161,7 @@ export default function AttendanceSection({ onBack }) {
                   setYear(y);
                   setMonth(m);
                 }}
+                onOffDayCreated={handleAttendanceChanged}
               />
             </section>
           </div>

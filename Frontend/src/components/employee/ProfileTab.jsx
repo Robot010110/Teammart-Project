@@ -1,5 +1,5 @@
 import { Routes, Route, Navigate, useNavigate } from "react-router-dom";
-import { CalendarDays, TrendingUp, CalendarOff, Settings as SettingsIcon, ChevronRight } from "lucide-react";
+import { CalendarDays, TrendingUp, Settings as SettingsIcon, ChevronRight } from "lucide-react";
 import ProfileHeaderCard from "./ProfileHeaderCard";
 import AttendanceSection from "./AttendanceSection";
 import LeaveRequestSection from "./LeaveRequestSection";
@@ -10,10 +10,16 @@ import { SkeletonCard } from "../common/SkeletonCard";
 import { getProfile } from "../../services/profileService";
 import { useAsync } from "../../hooks/useAsync";
 
+// "Off Days / Leave" is deliberately NOT a menu item here anymore — the
+// Attendance redesign moved off-day selection (Weekly/Monthly/Emergency
+// Off) into the Attendance page's own calendar (tap a date -> Choose Off
+// Type). Personal Leave / Earned Day Off still exist and are still
+// reachable at the "leave" route below (see the Routes block) — only
+// the Profile menu entry pointing at it was removed, not the route,
+// the screen, the backend, or any LeaveRequest functionality.
 const MENU = [
   { key: "attendance", label: "Attendance", icon: CalendarDays, bg: "bg-sky-500/10", tone: "text-sky-400", glow: "glow-sky" },
   { key: "performance", label: "Performance History", icon: TrendingUp, bg: "bg-violet-500/10", tone: "text-violet-400", glow: "glow-violet" },
-  { key: "leave", label: "Off Days / Leave", icon: CalendarOff, bg: "bg-emerald-500/10", tone: "text-emerald-400", glow: "glow-emerald" },
   { key: "settings", label: "Settings", icon: SettingsIcon, bg: "bg-[#F47A20]/10", tone: "text-[#F47A20]", glow: "glow-orange" },
 ];
 
@@ -65,11 +71,16 @@ function ArrowLeftMenu({ label, onBack, children }) {
 
 // ProfileTab.jsx — the Profile tab's content: menu -> Attendance
 // (unchanged AttendanceSection), Performance History (also hosts "My
-// Activities" — see PerformanceHistoryScreen.jsx), Off Days/Leave
-// (unchanged LeaveRequestSection), Settings. Each entry is now a real
-// route under `basePath` (e.g. /me/profile/performance) instead of local
-// `screen` state, so Back from any of these returns to the Profile menu
-// as a real history entry.
+// Activities" — see PerformanceHistoryScreen.jsx), Settings. Each entry
+// is a real route under `basePath` (e.g. /me/profile/performance)
+// instead of local `screen` state, so Back from any of these returns to
+// the Profile menu as a real history entry.
+//
+// The "leave" route (Personal Leave / Earned Day Off, via the unchanged
+// LeaveRequestSection) still exists below and is still fully functional
+// — it's just no longer listed in MENU, since Weekly/Monthly/Emergency
+// Off moved to the Attendance calendar and Profile doesn't need two
+// off-day entry points. Nothing under /me/profile/leave was deleted.
 export default function ProfileTab({ onLogout, basePath }) {
   const navigate = useNavigate();
   const goToMenu = () => navigate(basePath);
@@ -85,6 +96,10 @@ export default function ProfileTab({ onLogout, basePath }) {
           Off Days / Leave below. Back still goes through this tab's own
           goToMenu, so the entry point is unchanged. */}
       <Route path="attendance" element={<AttendanceSection onBack={goToMenu} />} />
+      {/* No UI links here anymore (removed on request — see
+          AttendanceSection.jsx's own note) but the route, screen, and
+          backend are all still real and functional — reachable directly
+          at /me/profile/leave if a future entry point is added. */}
       <Route
         path="leave"
         element={
