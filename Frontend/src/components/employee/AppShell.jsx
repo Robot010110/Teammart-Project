@@ -35,13 +35,28 @@ import Logo from "../common/Logo";
 // tabs: [{ key, label, icon: LucideIcon, badge?: number }] — no `content`
 // anymore; each tab's screen is a nested <Route path={key}> the caller
 // defines, matching the URL instead of being picked by local state.
-export default function AppShell({ tabs, basePath, showNotificationBell = false }) {
+export default function AppShell({ tabs, basePath, showNotificationBell = false, selfHeaderedRoutes = [] }) {
   const location = useLocation();
   const navigate = useNavigate();
 
   // Active tab = the one whose path segment prefixes the current URL, so
   // a drill-down route like /me/tasks/abc123 still highlights "Tasks".
   const activeTab = tabs.find((t) => location.pathname.startsWith(`${basePath}/${t.key}`))?.key ?? tabs[0]?.key;
+
+  // selfHeaderedRoutes — absolute paths whose screen renders its OWN
+  // header, so this shell suppresses its top bar rather than stacking a
+  // second one above it. Currently just Performance, which is reached
+  // from Profile as a destination (not a tab) and is deliberately
+  // branded with a CENTERED wordmark — having this shell's left-aligned
+  // logo on screen at the same time would defeat that entirely.
+  //
+  // Defaults to [] so every existing caller (Cashier, Supervisor,
+  // Regional Manager, Admin) is completely unaffected. The bottom nav is
+  // never suppressed — only the top bar — so tab navigation and its
+  // active state stay exactly as they are on every screen.
+  const isSelfHeadered = selfHeaderedRoutes.some(
+    (p) => location.pathname === p || location.pathname.startsWith(`${p}/`)
+  );
 
   return (
     <div className="relative min-h-screen flex flex-col bg-[#050A18] overflow-hidden">
@@ -50,7 +65,7 @@ export default function AppShell({ tabs, basePath, showNotificationBell = false 
         <div className="absolute top-1/2 -left-24 w-80 h-80 rounded-full bg-[#1D2D5C]/50 blur-3xl animate-ambient-drift" style={{ animationDelay: "-4.5s" }} />
       </div>
 
-      {showNotificationBell && (
+      {showNotificationBell && !isSelfHeadered && (
         <div className="relative sticky top-0 z-20 h-14 flex items-center justify-between px-4 sm:px-6 bg-[#050A18]/85 backdrop-blur-xl border-b border-white/[0.05]">
           {/* Cleanup Phase §9 — logo click -> homepage, reusing the exact
               same routing this shell already does for a bottom-nav tab

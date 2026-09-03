@@ -36,7 +36,20 @@ export default function EmployeeWorkspace({ employeeId, onLogout }) {
 
   return (
     <Routes>
-      <Route element={<AppShell tabs={tabs} basePath={BASE_PATH} showNotificationBell />}>
+      {/* Performance renders its own centered header (see
+          PerformanceHeader.jsx), so the shell's left-aligned top bar is
+          suppressed there — bottom nav is untouched and still highlights
+          Profile, which is where this screen actually lives. */}
+      <Route
+        element={
+          <AppShell
+            tabs={tabs}
+            basePath={BASE_PATH}
+            showNotificationBell
+            selfHeaderedRoutes={[`${BASE_PATH}/profile/performance`]}
+          />
+        }
+      >
         <Route index element={<Navigate to="home" replace />} />
         <Route path="home" element={<HomeTab basePath={BASE_PATH} onNavigate={(tab) => navigate(`${BASE_PATH}/${tab}`)} />} />
         <Route path="tasks" element={<SuddenTaskListScreen basePath={BASE_PATH} />} />

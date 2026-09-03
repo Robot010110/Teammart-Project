@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Clock3, ImageIcon, Pencil, Trash2, Loader2 } from "lucide-react";
 import { CATEGORY_LABELS } from "../../data/workspaceData";
 import { canEditActivity, canDeleteActivity } from "../../data/activityRules";
@@ -12,11 +12,11 @@ import ActivityStatusPill from "../common/ActivityStatusPill";
 // the actual backend lifecycle exactly, nothing derived/invented on top
 // of it.
 //
-// TODO(supervisor-review): today nothing in this app ever sets an
-// Activity to Approved/Rejected — there is no review endpoint yet (see
-// backend/src/controllers/activitiesController.js). Once the Supervisor
-// module adds one, those two tabs will start showing real data without
-// any change needed here.
+// The Approved/Rejected tabs are live: a Supervisor decides an activity
+// through POST /api/activities/:id/review (activitiesController.
+// reviewActivity), reached from DepartmentReportReviewModal.jsx and
+// TodayActivityFeed.jsx. (An older comment here claimed no review
+// endpoint existed yet — it was written before that endpoint shipped.)
 //
 // Edit is only offered for Draft/Pending (matches the backend's own rule
 // in activitiesController.js — anything else 400s). Delete is only
@@ -34,8 +34,19 @@ function matchesTab(activity, tab) {
   return false;
 }
 
-export default function TaskStatusTabs({ activities, onEdit, onDelete, deletingId }) {
+// `requestedTab` (optional) lets a caller open this on a specific tab —
+// the Performance page's Approved/Pending/Rejected hero cards use it to
+// drill down into the matching list. It's a request, not a lock: the
+// user can still switch tabs freely afterwards. Omitted by any caller
+// that doesn't need it, which keeps the original "always opens on
+// Pending" behaviour exactly as it was.
+export default function TaskStatusTabs({ activities, onEdit, onDelete, deletingId, requestedTab }) {
   const [tab, setTab] = useState("Pending");
+
+  useEffect(() => {
+    if (requestedTab && TABS.includes(requestedTab)) setTab(requestedTab);
+  }, [requestedTab]);
+
   const filtered = activities.filter((a) => matchesTab(a, tab));
 
   return (

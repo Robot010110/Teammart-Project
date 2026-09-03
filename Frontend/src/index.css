@@ -164,6 +164,64 @@ body {
   animation: ambientDrift 9s ease-in-out infinite;
 }
 
+/* Performance page — skeleton shimmer. A loading card should read as the
+   real card's silhouette (correct dimensions + a light sweep), never a
+   generic centered spinner. */
+@keyframes shimmerSweep {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.shimmer {
+  position: relative;
+  overflow: hidden;
+}
+.shimmer::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.05), transparent);
+  animation: shimmerSweep 1.6s ease-in-out infinite;
+}
+
+/* Performance page — the trend line draws itself in on first paint.
+   Driven by stroke-dasharray/offset set inline per path length, so this
+   keyframe only has to run the offset to zero. */
+@keyframes drawLine {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+.animate-draw-line {
+  animation: drawLine 1.4s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+/* Performance page — a consistency bar growing from its baseline. */
+@keyframes growBar {
+  from {
+    transform: scaleY(0);
+  }
+  to {
+    transform: scaleY(1);
+  }
+}
+
+.animate-grow-bar {
+  transform-origin: bottom;
+  animation: growBar 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Performance page — text glow for the hero score. Kept to the one
+   number that is the page's focal point; body copy never gets this. */
+.text-glow-orange {
+  text-shadow: 0 0 18px rgba(244, 122, 32, 0.55), 0 0 42px rgba(244, 122, 32, 0.25);
+}
+
 /* Respect reduced-motion preferences */
 @media (prefers-reduced-motion: reduce) {
   .animate-fade-up,
@@ -171,8 +229,22 @@ body {
   .animate-modal-in,
   .animate-slide-in,
   .animate-glow-pulse,
-  .animate-ambient-drift {
+  .animate-ambient-drift,
+  .animate-draw-line,
+  .animate-grow-bar {
     animation: none !important;
+  }
+  .shimmer::after {
+    animation: none !important;
+  }
+  /* The line must still be visible when its draw-in is disabled — the
+     animation is what sets dashoffset to 0, so without this the path
+     would stay fully hidden. */
+  .animate-draw-line {
+    stroke-dashoffset: 0 !important;
+  }
+  .animate-grow-bar {
+    transform: scaleY(1) !important;
   }
 }
 

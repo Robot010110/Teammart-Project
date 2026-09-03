@@ -1,18 +1,26 @@
-import { ArrowLeft, TrendingUp, CheckCircle2, XCircle, HourglassIcon, Clock3, PackageX } from "lucide-react";
+import { Clock3, PackageX } from "lucide-react";
 import ErrorBanner from "../common/ErrorBanner";
 import { SkeletonCard } from "../common/SkeletonCard";
 import Toast from "../common/Toast";
 import ActivityStatusPill from "../common/ActivityStatusPill";
 import TaskStatusTabs from "../workspace/TaskStatusTabs";
 import SubmitTaskModal from "../workspace/SubmitTaskModal";
+import PerformanceHeader from "./performance/PerformanceHeader";
+import PerformanceHero from "./performance/PerformanceHero";
+import PerformanceTrendChart from "./performance/PerformanceTrendChart";
+import ConsistencyChart from "./performance/ConsistencyChart";
+import PerformanceBreakdown from "./performance/PerformanceBreakdown";
+import RecentReviews from "./performance/RecentReviews";
+import HighlightsCard from "./performance/HighlightsCard";
+import PerformanceSkeleton from "./performance/PerformanceSkeleton";
 import { getPerformanceSummary, getActivityPerformanceHistory, listActivities, deleteActivity } from "../../services/activityService";
-import { listMyExtraHoursRequests } from "../../services/attendanceService";
+import { listMyExtraHoursRequests, getPerformanceHistory as getAttendancePerformanceHistory } from "../../services/attendanceService";
 import { listMyWastedOverallReports } from "../../services/wastedOverallService";
 import { ApiError } from "../../services/apiClient";
 import { canEditActivity, canDeleteActivity } from "../../data/activityRules";
 import { useAsync } from "../../hooks/useAsync";
 import { useToast } from "../../hooks/useToast";
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 const WASTED_ITEM_LABEL = { EGGS: "Eggs", TOMATO: "Tomato", POTATO: "Potato", CUCUMBER: "Cucumber", ONION: "Onion", OTHER: "Other" };
 function wastedItemLabel(report) {
@@ -26,65 +34,56 @@ function shortDateLabel(iso) {
   return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
-const MONTH_NAMES = [
-  "January", "February", "March", "April", "May", "June",
-  "July", "August", "September", "October", "November", "December",
-];
-
-function rateTone(rate) {
-  if (rate == null) return "text-[#4C5266]";
-  if (rate >= 90) return "text-emerald-400";
-  if (rate >= 75) return "text-amber-400";
-  return "text-red-400";
-}
-
-function rateLabel(rate) {
-  return rate == null ? "—" : `${Math.round(rate)}%`;
-}
-
-function weekLabel(weekStart, index) {
-  if (index === 0) return "This Week";
-  if (index === 1) return "Last Week";
-  return new Date(weekStart).toLocaleDateString("en-US", { month: "short", day: "numeric" });
-}
-
-function HistoryRow({ label, rate, sublabel }) {
-  return (
-    <div className="rounded-xl p-4 bg-[#1A1F33]/70 border border-white/[0.06] flex items-center justify-between">
-      <div>
-        <p className="text-sm font-medium text-white">{label}</p>
-        {sublabel && <p className="text-xs text-[#8B93A8] mt-0.5">{sublabel}</p>}
-      </div>
-      <div className={`flex items-center gap-1.5 text-base font-bold ${rateTone(rate)}`}>
-        <TrendingUp size={15} />
-        {rateLabel(rate)}
-      </div>
-    </div>
-  );
-}
-
-// PerformanceHistoryScreen.jsx — the real Performance metric: approved /
-// (approved + rejected) reviewed Activities, DRAFT/PENDING excluded (see
-// activitiesController.computeActivityPerformance). "Current" + weekly +
-// monthly history, current in-progress periods included and labeled —
-// unlike Attendance Rate (which never shows the current month as final),
-// this screen's own spec explicitly wants a live "This Week"/current
-// figure alongside history.
+// PerformanceHistoryScreen.jsx — the Employee Performance page, reached
+// from Profile -> Performance. Composed from ./performance/*, in the
+// order the design calls for: centered header, Overall Score hero,
+// Performance Trend, Activity Consistency, Performance Breakdown, Recent
+// Reviews, Your Highlights — then the record-keeping sections this
+// screen has always hosted (My Activities, Extra Hours, Wasted Overall),
+// which are unchanged and were deliberately kept rather than dropped in
+// the redesign.
 //
-// Also hosts "My Activities" — the employee's own Draft/Pending/Approved/
-// Rejected activity history, relocated here from the Activity tab (which
-// is now focused on submitting activities, not reviewing past ones).
-// Same TaskStatusTabs component, same edit/delete rules
-// (data/activityRules.js) and endpoints as before — nothing was
-// duplicated or rebuilt, just moved.
+// The metric itself is untouched: approved / (approved + rejected)
+// reviewed Activities, DRAFT/PENDING excluded, computed server-side in
+// activitiesController.computeActivityPerformance. Nothing here
+// recalculates performance — the visual layer only presents what the
+// backend already returns.
+//
+// Every figure on this page is real:
+//   GET /api/activities/performance          overall rate + status counts
+//   GET /api/activities/performance-history  weekly/monthly trend buckets
+//   GET /api/activities                      consistency + recent reviews
+//   GET /api/attendance/performance-history  the Attendance breakdown card
+// The first two are the same endpoints this screen already used; the
+// last two are lists the page was already loading or that already exist.
+// No endpoint was added and no controller was modified for this redesign.
+//
+// Loading/error handling is intentionally per-section rather than
+// page-wide: a failure fetching, say, the attendance rate degrades that
+// one metric card to an em dash instead of replacing the whole page with
+// an error, and nothing ever substitutes placeholder numbers for data
+// that failed to load.
 export default function PerformanceHistoryScreen({ onBack }) {
   const { data: summary, error: summaryError, loading: summaryLoading, reload: reloadSummary } = useAsync(
     getPerformanceSummary,
     { deps: [] }
   );
+  // 8 weeks (up from 4) so the trend chart has a readable curve and the
+  // streak/best-week highlights have a real window to look back over.
+  // The backend already caps this at 12 — no change needed there.
   const { data: history, error: historyError, loading: historyLoading, reload: reloadHistory } = useAsync(
-    () => getActivityPerformanceHistory({ weeks: 4, months: 6 }),
+    () => getActivityPerformanceHistory({ weeks: 8, months: 6 }),
     { deps: [] }
+  );
+  // Attendance Rate for the Performance Breakdown. 6 months so the card's
+  // sparkline has a real series and its month-over-month delta is a true
+  // comparison — this endpoint only ever reports COMPLETED months, so the
+  // most recent entry is the latest finished one, never a partial figure.
+  // Loaded independently so a failure here degrades only that one metric
+  // card rather than the page.
+  const { data: attendanceHistory, error: attendanceError } = useAsync(
+    () => getAttendancePerformanceHistory({ months: 6 }),
+    { deps: [], fallbackError: "Could not load attendance rate." }
   );
   const {
     data: activities,
@@ -154,95 +153,70 @@ export default function PerformanceHistoryScreen({ onBack }) {
   const loading = summaryLoading || historyLoading;
   const error = summaryError || historyError;
 
-  return (
-    <div className="px-4 sm:px-6 py-6 max-w-4xl mx-auto animate-fade-up">
-      <button
-        type="button"
-        onClick={onBack}
-        className="flex items-center gap-1.5 text-sm text-[#9AA1B4] hover:text-white mb-4 -ml-1 py-1.5 px-1"
-      >
-        <ArrowLeft size={16} /> Back to Profile
-      </button>
+  // Set when a hero status card is tapped: scrolls to My Activities and
+  // opens it on the matching tab (§9 drill-down).
+  const [requestedTab, setRequestedTab] = useState(null);
+  const activitiesRef = useRef(null);
 
-      <h1 className="text-lg font-semibold text-white mb-1">Performance History</h1>
-      <p className="text-xs text-[#8B93A8] mb-5">Based on your reviewed daily activities — approved vs. rejected.</p>
+  const handleStatusSelect = (tab) => {
+    setRequestedTab(tab);
+    activitiesRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
+  return (
+    <div className="px-4 sm:px-6 pb-6 max-w-4xl mx-auto animate-fade-up">
+      <PerformanceHeader onBack={onBack} />
 
       {loading ? (
-        <SkeletonCard className="h-[300px]" />
+        <div className="mt-6">
+          <PerformanceSkeleton />
+        </div>
       ) : error ? (
-        <ErrorBanner message={error} onRetry={() => { reloadSummary(); reloadHistory(); }} />
+        <div className="mt-6">
+          <ErrorBanner message={error} onRetry={() => { reloadSummary(); reloadHistory(); }} />
+        </div>
       ) : (
-        <>
-          <section className="rounded-2xl p-5 bg-[#171C2E]/80 border border-white/[0.06] backdrop-blur-xl">
-            <div className="flex items-center justify-between mb-4">
-              <p className="text-sm font-semibold text-white">Current</p>
-              <p className={`text-2xl font-bold ${rateTone(summary.rate)}`}>{rateLabel(summary.rate)}</p>
-            </div>
-            {summary.totalReviewed === 0 ? (
-              <p className="text-xs text-[#4C5266]">No performance data yet — nothing has been reviewed.</p>
-            ) : (
-              <div className="grid grid-cols-3 gap-3 text-center">
-                <div>
-                  <p className="flex items-center justify-center gap-1 text-emerald-400 font-semibold">
-                    <CheckCircle2 size={13} /> {summary.approved}
-                  </p>
-                  <p className="text-[11px] text-[#8B93A8] mt-1">Approved</p>
-                </div>
-                <div>
-                  <p className="flex items-center justify-center gap-1 text-red-400 font-semibold">
-                    <XCircle size={13} /> {summary.rejected}
-                  </p>
-                  <p className="text-[11px] text-[#8B93A8] mt-1">Rejected</p>
-                </div>
-                <div>
-                  <p className="flex items-center justify-center gap-1 text-amber-400 font-semibold">
-                    <HourglassIcon size={13} /> {summary.pending}
-                  </p>
-                  <p className="text-[11px] text-[#8B93A8] mt-1">Pending</p>
-                </div>
-              </div>
-            )}
-          </section>
+        <div className="mt-6 space-y-6">
+          <PerformanceHero summary={summary} weekly={history.weekly} onStatusSelect={handleStatusSelect} />
 
-          <section className="mt-6">
-            <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-[#8B93A8]">Weekly</h2>
-            <div className="space-y-2.5">
-              {history.weekly.map((w, i) => (
-                <HistoryRow
-                  key={w.weekStart}
-                  label={weekLabel(w.weekStart, i)}
-                  rate={w.rate}
-                  sublabel={w.totalReviewed > 0 ? `${w.approved} approved, ${w.rejected} rejected` : "Nothing reviewed"}
-                />
-              ))}
-            </div>
-          </section>
+          {/* The trend's Week view and the consistency bars both read the
+              same activity list this page already loads for Recent
+              Reviews — no extra request for either. */}
+          <PerformanceTrendChart activities={activities} monthly={history.monthly} />
 
-          <section className="mt-6">
-            <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-[#8B93A8]">Monthly</h2>
-            <div className="space-y-2.5">
-              {history.monthly.map((m) => (
-                <HistoryRow
-                  key={`${m.year}-${m.month}`}
-                  label={`${MONTH_NAMES[m.month - 1]} ${m.year}`}
-                  rate={m.rate}
-                  sublabel={m.totalReviewed > 0 ? `${m.approved} approved, ${m.rejected} rejected` : "Nothing reviewed"}
-                />
-              ))}
-            </div>
-          </section>
+          {activities && <ConsistencyChart activities={activities} />}
 
-          <section className="mt-6">
-            <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-[#8B93A8]">My Activities</h2>
+          <PerformanceBreakdown
+            summary={summary}
+            weekly={history.weekly}
+            attendanceHistory={attendanceHistory}
+            attendanceError={attendanceError}
+            onViewAll={() => handleStatusSelect("Approved")}
+          />
+
+          {!activitiesLoading && !activitiesError && activities && (
+            <RecentReviews activities={activities} onSeeAll={() => handleStatusSelect("Approved")} />
+          )}
+
+          <HighlightsCard weekly={history.weekly} activities={activities} />
+
+          <section ref={activitiesRef} className="scroll-mt-4">
+            <h2 className="mb-3 text-sm font-semibold text-white">My Activities</h2>
             {activitiesLoading && <SkeletonCard className="h-[220px]" />}
             {!activitiesLoading && activitiesError && <ErrorBanner message={activitiesError} onRetry={loadActivities} />}
             {!activitiesLoading && !activitiesError && activities && (
-              <TaskStatusTabs activities={activities} onEdit={handleEdit} onDelete={handleDelete} deletingId={deletingId} />
+              <TaskStatusTabs
+                activities={activities}
+                onEdit={handleEdit}
+                onDelete={handleDelete}
+                deletingId={deletingId}
+                requestedTab={requestedTab}
+              />
             )}
           </section>
 
-          <section className="mt-6">
-            <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-[#8B93A8]">Extra Hours</h2>
+          <section>
+            <h2 className="mb-3 text-sm font-semibold text-white">Extra Hours</h2>
             {extraHoursLoading ? (
               <SkeletonCard className="h-[100px]" />
             ) : extraHoursError ? (
@@ -274,8 +248,8 @@ export default function PerformanceHistoryScreen({ onBack }) {
             )}
           </section>
 
-          <section className="mt-6">
-            <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-[#8B93A8]">Wasted Overall</h2>
+          <section>
+            <h2 className="mb-3 text-sm font-semibold text-white">Wasted Overall</h2>
             {wastedOverallLoading ? (
               <SkeletonCard className="h-[100px]" />
             ) : wastedOverallError ? (
@@ -301,7 +275,7 @@ export default function PerformanceHistoryScreen({ onBack }) {
               </div>
             )}
           </section>
-        </>
+        </div>
       )}
 
       <SubmitTaskModal activity={editingActivity} onClose={() => setEditingActivity(null)} onSaved={handleSaved} />
