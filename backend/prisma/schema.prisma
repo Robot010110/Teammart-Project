@@ -211,6 +211,11 @@ enum AttendanceStatus {
 enum DayOffType {
   WEEKLY
   MONTHLY
+  // Urgent/unexpected off day (LeaveRequestType.EMERGENCY_OFF) — kept
+  // distinct from OTHER so the calendar can give it its own real
+  // semantic colour instead of folding it into "OTHER" alongside
+  // EARNED_DAY_OFF, which is a completely different kind of day off.
+  EMERGENCY
   OTHER
 }
 
@@ -224,7 +229,21 @@ enum AttendanceSource {
 }
 
 enum LeaveRequestType {
+  // WEEKLY_OFF / MONTHLY_OFF / EMERGENCY_OFF — the three calendar-picked
+  // off types (Attendance page redesign). Unlike PERSONAL_LEAVE and
+  // EARNED_DAY_OFF below, these are created ALREADY APPROVED — no
+  // Supervisor review step. The employee doesn't wait for a decision;
+  // Monthly/Emergency just send the Supervisor an informational
+  // notification afterward (createLeaveRequest's own comment explains
+  // why). Real, backend-enforced quotas apply: max 1 WEEKLY_OFF per
+  // calendar week, max 2 MONTHLY_OFF per calendar month.
+  // EMERGENCY_OFF has no enforced quota — the business rule for a limit
+  // (if any) was never specified; see createLeaveRequest's own comment
+  // for why "unlimited" was chosen deliberately rather than an invented
+  // number.
+  WEEKLY_OFF
   MONTHLY_OFF
+  EMERGENCY_OFF
   PERSONAL_LEAVE
   // A day off funded by an employee's accumulated extra-work-hours
   // balance (8 banked extra hours = 1 day off), instead of an
@@ -311,6 +330,13 @@ enum NotificationType {
   // notifies their market's Supervisor. The Supervisor's approve/reject
   // outcome reuses SUBMISSION_REVIEWED going back to the employee.
   EXTRA_HOURS_SUBMITTED
+  // An employee recorded a Monthly Off or Emergency Off day (calendar
+  // off-day picker) — notifies their market's Supervisor. Purely
+  // informational: there is no approval step for either type (see
+  // LeaveRequestType's own comment), so this is never followed by a
+  // SUBMISSION_REVIEWED/LEAVE_REVIEWED outcome the way a real review
+  // would be. Weekly Off deliberately does NOT trigger this.
+  OFF_DAY_RECORDED
   // A Supervisor submitted a Total Sales report — notifies the market's
   // Regional Manager(s), the only role authorized to view it.
   TOTAL_SALES_SUBMITTED
@@ -2438,6 +2464,16 @@ model AttendanceAdjustmentRequest {
 
   createdAt DateTime @default(now())
 
+  // Real bug fix (Attendance page redesign): nothing previously stopped
+  // the same employee from submitting more than one extra-hours claim
+  // for the same date, which is exactly the double-counting risk the
+  // spec calls out. Extra Hours submission is now auto-computed from
+  // real attendance (one real request per day with unsubmitted extra
+  // time) rather than typed in by the employee, so one row per
+  // employee/date is not just a safety net but the actual invariant —
+  // this constraint enforces it at the database level, not just in the
+  // controller. Verified zero pre-existing duplicate rows before adding.
+  @@unique([employeeId, date])
   @@index([employeeId])
   @@index([status])
 }

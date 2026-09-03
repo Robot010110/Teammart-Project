@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Trash2, Loader2 } from "lucide-react";
+import { Trash2, Loader2, CalendarClock } from "lucide-react";
 import ErrorBanner from "../common/ErrorBanner";
 import { SkeletonCard } from "../common/SkeletonCard";
 import { getAttendanceHistory, deleteMyExtraHoursRequest, deleteMyPunishment } from "../../services/attendanceService";
@@ -65,7 +65,21 @@ export default function AttendanceHistoryList() {
   if (loading) return <SkeletonCard className="h-[160px]" />;
   if (error) return <ErrorBanner message={error} onRetry={reload} />;
   if (!entries || entries.length === 0) {
-    return <p className="text-sm text-[#4C5266] text-center py-8">No attendance history yet.</p>;
+    return (
+      <div className="relative overflow-hidden rounded-[20px] px-4 py-9 bg-[#0D1223]/80 border border-white/[0.06] text-center">
+        <div
+          className="absolute -bottom-16 left-1/2 -translate-x-1/2 w-56 h-56 rounded-full bg-[#F47A20]/[0.06] blur-3xl pointer-events-none"
+          aria-hidden="true"
+        />
+        <span className="relative mx-auto mb-3 grid h-11 w-11 place-items-center rounded-full bg-white/[0.04] text-[#4C5266]">
+          <CalendarClock size={19} />
+        </span>
+        <p className="relative text-sm text-[#8B93A8]">No attendance history yet.</p>
+        <p className="relative mt-1 text-xs text-[#4C5266]">
+          Extra-hours decisions and penalties will appear here.
+        </p>
+      </div>
+    );
   }
 
   return (

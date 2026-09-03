@@ -79,14 +79,12 @@ export default function ProfileTab({ onLogout, basePath }) {
       <Route index element={<ProfileMenu basePath={basePath} />} />
       <Route path="performance/*" element={<PerformanceHistoryScreen onBack={goToMenu} basePath={`${basePath}/performance`} />} />
       <Route path="settings" element={<SettingsScreen onBack={goToMenu} onLogout={onLogout} />} />
-      <Route
-        path="attendance"
-        element={
-          <ArrowLeftMenu label="Attendance" onBack={goToMenu}>
-            <AttendanceSection />
-          </ArrowLeftMenu>
-        }
-      />
+      {/* Attendance renders its own header (centered on mobile, a
+          back-link row on desktop — see AttendanceSection.jsx) rather
+          than the shared ArrowLeftMenu, which stays exactly as it is for
+          Off Days / Leave below. Back still goes through this tab's own
+          goToMenu, so the entry point is unchanged. */}
+      <Route path="attendance" element={<AttendanceSection onBack={goToMenu} />} />
       <Route
         path="leave"
         element={
