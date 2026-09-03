@@ -160,6 +160,69 @@ body {
   animation: glowPulse 3.2s ease-in-out infinite;
 }
 
+/* NexaSplash.jsx — the app-open brand reveal. Kept in its own clearly-
+   labelled block since it's a one-shot sequence, not a reusable utility
+   like everything else in this file: each letter goes from a dark
+   metallic silhouette to a luminous silver fill (opacity + brightness
+   together, so it reads as "emerging from light" rather than a plain
+   fade), the wordmark gets exactly one light sweep after it assembles,
+   and the subtitle settles in afterward. All timing lives in
+   NexaSplash.jsx's own per-letter `animationDelay` — these keyframes
+   only define the motion shape, not the schedule. */
+@keyframes nexaLetterIn {
+  0% {
+    opacity: 0;
+    transform: translateY(10px);
+    filter: brightness(0.35) blur(2px);
+  }
+  60% {
+    filter: brightness(1.4) blur(0);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+    filter: brightness(1) blur(0);
+  }
+}
+
+@keyframes nexaSweep {
+  0% {
+    transform: translateX(-140%) skewX(-18deg);
+    opacity: 0;
+  }
+  15% {
+    opacity: 1;
+  }
+  85% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(140%) skewX(-18deg);
+    opacity: 0;
+  }
+}
+
+@keyframes nexaSubtitleIn {
+  from {
+    opacity: 0;
+    letter-spacing: 0.5em;
+  }
+  to {
+    opacity: 1;
+    letter-spacing: 0.32em;
+  }
+}
+
+.animate-nexa-letter {
+  animation: nexaLetterIn 0.55s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.animate-nexa-sweep {
+  animation: nexaSweep 0.85s ease-in-out both;
+}
+.animate-nexa-subtitle {
+  animation: nexaSubtitleIn 0.7s ease-out both;
+}
+
 .animate-ambient-drift {
   animation: ambientDrift 9s ease-in-out infinite;
 }
@@ -279,7 +342,10 @@ body {
   .animate-grow-bar,
   .animate-wind-fast,
   .animate-wind-slow,
-  .animate-wind-faint {
+  .animate-wind-faint,
+  .animate-nexa-letter,
+  .animate-nexa-sweep,
+  .animate-nexa-subtitle {
     animation: none !important;
   }
   .shimmer::after {
