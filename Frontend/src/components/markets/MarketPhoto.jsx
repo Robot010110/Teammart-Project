@@ -8,8 +8,12 @@ import { ApiError } from "../../services/apiClient";
 const SIZE_CLASSES = {
   sm: "h-14 w-14 rounded-xl", // MarketCard thumbnail
   lg: "h-24 w-24 sm:h-28 sm:w-28 rounded-2xl", // market detail header
+  // hero — fills whatever box the caller sizes, for the market detail
+  // page's full-bleed header image. Same real Market.photoUrl and the
+  // same upload pipeline as the other sizes, just unconstrained.
+  hero: "h-full w-full rounded-none",
 };
-const ICON_SIZE = { sm: 20, lg: 34 };
+const ICON_SIZE = { sm: 20, lg: 34, hero: 44 };
 
 // A market's own NEXA-branded fallback — a Store glyph on the same
 // orange gradient Logo.jsx's wordmark badge uses, so an unphotographed
@@ -17,9 +21,19 @@ const ICON_SIZE = { sm: 20, lg: 34 };
 // broken image or a borrowed employee avatar (spec: never fall back to
 // an employee profile picture).
 function MarketPhotoFallback({ size }) {
+  const isHero = size === "hero";
+  // Deep navy tile with an orange glyph rather than a solid orange
+  // block. A Markets list is mostly unphotographed markets in practice,
+  // and a column of full-orange squares would make orange the loudest
+  // thing on a screen where it is supposed to mean "action" — this
+  // keeps the placeholder in the app's own surface family while the
+  // glyph still reads as TeamMart's.
   return (
-    <div className={`${SIZE_CLASSES[size]} shrink-0 grid place-items-center bg-gradient-to-br from-[#F47A20] to-[#c95c10] ring-1 ring-white/10`}>
-      <Store size={ICON_SIZE[size]} className="text-white/90" />
+    <div
+      className={`${SIZE_CLASSES[size]} ${isHero ? "" : "shrink-0 ring-1 ring-white/[0.08]"} grid place-items-center
+                  bg-gradient-to-br from-[#182643] via-[#111B31] to-[#0B1322]`}
+    >
+      <Store size={ICON_SIZE[size]} className={isHero ? "text-[#F47A20]/40" : "text-[#F47A20]/70"} />
     </div>
   );
 }
@@ -59,10 +73,16 @@ export default function MarketPhoto({ photoUrl, size = "sm", editable = false, m
     }
   }
 
+  const isHero = size === "hero";
+
   return (
-    <div className="relative shrink-0">
+    <div className={isHero ? "relative h-full w-full" : "relative shrink-0"}>
       {photoUrl ? (
-        <AuthenticatedImage src={photoUrl} alt="" className={`${SIZE_CLASSES[size]} object-cover ring-1 ring-white/10`} />
+        <AuthenticatedImage
+          src={photoUrl}
+          alt=""
+          className={`${SIZE_CLASSES[size]} object-cover ${isHero ? "" : "ring-1 ring-white/10"}`}
+        />
       ) : (
         <MarketPhotoFallback size={size} />
       )}

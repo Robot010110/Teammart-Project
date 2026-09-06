@@ -20,7 +20,13 @@ import { useEffect, useId, useState } from "react";
 //
 // `rate` is 0-100 or null. Null renders an empty track and an em dash —
 // never a fabricated percentage.
-export default function PerformanceScoreRing({ rate, size = 188 }) {
+//
+// `label` is the caption under the number. It defaults to "Overall
+// Score" so the Employee Performance page this was built for is
+// completely unchanged; the Regional Manager's Zone Performance card
+// reuses this exact ring with its own caption rather than cloning the
+// four-layer glow build below into a second component.
+export default function PerformanceScoreRing({ rate, size = 188, label = "Overall Score" }) {
   const uid = useId();
   const stroke = Math.round(size * 0.055);
   const radius = (size - stroke) / 2 - 6;
@@ -113,7 +119,7 @@ export default function PerformanceScoreRing({ rate, size = 188 }) {
         >
           {rate == null ? "—" : `${Math.round(rate)}%`}
         </span>
-        <span className="mt-1 text-[11.5px] text-[#9AA1B4]">Overall Score</span>
+        <span className="mt-1 text-[11.5px] leading-tight text-center text-[#9AA1B4] whitespace-pre-line">{label}</span>
       </div>
     </div>
   );

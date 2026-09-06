@@ -38,6 +38,23 @@ export function listItemReportsForMarket({ marketId, employeeId, condition, stat
   return apiRequest(`/item-reports/market${query ? `?${query}` : ""}`);
 }
 
+// listZoneItemReports — the Regional Manager's zone-wide view of the
+// SAME ItemReport rows an employee files and their Supervisor reviews.
+// Note there is no zoneId/marketId parameter by design: the backend
+// derives the scope from the caller's own token, so there is nothing
+// here a client could change to reach another zone (see
+// itemReportsController.listZoneItemReports).
+// period: "today" | "week" | "month" | "all"
+export function listZoneItemReports({ period, condition, page, pageSize } = {}) {
+  const params = new URLSearchParams();
+  if (period) params.set("period", period);
+  if (condition) params.set("condition", condition);
+  if (page) params.set("page", String(page));
+  if (pageSize) params.set("pageSize", String(pageSize));
+  const query = params.toString();
+  return apiRequest(`/item-reports/zone${query ? `?${query}` : ""}`);
+}
+
 // deleteItemReport — staff-only, real persisted (soft) delete; leaves
 // the report's own market feed and the employee's own history
 // immediately.
