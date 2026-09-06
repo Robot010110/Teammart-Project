@@ -356,6 +356,93 @@ async function main() {
     });
   }
 
+  // ---------------------------------------------------------------
+  // Demo dataset — the minimum real rows a live demonstration needs.
+  //
+  // Without these a freshly seeded database has no Products at all,
+  // which means an employee literally cannot file an Expired/Wasted
+  // item report (the flow requires picking a real Product), so the
+  // Regional Manager and Admin Expired Items screens can never show
+  // anything. Attendance and Activities are seeded for TODAY so the
+  // dashboards read as a live operation rather than an empty shell.
+  //
+  // Every block below is idempotent: re-running the seed updates or
+  // skips, it never duplicates.
+  // ---------------------------------------------------------------
+  const demoProducts = [
+    { barcode: "6291041500213", name: "Almarai Milk 1L", stockQuantity: 40, price: 1.75, marketId: qushtapa1.id, createdById: sabur.id },
+    { barcode: "5449000000996", name: "Coca-Cola 330ml", stockQuantity: 120, price: 0.75, marketId: qushtapa1.id, createdById: sabur.id },
+    { barcode: "7622210951965", name: "Puck Cheese 500g", stockQuantity: 25, price: 3.2, marketId: qushtapa1.id, createdById: sabur.id },
+    { barcode: "8000500310427", name: "Nescafe Gold 100g", stockQuantity: 30, price: 6.5, marketId: qushtapa2.id, createdById: farman.id },
+    { barcode: "5000112637922", name: "Lays Classic 150g", stockQuantity: 60, price: 1.1, marketId: qushtapa2.id, createdById: farman.id },
+  ];
+  for (const product of demoProducts) {
+    // Product.barcode is not unique in the schema (the same barcode can
+    // legitimately exist in two markets), so this is keyed on the real
+    // pair that identifies one shelf item: barcode + market.
+    const existing = await prisma.product.findFirst({
+      where: { barcode: product.barcode, marketId: product.marketId },
+      select: { id: true },
+    });
+    if (existing) {
+      await prisma.product.update({ where: { id: existing.id }, data: { name: product.name, price: product.price } });
+    } else {
+      await prisma.product.create({ data: product });
+    }
+  }
+
+  // Today's attendance for Qushtapa 1, so the attendance dashboards and
+  // the "Active Now" counts are not a wall of zeros during a demo.
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const q1Employees = await prisma.employee.findMany({
+    where: { marketId: qushtapa1.id },
+    select: { id: true },
+    orderBy: { createdAt: "asc" },
+  });
+  for (const [index, e] of q1Employees.entries()) {
+    // A deliberately mixed picture: most on shift, one on a break, one
+    // already checked out — the three states the UI distinguishes.
+    const checkIn = new Date(today);
+    checkIn.setHours(8, index % 3 === 0 ? 5 : 0, 0, 0);
+    const onBreak = index === 1;
+    const checkedOut = index === 2;
+    const checkOut = checkedOut ? new Date(today.getTime() + 16 * 60 * 60 * 1000) : null;
+    if (checkedOut) checkOut.setHours(16, 0, 0, 0);
+
+    await prisma.attendanceRecord.upsert({
+      where: { employeeId_date: { employeeId: e.id, date: today } },
+      update: {},
+      create: {
+        employeeId: e.id,
+        marketId: qushtapa1.id,
+        date: today,
+        status: index % 3 === 0 ? "LATE" : "PRESENT",
+        checkIn,
+        checkOut,
+        breakStart: onBreak ? new Date(today.getTime() + 13 * 60 * 60 * 1000) : null,
+        requiredHours: 8,
+        source: "MANUAL",
+      },
+    });
+  }
+
+  // A few of today's activities, in a mix of review states so the
+  // Task Completion figure is a real percentage rather than 0 or 100.
+  const activitiesToday = await prisma.activity.count({
+    where: { employeeId: employee.id, date: { gte: today } },
+  });
+  if (activitiesToday === 0) {
+    await prisma.activity.createMany({
+      data: [
+        { category: "SHELF_CLEANING", date: new Date(), time: "9:15 AM", status: "APPROVED", employeeId: employee.id },
+        { category: "REFILLING", date: new Date(), time: "10:40 AM", status: "APPROVED", employeeId: employee.id },
+        { category: "LABEL_CHECKING", date: new Date(), time: "12:05 PM", status: "PENDING", employeeId: employee.id },
+        { category: "DAILY_CLEANING", date: new Date(), time: "1:30 PM", status: "REJECTED", employeeId: employee.id },
+      ],
+    });
+  }
+
   console.log("Seed complete. Test logins:");
   console.log("  Admin:         admin@teammart.test / Admin123!");
   console.log("  Manager:       ali.hassan@teammart.test / Manager123! (Zones 1 & 3)");

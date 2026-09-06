@@ -175,8 +175,23 @@ test("RM ISOLATION: implementing Admin did not grant a Regional Manager company-
   const companyAttendance = await apiFetch(baseUrl, "/api/attendance/company", { token: tokenRmA });
   assert.equal(companyAttendance.status, 403);
 
+  // /api/activities/company is deliberately NOT Admin-only: a Regional
+  // Manager may read it, and the controller self-scopes the result to
+  // their own zoneIds (see listCompanyActivities). So the guarantee to
+  // assert here is isolation, not refusal — the RM gets 200 but only
+  // ever their own zones' rows, and cannot ask for another zone's.
   const companyActivities = await apiFetch(baseUrl, "/api/activities/company", { token: tokenRmA });
-  assert.equal(companyActivities.status, 403);
+  assert.equal(companyActivities.status, 200);
+  const reachableZoneIds = new Set(
+    companyActivities.body.map((a) => a.employee?.market?.zoneId ?? a.market?.zoneId).filter((id) => id != null)
+  );
+  assert.ok(!reachableZoneIds.has(zoneB.id), "a Regional Manager must never see another zone's activities");
+
+  const crossZoneActivities = await apiFetch(baseUrl, `/api/activities/company?zoneId=${zoneB.id}`, { token: tokenRmA });
+  assert.equal(crossZoneActivities.status, 403);
+
+  const crossMarketActivities = await apiFetch(baseUrl, `/api/activities/company?marketId=${marketB.id}`, { token: tokenRmA });
+  assert.equal(crossMarketActivities.status, 403);
 
   const search = await apiFetch(baseUrl, `/api/admin/search?q=${encodeURIComponent(employeeA1.name)}`, { token: tokenRmA });
   assert.equal(search.status, 403);
