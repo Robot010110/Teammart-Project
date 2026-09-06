@@ -32,6 +32,17 @@ export function getEmployee(id) {
   return apiRequest(`/employees/${id}`);
 }
 
+// createEmployee — POST /api/employees (ADMIN/REGIONAL_MANAGER/
+// SUPERVISOR, scoped to markets the caller can access — see
+// employeesController.createEmployee). Existed on the backend with no
+// frontend caller until AdminPeoplePage.jsx's "Add Person" flow; it
+// always creates a WORKER (the endpoint has no role field of its own).
+// Response includes `temporaryPassword`, returned once only — the
+// caller must show it and never assume it can be fetched again.
+export function createEmployee({ name, position, secondaryRole, shift, marketId, password }) {
+  return apiRequest("/employees", { method: "POST", body: { name, position, secondaryRole, shift, marketId, password } });
+}
+
 // updateEmployee — also how a staff member activates a "pending" hire
 // (spec §4/§7: an employee created without an employeeCode/username/
 // password yet). payload may include any of { name, position,

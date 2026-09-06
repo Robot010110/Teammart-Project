@@ -19,11 +19,15 @@ const STATUSES = [
 // any zone outside them (marketsController.createMarket) — so this form
 // can only ever offer, and only ever succeed at, what the account is
 // genuinely allowed to do.
-export default function AddMarketModal({ open, onClose, onCreated }) {
+// `defaultZoneNumber` is optional — Admin opening this from inside a
+// specific zone (AdminZoneMarketsPage.jsx) pre-fills that zone instead of
+// leaving the picker empty; the Regional Manager's own MarketsPage.jsx
+// call site omits it and behaves exactly as before.
+export default function AddMarketModal({ open, onClose, onCreated, defaultZoneNumber }) {
   const { data: zones, loading: zonesLoading } = useAsync(listZones, { deps: [open] });
 
   const [name, setName] = useState("");
-  const [zoneId, setZoneId] = useState("");
+  const [zoneId, setZoneId] = useState(defaultZoneNumber ? String(defaultZoneNumber) : "");
   const [status, setStatus] = useState("ACTIVE");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
@@ -32,7 +36,7 @@ export default function AddMarketModal({ open, onClose, onCreated }) {
   const effectiveZoneId = zoneId || (zoneList.length === 1 ? String(zoneList[0].number) : "");
 
   function reset() {
-    setName(""); setZoneId(""); setStatus("ACTIVE"); setError(null);
+    setName(""); setZoneId(defaultZoneNumber ? String(defaultZoneNumber) : ""); setStatus("ACTIVE"); setError(null);
   }
 
   async function handleSubmit(e) {

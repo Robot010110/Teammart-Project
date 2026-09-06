@@ -15,6 +15,15 @@ import { startMarketVisit, completeMarketVisit, cancelMarketVisit, listMarketVis
 // Manager already gets — and adds only the explicit Visit/Inspection
 // action bar on top (spec §1: a normal market page open must never
 // itself count as a visit).
+//
+// onOpenEmployees/onOpenActivityToday/onOpenSupervisor previously
+// weren't wired at all here — the "Total Employees" tile and "Market
+// Activity Today" silently did nothing, and tapping the supervisor's
+// name threw (RmMarketOverview calls onOpenSupervisor directly, with no
+// undefined guard). All three are real, existing screens; this market
+// can be reached from either the flat /admin/markets list or from
+// Zones & Markets (/admin/zones/:zoneId/markets), so onBack uses
+// navigate(-1) rather than a single hardcoded destination.
 export default function AdminMarketDetailPage({ marketId }) {
   const navigate = useNavigate();
   const [starting, setStarting] = useState(false);
@@ -33,11 +42,14 @@ export default function AdminMarketDetailPage({ marketId }) {
       <RmMarketOverview
         marketId={marketId}
         onOpenEmployee={(employeeId) => navigate(`/admin/employees/${employeeId}`)}
+        onOpenEmployees={() => navigate(`/admin/markets/${marketId}/employees`)}
+        onOpenActivityToday={() => navigate(`/admin/markets/${marketId}/activity`)}
+        onOpenSupervisor={(userId) => navigate(`/admin/markets/${marketId}/supervisors/${userId}`)}
         onOpenSection={() => {}}
         onOpenHistory={() => {}}
         onOpenTotalSales={() => {}}
         onOpenCardSales={() => {}}
-        onBack={() => navigate("/admin/markets")}
+        onBack={() => navigate(-1)}
       />
     </div>
   );

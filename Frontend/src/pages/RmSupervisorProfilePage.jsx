@@ -34,8 +34,16 @@ function clockLabel(iso) {
   return new Date(iso).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false });
 }
 
-// RmSupervisorProfilePage.jsx — the Regional Manager's view of one
-// supervisor, the management-side counterpart to RmEmployeeProfile.
+// RmSupervisorProfilePage.jsx — a supervisor's profile, the
+// management-side counterpart to RmEmployeeProfile. Used by both the
+// Regional Manager (basePath="/rm", the default) and Admin
+// (basePath="/admin", passed explicitly by AdminWorkspace.jsx) — the
+// backend already authorizes both (getAccessibleSupervisor scopes by
+// zone for a Regional Manager and is unscoped for ADMIN), so this is one
+// screen with two entry points, not a fork. `basePath` only affects the
+// two in-page navigations below (Message, Assigned Market); `onBack` is
+// still supplied by the caller for the same reason every other page here
+// takes it as a prop instead of assuming one fixed parent route.
 //
 // Everything here is real and comes from GET /api/markets/supervisors/:userId,
 // which resolves access through the market this person actually
@@ -50,7 +58,7 @@ function clockLabel(iso) {
 //   • A hire/join date — the User model has no startDate. The account's
 //     createdAt is shown, labelled as exactly that, rather than dressed
 //     up as an employment date.
-export default function RmSupervisorProfilePage({ userId, onBack }) {
+export default function RmSupervisorProfilePage({ userId, onBack, basePath = "/rm" }) {
   const navigate = useNavigate();
   const { data: sup, error, loading, reload } = useAsync(() => getAccessibleSupervisor(userId), { deps: [userId] });
 
@@ -186,7 +194,7 @@ export default function RmSupervisorProfilePage({ userId, onBack }) {
         )}
         <button
           type="button"
-          onClick={() => navigate("/rm/chat")}
+          onClick={() => navigate(`${basePath}/chat`)}
           className="flex flex-col items-center gap-1.5 rounded-2xl border border-white/[0.07] bg-[#111A2D]/80 py-3 backdrop-blur-xl transition-all duration-200 hover:border-[#F47A20]/30 active:scale-[0.97]"
         >
           <MessageCircle size={17} className="text-[#F47A20]" />
@@ -240,7 +248,7 @@ export default function RmSupervisorProfilePage({ userId, onBack }) {
           </h2>
           <button
             type="button"
-            onClick={() => navigate(`/rm/markets/${sup.market.id}`)}
+            onClick={() => navigate(`${basePath}/markets/${sup.market.id}`)}
             className="group flex w-full items-center gap-3 rounded-[18px] border border-white/[0.07] bg-[#111A2D]/80 p-3 text-left backdrop-blur-xl transition-all duration-200 hover:border-[#F47A20]/30 active:scale-[0.985]"
           >
             <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#F47A20]/10 text-[#F47A20]">

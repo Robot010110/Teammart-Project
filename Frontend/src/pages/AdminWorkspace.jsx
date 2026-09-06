@@ -4,8 +4,9 @@ import SettingsScreen from "../components/employee/SettingsScreen";
 import AdminDashboard from "./AdminDashboard";
 import RmExpiredItemsPage from "./RmExpiredItemsPage";
 import AdminZonesPage from "./AdminZonesPage";
+import AdminZoneMarketsPage from "./AdminZoneMarketsPage";
 import AdminMarketsPage from "./AdminMarketsPage";
-import AdminEmployeesPage from "./AdminEmployeesPage";
+import AdminPeoplePage from "./AdminPeoplePage";
 import AdminEmployeeProfilePage from "./AdminEmployeeProfilePage";
 import AdminAttendancePage from "./AdminAttendancePage";
 import AdminActivitiesPage from "./AdminActivitiesPage";
@@ -13,6 +14,9 @@ import AdminChatPage from "./AdminChatPage";
 import AdminMarketDetailPage from "./AdminMarketDetailPage";
 import AdminAuditLogPage from "./AdminAuditLogPage";
 import AdminReportsPage from "./AdminReportsPage";
+import RmMarketEmployeesPage from "./RmMarketEmployeesPage";
+import RmMarketActivityTodayPage from "./RmMarketActivityTodayPage";
+import RmSupervisorProfilePage from "./RmSupervisorProfilePage";
 import CommunicationHistoryScreen from "../components/common/communications/CommunicationHistoryScreen";
 import CommunicationComposer from "../components/common/communications/CommunicationComposer";
 
@@ -40,9 +44,13 @@ export default function AdminWorkspace({ session, onLogout }) {
         <Route index element={<Navigate to="home" replace />} />
         <Route path="home" element={<AdminDashboard session={session} />} />
         <Route path="zones" element={<AdminZonesPage />} />
+        <Route path="zones/:zoneId/markets" element={<AdminZoneMarketsRoute />} />
         <Route path="markets" element={<AdminMarketsPage />} />
         <Route path="markets/:marketId" element={<AdminMarketDetailRoute />} />
-        <Route path="employees" element={<AdminEmployeesPage />} />
+        <Route path="markets/:marketId/employees" element={<AdminMarketEmployeesRoute />} />
+        <Route path="markets/:marketId/activity" element={<AdminMarketActivityTodayRoute />} />
+        <Route path="markets/:marketId/supervisors/:userId" element={<AdminSupervisorProfileRoute />} />
+        <Route path="employees" element={<AdminPeoplePage />} />
         <Route path="employees/:employeeId" element={<AdminEmployeeProfileRoute />} />
         <Route path="attendance" element={<AdminAttendancePage />} />
         <Route path="activities" element={<AdminActivitiesPage />} />
@@ -74,4 +82,58 @@ function AdminEmployeeProfileRoute() {
 function AdminMarketDetailRoute() {
   const { marketId } = useParams();
   return <AdminMarketDetailPage marketId={marketId} />;
+}
+
+// Zones & Markets, drilled in: this zone's own markets. Opening one goes
+// to the same /admin/markets/:marketId detail every market already has;
+// Back returns to the zone list.
+function AdminZoneMarketsRoute() {
+  const { zoneId } = useParams();
+  const navigate = useNavigate();
+  return (
+    <AdminZoneMarketsPage
+      zoneId={zoneId}
+      onOpenMarket={(marketId) => navigate(`${BASE_PATH}/markets/${marketId}`)}
+      onBack={() => navigate(`${BASE_PATH}/zones`)}
+    />
+  );
+}
+
+// The market's own employee roster, same screen and same data the
+// Regional Manager gets at the equivalent route. Selecting someone opens
+// the existing global employee profile Admin already has.
+function AdminMarketEmployeesRoute() {
+  const { marketId } = useParams();
+  const navigate = useNavigate();
+  return (
+    <RmMarketEmployeesPage
+      marketId={marketId}
+      onOpenEmployee={(employeeId) => navigate(`${BASE_PATH}/employees/${employeeId}`)}
+      onBack={() => navigate(`${BASE_PATH}/markets/${marketId}`)}
+    />
+  );
+}
+
+function AdminMarketActivityTodayRoute() {
+  const { marketId } = useParams();
+  const navigate = useNavigate();
+  return <RmMarketActivityTodayPage marketId={marketId} onBack={() => navigate(`${BASE_PATH}/markets/${marketId}`)} />;
+}
+
+// The supervisor's profile, reached from the market they run. Nested
+// under that market (rather than a flat /admin/supervisors/:userId) so
+// Back returns to the exact market this was opened from — getAccessible
+// Supervisor is already unscoped for ADMIN server-side (see
+// marketsController.scopedMarketWhere), so this is the same real screen
+// the Regional Manager uses, not a new one.
+function AdminSupervisorProfileRoute() {
+  const { marketId, userId } = useParams();
+  const navigate = useNavigate();
+  return (
+    <RmSupervisorProfilePage
+      userId={userId}
+      basePath={BASE_PATH}
+      onBack={() => navigate(`${BASE_PATH}/markets/${marketId}`)}
+    />
+  );
 }
