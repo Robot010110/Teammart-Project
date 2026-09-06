@@ -1357,7 +1357,14 @@ export async function listCompanyAttendance(req, res, next) {
         : [],
       includeStaff
         ? prisma.user.findMany({
-            where: { role: { in: ["SUPERVISOR", "OVERLOOKING_SUPERVISOR"] } },
+            // `search` previously only reached the employee query above —
+            // a supervisor/overlooking row was returned regardless of what
+            // was typed, so searching "sara" (say) still listed every
+            // other supervisor company-wide alongside any real match.
+            where: {
+              role: { in: ["SUPERVISOR", "OVERLOOKING_SUPERVISOR"] },
+              ...(search ? { name: { contains: search, mode: "insensitive" } } : {}),
+            },
             select: {
               id: true, name: true, role: true,
               managedMarket: { select: { id: true, name: true, zoneId: true } },
