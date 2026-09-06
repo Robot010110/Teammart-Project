@@ -484,6 +484,16 @@ export const createProductSchema = z.object({
   name: z.string().min(1).max(200),
   stockQuantity: z.number().int().min(0).optional().default(0),
   price: z.number().nonnegative().max(1_000_000).optional(),
+  // marketId was missing here while productsController.createProduct
+  // both reads it and REQUIRES it for any caller without a market of
+  // their own — i.e. every ADMIN and REGIONAL_MANAGER. Because
+  // validateBody replaces req.body with the parsed result, and Zod
+  // strips unknown keys, the field never survived validation and those
+  // two roles always got "marketId is required" no matter what they
+  // sent. A SUPERVISOR was unaffected (their own req.user.marketId is
+  // used instead), which is why this went unnoticed. Access is still
+  // enforced by that controller's own assertMarketAccess.
+  marketId: z.string().min(1).optional(),
 });
 
 export const updateProductSchema = z.object({
@@ -865,6 +875,17 @@ export const listItemReportsMarketQuerySchema = z.object({
   status: z.enum(["DRAFT", "PENDING", "APPROVED", "REJECTED"]).optional(),
 });
 
+// Regional Manager's zone-wide Expired/Wasted Items view. Note what is
+// NOT here: no zoneId and no marketId. The scope comes from the caller's
+// own token (see itemReportsController.listZoneItemReports), so there is
+// no parameter a client could tamper with to reach another zone.
+export const listItemReportsZoneQuerySchema = z.object({
+  period: z.enum(["today", "week", "month", "all"]).optional().default("today"),
+  condition: z.enum(ITEM_CONDITIONS).optional(),
+  page: z.coerce.number().int().min(1).optional().default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).optional().default(25),
+});
+
 // ---------------------------------------------------------------------
 // Attendance — imported check-in/out records + supervisor adjustments.
 // ---------------------------------------------------------------------
@@ -1069,6 +1090,15 @@ export const fingerprintEventSchema = z.object({
 });
 
 export const listAttendanceAdjustmentsQuerySchema = z.object({
+  // marketId was missing here while the controller
+  // (listAttendanceAdjustmentRequestsForMarket) both reads it and
+  // REQUIRES it for any caller without a market of their own — i.e.
+  // every Admin and Regional Manager. The result was that those callers
+  // could never reach the endpoint at all: validateQuery rejected the
+  // request with a 400 before the controller ran. Adding it here is the
+  // fix; access is still checked by that controller's own
+  // assertMarketAccess, so this widens validation, never permissions.
+  marketId: z.string().min(1).optional(),
   employeeId: z.string().min(1).optional(),
   status: z.enum(["PENDING", "APPROVED", "REJECTED"]).optional(),
 });

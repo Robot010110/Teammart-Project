@@ -7,6 +7,8 @@ import {
   assignMarketSupervisor,
   assignMarketOverlookingSupervisor,
   deleteMarket,
+  listAccessibleSupervisors,
+  getAccessibleSupervisor,
 } from "../controllers/marketsController.js";
 import {
   getMarketOverview,
@@ -58,6 +60,21 @@ router.get("/", listMarkets);
 // marketId segment here at all (access is checked against the feedback
 // row's own real marketId, not a client-supplied one).
 router.get("/feedback/:feedbackId", getMarketFeedbackDetail);
+
+// Supervisor directory for the markets this caller can already reach.
+// Registered before "/:id" for the same reason as /feedback above — a
+// fixed path must not be swallowed as a market id. Admin/RM only:
+// a Supervisor has no directory of their peers.
+router.get(
+  "/supervisors",
+  requireStaffRole("ADMIN", "REGIONAL_MANAGER"),
+  listAccessibleSupervisors
+);
+router.get(
+  "/supervisors/:userId",
+  requireStaffRole("ADMIN", "REGIONAL_MANAGER"),
+  getAccessibleSupervisor
+);
 
 router.get("/:id", requireOwnMarketOrElevated((req) => req.params.id), getMarket);
 

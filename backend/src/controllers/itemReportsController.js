@@ -135,6 +135,82 @@ export async function listItemReportsForMarket(req, res, next) {
   }
 }
 
+// Start of the requested reporting period, or null for "all time".
+//
+// Deliberately server-LOCAL midnight, not UTC: every other "today" in
+// this codebase is computed exactly this way (marketsController,
+// attendanceController, employeeStatus.js, ...), so a report filed at
+// 23:30 local belongs to that local day here too, the same as it does
+// everywhere else. Week starts Monday, matching startOfWeek() in
+// activitiesController.js.
+function periodStart(period) {
+  if (period === "all") return null;
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  if (period === "week") {
+    const day = d.getDay(); // 0 = Sunday
+    d.setDate(d.getDate() + ((day === 0 ? -6 : 1) - day));
+  } else if (period === "month") {
+    d.setDate(1);
+  }
+  return d;
+}
+
+// GET /api/item-reports/zone — the Regional Manager's zone-wide view of
+// the SAME ItemReport rows an employee creates and their Supervisor
+// already sees. No second table, no copies: one report, three scopes
+// (employee's own history, supervisor's market, this zone-wide roll-up).
+//
+// Security note, and the reason this is a separate handler rather than
+// an extra query param on /market: the zone is taken ONLY from the
+// authenticated token's own zoneIds. There is deliberately no zoneId or
+// marketId parameter to tamper with — a Regional Manager cannot ask for
+// another zone's reports because there is nowhere to ask. ADMIN is
+// unscoped, matching every other staff-scoped endpoint in this app.
+export async function listZoneItemReports(req, res, next) {
+  try {
+    const { period = "today", condition, page, pageSize } = req.query;
+
+    const where = { deletedAt: null };
+    if (req.user.role === "REGIONAL_MANAGER") {
+      const zoneIds = req.user.zoneIds ?? [];
+      // An RM with no zone assigned sees nothing, rather than everything.
+      if (zoneIds.length === 0) {
+        return res.json({ total: 0, page, pageSize, todayCount: 0, reports: [] });
+      }
+      where.market = { zoneId: { in: zoneIds } };
+    }
+    if (condition) where.condition = condition;
+
+    const from = periodStart(period);
+    const periodWhere = from ? { ...where, reportedAt: { gte: from } } : where;
+
+    const todayFrom = periodStart("today");
+
+    const [total, reports, todayCount] = await Promise.all([
+      prisma.itemReport.count({ where: periodWhere }),
+      prisma.itemReport.findMany({
+        where: periodWhere,
+        include: {
+          employee: { select: { id: true, name: true, employeeCode: true, position: true, profilePictureUrl: true } },
+          product: { select: { id: true, name: true, barcode: true } },
+          market: { select: { id: true, name: true, zoneId: true } },
+        },
+        orderBy: { reportedAt: "desc" },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+      // Always today's count for the same scope, whatever period is being
+      // viewed — this is what the homepage card's "+N today" reads.
+      prisma.itemReport.count({ where: { ...where, reportedAt: { gte: todayFrom } } }),
+    ]);
+
+    res.json({ total, page, pageSize, todayCount, reports });
+  } catch (err) {
+    next(err);
+  }
+}
+
 // DELETE /api/item-reports/:id — staff-only, scoped to the report's own
 // market (assertMarketAccess re-checked against the real row's marketId,
 // never a client-supplied one). Soft delete (see ItemReport.deletedAt's

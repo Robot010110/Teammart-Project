@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { createItemReport, listItemReports, listItemReportsForMarket, deleteItemReport } from "../controllers/itemReportsController.js";
+import { createItemReport, listItemReports, listItemReportsForMarket, listZoneItemReports, deleteItemReport } from "../controllers/itemReportsController.js";
 import { requireAuth, requireEmployeeAuth, requireStaffRole } from "../middleware/auth.js";
 import {
   validateBody,
@@ -7,6 +7,7 @@ import {
   createItemReportSchema,
   listItemReportsQuerySchema,
   listItemReportsMarketQuerySchema,
+  listItemReportsZoneQuerySchema,
 } from "../utils/validate.js";
 
 const router = Router();
@@ -22,6 +23,17 @@ router.get(
   validateQuery(listItemReportsMarketQuerySchema),
   listItemReportsForMarket
 );
+// Zone-wide roll-up of the same reports — Regional Manager (own zones,
+// derived from their token) and Admin (unscoped). Deliberately NOT open
+// to SUPERVISOR: a supervisor's scope is their own market, which the
+// /market route above already serves.
+router.get(
+  "/zone",
+  requireStaffRole("ADMIN", "REGIONAL_MANAGER"),
+  validateQuery(listItemReportsZoneQuerySchema),
+  listZoneItemReports
+);
+
 router.delete("/:id", requireStaffRole("ADMIN", "REGIONAL_MANAGER", "SUPERVISOR"), deleteItemReport);
 
 // Everything else here is employee-only — the employee's own expired/
