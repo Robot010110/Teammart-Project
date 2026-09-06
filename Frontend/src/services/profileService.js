@@ -51,3 +51,14 @@ export function updateMyUserId(field, value) {
 export function updateMyPassword(currentPassword, newPassword) {
   return apiRequest("/profile/password", { method: "PATCH", body: { currentPassword, newPassword } });
 }
+
+// updateMyPreferences — Settings -> Notifications / Language. Uses the
+// same PATCH /api/profile every other self-service profile field uses;
+// the server validates the enum values and always writes the caller's
+// own row. Never touches passwords.
+export function updateMyPreferences({ notificationMode, language }) {
+  const body = {};
+  if (notificationMode) body.notificationMode = notificationMode;
+  if (language) body.language = language;
+  return apiRequest("/profile", { method: "PATCH", body });
+}

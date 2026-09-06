@@ -163,6 +163,10 @@ export const promoteEmployeeSchema = z.object({
 // malformed value can never reach the DB or later break a wa.me link
 // (ProfileHeaderCard builds `https://wa.me/<digits>` directly from this).
 export const updateMyProfileSchema = z.object({
+  // Settings -> Notifications / Language. Enum-validated so an
+  // unrecognised value is rejected rather than written to the column.
+  notificationMode: z.enum(["ALL", "MENTIONS_ONLY", "WORK_ACTIVITY_ONLY", "MUTE_ALL"]).optional(),
+  language: z.enum(["ENGLISH", "KURDISH"]).optional(),
   whatsappNumber: z
     .string()
     .trim()

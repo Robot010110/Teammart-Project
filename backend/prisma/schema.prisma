@@ -21,6 +21,12 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+  // Explicit shadow database. Prisma needs a scratch database to diff
+  // migrations against, and it MUST NOT be the application database —
+  // pointing it at `teammart` would drop and recreate real data. Naming
+  // it here means the safe target is configuration, not something each
+  // developer has to remember to pass on the command line.
+  shadowDatabaseUrl = env("SHADOW_DATABASE_URL")
 }
 
 // ---------------------------------------------------------------------
@@ -30,6 +36,18 @@ datasource db {
 // Staff roles. Employees are NOT part of this enum — they are a separate
 // model with their own login, because in the frontend they are a
 // fundamentally different kind of account (scoped to just themselves).
+enum NotificationMode {
+  ALL
+  MENTIONS_ONLY
+  WORK_ACTIVITY_ONLY
+  MUTE_ALL
+}
+
+enum AppLanguage {
+  ENGLISH
+  KURDISH
+}
+
 enum StaffRole {
   ADMIN
   REGIONAL_MANAGER
@@ -505,6 +523,16 @@ enum MessageAttachmentType {
 // additional login path some roles use instead.
 // ---------------------------------------------------------------------
 model User {
+
+  // Settings -> Notifications / Language. Stored per account (both
+  // Employee and User carry these) because the preference belongs to the
+  // person, not the device — it must survive a reinstall or a login on
+  // another phone, which localStorage would not. notificationMode is
+  // enforced server-side at the single place Notification rows are
+  // written (utils/notifications.js), so it genuinely changes delivery
+  // rather than only hiding rows in the UI.
+  notificationMode NotificationMode @default(ALL)
+  language         AppLanguage      @default(ENGLISH)
   id           Int       @id @default(autoincrement())
   name         String
   email        String    @unique
@@ -733,6 +761,16 @@ model Market {
 // bcrypt.compare against it. A staff member assigns both together later
 // via PATCH /api/employees/:id (see employeesController.updateEmployee).
 model Employee {
+
+  // Settings -> Notifications / Language. Stored per account (both
+  // Employee and User carry these) because the preference belongs to the
+  // person, not the device — it must survive a reinstall or a login on
+  // another phone, which localStorage would not. notificationMode is
+  // enforced server-side at the single place Notification rows are
+  // written (utils/notifications.js), so it genuinely changes delivery
+  // rather than only hiding rows in the UI.
+  notificationMode NotificationMode @default(ALL)
+  language         AppLanguage      @default(ENGLISH)
   id            String       @id @default(cuid())
   employeeCode  String?      @unique
   name          String

@@ -20,6 +20,10 @@ export async function getProfile(req, res, next) {
         email: user.email,
         loginId: user.loginId,
         role: user.role,
+        // Settings preferences. Never a password of any form — the hash
+        // is not sent either.
+        notificationMode: user.notificationMode,
+        language: user.language,
         zoneIds: user.managedZones.map((z) => z.id),
         marketId: user.managedMarket?.id ?? user.managedOverlookingMarket?.id ?? null,
         // Repair Pass §5 — a Supervisor/Overlooking's own market's zone.
@@ -51,6 +55,10 @@ export async function getProfile(req, res, next) {
       id: employee.id,
       name: employee.name,
       employeeCode: employee.employeeCode,
+      // Settings preferences. Never a password of any form — the hash
+      // is not sent either.
+      notificationMode: employee.notificationMode,
+      language: employee.language,
       position: employee.position,
       secondaryRole: employee.secondaryRole,
       shift: employee.shift,
@@ -110,6 +118,8 @@ export async function updateMyProfile(req, res, next) {
       if ("profilePictureUrl" in req.body) data.profilePictureUrl = req.body.profilePictureUrl;
       if ("phoneNumber" in req.body) data.phoneNumber = req.body.phoneNumber;
       if ("whatsappNumber" in req.body) data.whatsappNumber = req.body.whatsappNumber;
+      if ("notificationMode" in req.body) data.notificationMode = req.body.notificationMode;
+      if ("language" in req.body) data.language = req.body.language;
 
       if ("loginId" in req.body) {
         const loginId = req.body.loginId;
@@ -134,6 +144,8 @@ export async function updateMyProfile(req, res, next) {
     const data = {};
     if ("whatsappNumber" in req.body) data.whatsappNumber = req.body.whatsappNumber;
     if ("profilePictureUrl" in req.body) data.profilePictureUrl = req.body.profilePictureUrl;
+    if ("notificationMode" in req.body) data.notificationMode = req.body.notificationMode;
+    if ("language" in req.body) data.language = req.body.language;
 
     for (const field of ["employeeCode", "username"]) {
       if (field in req.body) {
@@ -156,6 +168,8 @@ export async function updateMyProfile(req, res, next) {
       profilePictureUrl: employee.profilePictureUrl,
       employeeCode: employee.employeeCode,
       username: employee.username,
+      notificationMode: employee.notificationMode,
+      language: employee.language,
     });
   } catch (err) {
     next(err);
