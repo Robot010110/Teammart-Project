@@ -64,7 +64,7 @@ const STRINGS = {
     english: "English",
     englishSub: "Use English language",
     kurdish: "Kurdish",
-    kurdishSub: "Bikarhênana zimanê kurdî",
+    kurdishSub: "کوردی (سۆرانی)",
     languageFootnote:
       "Kurdish currently covers the Settings screens. The rest of the app is still in English while translation continues.",
     saved: "Saved",
@@ -121,7 +121,7 @@ const STRINGS = {
     english: "ئینگلیزی",
     englishSub: "بەکارهێنانی زمانی ئینگلیزی",
     kurdish: "کوردی",
-    kurdishSub: "بە کاری کوردی بیکار بێنە",
+    kurdishSub: "بەکارهێنانی زمانی کوردی",
     languageFootnote:
       "کوردی لە ئێستادا تەنها ڕووپەڕەکانی ڕێکخستن دەگرێتەوە. بەشەکانی تری ئەپ هێشتا بە ئینگلیزین.",
     saved: "پاشەکەوتکرا",
