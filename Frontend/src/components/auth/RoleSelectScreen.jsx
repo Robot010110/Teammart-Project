@@ -57,7 +57,13 @@ export default function RoleSelectScreen({ onSelect }) {
             </p>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {/* Stacked, full-width rows on phones (the reference's primary
+              shape — one thumb-sized target per role, not four cramped
+              tiles side by side). From `sm` up, two spacious columns of
+              the same horizontal-row card rather than a four-across
+              strip, which kept every card tall and roomy at desktop
+              widths too. */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 sm:gap-4 mx-auto w-full max-w-xl sm:max-w-3xl">
             {ROLE_OPTIONS.map((r, i) => (
               <RoleCardPremium key={r.key} role={r} index={i} onSelect={handleSelect} pending={pendingKey === r.key} />
             ))}
