@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { BrowserRouter, Routes, Route, Navigate, useNavigate } from "react-router-dom";
 import LoginPage from "./pages/LoginPage";
-import NexaSplash from "./components/auth/NexaSplash";
+import AionSplash from "./components/auth/AionSplash";
 import EmployeeWorkspace from "./pages/EmployeeWorkspace";
 import CashierWorkspace from "./pages/CashierWorkspace";
 import SupervisorWorkspace from "./pages/SupervisorWorkspace";
@@ -45,15 +45,15 @@ import ErrorBoundary from "./components/common/ErrorBoundary";
 // does this token belong to?" (GET /api/profile) instead of trusting
 // anything stored client-side about who the user is.
 //
-// NexaSplash — a one-time brand reveal, shown first on every fresh
+// AionSplash — a one-time brand reveal, shown first on every fresh
 // mount regardless of session state (see the `splashDone` gate below,
-// and NexaSplash.jsx's own comment on why it never replays on in-app
+// and AionSplash.jsx's own comment on why it never replays on in-app
 // navigation). Purely presentational — it never touches session/auth.
 
 function AppRoutes() {
   const [session, setSession] = useState(null);
   const [restoringSession, setRestoringSession] = useState(true);
-  // NexaSplash — the brand reveal shown before anything else, on every
+  // AionSplash — the brand reveal shown before anything else, on every
   // fresh mount of <App> (a real page load), independent of whether a
   // saved session turns out to be valid. Session restoration below still
   // runs concurrently in the background during the splash (it's its own
@@ -61,7 +61,7 @@ function AppRoutes() {
   // finishes there's rarely an extra "Loading..." flash afterward. Once
   // true, this never flips back — logging out and returning to /login
   // within the same tab doesn't remount <App>, so the splash correctly
-  // never replays for that (see NexaSplash.jsx's own comment).
+  // never replays for that (see AionSplash.jsx's own comment).
   const [splashDone, setSplashDone] = useState(false);
   const navigate = useNavigate();
 
@@ -163,7 +163,7 @@ function AppRoutes() {
   }, []);
 
   if (!splashDone) {
-    return <NexaSplash onComplete={() => setSplashDone(true)} />;
+    return <AionSplash onComplete={() => setSplashDone(true)} />;
   }
 
   if (restoringSession) {

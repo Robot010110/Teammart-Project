@@ -160,36 +160,13 @@ body {
   animation: glowPulse 3.2s ease-in-out infinite;
 }
 
-/* NexaSplash.jsx — the app-open brand reveal. Kept in its own clearly-
+/* AionSplash.jsx — the app-open brand reveal. Kept in its own clearly-
    labelled block since these are one-shot-sequence keyframes, not
    reusable utilities like everything else in this file.
-   nexaLetterIn — the badge's "N" fading in from a dark metallic
-   silhouette to a luminous silver fill (opacity + brightness together,
-   so it reads as "emerging from light" rather than a plain fade);
-   applied inline via `animation:` in NexaSplash.jsx (not this class)
-   since its delay is computed alongside the ring-draw timing there.
-   nexaSweep — the single light sweep across the assembled wordmark.
-   The badge ring-draw/glow keyframes (nexaRingDraw/nexaBadgeGlow) live
-   scoped inside NexaSplash.jsx itself instead of here, since
-   nexaRingDraw's dashoffset depends on the ring's own radius computed
-   in JS. */
-@keyframes nexaLetterIn {
-  0% {
-    opacity: 0;
-    transform: translateY(10px);
-    filter: brightness(0.35) blur(2px);
-  }
-  60% {
-    filter: brightness(1.4) blur(0);
-  }
-  100% {
-    opacity: 1;
-    transform: translateY(0);
-    filter: brightness(1) blur(0);
-  }
-}
-
-@keyframes nexaSweep {
+   aionSweep — the single light sweep across the AION wordmark in
+   AionSplash.jsx. (The old badge-stage keyframes went away with the
+   canvas reveal they belonged to when the splash became a real video.) */
+@keyframes aionSweep {
   0% {
     transform: translateX(-140%) skewX(-18deg);
     opacity: 0;
@@ -206,8 +183,8 @@ body {
   }
 }
 
-.animate-nexa-sweep {
-  animation: nexaSweep 0.85s ease-in-out both;
+.animate-aion-sweep {
+  animation: aionSweep 0.85s ease-in-out both;
 }
 
 .animate-ambient-drift {
@@ -330,7 +307,7 @@ body {
   .animate-wind-fast,
   .animate-wind-slow,
   .animate-wind-faint,
-  .animate-nexa-sweep {
+  .animate-aion-sweep {
     animation: none !important;
   }
   .shimmer::after {
