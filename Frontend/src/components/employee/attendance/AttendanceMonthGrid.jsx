@@ -73,7 +73,14 @@ const MONTHS = [
 const timeLabel = (iso) =>
   iso ? new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) : "--:--";
 
-export default function AttendanceMonthGrid({ year, month, days, onChangeMonth, onOffDayCreated }) {
+// `readOnly` (default false, unchanged for the employee's own page) —
+// true for Supervisor Mode (EmployeeAttendanceScreen.jsx): a blank
+// future date no longer opens OffDaySheet, since that flow is the
+// EMPLOYEE requesting their own day off, not something a Supervisor
+// does on someone else's behalf. Viewing an existing record's detail on
+// tap is unaffected either way — that's real data either account is
+// allowed to see.
+export default function AttendanceMonthGrid({ year, month, days, onChangeMonth, onOffDayCreated, readOnly = false }) {
   const [selectedDay, setSelectedDay] = useState(null);
   // The UTC-midnight Date of a tapped blank, valid date — opens
   // OffDaySheet when set. Distinct from selectedDay (which shows detail
@@ -179,7 +186,7 @@ export default function AttendanceMonthGrid({ year, month, days, onChangeMonth, 
               // today or later — a past blank date has no record simply
               // because it predates this employee's history/imports, not
               // because it's available to claim.
-              const isPickable = !c.record && cellDateUtc >= todayUtc;
+              const isPickable = !readOnly && !c.record && cellDateUtc >= todayUtc;
               const disabled = !c.record && !isPickable;
 
               const handleClick = () => {

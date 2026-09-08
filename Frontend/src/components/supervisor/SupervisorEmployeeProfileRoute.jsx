@@ -14,7 +14,7 @@ import EmployeeTasksSection from "./EmployeeTasksSection";
 // are each a real nested route now instead of a local `screen` string —
 // this is the exact "Employees -> Employee Details -> deeper activity
 // screen -> Back" chain the routing spec uses as its acceptance example.
-export default function SupervisorEmployeeProfileRoute({ basePath }) {
+export default function SupervisorEmployeeProfileRoute({ session, basePath }) {
   const { employeeId } = useParams();
   const navigate = useNavigate();
   const employeeBase = `${basePath}/employees/${employeeId}`;
@@ -37,6 +37,7 @@ export default function SupervisorEmployeeProfileRoute({ basePath }) {
             loading={loading}
             error={error}
             reload={reload}
+            marketName={session?.marketName}
             onBack={() => navigate(`${basePath}/employees`)}
             onOpenAttendance={() => navigate(`${employeeBase}/attendance`)}
             onOpenTasks={() => navigate(`${employeeBase}/tasks`)}
@@ -44,14 +45,17 @@ export default function SupervisorEmployeeProfileRoute({ basePath }) {
           />
         }
       />
-      <Route path="attendance" element={<EmployeeAttendanceScreen employeeId={employeeId} onBack={goToInfo} />} />
       <Route
-        path="tasks"
-        element={<EmployeeTasksSection employeeId={employeeId} employeeName={employee?.name} onBack={goToInfo} />}
+        path="attendance"
+        element={<EmployeeAttendanceScreen employeeId={employeeId} employee={employee} marketName={session?.marketName} onBack={goToInfo} />}
       />
       <Route
-        path="history/*"
-        element={<EmployeeActivityHistoryScreen employeeId={employeeId} onBack={goToInfo} basePath={`${employeeBase}/history`} />}
+        path="tasks"
+        element={<EmployeeTasksSection employeeId={employeeId} employee={employee} marketName={session?.marketName} onBack={goToInfo} />}
+      />
+      <Route
+        path="history"
+        element={<EmployeeActivityHistoryScreen employeeId={employeeId} employee={employee} marketName={session?.marketName} onBack={goToInfo} />}
       />
     </Routes>
   );

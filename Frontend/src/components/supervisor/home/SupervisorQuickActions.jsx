@@ -45,10 +45,10 @@ export default function SupervisorQuickActions({ session, basePath }) {
 }
 
 const TONES = {
-  blue: { text: "text-sky-400", bg: "bg-sky-500/10", glow: "glow-sky-soft" },
-  orange: { text: "text-[#F47A20]", bg: "bg-[#F47A20]/10", glow: "glow-orange-soft" },
-  red: { text: "text-[#FF5C5C]", bg: "bg-red-500/10", glow: "glow-red" },
-  violet: { text: "text-violet-400", bg: "bg-violet-500/10", glow: "glow-violet-soft" },
+  blue: { text: "text-sky-400", bg: "bg-sky-500/15", glow: "glow-sky", border: "border-sky-500/20 hover:border-sky-500/40" },
+  orange: { text: "text-[#F47A20]", bg: "bg-[#F47A20]/15", glow: "glow-orange", border: "border-[#F47A20]/20 hover:border-[#F47A20]/40" },
+  red: { text: "text-[#FF5C5C]", bg: "bg-red-500/15", glow: "glow-red", border: "border-red-500/20 hover:border-red-500/40" },
+  violet: { text: "text-violet-400", bg: "bg-violet-500/15", glow: "glow-violet", border: "border-violet-500/20 hover:border-violet-500/40" },
 };
 
 function QuickActionButton({ label, icon: Icon, tone, onClick }) {
@@ -57,9 +57,9 @@ function QuickActionButton({ label, icon: Icon, tone, onClick }) {
     <button
       type="button"
       onClick={onClick}
-      className="shrink-0 w-[92px] flex flex-col items-center gap-2 rounded-2xl px-3 py-3.5 bg-[#171C2E]/80 border border-white/[0.06] hover:border-white/[0.14] active:scale-95 transition-all duration-150"
+      className={`shrink-0 w-[92px] flex flex-col items-center gap-2 rounded-2xl px-3 py-3.5 bg-gradient-to-b from-[#171C2E]/90 to-[#12172A]/90 border backdrop-blur-xl active:scale-95 transition-all duration-200 ${t.border}`}
     >
-      <span className={`w-10 h-10 rounded-xl grid place-items-center ${t.bg} ${t.glow} ${t.text}`}>
+      <span className={`w-10 h-10 rounded-xl grid place-items-center ring-1 ring-inset ring-white/5 ${t.bg} ${t.glow} ${t.text}`}>
         <Icon size={18} />
       </span>
       <span className="text-[11px] font-medium text-white text-center leading-tight">{label}</span>

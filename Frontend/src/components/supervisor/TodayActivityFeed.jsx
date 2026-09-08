@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import {
   CheckCircle2,
   PackageX,
@@ -8,6 +8,7 @@ import {
   Loader2,
   Clock3,
   Trash2,
+  Hourglass,
 } from "lucide-react";
 import { useAsync } from "../../hooks/useAsync";
 import ErrorBanner from "../common/ErrorBanner";
@@ -91,6 +92,21 @@ function timeLabel(iso) {
   });
 }
 
+// A row "needs review" only when its kind actually has a review flow AND
+// its real backend status is still PENDING — the one and only source of
+// truth for prominence. A kind with no REVIEWABLE_KINDS entry (Item
+// Report, Sudden Task) never counts, since it never had a decision to
+// make in this feed to begin with.
+function isNeedsReview(item) {
+  return !!REVIEWABLE_KINDS[item.kind] && item.raw.status === "PENDING";
+}
+
+const REVIEW_STATUS_META = {
+  PENDING: { label: "Pending", tone: "text-amber-400 bg-amber-500/10 ring-amber-500/25" },
+  APPROVED: { label: "Approved", tone: "text-emerald-400 bg-emerald-500/10 ring-emerald-500/25" },
+  REJECTED: { label: "Rejected", tone: "text-red-400 bg-red-500/10 ring-red-500/25" },
+};
+
 function isToday(iso) {
   const d = new Date(iso);
   const now = new Date();
@@ -107,33 +123,50 @@ function isToday(iso) {
 // Expired/Wasted Item reports, Wasted Overall reports, and completed
 // Sudden Tasks. Nothing here is invented — this is "Automatically
 // Received Information" (spec category A), a pure read/merge over
-// endpoints that already exist, sorted by time.
+// endpoints that already exist.
 //
-// Two optional props reuse this exact same merge/detail/review machinery
-// for the Supervisor Home redesign's two dedicated pages, instead of
+// Sorting/grouping is a real behaviour, not just visual: within a kind
+// that has a review flow (Activity/Wasted Overall/Extra Hours — see
+// REVIEWABLE_KINDS), a row whose real status is still PENDING is
+// "needs review" and stays pinned above everything else; once the
+// Supervisor approves or rejects it, the very next reload (this reads
+// straight from the backend result, never a locally-patched status)
+// moves it down into the ordinary chronological stream instead of
+// leaving it sitting in the same prominent slot forever. A kind with no
+// review flow (Item Report, Sudden Task) never HAS a "pending decision"
+// state in this feed to begin with, so it is always chronological.
+// Nothing is ever deleted or hidden — this only changes where a row
+// sorts, never whether it's still reachable.
+//
+// Three optional props reuse this exact same merge/detail/review
+// machinery across every place this feed appears, instead of
 // duplicating it:
-//   todayOnly   (default true — Home's own original behaviour,
-//               unchanged) false widens the window to the most recent
-//               `recentLimit` items regardless of date, for
-//               SupervisorRecentActivityPage.jsx's full chronological
-//               feed.
+//   todayOnly   (default true) restricts to today only — used for
+//               Home's own compact preview.
 //   pendingOnly (default false) true additionally restricts to items
 //               with a real PENDING status — i.e. things still awaiting
 //               the Supervisor's own decision — for
 //               SupervisorPendingTasksPage.jsx's worklist. Distinct from
 //               Alerts (real MarketProblem rows), so the four Today
 //               Overview cards never show the same underlying list twice
-//               under two names.
-export default function TodayActivityFeed({ marketId, todayOnly = true, pendingOnly = false, recentLimit = 60 }) {
+//               under two names. Section headers are skipped in this
+//               mode — every row is already "needs review", so a second
+//               label saying so would be redundant.
+//   limit       (default none) caps the total rows shown, pending rows
+//               first — Home's preview only ever wants the top few, with
+//               "See All" as the real escape hatch to the full page.
+export default function TodayActivityFeed({ marketId, todayOnly = true, pendingOnly = false, recentLimit = 60, limit }) {
   const { data, error, loading, reload } = useAsync(
     async () => {
       // Activities are the one source with a real server-side status
-      // filter already wired up. Home's original request (and Pending
-      // Tasks below) only ever wanted PENDING ones; Recent Activity
-      // deliberately omits the filter to show the real, full history
-      // (including already-approved/rejected) instead of silently
-      // hiding everything that's already been decided.
-      const activitiesStatus = todayOnly || pendingOnly ? "PENDING" : undefined;
+      // filter already wired up. Pending Tasks (pendingOnly) wants only
+      // PENDING ones server-side; every other mode fetches the real full
+      // status range and lets the client-side grouping below decide
+      // what's prominent vs. historical — todayOnly no longer forces a
+      // PENDING-only fetch, since "what happened today" should include
+      // today's already-reviewed items too, not just what's still
+      // waiting.
+      const activitiesStatus = pendingOnly ? "PENDING" : undefined;
       const [activities, itemReports, wasted, suddenTasks, extraHours] =
         await Promise.all([
           listActivitiesForMarket({ marketId, status: activitiesStatus }),
@@ -200,13 +233,27 @@ export default function TodayActivityFeed({ marketId, todayOnly = true, pendingO
 
       const filtered = items
         .filter((item) => !todayOnly || isToday(item.timestamp))
-        .filter((item) => !pendingOnly || item.raw.status === "PENDING")
+        .filter((item) => !pendingOnly || item.raw.status === "PENDING");
+
+      // Two buckets, each sorted by recency within itself, pending
+      // bucket first — a stable priority sort, not a single comparator
+      // that could reorder as soon as a status changes mid-list.
+      const pending = filtered
+        .filter((item) => isNeedsReview(item))
+        .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+      const rest = filtered
+        .filter((item) => !isNeedsReview(item))
         .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
 
-      return todayOnly ? filtered : filtered.slice(0, recentLimit);
+      const ordered = [...pending, ...rest];
+      const capped = typeof limit === "number" ? ordered.slice(0, limit) : ordered;
+      return {
+        items: todayOnly ? capped : capped.slice(0, recentLimit),
+        pendingCount: pending.length,
+      };
     },
     {
-      deps: [marketId, todayOnly, pendingOnly, recentLimit],
+      deps: [marketId, todayOnly, pendingOnly, recentLimit, limit],
       fallbackError: todayOnly ? "Could not load today's activity." : "Could not load activity.",
     },
   );
@@ -216,9 +263,9 @@ export default function TodayActivityFeed({ marketId, todayOnly = true, pendingO
   if (loading) return <SkeletonCard className="h-40" />;
   if (error) return <ErrorBanner message={error} onRetry={reload} />;
 
-  if (data.length === 0) {
+  if (data.items.length === 0) {
     const emptyMessage = pendingOnly
-      ? "You're all caught up."
+      ? "No activities awaiting review."
       : todayOnly
         ? "No activity yet today."
         : "No recent activity yet.";
@@ -230,36 +277,24 @@ export default function TodayActivityFeed({ marketId, todayOnly = true, pendingO
     );
   }
 
+  // Section headers only when the list is a genuine mix and there's
+  // something in each bucket worth labelling — pendingOnly's list is
+  // already all "needs review" (a header would be redundant), and a
+  // list with zero pending items has no "needs review" section to name.
+  const showSections = !pendingOnly && data.pendingCount > 0 && data.pendingCount < data.items.length;
+
   return (
     <>
       <div className="space-y-2">
-        {data.map((item) => {
-          const Icon = item.icon;
+        {data.items.map((item, i) => {
+          const pendingRow = isNeedsReview(item);
+          const isFirstHistoryRow = showSections && i === data.pendingCount;
           return (
-            <button
-              key={item.id}
-              type="button"
-              onClick={() => setSelected(item)}
-              className="w-full text-left flex items-start gap-3 rounded-xl p-3.5 bg-[#1A1F33]/70 border border-white/[0.06] hover:border-[#F47A20]/25 transition-colors"
-            >
-              <span className="w-8 h-8 shrink-0 rounded-lg bg-[#F47A20]/10 flex items-center justify-center text-[#F47A20]">
-                <Icon size={15} />
-              </span>
-              <div className="min-w-0 flex-1">
-                <p className="text-sm text-white">
-                  <span className="font-semibold">{item.employeeName}</span>{" "}
-                  {item.title}
-                </p>
-                {item.subtitle && (
-                  <p className="text-xs text-[#8B93A8] mt-0.5">
-                    {item.subtitle}
-                  </p>
-                )}
-                <p className="text-[11px] text-[#4C5266] mt-1">
-                  {timeLabel(item.timestamp)}
-                </p>
-              </div>
-            </button>
+            <div key={item.id}>
+              {showSections && i === 0 && <SectionLabel icon={Hourglass} label="Needs Review" tone="amber" />}
+              {isFirstHistoryRow && <SectionLabel icon={ClipboardList} label="History" tone="slate" />}
+              <ActivityRow item={item} pendingRow={pendingRow} onOpen={() => setSelected(item)} />
+            </div>
           );
         })}
       </div>
@@ -280,6 +315,62 @@ export default function TodayActivityFeed({ marketId, todayOnly = true, pendingO
         )}
       </Modal>
     </>
+  );
+}
+
+const SECTION_TONE = {
+  amber: "text-amber-400",
+  slate: "text-[#5C6479]",
+};
+
+function SectionLabel({ icon: Icon, label, tone }) {
+  return (
+    <p className={`mb-2 mt-1 first:mt-0 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide ${SECTION_TONE[tone]}`}>
+      <Icon size={11} /> {label}
+    </p>
+  );
+}
+
+// ActivityRow.jsx — one merged feed item. `pendingRow` gets a brighter,
+// amber-outlined treatment (it needs the Supervisor's attention right
+// now); an already-reviewed row gets a small Approved/Rejected pill
+// instead — visibly demoted, never hidden.
+function ActivityRow({ item, pendingRow, onOpen }) {
+  const Icon = item.icon;
+  const reviewStatus = REVIEWABLE_KINDS[item.kind] ? REVIEW_STATUS_META[item.raw.status] : null;
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      className={`w-full text-left flex items-start gap-3 rounded-xl p-3.5 border backdrop-blur-xl transition-all duration-150 ${
+        pendingRow
+          ? "bg-amber-500/[0.06] border-amber-500/25 hover:border-amber-400/45 shadow-[0_0_16px_-8px_rgba(251,191,36,0.5)]"
+          : "bg-[#1A1F33]/70 border-white/[0.06] hover:border-[#F47A20]/25"
+      }`}
+    >
+      <span
+        className={`w-8 h-8 shrink-0 rounded-lg flex items-center justify-center ${
+          pendingRow ? "bg-amber-500/15 text-amber-400" : "bg-[#F47A20]/10 text-[#F47A20]"
+        }`}
+      >
+        <Icon size={15} />
+      </span>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-start justify-between gap-2">
+          <p className="text-sm text-white">
+            <span className="font-semibold">{item.employeeName}</span> {item.title}
+          </p>
+          {reviewStatus && (
+            <span className={`shrink-0 inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1 ring-inset ${reviewStatus.tone}`}>
+              {reviewStatus.label}
+            </span>
+          )}
+        </div>
+        {pendingRow && <p className="text-[11px] text-amber-400/90 mt-0.5">Awaiting review</p>}
+        {item.subtitle && <p className="text-xs text-[#8B93A8] mt-0.5">{item.subtitle}</p>}
+        <p className="text-[11px] text-[#4C5266] mt-1">{timeLabel(item.timestamp)}</p>
+      </div>
+    </button>
   );
 }
 

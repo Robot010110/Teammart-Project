@@ -1,217 +1,151 @@
-import { Routes, Route, useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, ChevronRight, PackageX, Sparkles, Hash, CheckCircle2, Tag, Layers } from "lucide-react";
-import ActivityCalendarScreen from "./ActivityCalendarScreen";
-import { listActivitiesForMarket } from "../../services/activityService";
-import { listItemReportsForMarket } from "../../services/itemReportService";
-import { listWastedOverallReportsForMarket } from "../../services/wastedOverallService";
-import { listSuddenTasks } from "../../services/suddenTaskService";
-import AuthenticatedImage from "../common/AuthenticatedImage";
+import { useMemo, useState } from "react";
+import { ArrowLeft, ChevronRight, ChevronDown, History } from "lucide-react";
+import { SkeletonCard } from "../common/SkeletonCard";
+import ErrorBanner from "../common/ErrorBanner";
+import EmployeeIdentityStrip from "./EmployeeIdentityStrip";
+import { useEmployeeActivityFeed, ACTIVITY_FILTERS } from "../../hooks/useEmployeeActivityFeed";
 
-// Month range helper — every fetchMonth below asks for one calendar
-// month's worth of one employee's records via the real market-scoped
-// staff endpoints (activities/market, item-reports/market, wasted-
-// overall/market — see backend), filtered client-side to the month
-// (none of those endpoints take year/month, only Activity dates are
-// already granular per-record, so this is a plain filter, not a
-// separate query pattern per category).
-function inMonth(dateIso, year, month) {
-  const d = new Date(dateIso);
-  return d.getFullYear() === year && d.getMonth() === month - 1;
+const STATUS_META = {
+  APPROVED: { label: "Approved", tone: "text-emerald-400 bg-emerald-500/10 ring-emerald-500/25" },
+  COMPLETED: { label: "Approved", tone: "text-emerald-400 bg-emerald-500/10 ring-emerald-500/25" },
+  REJECTED: { label: "Rejected", tone: "text-red-400 bg-red-500/10 ring-red-500/25" },
+  PENDING: { label: "Pending", tone: "text-amber-400 bg-amber-500/10 ring-amber-500/25" },
+  DRAFT: { label: "Draft", tone: "text-amber-400 bg-amber-500/10 ring-amber-500/25" },
+  SYSTEM: { label: "System", tone: "text-[#9AA1B4] bg-white/[0.06] ring-white/10" },
+};
+
+function dateTimeLabel(iso) {
+  const d = new Date(iso);
+  return {
+    date: d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
+    time: d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }),
+  };
 }
 
-function detailRow(label, value) {
-  return value != null && value !== "" ? (
-    <div className="flex items-start justify-between gap-3 text-sm py-1.5 border-b border-white/[0.05] last:border-0">
-      <span className="text-[#8B93A8]">{label}</span>
-      <span className="text-white text-right">{value}</span>
-    </div>
-  ) : null;
-}
+// EmployeeActivityHistoryScreen.jsx — the employee's real historical
+// activity record: "what did this employee actually do", as distinct
+// from Tasks ("what work has been assigned" — EmployeeTasksSection.jsx).
+// A single chronological, filterable feed (replacing the previous
+// category-picker-into-a-separate-calendar-per-category flow), built on
+// the same real merge useEmployeeActivityFeed.js already provides for
+// the Profile page's "Today's Activity" preview — same data, just the
+// full history instead of today only.
+//
+// Nothing here is ever deleted or hidden by status: Approved, Rejected,
+// Pending, and System rows all remain visible and available — only the
+// Supervisor Home/Recent Activity screens prioritize Pending above
+// already-reviewed items; this page is deliberately the plain
+// historical record, always in one chronological order.
+export default function EmployeeActivityHistoryScreen({ employeeId, employee, marketName, onBack }) {
+  const { data, error, loading, reload } = useEmployeeActivityFeed({ employeeId, marketId: employee?.marketId, todayOnly: false });
+  const [filter, setFilter] = useState("ALL");
+  const [filterOpen, setFilterOpen] = useState(false);
 
-const CATEGORY_LABEL = { ITEM_COUNTING: "Counting Items", SHELF_CLEANING: "Shelf Cleaning", DAILY_CLEANING: "Daily Cleaning", FACING: "Facing", REFILLING: "Refilling", PRODUCT_CUSTOMIZATION: "Product Customization", LABEL_CHECKING: "Label Checking" };
+  const filtered = useMemo(() => {
+    if (!data) return [];
+    return filter === "ALL" ? data : data.filter((i) => i.filterKey === filter);
+  }, [data, filter]);
 
-function CATEGORIES(employeeId) {
-  return [
-    {
-      key: "EXPIRED_ITEMS", label: "Expired Items", icon: PackageX,
-      fetchMonth: async (year, month) => {
-        const reports = await listItemReportsForMarket({ employeeId, condition: "EXPIRED" });
-        return reports.filter((r) => inMonth(r.reportedAt, year, month)).map((r) => ({ date: r.reportedAt, raw: r }));
-      },
-      renderDetail: (item) => (
-        <div>
-          {detailRow("Item", item.raw.product?.name)}
-          {detailRow("Quantity", item.raw.quantity)}
-          {detailRow("Status", item.raw.status)}
-          {detailRow("Notes", item.raw.notes)}
-          {detailRow("Time", new Date(item.date).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }))}
-          {item.raw.imageUrl && <AuthenticatedImage src={item.raw.imageUrl} alt="" className="mt-3 rounded-lg w-full max-h-56 object-cover" />}
-        </div>
-      ),
-    },
-    {
-      key: "WASTE", label: "Waste", icon: PackageX,
-      fetchMonth: async (year, month) => {
-        const [itemReports, wastedOverall] = await Promise.all([
-          listItemReportsForMarket({ employeeId, condition: "WASTED" }),
-          listWastedOverallReportsForMarket({}).then((all) => all.filter((w) => w.employeeId === employeeId)),
-        ]);
-        return [
-          ...itemReports.filter((r) => inMonth(r.reportedAt, year, month)).map((r) => ({ date: r.reportedAt, raw: { ...r, wasteKind: "item" } })),
-          ...wastedOverall.filter((w) => inMonth(w.reportedAt, year, month)).map((w) => ({ date: w.reportedAt, raw: { ...w, wasteKind: "overall" } })),
-        ];
-      },
-      renderDetail: (item) => (
-        <div>
-          {item.raw.wasteKind === "item" ? (
-            <>
-              {detailRow("Item", item.raw.product?.name)}
-              {detailRow("Quantity", item.raw.quantity)}
-            </>
-          ) : (
-            <>
-              {detailRow("Item", item.raw.item)}
-              {detailRow("Quantity", `${item.raw.quantityKg} kg`)}
-            </>
-          )}
-          {detailRow("Status", item.raw.status)}
-          {detailRow("Notes", item.raw.notes)}
-          {(item.raw.imageUrl || item.raw.photoUrl) && (
-            <AuthenticatedImage src={item.raw.imageUrl || item.raw.photoUrl} alt="" className="mt-3 rounded-lg w-full max-h-56 object-cover" />
-          )}
-        </div>
-      ),
-    },
-    {
-      key: "ITEM_COUNTING", label: "Counting Items", icon: Hash,
-      fetchMonth: async (year, month) => {
-        const activities = await listActivitiesForMarket({ employeeId, category: "ITEM_COUNTING" });
-        return activities.filter((a) => inMonth(a.date, year, month)).map((a) => ({ date: a.date, note: a.notes || undefined, raw: a }));
-      },
-      renderDetail: (item) => (
-        <div>
-          {detailRow("Time", item.raw.time)}
-          {detailRow("Status", item.raw.status)}
-          {detailRow("Notes", item.raw.notes)}
-        </div>
-      ),
-    },
-    {
-      key: "SHELF_CLEANING", label: "Shelf Cleaning", icon: Sparkles,
-      fetchMonth: async (year, month) => {
-        const activities = await listActivitiesForMarket({ employeeId, category: "SHELF_CLEANING" });
-        return activities.filter((a) => inMonth(a.date, year, month)).map((a) => ({ date: a.date, note: a.notes || undefined, raw: a }));
-      },
-      renderDetail: (item) => (
-        <div>{detailRow("Time", item.raw.time)}{detailRow("Status", item.raw.status)}{detailRow("Notes", item.raw.notes)}</div>
-      ),
-    },
-    {
-      key: "DAILY_CLEANING", label: "Daily Cleaning", icon: Sparkles,
-      fetchMonth: async (year, month) => {
-        const activities = await listActivitiesForMarket({ employeeId, category: "DAILY_CLEANING" });
-        return activities.filter((a) => inMonth(a.date, year, month)).map((a) => ({ date: a.date, note: a.notes || undefined, raw: a }));
-      },
-      renderDetail: (item) => (
-        <div>{detailRow("Time", item.raw.time)}{detailRow("Status", item.raw.status)}{detailRow("Notes", item.raw.notes)}</div>
-      ),
-    },
-    {
-      key: "TASKS", label: "Tasks", icon: CheckCircle2,
-      fetchMonth: async (year, month) => {
-        const tasks = await listSuddenTasks({ employeeId, status: "COMPLETED" });
-        return tasks.filter((t) => t.completedAt && inMonth(t.completedAt, year, month)).map((t) => ({ date: t.completedAt, raw: t }));
-      },
-      renderDetail: (item) => (
-        <div>{detailRow("Task", item.raw.title)}{detailRow("Description", item.raw.description)}{detailRow("Priority", item.raw.priority)}</div>
-      ),
-    },
-    {
-      key: "LABEL_ISSUES", label: "Label Checking", icon: Tag,
-      fetchMonth: async (year, month) => {
-        const activities = await listActivitiesForMarket({ employeeId, category: "LABEL_CHECKING" });
-        return activities.filter((a) => inMonth(a.date, year, month)).map((a) => ({ date: a.date, note: a.notes || undefined, raw: a }));
-      },
-      renderDetail: (item) => (
-        <div>{detailRow("Issue", item.raw.labelIssueType)}{detailRow("Status", item.raw.status)}{detailRow("Notes", item.raw.notes)}</div>
-      ),
-    },
-    {
-      key: "OTHER", label: "Other Activities", icon: Layers,
-      fetchMonth: async (year, month) => {
-        const [facing, refilling, custom] = await Promise.all([
-          listActivitiesForMarket({ employeeId, category: "FACING" }),
-          listActivitiesForMarket({ employeeId, category: "REFILLING" }),
-          listActivitiesForMarket({ employeeId, category: "PRODUCT_CUSTOMIZATION" }),
-        ]);
-        return [...facing, ...refilling, ...custom]
-          .filter((a) => inMonth(a.date, year, month))
-          .map((a) => ({ date: a.date, note: a.notes || undefined, raw: a }));
-      },
-      renderDetail: (item) => (
-        <div>{detailRow("Category", CATEGORY_LABEL[item.raw.category] || item.raw.category)}{detailRow("Time", item.raw.time)}{detailRow("Status", item.raw.status)}{detailRow("Notes", item.raw.notes)}</div>
-      ),
-    },
-  ];
-}
-
-function CategoryPicker({ employeeId, onBack, basePath }) {
-  const categories = CATEGORIES(employeeId);
-  const navigate = useNavigate();
+  const filterLabel = ACTIVITY_FILTERS.find((f) => f.key === filter)?.label ?? "All Activities";
 
   return (
     <div className="px-4 sm:px-6 py-6 max-w-4xl mx-auto animate-fade-up">
-      <button type="button" onClick={onBack} className="flex items-center gap-1.5 text-sm text-[#9AA1B4] hover:text-white mb-4 -ml-1 py-1.5 px-1">
-        <ArrowLeft size={16} /> Back
+      <button type="button" onClick={onBack} className="flex items-center gap-1.5 text-sm text-[#9AA1B4] hover:text-white mb-1 -ml-1 py-1.5 px-1">
+        <ArrowLeft size={16} /> Back to Employee
       </button>
-      <h1 className="text-lg font-semibold text-white mb-4">Activity History</h1>
 
-      <div className="rounded-2xl bg-[#171C2E]/80 border border-white/[0.06] backdrop-blur-xl overflow-hidden divide-y divide-white/[0.06]">
-        {categories.map(({ key, label, icon: Icon }) => (
+      <EmployeeIdentityStrip employee={employee} marketName={marketName} />
+
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-4">
+        <div>
+          <h1 className="font-display text-[18px] font-bold text-white">Activity History</h1>
+          <p className="mt-0.5 text-[12.5px] text-[#8B93A8]">View all activities performed by this employee</p>
+        </div>
+
+        <div className="relative shrink-0">
           <button
-            key={key}
             type="button"
-            onClick={() => navigate(`${basePath}/${key}`)}
-            className="w-full flex items-center gap-3 px-4 py-3.5 text-left hover:bg-white/[0.03] transition-colors"
+            onClick={() => setFilterOpen((v) => !v)}
+            className="flex items-center gap-2 rounded-xl px-3.5 py-2.5 text-[13px] font-medium text-white bg-gradient-to-b from-[#131D33]/90 to-[#0C1424]/90 border border-white/[0.08] backdrop-blur-xl transition-colors hover:border-[#F47A20]/35"
           >
-            <Icon size={17} className="text-[#8B93A8]" />
-            <span className="flex-1 text-sm text-white">{label}</span>
-            <ChevronRight size={16} className="text-[#4C5266]" />
+            {filterLabel} <ChevronDown size={14} className={`text-[#8B93A8] transition-transform ${filterOpen ? "rotate-180" : ""}`} />
           </button>
-        ))}
+          {filterOpen && (
+            <>
+              <button type="button" aria-label="Close filter" onClick={() => setFilterOpen(false)} className="fixed inset-0 z-10 cursor-default" />
+              <div className="absolute right-0 z-20 mt-1.5 w-52 rounded-xl border border-white/[0.08] bg-[#151B2E] p-1.5 shadow-[0_16px_40px_-12px_rgba(0,0,0,0.7)]">
+                {ACTIVITY_FILTERS.map((f) => (
+                  <button
+                    key={f.key}
+                    type="button"
+                    onClick={() => { setFilter(f.key); setFilterOpen(false); }}
+                    className={`flex w-full items-center rounded-lg px-3 py-2 text-left text-[12.5px] transition-colors ${
+                      filter === f.key ? "text-[#F47A20] bg-[#F47A20]/10" : "text-[#C4C9D6] hover:bg-white/[0.06]"
+                    }`}
+                  >
+                    {f.label}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
       </div>
+
+      {loading ? (
+        <div className="space-y-2">{Array.from({ length: 5 }).map((_, i) => <SkeletonCard key={i} className="h-[68px]" />)}</div>
+      ) : error ? (
+        <ErrorBanner message={error} onRetry={reload} />
+      ) : data.length === 0 ? (
+        <EmptyState message="No activity history yet" />
+      ) : filtered.length === 0 ? (
+        <EmptyState message="No matching activities found" />
+      ) : (
+        <div className="rounded-2xl border border-white/[0.07] bg-gradient-to-b from-[#131D33]/90 to-[#0C1424]/90 backdrop-blur-xl shadow-[0_10px_30px_-18px_rgba(0,0,0,0.9)] divide-y divide-white/[0.05] overflow-hidden">
+          {filtered.map((item, i) => {
+            const Icon = item.icon;
+            const status = STATUS_META[item.status] ?? STATUS_META.SYSTEM;
+            const { date, time } = dateTimeLabel(item.timestamp);
+            return (
+              <div
+                key={item.id}
+                style={{ animationDelay: `${Math.min(i, 10) * 25}ms` }}
+                className="animate-fade-up flex items-start gap-3 px-4 py-3.5 transition-colors hover:bg-white/[0.03]"
+              >
+                <span className={`grid h-9 w-9 shrink-0 place-items-center rounded-xl ring-1 ring-inset ${item.tone}`}>
+                  <Icon size={15} />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="text-[13.5px] font-semibold text-white">{item.title}</p>
+                    <span className={`shrink-0 inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold ring-1 ring-inset ${status.tone}`}>
+                      {status.label}
+                    </span>
+                  </div>
+                  {(item.subtitle || marketName) && (
+                    <p className="mt-0.5 truncate text-[11.5px] text-[#8B93A8]">
+                      {item.subtitle}{item.subtitle && marketName ? " · " : ""}{marketName}
+                    </p>
+                  )}
+                  <p className="mt-1 text-[11px] tabular-nums text-[#5C6479]">{date} · {time}</p>
+                </div>
+                <ChevronRight size={15} className="mt-2 shrink-0 text-[#4C5266]" />
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
 
-function CategoryCalendarRoute({ employeeId, basePath }) {
-  const { category } = useParams();
-  const navigate = useNavigate();
-  const cat = CATEGORIES(employeeId).find((c) => c.key === category);
-  if (!cat) return null;
-
+function EmptyState({ message }) {
   return (
-    <ActivityCalendarScreen
-      title={cat.label}
-      onBack={() => navigate(basePath)}
-      fetchMonth={cat.fetchMonth}
-      renderDetail={cat.renderDetail}
-    />
-  );
-}
-
-// EmployeeActivityHistoryScreen.jsx — category picker feeding the one
-// reusable ActivityCalendarScreen (spec §11/§12). Labeled "Activity
-// History" here (not "My Activities" — that label is reserved for the
-// employee's own first-person view elsewhere in the app). Category
-// selection is a real route (:category) under `basePath`, not local
-// state, so Back from a category's calendar returns to the picker as a
-// real history entry.
-export default function EmployeeActivityHistoryScreen({ employeeId, onBack, basePath }) {
-  return (
-    <Routes>
-      <Route index element={<CategoryPicker employeeId={employeeId} onBack={onBack} basePath={basePath} />} />
-      <Route path=":category" element={<CategoryCalendarRoute employeeId={employeeId} basePath={basePath} />} />
-    </Routes>
+    <div className="rounded-2xl p-8 bg-gradient-to-b from-[#131D33]/90 to-[#0C1424]/90 border border-white/[0.07] backdrop-blur-xl text-center">
+      <span className="mx-auto mb-3 grid h-14 w-14 place-items-center rounded-2xl bg-white/[0.05] text-[#5C6479] ring-1 ring-inset ring-white/10">
+        <History size={24} />
+      </span>
+      <p className="text-[15px] font-semibold text-white">{message}</p>
+    </div>
   );
 }

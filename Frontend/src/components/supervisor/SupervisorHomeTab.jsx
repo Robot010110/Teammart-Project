@@ -1,10 +1,12 @@
-import { Circle } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { Circle, ChevronRight } from "lucide-react";
 import { useAsync } from "../../hooks/useAsync";
 import SupervisorProfileCard from "./SupervisorProfileCard";
 import AttendanceCheckInCard from "../common/AttendanceCheckInCard";
 import SupervisorTodayOverview from "./home/SupervisorTodayOverview";
 import SupervisorQuickActions from "./home/SupervisorQuickActions";
 import TeamStatusChart from "./home/TeamStatusChart";
+import TodayActivityFeed from "./TodayActivityFeed";
 import { getTodayAttendance } from "../../services/attendanceService";
 
 function greeting() {
@@ -23,13 +25,20 @@ function todayLabel() {
 }
 
 // SupervisorHomeTab.jsx — a short command center, not a scrolling feed.
-// Order matches the design brief exactly:
+// Order:
 //   header (AppShell's own bar)
 //   greeting + duty status
 //   hero card (SupervisorProfileCard — identity, market, team, wind bg)
 //   attendance quick control (AttendanceCheckInCard, unchanged real logic)
 //   Today's Overview — 4 real, distinct summary cards, each opening its
 //     own dedicated page (no full lists live on Home)
+//   Recent Activity — a real, compact preview (TodayActivityFeed,
+//     todayOnly + limit=4) answering "what happened today / what needs
+//     my attention" directly on Home, instead of only behind a tap into
+//     Today's Overview's own count card. Pending items sort first (see
+//     TodayActivityFeed's own comment for the real prioritization rule);
+//     "See All" is the real escape hatch into the full page, not a
+//     second, thinner feed under the same name.
 //   Quick Actions
 //   Team Status (compact donut + link to the full Team Attendance page)
 //
@@ -37,6 +46,7 @@ function todayLabel() {
 // component's own comment for its exact backend source. Nothing here
 // duplicates a data source under a different name.
 export default function SupervisorHomeTab({ session, basePath }) {
+  const navigate = useNavigate();
   // Real on-duty state — the same GET /attendance/today
   // AttendanceCheckInCard itself reads, fetched once here and handed
   // down to the hero card's status pill rather than a second, redundant
@@ -70,6 +80,20 @@ export default function SupervisorHomeTab({ session, basePath }) {
       <section>
         <h2 className="mb-3 text-sm font-semibold text-white">Today's Overview</h2>
         <SupervisorTodayOverview session={session} basePath={basePath} />
+      </section>
+
+      <section>
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-sm font-semibold text-white">Recent Activity</h2>
+          <button
+            type="button"
+            onClick={() => navigate(`${basePath}/activity`)}
+            className="flex items-center gap-0.5 text-[11.5px] font-semibold text-[#F47A20] hover:text-[#ff8b36]"
+          >
+            See All <ChevronRight size={13} />
+          </button>
+        </div>
+        <TodayActivityFeed marketId={session.marketId} todayOnly limit={4} />
       </section>
 
       <SupervisorQuickActions session={session} basePath={basePath} />

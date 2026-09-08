@@ -66,7 +66,7 @@ export default function TeamStatusChart({ session, basePath }) {
   });
 
   return (
-    <section className="rounded-2xl p-4 bg-[#171C2E]/80 border border-white/[0.06] backdrop-blur-xl">
+    <section className="rounded-2xl p-4 bg-gradient-to-b from-[#171C2E]/90 to-[#12172A]/90 border border-white/[0.07] backdrop-blur-xl shadow-[0_10px_30px_-18px_rgba(0,0,0,0.9)]">
       <div className="flex items-center justify-between mb-1">
         <h2 className="text-sm font-semibold text-white">Team Status</h2>
         <button

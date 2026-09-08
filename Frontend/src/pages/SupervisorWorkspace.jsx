@@ -57,7 +57,7 @@ export default function SupervisorWorkspace({ session, onLogout }) {
         <Route path="pending-tasks" element={<SupervisorPendingTasksPage session={session} basePath={BASE_PATH} />} />
         <Route path="team-attendance" element={<SupervisorTeamAttendancePage session={session} basePath={BASE_PATH} />} />
         <Route path="employees" element={<EmployeesListScreen session={session} basePath={BASE_PATH} />} />
-        <Route path="employees/:employeeId/*" element={<SupervisorEmployeeProfileRoute basePath={BASE_PATH} />} />
+        <Route path="employees/:employeeId/*" element={<SupervisorEmployeeProfileRoute session={session} basePath={BASE_PATH} />} />
         <Route path="chat" element={<SupervisorChatTab session={session} basePath={BASE_PATH} />} />
         <Route path="chat/:channelId" element={<SupervisorChatTab session={session} basePath={BASE_PATH} />} />
         <Route path="market" element={<MarketTab session={session} />} />

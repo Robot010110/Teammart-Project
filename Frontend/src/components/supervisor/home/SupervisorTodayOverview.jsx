@@ -104,11 +104,13 @@ export default function SupervisorTodayOverview({ session, basePath }) {
   );
 }
 
+// Each tone is a full identity — tinted border + saturated icon glow —
+// not just a colored icon dropped on an otherwise identical gray card.
 const TONES = {
-  blue: { text: "text-sky-400", bg: "bg-sky-500/10", glow: "glow-sky-soft" },
-  red: { text: "text-[#FF5C5C]", bg: "bg-red-500/10", glow: "glow-red" },
-  violet: { text: "text-violet-400", bg: "bg-violet-500/10", glow: "glow-violet-soft" },
-  orange: { text: "text-[#F47A20]", bg: "bg-[#F47A20]/10", glow: "glow-orange-soft" },
+  blue: { text: "text-sky-400", bg: "bg-sky-500/15", glow: "glow-sky", border: "border-sky-500/20 hover:border-sky-500/40" },
+  red: { text: "text-[#FF5C5C]", bg: "bg-red-500/15", glow: "glow-red", border: "border-red-500/20 hover:border-red-500/40" },
+  violet: { text: "text-violet-400", bg: "bg-violet-500/15", glow: "glow-violet", border: "border-violet-500/20 hover:border-violet-500/40" },
+  orange: { text: "text-[#F47A20]", bg: "bg-[#F47A20]/15", glow: "glow-orange", border: "border-[#F47A20]/20 hover:border-[#F47A20]/40" },
 };
 
 function OverviewCard({ label, sub, value, icon: Icon, tone, onClick }) {
@@ -117,10 +119,10 @@ function OverviewCard({ label, sub, value, icon: Icon, tone, onClick }) {
     <button
       type="button"
       onClick={onClick}
-      className="text-left rounded-2xl p-4 bg-[#171C2E]/80 border border-white/[0.06] backdrop-blur-xl hover:border-white/[0.14] active:scale-[0.98] transition-all duration-150"
+      className={`text-left rounded-2xl p-4 bg-gradient-to-b from-[#171C2E]/90 to-[#12172A]/90 border backdrop-blur-xl active:scale-[0.98] transition-all duration-200 hover:-translate-y-0.5 ${t.border}`}
     >
-      <span className={`w-8 h-8 rounded-lg grid place-items-center ${t.bg} ${t.glow} ${t.text}`}>
-        <Icon size={15} />
+      <span className={`w-9 h-9 rounded-xl grid place-items-center ring-1 ring-inset ring-white/5 ${t.bg} ${t.glow} ${t.text}`}>
+        <Icon size={16} />
       </span>
       <p className="mt-2.5 font-display text-2xl font-bold text-white tabular-nums">{value ?? "—"}</p>
       <p className="mt-0.5 text-[13px] font-medium text-white">{label}</p>
