@@ -699,7 +699,7 @@ model Market {
   // employee's profile picture. Nullable: most markets start with none
   // (a Regional Manager assigns one later via PATCH /api/markets/:id,
   // same generic update endpoint name/status already use — see
-  // marketsController.updateMarket) — the frontend shows a NEXA fallback
+  // marketsController.updateMarket) — the frontend shows a TeamMart fallback
   // placeholder, never a broken image or an employee photo, until then.
   photoUrl     String?
   zoneId       Int

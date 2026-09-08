@@ -15,7 +15,7 @@ const SIZE_CLASSES = {
 };
 const ICON_SIZE = { sm: 20, lg: 34, hero: 44 };
 
-// A market's own NEXA-branded fallback — a Store glyph on the same
+// A market's own TeamMart-branded fallback — a Store glyph on the same
 // orange gradient Logo.jsx's wordmark badge uses, so an unphotographed
 // market still reads as "this app's own placeholder" rather than a
 // broken image or a borrowed employee avatar (spec: never fall back to
@@ -42,7 +42,7 @@ function MarketPhotoFallback({ size }) {
 // used consistently everywhere a market is represented: the Markets list
 // card (size="sm") and the market detail header (size="lg"). Never an
 // employee profile picture, never a generic supermarket stock icon — a
-// real photo of THIS market, or the branded NEXA fallback above until
+// real photo of THIS market, or the branded TeamMart fallback above until
 // one is assigned.
 //
 // editable + marketId together turn this into the upload control too
