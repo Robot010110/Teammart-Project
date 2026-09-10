@@ -44,6 +44,9 @@ function isSameDay(a, b) {
 // Groups newest-first notifications into Today / Yesterday / Earlier —
 // the same three buckets regardless of how far back the list goes, so
 // the center never needs a "This Week" edge case for a 30-row page.
+//
+// Keyed by these fixed English literals, never by a translated label —
+// see DAY_GROUPS below for why that distinction matters.
 function groupByDay(notifications) {
   const now = new Date();
   const yesterday = new Date(now); yesterday.setDate(now.getDate() - 1);
@@ -56,6 +59,22 @@ function groupByDay(notifications) {
   }
   return groups;
 }
+
+// The render side pairs each fixed groups[] key above with the i18next
+// key for its heading — kept separate on purpose. The section used to
+// map over [t("emp.today"), t("emp.yesterday"), t("emp.earlier")] and
+// index straight into `groups` with the translated string, which only
+// ever happened to work in English (where t("emp.today") === "Today",
+// the same literal groupByDay uses as a key). In Kurdish, t("emp.today")
+// returns "ئەمڕۆ" — groups["ئەمڕۆ"] is undefined, and
+// undefined.length crashed the whole notification center. Same pattern
+// as chatCategories.js's GROUP_CATEGORIES: a stable key for data,
+// resolved to display text only at render time.
+const DAY_GROUPS = [
+  { key: "Today", label: "emp.today" },
+  { key: "Yesterday", label: "emp.yesterday" },
+  { key: "Earlier", label: "emp.earlier" },
+];
 
 function NotificationRow({ notification, onOpen, onDelete }) {
   const { t } = useTranslation();
@@ -241,12 +260,12 @@ export default function NotificationBell({ basePath }) {
                   <p className="text-xs text-[#8B93A8] mt-1">{t("emp.noNotificationsRightNow")}</p>
                 </div>
               ) : (
-                [t("emp.today"), t("emp.yesterday"), t("emp.earlier")].map((label) =>
-                  groups[label].length > 0 ? (
-                    <div key={label}>
-                      <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-[#8B93A8]">{label}</h3>
+                DAY_GROUPS.map(({ key, label }) =>
+                  groups[key].length > 0 ? (
+                    <div key={key}>
+                      <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-[#8B93A8]">{t(label)}</h3>
                       <div className="space-y-2">
-                        {groups[label].map((n) => (
+                        {groups[key].map((n) => (
                           <NotificationRow key={n.id} notification={n} onOpen={handleOpen} onDelete={handleDelete} />
                         ))}
                       </div>
