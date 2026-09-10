@@ -48,14 +48,14 @@ export default function PasswordStep({ summary, hint, onSubmit, errorMessage, sh
 
       <label className="block text-xs uppercase tracking-wide text-[#8B93A8] mb-2">Password</label>
       <div className="relative">
-        <Lock size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#4C5266]" />
+        <Lock size={14} className="absolute start-3 top-1/2 -translate-y-1/2 text-[#4C5266]" />
         <input
           type={showPassword ? "text" : "password"}
           value={password}
           onChange={(e) => { setPassword(e.target.value); setError(false); }}
           placeholder="Enter password"
           autoFocus
-          className={`w-full rounded-lg bg-white/[0.04] border pl-9 pr-10 py-3 text-base sm:text-sm text-white placeholder:text-[#4C5266] outline-none transition-colors duration-200 ${
+          className={`w-full rounded-lg bg-white/[0.04] border ps-9 pe-10 py-3 text-base sm:text-sm text-white placeholder:text-[#4C5266] outline-none transition-colors duration-200 ${
             error ? "border-red-500/50 focus:border-red-500/70" : "border-white/[0.06] focus:border-[#F47A20]/50"
           }`}
         />
@@ -63,7 +63,7 @@ export default function PasswordStep({ summary, hint, onSubmit, errorMessage, sh
           type="button"
           onClick={() => setShowPassword((v) => !v)}
           tabIndex={-1}
-          className="absolute right-3 top-1/2 -translate-y-1/2 text-[#4C5266] hover:text-[#9AA1B4] p-1"
+          className="absolute end-3 top-1/2 -translate-y-1/2 text-[#4C5266] hover:text-[#9AA1B4] p-1"
           aria-label={showPassword ? "Hide password" : "Show password"}
         >
           {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}

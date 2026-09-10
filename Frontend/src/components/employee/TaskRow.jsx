@@ -1,4 +1,5 @@
 import { Circle, CheckCircle2, Timer } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import PriorityPill from "../common/PriorityPill";
 
 function timeLabel(iso) {
@@ -16,6 +17,7 @@ function timeLabel(iso) {
 // COMPLETED — this row shows a distinct state for it rather than
 // lumping it in with "Pending".
 export default function TaskRow({ task, onClick }) {
+  const { t } = useTranslation();
   const isCompleted = task.status === "COMPLETED";
   const isInProgress = task.status === "IN_PROGRESS";
   const timestamp = isCompleted ? task.completedAt : isInProgress ? task.startedAt : task.assignedAt;
@@ -24,7 +26,7 @@ export default function TaskRow({ task, onClick }) {
     <button
       type="button"
       onClick={onClick}
-      className="w-full flex items-center gap-3 rounded-xl p-3.5 bg-[#1A1F33]/70 border border-white/[0.06] hover:border-[#F47A20]/25 transition-colors text-left"
+      className="w-full flex items-center gap-3 rounded-xl p-3.5 bg-[#1A1F33]/70 border border-white/[0.06] hover:border-[#F47A20]/25 transition-colors text-start"
     >
       {isCompleted ? (
         <CheckCircle2 size={20} className="text-emerald-400 shrink-0" />
@@ -45,7 +47,7 @@ export default function TaskRow({ task, onClick }) {
           isCompleted ? "bg-emerald-500/10 text-emerald-400" : isInProgress ? "bg-[#F47A20]/15 text-[#F47A20]" : "bg-white/[0.06] text-[#9AA1B4]"
         }`}
       >
-        {isCompleted ? "Completed" : isInProgress ? "In Progress" : "Pending"}
+        {isCompleted ? t("emp.completed") : isInProgress ? t("emp.inProgress") : t("emp.pending")}
       </span>
     </button>
   );

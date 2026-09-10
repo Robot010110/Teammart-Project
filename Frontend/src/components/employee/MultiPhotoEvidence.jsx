@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Camera, Upload, X, Loader2, CheckCircle2 } from "lucide-react";
 import AuthenticatedImage from "../common/AuthenticatedImage";
 import { prepareImageForUpload, addActivityImage, deleteActivityImage } from "../../services/nightShiftService";
@@ -17,6 +18,7 @@ import { ApiError } from "../../services/apiClient";
 // recounts on submit and must never disagree with what the UI showed
 // (spec §13).
 export default function MultiPhotoEvidence({ activityId, images, minRequired, editable, onImagesChanged }) {
+  const { t } = useTranslation();
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [removingId, setRemovingId] = useState(null);
@@ -32,7 +34,7 @@ export default function MultiPhotoEvidence({ activityId, images, minRequired, ed
       const image = await addActivityImage(activityId, url);
       onImagesChanged([...images, image]);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Could not add that photo. Please try again.");
+      setError(err instanceof ApiError ? err.message : t("emp.couldNotAddThatPhotoPlease"));
     } finally {
       setUploading(false);
     }
@@ -45,7 +47,7 @@ export default function MultiPhotoEvidence({ activityId, images, minRequired, ed
       await deleteActivityImage(activityId, imageId);
       onImagesChanged(images.filter((img) => img.id !== imageId));
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Could not remove that photo.");
+      setError(err instanceof ApiError ? err.message : t("emp.couldNotRemoveThatPhoto"));
     } finally {
       setRemovingId(null);
     }
@@ -57,7 +59,7 @@ export default function MultiPhotoEvidence({ activityId, images, minRequired, ed
   return (
     <div>
       <div className="flex items-center justify-between mb-3">
-        <p className="text-sm font-semibold text-white">Evidence Photos</p>
+        <p className="text-sm font-semibold text-white">{t("emp.evidencePhotos")}</p>
         <span
           className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${
             met ? "bg-emerald-500/10 text-emerald-400" : "bg-amber-500/10 text-amber-400"
@@ -71,14 +73,14 @@ export default function MultiPhotoEvidence({ activityId, images, minRequired, ed
       <div className="grid grid-cols-3 gap-2.5">
         {images.map((img) => (
           <div key={img.id} className="relative aspect-square rounded-xl overflow-hidden border border-white/[0.06]">
-            <AuthenticatedImage src={img.url} alt="Evidence" className="w-full h-full object-cover" />
+            <AuthenticatedImage src={img.url} alt={t("emp.evidence")} className="w-full h-full object-cover" />
             {editable && (
               <button
                 type="button"
                 onClick={() => handleRemove(img.id)}
                 disabled={removingId === img.id}
-                aria-label="Remove photo"
-                className="absolute top-1 right-1 grid place-items-center h-6 w-6 rounded-full bg-black/70 text-white hover:bg-red-500/80 transition-colors disabled:opacity-50"
+                aria-label={t("emp.removePhoto")}
+                className="absolute top-1 end-1 grid place-items-center h-6 w-6 rounded-full bg-black/70 text-white hover:bg-red-500/80 transition-colors disabled:opacity-50"
               >
                 {removingId === img.id ? <Loader2 size={11} className="animate-spin" /> : <X size={11} />}
               </button>
@@ -94,7 +96,7 @@ export default function MultiPhotoEvidence({ activityId, images, minRequired, ed
               }`}
             >
               <Camera size={17} className="text-[#F47A20]" />
-              <span className="text-[10px] font-medium text-[#9AA1B4]">Take Photo</span>
+              <span className="text-[10px] font-medium text-[#9AA1B4]">{t("emp.takePhoto")}</span>
               <input type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => handleFile(e.target.files[0])} />
             </label>
             <label
@@ -103,7 +105,7 @@ export default function MultiPhotoEvidence({ activityId, images, minRequired, ed
               }`}
             >
               <Upload size={17} className="text-[#F47A20]" />
-              <span className="text-[10px] font-medium text-[#9AA1B4]">Upload</span>
+              <span className="text-[10px] font-medium text-[#9AA1B4]">{t("emp.upload")}</span>
               <input type="file" accept="image/*" className="hidden" onChange={(e) => handleFile(e.target.files[0])} />
             </label>
           </>
@@ -112,7 +114,7 @@ export default function MultiPhotoEvidence({ activityId, images, minRequired, ed
 
       {uploading && (
         <p className="mt-3 flex items-center gap-1.5 text-xs text-[#9AA1B4]">
-          <Loader2 size={12} className="animate-spin" /> Uploading photo... {progress}%
+          <Loader2 size={12} className="animate-spin" /> {t("emp.uploadingPhotoPercent", { percent: progress })}
         </p>
       )}
       {error && <p className="mt-3 text-xs text-red-400">{error}</p>}

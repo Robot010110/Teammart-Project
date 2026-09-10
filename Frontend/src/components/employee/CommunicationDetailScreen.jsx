@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, Clock3, CheckCircle2, Loader2, Send } from "lucide-react";
 import { useAsync } from "../../hooks/useAsync";
@@ -17,7 +18,7 @@ const PRIORITY_STYLE = {
   URGENT: "bg-red-500/10 text-red-400 ring-red-500/20",
 };
 
-const TYPE_LABEL = { ANNOUNCEMENT: "Announcement", WARNING: "Warning", TASK: "Task", INFORMATION: "Information" };
+const TYPE_LABEL = { ANNOUNCEMENT: "emp.announcement", WARNING: "emp.warning", TASK: "emp.task", INFORMATION: "emp.information" };
 
 function timeLabel(iso) {
   return new Date(iso).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
@@ -30,6 +31,7 @@ function timeLabel(iso) {
 // endpoint and re-renders from ITS response — this component never
 // flips myStatus locally as if the action already succeeded.
 export default function CommunicationDetailScreen({ basePath }) {
+  const { t } = useTranslation();
   const { id } = useParams();
   const navigate = useNavigate();
   const { data: communication, setData, error, loading, reload } = useAsync(() => getMyCommunication(id), { deps: [id] });
@@ -43,7 +45,7 @@ export default function CommunicationDetailScreen({ basePath }) {
     try {
       setData(await acknowledgeCommunication(id));
     } catch (err) {
-      setActionError(err instanceof ApiError ? err.message : "Could not acknowledge this communication.");
+      setActionError(err instanceof ApiError ? err.message : t("emp.couldNotAcknowledgeThisCommunication"));
     } finally {
       setActionBusy(false);
     }
@@ -55,7 +57,7 @@ export default function CommunicationDetailScreen({ basePath }) {
     try {
       setData(await startCommunicationTask(id));
     } catch (err) {
-      setActionError(err instanceof ApiError ? err.message : "Could not start this task.");
+      setActionError(err instanceof ApiError ? err.message : t("emp.couldNotStartThisTask"));
     } finally {
       setActionBusy(false);
     }
@@ -67,7 +69,7 @@ export default function CommunicationDetailScreen({ basePath }) {
     try {
       setData(await completeCommunicationTask(id, response));
     } catch (err) {
-      setActionError(err instanceof ApiError ? err.message : "Could not submit this task.");
+      setActionError(err instanceof ApiError ? err.message : t("emp.couldNotSubmitThisTask"));
     } finally {
       setActionBusy(false);
     }
@@ -88,8 +90,8 @@ export default function CommunicationDetailScreen({ basePath }) {
 
   return (
     <div className="px-4 sm:px-6 py-6 max-w-4xl mx-auto animate-fade-up">
-      <button type="button" onClick={() => navigate(-1)} className="flex items-center gap-1.5 text-sm text-[#9AA1B4] hover:text-white mb-4 -ml-1 py-1.5 px-1">
-        <ArrowLeft size={16} /> Back
+      <button type="button" onClick={() => navigate(-1)} className="flex items-center gap-1.5 text-sm text-[#9AA1B4] hover:text-white mb-4 -ms-1 py-1.5 px-1">
+        <ArrowLeft size={16} className="rtl-flip" /> {t("emp.back")}
       </button>
 
       <div className="rounded-2xl bg-[#171C2E]/80 border border-white/[0.06] backdrop-blur-xl overflow-hidden">
@@ -103,7 +105,7 @@ export default function CommunicationDetailScreen({ basePath }) {
             </span>
           </div>
 
-          <p className="text-[10px] uppercase tracking-wide text-[#8B93A8] mb-1">{TYPE_LABEL[communication.type] || communication.type}</p>
+          <p className="text-[10px] uppercase tracking-wide text-[#8B93A8] mb-1">{TYPE_LABEL[communication.type] ? t(TYPE_LABEL[communication.type]) : communication.type}</p>
           <h1 className="text-lg font-semibold text-white">{communication.title}</h1>
 
           <div className="mt-2 flex items-center gap-1.5 text-xs text-[#8B93A8]">
@@ -140,13 +142,13 @@ export default function CommunicationDetailScreen({ basePath }) {
 
           {needsComplete && (
             <div className="mt-5 rounded-xl p-4 bg-white/[0.03] border border-white/[0.06]">
-              <label className="block text-xs uppercase tracking-wide text-[#8B93A8] mb-1.5">Note (optional)</label>
+              <label className="block text-xs uppercase tracking-wide text-[#8B93A8] mb-1.5">{t("emp.noteOptional")}</label>
               <textarea
                 value={response.note}
                 onChange={(e) => setResponse((r) => ({ ...r, note: e.target.value }))}
                 rows={3}
                 className="w-full rounded-lg bg-white/[0.04] border border-white/[0.08] px-3 py-2.5 text-sm text-white placeholder:text-[#4C5266] outline-none focus:border-[#F47A20]/50 resize-none"
-                placeholder="Add any relevant details..."
+                placeholder={t("emp.addAnyRelevantDetails")}
               />
               <button
                 type="button" onClick={handleComplete} disabled={actionBusy}
@@ -161,8 +163,8 @@ export default function CommunicationDetailScreen({ basePath }) {
           {isDone && (
             <div className="mt-5 flex items-center gap-2 rounded-xl p-3.5 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-sm font-medium">
               <CheckCircle2 size={15} />
-              {communication.completedAt ? "Completed" : "Acknowledged"}
-              {communication.response?.note && <span className="text-emerald-300/80 font-normal ml-1">— "{communication.response.note}"</span>}
+              {communication.completedAt ? t("emp.completed") : t("emp.acknowledged")}
+              {communication.response?.note && <span className="text-emerald-300/80 font-normal ms-1">— "{communication.response.note}"</span>}
             </div>
           )}
         </div>

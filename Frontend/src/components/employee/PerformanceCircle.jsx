@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 function toneColor(rate) {
   if (rate == null) return "#4C5266";
@@ -8,10 +9,10 @@ function toneColor(rate) {
 }
 
 function toneMessage(rate) {
-  if (rate == null) return "No data yet";
-  if (rate >= 90) return "Great job!";
-  if (rate >= 75) return "Good work";
-  return "Keep going";
+  if (rate == null) return "emp.noDataYet";
+  if (rate >= 90) return "emp.greatJob";
+  if (rate >= 75) return "emp.goodWork";
+  return "emp.keepGoing";
 }
 
 // PerformanceCircle.jsx — a real circular performance indicator (spec:
@@ -32,6 +33,7 @@ function toneMessage(rate) {
 // disabled under prefers-reduced-motion same as every other animation
 // class in this app).
 export default function PerformanceCircle({ rate, onClick, bare = false, size = 88 }) {
+  const { t } = useTranslation();
   const stroke = Math.max(6, Math.round(size * 0.08));
   const radius = (size - stroke) / 2;
   const circumference = 2 * Math.PI * radius;
@@ -72,14 +74,14 @@ export default function PerformanceCircle({ rate, onClick, bare = false, size = 
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
         <span className="font-bold text-white" style={{ fontSize: size * 0.24 }}>{rate == null ? "—" : `${Math.round(rate)}%`}</span>
-        {bare && <span className="text-[11px] text-[#9AA1B4] mt-0.5">{toneMessage(rate)}</span>}
+        {bare && <span className="text-[11px] text-[#9AA1B4] mt-0.5">{t(toneMessage(rate))}</span>}
       </div>
     </div>
   );
 
   if (bare) {
     return (
-      <button type="button" onClick={onClick} aria-label="View performance history">
+      <button type="button" onClick={onClick} aria-label={t("emp.viewPerformanceHistory")}>
         {ring}
       </button>
     );
@@ -92,7 +94,7 @@ export default function PerformanceCircle({ rate, onClick, bare = false, size = 
       className="flex-1 min-w-0 flex flex-col items-center gap-2 rounded-2xl p-4 bg-[#171C2E]/80 border border-white/[0.06] backdrop-blur-xl active:bg-[#1A1F33] transition-colors"
     >
       {ring}
-      <span className="text-xs font-medium text-[#9AA1B4]">Performance</span>
+      <span className="text-xs font-medium text-[#9AA1B4]">{t("emp.performance")}</span>
     </button>
   );
 }

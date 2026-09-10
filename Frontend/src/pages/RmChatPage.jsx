@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useNavigate, useParams } from "react-router-dom";
 import { ChevronRight, UsersRound, ArrowLeft, ShieldAlert, Loader2, UserPlus } from "lucide-react";
 import ErrorBanner from "../components/common/ErrorBanner";
@@ -29,9 +30,9 @@ import { categoryOf } from "../utils/chatCategories";
 // above — RM already has a richer, dedicated Awareness tab for that
 // content).
 const RM_GROUP_SECTIONS = [
-  { key: "zone", label: "Zone" },
-  { key: "general", label: "General" },
-  { key: "tasks", label: "Task & Operations" },
+  { key: "zone", label: "emp.catZone" },
+  { key: "general", label: "emp.catGeneral" },
+  { key: "tasks", label: "emp.catTaskOperations" },
 ];
 
 const LIST_POLL_MS = 15000;
@@ -75,11 +76,11 @@ function StartConversationRow({ contact, onOpen }) {
       <span className="w-9 h-9 rounded-full bg-white/[0.06] flex items-center justify-center text-xs font-semibold text-white shrink-0">
         {initialsOf(contact.name)}
       </span>
-      <div className="min-w-0 flex-1 text-left">
+      <div className="min-w-0 flex-1 text-start">
         <p className="text-sm font-medium text-white truncate">{contact.name}</p>
         <p className="text-[11px] text-[#8B93A8]">{contact.role?.replace(/_/g, " ")}</p>
       </div>
-      {opening ? <Loader2 size={14} className="animate-spin text-[#4C5266]" /> : <ChevronRight size={16} className="text-[#4C5266] shrink-0" />}
+      {opening ? <Loader2 size={14} className="animate-spin text-[#4C5266]" /> : <ChevronRight size={16} className="text-[#4C5266] shrink-0 rtl-flip" />}
     </button>
   );
 }
@@ -101,6 +102,7 @@ function StartConversationRow({ contact, onOpen }) {
 //   Reports — the existing MarketProblem system, now zone-wide (see
 //     RmReportsSection.jsx / marketProblemsController's zoneId branch).
 export default function RmChatPage({ session }) {
+  const { t } = useTranslation();
   const { data: conversations, setData: setConversations, error, loading, reload } = useAsync(listMyRegionalManagerConversations, { deps: [] });
   const { data: staffContacts } = useAsync(listAuthorizedStaffContacts, { deps: [] });
   const { conversationId } = useParams();
@@ -152,14 +154,14 @@ export default function RmChatPage({ session }) {
     if (!openConversation) {
       return (
         <div className="px-6 md:px-10 py-8 max-w-4xl mx-auto">
-          <ErrorBanner message="This conversation could not be found." onRetry={() => navigate("/rm/chat")} />
+          <ErrorBanner message={t("emp.thisConversationCouldNotBeFound")} onRetry={() => navigate("/rm/chat")} />
         </div>
       );
     }
     return (
       <div className="max-w-4xl mx-auto px-4 md:px-6">
         <button type="button" onClick={() => navigate("/rm/chat")} className="mt-4 flex items-center gap-1.5 text-xs text-[#9AA1B4] hover:text-white md:hidden">
-          <ArrowLeft size={13} /> Back to Chat
+          <ArrowLeft size={13} className="rtl-flip" /> {t("rm.backToChat")}
         </button>
         <div className="h-[calc(100vh-64px)]">
           <ConversationScreen
@@ -199,29 +201,29 @@ export default function RmChatPage({ session }) {
   const newContacts = (staffContacts ?? []).filter((c) => !existingStaffContactIds.has(c.id));
 
   const TABS = [
-    { key: "groups", label: "Groups" },
-    { key: "individuals", label: "Individuals" },
-    { key: "awareness", label: "Awareness" },
-    { key: "unread", label: "Unread", count: unread.length },
-    { key: "reports", label: "Reports" },
+    { key: "groups", label: t("emp.tabGroups") },
+    { key: "individuals", label: t("emp.tabIndividuals") },
+    { key: "awareness", label: t("rm.awareness") },
+    { key: "unread", label: t("emp.tabUnread"), count: unread.length },
+    { key: "reports", label: t("emp.tabReports") },
   ];
 
   return (
     <div className="px-4 sm:px-6 py-6 max-w-4xl mx-auto animate-fade-up">
-      <h1 className="font-display text-2xl font-bold text-white mb-1">Chat</h1>
-      <p className="text-xs text-[#6B7284] mb-5">Your zone's communication hub</p>
+      <h1 className="font-display text-2xl font-bold text-white mb-1">{t("emp.chat")}</h1>
+      <p className="text-xs text-[#6B7284] mb-5">{t("rm.yourZoneSCommunicationHub")}</p>
 
       <div className="flex gap-2 mb-5 overflow-x-auto -mx-1 px-1 pb-1">
-        {TABS.map((t) => (
+        {TABS.map((tab_) => (
           <button
-            key={t.key}
+            key={tab_.key}
             type="button"
-            onClick={() => setView(t.key)}
+            onClick={() => setView(tab_.key)}
             className={`shrink-0 rounded-full px-3.5 py-2 text-xs font-semibold transition-colors ${
-              view === t.key ? "bg-[#F47A20] text-white" : "bg-white/[0.05] text-[#9AA1B4] hover:bg-white/[0.09]"
+              view === tab_.key ? "bg-[#F47A20] text-white" : "bg-white/[0.05] text-[#9AA1B4] hover:bg-white/[0.09]"
             }`}
           >
-            {t.label}{t.count > 0 ? ` (${t.count})` : ""}
+            {t(tab_.label)}{tab_.count > 0 ? ` (${tab_.count})` : ""}
           </button>
         ))}
       </div>
@@ -241,17 +243,17 @@ export default function RmChatPage({ session }) {
                 onClick={() => setCreatingGroup(true)}
                 className="w-full flex items-center justify-center gap-1.5 rounded-xl px-4 py-2.5 mb-1 text-sm font-semibold text-white bg-[#F47A20] hover:bg-[#ff8b36] transition-colors duration-150"
               >
-                <UsersRound size={15} /> Create Group
+                <UsersRound size={15} /> {t("sup.createGroup")}
               </button>
               {groups.length === 0 ? (
-                <p className="text-sm text-[#6B7284] text-center py-8">No groups yet.</p>
+                <p className="text-sm text-[#6B7284] text-center py-8">{t("rm.noGroupsYet")}</p>
               ) : (
                 RM_GROUP_SECTIONS.map(({ key, label }) => {
                   const sectionGroups = groups.filter((c) => categoryOf(c) === key);
                   if (sectionGroups.length === 0) return null;
                   return (
                     <section key={key} className="mb-4">
-                      <h2 className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-[#8B93A8]">{label}</h2>
+                      <h2 className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-[#8B93A8]">{t(label)}</h2>
                       <div className="space-y-2">
                         {sectionGroups.map((c) => <ChatConversationCard key={c.id} conversation={c} onOpen={() => navigate(`/rm/chat/${c.id}`)} onMore={setOptionsFor} />)}
                       </div>
@@ -272,7 +274,7 @@ export default function RmChatPage({ session }) {
               {newContacts.length > 0 && (
                 <div>
                   <h2 className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-[#8B93A8]">
-                    <UserPlus size={12} /> Start a Conversation
+                    <UserPlus size={12} /> {t("rm.startAConversation")}
                   </h2>
                   <div className="space-y-2">
                     {newContacts.map((c) => <StartConversationRow key={c.id} contact={c} onOpen={handleOpenNewConversation} />)}
@@ -280,7 +282,7 @@ export default function RmChatPage({ session }) {
                 </div>
               )}
               {individuals.length === 0 && newContacts.length === 0 && (
-                <p className="text-sm text-[#6B7284] text-center py-8">No authorized contacts found.</p>
+                <p className="text-sm text-[#6B7284] text-center py-8">{t("emp.noAuthorizedContactsFound")}</p>
               )}
             </div>
           )}
@@ -289,7 +291,7 @@ export default function RmChatPage({ session }) {
             <div>
               <div className="mb-3 rounded-xl px-3.5 py-2.5 bg-amber-500/[0.06] border border-amber-500/20 flex items-center gap-2">
                 <ShieldAlert size={14} className="text-amber-400 shrink-0" />
-                <p className="text-xs text-amber-200/90">Important information, instructions, and notices you send to your zone.</p>
+                <p className="text-xs text-amber-200/90">{t("rm.importantInformationInstructionsAndNoticesYou")}</p>
               </div>
               <CommunicationHistoryScreen session={session} basePath="/rm" bare />
             </div>
@@ -298,7 +300,7 @@ export default function RmChatPage({ session }) {
           {view === "unread" && (
             <div className="space-y-2">
               {unread.length === 0 ? (
-                <p className="text-sm text-[#6B7284] text-center py-8">You're all caught up.</p>
+                <p className="text-sm text-[#6B7284] text-center py-8">{t("rm.youReAllCaughtUp")}</p>
               ) : (
                 unread.map((c) => <ChatConversationCard key={c.id} conversation={c} onOpen={() => navigate(`/rm/chat/${c.id}`)} onMore={setOptionsFor} />)
               )}

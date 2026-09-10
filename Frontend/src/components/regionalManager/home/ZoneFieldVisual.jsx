@@ -1,4 +1,7 @@
 import { useEffect, useId, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
+
+const STATUS_LABEL = { Active: "status.active", Maintenance: "rm.maintenance", Closed: "status.inactive" };
 
 // ZoneFieldVisual.jsx — the glowing "territory" behind the Zone Overview
 // card's numbers.
@@ -51,6 +54,7 @@ const TONE = {
 };
 
 export default function ZoneFieldVisual({ markets = [], problemMarketIds }) {
+  const { t } = useTranslation();
   const uid = useId();
 
   // index.css's prefers-reduced-motion block only silences CSS
@@ -114,7 +118,7 @@ export default function ZoneFieldVisual({ markets = [], problemMarketIds }) {
 
       {points.map((p, i) => (
         <g key={p.id}>
-          <title>{`${p.name} — ${p.status.toLowerCase()}`}</title>
+          <title>{`${p.name} — ${STATUS_LABEL[p.status] ? t(STATUS_LABEL[p.status]) : p.status.toLowerCase()}`}</title>
           <circle cx={p.x} cy={p.y} r="3.4" fill={p.glow} filter={`url(#${uid}-soft)`} opacity="0.6">
             {/* Slow, staggered breathing — subtle enough to read as
                 "live", never as an animation demo. */}

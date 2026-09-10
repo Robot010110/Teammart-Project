@@ -7,14 +7,14 @@ import ErrorBanner from "./ErrorBanner";
 import { listMyNotifications, markNotificationRead, markAllNotificationsRead, deleteNotification, deleteAllNotifications } from "../../services/notificationService";
 import { notificationDestination } from "../../utils/notificationLinks";
 
-function timeAgo(iso) {
+function timeAgo(iso, t) {
   const diffMs = Date.now() - new Date(iso).getTime();
   const minutes = Math.floor(diffMs / 60000);
-  if (minutes < 1) return "Just now";
-  if (minutes < 60) return `${minutes}m ago`;
+  if (minutes < 1) return t("sup.justNow");
+  if (minutes < 60) return t("common.minutesAgo", { count: minutes });
   const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  return `${Math.floor(hours / 24)}d ago`;
+  if (hours < 24) return t("common.hoursAgo", { count: hours });
+  return t("common.daysAgo", { count: Math.floor(hours / 24) });
 }
 
 function Row({ n, onOpen, onDelete }) {
@@ -29,7 +29,7 @@ function Row({ n, onOpen, onDelete }) {
         <div className="min-w-0 flex-1">
           <p className="text-sm font-medium text-white truncate">{n.title}</p>
           <p className="text-xs text-[#9AA1B4] mt-0.5 line-clamp-2">{n.body}</p>
-          <p className="text-[11px] text-[#4C5266] mt-1">{timeAgo(n.createdAt)}</p>
+          <p className="text-[11px] text-[#4C5266] mt-1">{timeAgo(n.createdAt, t)}</p>
         </div>
       </button>
       <button

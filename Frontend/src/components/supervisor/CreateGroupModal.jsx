@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Check, Loader2 } from "lucide-react";
 import Modal from "../common/Modal";
 import GroupMemberPicker from "../common/GroupMemberPicker";
@@ -13,6 +14,7 @@ import { ApiError } from "../../services/apiClient";
 // chat here (a real CUSTOM_GROUP conversation, not a separate system) —
 // see chatController.createGroup.
 export default function CreateGroupModal({ marketId, onClose, onCreated }) {
+  const { t } = useTranslation();
   const [name, setName] = useState("");
   const [selected, setSelected] = useState({ employeeIds: new Set(), staffUserIds: new Set() });
   // Phase 3 §7-8: NORMAL (everyone can post, default) vs WARNING (an
@@ -29,11 +31,11 @@ export default function CreateGroupModal({ marketId, onClose, onCreated }) {
 
   async function handleCreate() {
     if (!name.trim()) {
-      setError("Enter a group name.");
+      setError(t("sup.enterAGroupName"));
       return;
     }
     if (selected.employeeIds.size === 0 && selected.staffUserIds.size === 0) {
-      setError("Select at least one member.");
+      setError(t("sup.selectAtLeastOneMember"));
       return;
     }
     setCreating(true);
@@ -50,29 +52,29 @@ export default function CreateGroupModal({ marketId, onClose, onCreated }) {
       });
       onCreated(conversation);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Could not create this group.");
+      setError(err instanceof ApiError ? err.message : t("sup.couldNotCreateThisGroup"));
     } finally {
       setCreating(false);
     }
   }
 
   return (
-    <Modal open onClose={onClose} title="Create Group">
+    <Modal open onClose={onClose} title={t("sup.createGroup")}>
       <div className="space-y-4">
         <div>
-          <label className="block text-xs uppercase tracking-wide text-[#8B93A8] mb-1.5">Group Name</label>
+          <label className="block text-xs uppercase tracking-wide text-[#8B93A8] mb-1.5">{t("sup.groupName")}</label>
           <input
             autoFocus
             value={name}
             onChange={(e) => setName(e.target.value)}
             maxLength={100}
-            placeholder="e.g. Morning Shift Team"
+            placeholder={t("sup.eGMorningShiftTeam")}
             className="w-full rounded-lg bg-white/[0.04] border border-white/[0.06] px-3 py-3 text-base sm:text-sm text-white placeholder:text-[#4C5266] outline-none focus:border-[#F47A20]/50"
           />
         </div>
 
         <div>
-          <label className="block text-xs uppercase tracking-wide text-[#8B93A8] mb-1.5">Group Type</label>
+          <label className="block text-xs uppercase tracking-wide text-[#8B93A8] mb-1.5">{t("sup.groupType")}</label>
           <div className="grid grid-cols-2 gap-2">
             <button
               type="button"
@@ -94,13 +96,13 @@ export default function CreateGroupModal({ marketId, onClose, onCreated }) {
             </button>
           </div>
           {groupType === "WARNING" && (
-            <p className="mt-1.5 text-[11px] text-amber-400/90">Only group admins can post — everyone else is read-only.</p>
+            <p className="mt-1.5 text-[11px] text-amber-400/90">{t("sup.onlyGroupAdminsCanPostEveryone")}</p>
           )}
         </div>
 
         {groupType === "NORMAL" && (
           <div>
-            <label className="block text-xs uppercase tracking-wide text-[#8B93A8] mb-1.5">Category</label>
+            <label className="block text-xs uppercase tracking-wide text-[#8B93A8] mb-1.5">{t("sup.category")}</label>
             <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
@@ -129,14 +131,14 @@ export default function CreateGroupModal({ marketId, onClose, onCreated }) {
           onClick={() => setOpenJoin((v) => !v)}
           className="w-full flex items-center justify-between rounded-lg px-3 py-2.5 bg-white/[0.03] border border-white/[0.06]"
         >
-          <span className="text-xs text-[#9AA1B4]">Let anyone in without approval</span>
+          <span className="text-xs text-[#9AA1B4]">{t("emp.letAnyoneInWithoutApproval")}</span>
           <span className={`shrink-0 w-9 h-5 rounded-full p-0.5 transition-colors ${openJoin ? "bg-[#F47A20]" : "bg-white/10"}`}>
             <span className={`block w-4 h-4 rounded-full bg-white transition-transform ${openJoin ? "translate-x-4" : ""}`} />
           </span>
         </button>
 
         <div>
-          <label className="block text-xs uppercase tracking-wide text-[#8B93A8] mb-1.5">Members</label>
+          <label className="block text-xs uppercase tracking-wide text-[#8B93A8] mb-1.5">{t("emp.members")}</label>
           <GroupMemberPicker selected={selected} onChange={setSelected} />
         </div>
 
@@ -158,7 +160,7 @@ export default function CreateGroupModal({ marketId, onClose, onCreated }) {
             className="flex-1 flex items-center justify-center gap-2 rounded-xl py-3 text-sm font-semibold text-white bg-[#F47A20] hover:bg-[#ff8b36] disabled:bg-white/10 disabled:text-[#4C5266] transition-colors duration-200"
           >
             {creating ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
-            {creating ? "Creating..." : "Create Group"}
+            {creating ? t("sup.creating") : t("sup.createGroup")}
           </button>
         </div>
       </div>

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { ScanBarcode, Search, Loader2 } from "lucide-react";
 import Modal from "../common/Modal";
 import BarcodeScanStep from "./itemReport/BarcodeScanStep";
@@ -9,9 +10,9 @@ import { stopScanning } from "../../utils/barcodeScanner";
 import { ApiError } from "../../services/apiClient";
 
 const ISSUE_TYPES = [
-  { value: "MISSING", label: "Missing" },
-  { value: "INCORRECT", label: "Incorrect Price / Info" },
-  { value: "DAMAGED", label: "Damaged" },
+  { value: "MISSING", label: "emp.missing" },
+  { value: "INCORRECT", label: "emp.incorrectPriceInfo" },
+  { value: "DAMAGED", label: "emp.damaged" },
 ];
 
 function todayISO() {
@@ -27,6 +28,7 @@ function nowTimeLabel() {
 // other Activity uses, just with the two extra fields (productId,
 // labelIssueType) the backend added for this flow.
 export default function ShelfLabelFlow({ open, onClose, onSaved }) {
+  const { t } = useTranslation();
   const [step, setStep] = useState("choose");
   const [searchSeed, setSearchSeed] = useState("");
   const [product, setProduct] = useState(null);
@@ -81,16 +83,16 @@ export default function ShelfLabelFlow({ open, onClose, onSaved }) {
         productId: product.id,
         labelIssueType: issueType,
       });
-      onSaved(activity, status === "DRAFT" ? "Saved for later." : "Label issue submitted.");
+      onSaved(activity, status === "DRAFT" ? t("emp.savedForLater") : t("emp.labelIssueSubmitted"));
       handleClose();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Could not save this label issue.");
+      setError(err instanceof ApiError ? err.message : t("emp.couldNotSaveThisLabelIssue"));
     } finally {
       setSubmitting(false);
     }
   }
 
-  const stepTitle = { choose: "Shelf Labels", search: "Find Product", issue: "Label Issue" }[step];
+  const stepTitle = { choose: t("emp.shelfLabels"), search: t("emp.findProduct"), issue: t("emp.labelIssue") }[step];
 
   return (
     <Modal open={open} onClose={handleClose} title={stepTitle}>
@@ -101,14 +103,14 @@ export default function ShelfLabelFlow({ open, onClose, onSaved }) {
             className="flex flex-col items-center gap-2 rounded-xl p-5 bg-[#1A1F33]/70 border border-white/[0.05] hover:border-[#F47A20]/35 hover:bg-[#1F2436] transition-all duration-200"
           >
             <ScanBarcode size={22} className="text-[#F47A20]" />
-            <span className="text-xs font-medium text-white">Scan Barcode</span>
+            <span className="text-xs font-medium text-white">{t("emp.scanBarcode")}</span>
           </button>
           <button
             onClick={() => setStep("search")}
             className="flex flex-col items-center gap-2 rounded-xl p-5 bg-[#1A1F33]/70 border border-white/[0.05] hover:border-[#F47A20]/35 hover:bg-[#1F2436] transition-all duration-200"
           >
             <Search size={22} className="text-[#F47A20]" />
-            <span className="text-xs font-medium text-white">Search Product</span>
+            <span className="text-xs font-medium text-white">{t("emp.searchProduct")}</span>
           </button>
         </div>
       )}
@@ -125,23 +127,23 @@ export default function ShelfLabelFlow({ open, onClose, onSaved }) {
         <div className="space-y-4">
           <div className="rounded-lg p-3 bg-white/[0.04]">
             <p className="text-sm text-white font-medium">{product.name}</p>
-            <p className="text-[11px] text-[#8B93A8]">Barcode {product.barcode}</p>
+            <p className="text-[11px] text-[#8B93A8]">{t("emp.barcode")} {product.barcode}</p>
           </div>
 
           <div>
-            <p className="text-xs font-medium text-[#8B93A8] mb-2">What's wrong with the label?</p>
+            <p className="text-xs font-medium text-[#8B93A8] mb-2">{t("emp.whatsWrongWithTheLabel")}</p>
             <div className="grid grid-cols-1 gap-2">
               {ISSUE_TYPES.map((it) => (
                 <button
                   key={it.value}
                   onClick={() => setIssueType(it.value)}
-                  className={`rounded-lg px-3.5 py-3 text-sm text-left font-medium transition-colors duration-150 ${
+                  className={`rounded-lg px-3.5 py-3 text-sm text-start font-medium transition-colors duration-150 ${
                     issueType === it.value
                       ? "bg-[#F47A20] text-white"
                       : "bg-white/[0.05] text-[#9AA1B4] hover:bg-white/[0.09]"
                   }`}
                 >
-                  {it.label}
+                  {t(it.label)}
                 </button>
               ))}
             </div>
@@ -155,7 +157,7 @@ export default function ShelfLabelFlow({ open, onClose, onSaved }) {
               disabled={!issueType || submitting}
               className="rounded-xl py-3 text-sm font-semibold text-[#9AA1B4] bg-white/[0.06] hover:bg-white/[0.1] active:bg-white/[0.14] disabled:opacity-40 transition-colors duration-200"
             >
-              Save for Later
+              {t("emp.saveForLater")}
             </button>
             <button
               onClick={() => handleSubmit("PENDING")}

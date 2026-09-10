@@ -1,4 +1,5 @@
 import { Routes, Route, Navigate, useNavigate, useParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { Home, Store, Users, MessageCircle, Settings as SettingsIcon, Activity } from "lucide-react";
 import AppShell from "../components/employee/AppShell";
 import RegionalManagerHome from "./RegionalManagerHome";
@@ -50,13 +51,14 @@ const BASE_PATH = "/rm";
 //   /rm/chat, /rm/chat/:conversationId
 //   /rm/settings
 export default function RegionalManagerWorkspace({ session, onLogout }) {
+  const { t } = useTranslation();
   const tabs = [
-    { key: "profile", label: "Home", icon: Home },
-    { key: "markets", label: "Markets", icon: Store },
-    { key: "activities", label: "Activities", icon: Activity },
-    { key: "employees", label: "Employees", icon: Users },
-    { key: "chat", label: "Chat", icon: MessageCircle },
-    { key: "settings", label: "Settings", icon: SettingsIcon },
+    { key: "profile", label: t("emp.navHome"), icon: Home },
+    { key: "markets", label: t("rm.markets"), icon: Store },
+    { key: "activities", label: t("rm.activities"), icon: Activity },
+    { key: "employees", label: t("sup.employees"), icon: Users },
+    { key: "chat", label: t("emp.chat"), icon: MessageCircle },
+    { key: "settings", label: t("settings.title"), icon: SettingsIcon },
   ];
 
   return (

@@ -1,4 +1,5 @@
 import { CalendarCheck, CalendarOff, Clock3, ListChecks, Zap, AlertTriangle } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 // TodayOverviewGrid.jsx — the six real monthly metrics from
 // GET /api/attendance/month's `summary`, exactly the values
@@ -26,15 +27,16 @@ const TONES = {
 };
 
 export default function TodayOverviewGrid({ summary }) {
+  const { t } = useTranslation();
   const items = [
-    { icon: CalendarCheck, label: "Working Days", sub: "This Month", value: summary.totalWorkingDays, tone: "orange" },
-    { icon: CalendarOff, label: "Days Off", sub: "This Month", value: summary.daysOff, tone: "slate" },
-    { icon: Clock3, label: "Total Hours Worked", sub: "This Month", value: hours(summary.totalHoursWorked), tone: "blue" },
-    { icon: ListChecks, label: "Total Required Hours", sub: "This Month", value: hours(summary.totalRequiredHours), tone: "orange" },
+    { icon: CalendarCheck, label: t("emp.workingDays"), sub: t("emp.thisMonth"), value: summary.totalWorkingDays, tone: "orange" },
+    { icon: CalendarOff, label: t("emp.daysOff"), sub: t("emp.thisMonth"), value: summary.daysOff, tone: "slate" },
+    { icon: Clock3, label: t("emp.totalHoursWorked"), sub: t("emp.thisMonth"), value: hours(summary.totalHoursWorked), tone: "blue" },
+    { icon: ListChecks, label: t("emp.totalRequiredHours"), sub: t("emp.thisMonth"), value: hours(summary.totalRequiredHours), tone: "orange" },
     {
       icon: Zap,
-      label: "Extra Hours",
-      sub: "This Month",
+      label: t("emp.extraHours"),
+      sub: t("emp.thisMonth"),
       value: hours(summary.extraHours),
       // Only tinted when there actually are extra hours — a flat 0.0h
       // shouldn't read as an achievement.
@@ -42,8 +44,8 @@ export default function TodayOverviewGrid({ summary }) {
     },
     {
       icon: AlertTriangle,
-      label: "Punishment Hours",
-      sub: "This Month",
+      label: t("emp.punishmentHours"),
+      sub: t("emp.thisMonth"),
       value: hours(summary.punishmentHours),
       tone: summary.punishmentHours > 0 ? "red" : "violet",
     },

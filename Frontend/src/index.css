@@ -1,4 +1,11 @@
 @import url("https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Inter:wght@400;500;600&display=swap");
+/* Kurdish (Sorani) is written in Arabic script, which neither Plus
+   Jakarta Sans nor Inter covers — without this the browser falls back to
+   an arbitrary system font and the UI looks unfinished. Noto Sans Arabic
+   is loaded only for that script and matches the Latin faces closely
+   enough in weight and x-height that switching language does not change
+   how dense the UI feels. */
+@import url("https://fonts.googleapis.com/css2?family=Noto+Sans+Arabic:wght@400;500;600;700;800&display=swap");
 
 @tailwind base;
 @tailwind components;
@@ -380,4 +387,48 @@ select option:hover,
 select option:focus {
   background-color: #f47a20;
   color: #ffffff;
+}
+
+/* ── Language / direction ────────────────────────────────────────────
+   Direction itself is set on <html dir> by i18n/index.js; every Tailwind
+   logical utility (ms-/me-/ps-/pe-/text-start/text-end/border-s/border-e)
+   flips off that automatically, which is why localization needed no
+   per-component RTL branching.
+
+   .lang-ckb is set on <html> alongside dir="rtl" and swaps the font
+   stack for Arabic script. Both families stay listed so a Kurdish screen
+   showing Latin text (an employee code like TM-4821, a market name, a
+   number) still renders it in the Latin face rather than the Arabic
+   font's fallback glyphs. */
+:root.lang-ckb body,
+:root.lang-ckb .font-sans {
+  font-family: "Noto Sans Arabic", Inter, sans-serif;
+}
+:root.lang-ckb .font-display {
+  font-family: "Noto Sans Arabic", "Plus Jakarta Sans", sans-serif;
+}
+
+/* Arabic script sits lower and taller in its em box than Latin, so at the
+   app's small type sizes Kurdish descenders were clipping inside fixed
+   height rows. A slightly looser default line-height fixes it globally
+   without touching a single component's layout. */
+:root.lang-ckb body {
+  line-height: 1.7;
+}
+
+/* Icons that encode direction (chevrons, arrows, "back") must mirror in
+   RTL; icons that encode meaning (a clock, a user, a checkmark) must NOT.
+   lucide-react renders inline <svg>, so this targets only the ones a
+   component has explicitly opted in by adding .rtl-flip. */
+:root.lang-ckb .rtl-flip {
+  transform: scaleX(-1);
+}
+
+/* Numbers, IDs and codes stay left-to-right inside an RTL sentence.
+   Without this, "TM-4821" renders as "4821-TM" and a time range like
+   "09:00 - 17:00" reverses its ends. */
+.force-ltr {
+  direction: ltr;
+  unicode-bidi: isolate;
+  display: inline-block;
 }

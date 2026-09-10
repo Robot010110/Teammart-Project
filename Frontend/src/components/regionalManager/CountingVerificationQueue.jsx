@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { ClipboardList, ShieldCheck, Loader2, MapPin } from "lucide-react";
 import { listCountingAssignmentsForMarket, verifyCountingAssignment } from "../../services/countingAssignmentService";
 import { useAsync } from "../../hooks/useAsync";
@@ -10,6 +11,7 @@ import { SkeletonCard } from "../common/SkeletonCard";
 // (RmMarketOverview.jsx) — an empty queue means nothing needs this
 // manager's attention, so nothing is shown rather than an empty card.
 export default function CountingVerificationQueue({ marketId }) {
+  const { t } = useTranslation();
   const { data: assignments, setData, loading } = useAsync(
     () => listCountingAssignmentsForMarket({ marketId, pending: true }),
     { deps: [marketId] }
@@ -34,7 +36,7 @@ export default function CountingVerificationQueue({ marketId }) {
   return (
     <section>
       <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-[#8B93A8] flex items-center gap-1.5">
-        <ClipboardList size={13} /> Counting Assignments Awaiting Verification
+        <ClipboardList size={13} /> {t("rm.countingAssignmentsAwaitingVerification")}
       </h2>
       <div className="space-y-2">
         {assignments.map((a) => (
@@ -56,7 +58,7 @@ export default function CountingVerificationQueue({ marketId }) {
               className="shrink-0 flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold text-white bg-[#F47A20] hover:bg-[#ff8b36] disabled:opacity-50 transition-colors duration-150"
             >
               {busyId === a.id ? <Loader2 size={12} className="animate-spin" /> : <ShieldCheck size={12} />}
-              Verify
+              {t("rm.verify")}
             </button>
           </div>
         ))}

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Pencil, Check, X, UserPlus, UserMinus, Loader2, ShieldCheck, Shield, Camera, Image as ImageIcon, Mic, File as FileIcon, Download, Users2, Trash2, ClipboardCheck, ThumbsUp, ThumbsDown } from "lucide-react";
 import Modal from "../common/Modal";
 import AuthenticatedImage from "../common/AuthenticatedImage";
@@ -36,13 +37,14 @@ function mediaTimeLabel(iso) {
 // they're the only attachment kinds this schema supports (no video
 // attachment type) — deliberately no fourth fake tab.
 function MediaTabs({ conversationId }) {
+  const { t } = useTranslation();
   const { data, loading, error } = useAsync(() => listConversationMedia(conversationId), { deps: [conversationId] });
   const [tab, setTab] = useState("images");
 
   const TABS = [
-    { key: "images", label: "Media", icon: ImageIcon, count: data?.images.length },
-    { key: "voice", label: "Voice", icon: Mic, count: data?.voice.length },
-    { key: "files", label: "Files", icon: FileIcon, count: data?.files.length },
+    { key: "images", label: t("emp.media"), icon: ImageIcon, count: data?.images.length },
+    { key: "voice", label: t("emp.voice"), icon: Mic, count: data?.voice.length },
+    { key: "files", label: t("emp.files"), icon: FileIcon, count: data?.files.length },
   ];
 
   return (
@@ -63,12 +65,12 @@ function MediaTabs({ conversationId }) {
       </div>
 
       {loading ? (
-        <p className="text-xs text-[#4C5266] py-6 text-center">Loading...</p>
+        <p className="text-xs text-[#4C5266] py-6 text-center">{t("emp.loading")}</p>
       ) : error ? (
         <p className="text-xs text-red-400 py-6 text-center">{error}</p>
       ) : tab === "images" ? (
         data.images.length === 0 ? (
-          <p className="text-xs text-[#4C5266] py-8 text-center">No photos shared in this group yet.</p>
+          <p className="text-xs text-[#4C5266] py-8 text-center">{t("emp.noPhotosSharedInThisGroup")}</p>
         ) : (
           <div className="grid grid-cols-3 gap-1.5 max-h-[280px] overflow-y-auto">
             {data.images.map((img) => (
@@ -80,7 +82,7 @@ function MediaTabs({ conversationId }) {
         )
       ) : tab === "voice" ? (
         data.voice.length === 0 ? (
-          <p className="text-xs text-[#4C5266] py-8 text-center">No voice messages in this group yet.</p>
+          <p className="text-xs text-[#4C5266] py-8 text-center">{t("emp.noVoiceMessagesInThisGroup")}</p>
         ) : (
           <div className="space-y-2 max-h-[280px] overflow-y-auto">
             {data.voice.map((v) => (
@@ -95,7 +97,7 @@ function MediaTabs({ conversationId }) {
           </div>
         )
       ) : data.files.length === 0 ? (
-        <p className="text-xs text-[#4C5266] py-8 text-center">No files shared in this group yet.</p>
+        <p className="text-xs text-[#4C5266] py-8 text-center">{t("emp.noFilesSharedInThisGroup")}</p>
       ) : (
         <div className="space-y-2 max-h-[280px] overflow-y-auto">
           {data.files.map((f) => (
@@ -107,7 +109,7 @@ function MediaTabs({ conversationId }) {
             >
               <FileIcon size={16} className="text-[#F47A20] shrink-0" />
               <div className="min-w-0 flex-1">
-                <p className="text-xs font-medium text-white truncate">{f.name || "File"}</p>
+                <p className="text-xs font-medium text-white truncate">{f.name || t("emp.file")}</p>
                 <p className="text-[10px] text-[#4C5266]">{formatFileSize(f.size)} · {f.senderName}</p>
               </div>
               <Download size={14} className="text-[#4C5266] shrink-0" />
@@ -126,6 +128,7 @@ function MediaTabs({ conversationId }) {
 // the server re-checks admin status independently on approve/reject
 // regardless (requireGroupAdmin), same as every other admin action here.
 function GroupJoinRequestsSection({ conversationId, onReviewed }) {
+  const { t } = useTranslation();
   const { data: requests, setData: setRequests, loading } = useAsync(
     () => listGroupJoinRequests(conversationId),
     { deps: [conversationId] }
@@ -168,7 +171,7 @@ function GroupJoinRequestsSection({ conversationId, onReviewed }) {
             </span>
             <div className="min-w-0 flex-1">
               <p className="text-sm font-medium text-white truncate">{r.name}</p>
-              <p className="text-[11px] text-[#8B93A8] truncate">Proposed by {r.invitedByName}</p>
+              <p className="text-[11px] text-[#8B93A8] truncate">{t("emp.proposedByName", { name: r.invitedByName })}</p>
             </div>
             <div className="flex items-center gap-1 shrink-0">
               <button
@@ -216,6 +219,7 @@ function GroupJoinRequestsSection({ conversationId, onReviewed }) {
 // returns either the updated roster or { pending: true }) — this modal
 // never has to guess in advance.
 export default function GroupInfoModal({ conversationId, groupName, groupPictureUrl, groupOpenJoin, currentUserId, currentUserKind, onClose, onRenamed, onDeleted }) {
+  const { t } = useTranslation();
   const { data: members, setData: setMembers, loading, error, reload } = useAsync(
     () => listGroupMembers(conversationId),
     { deps: [conversationId] }
@@ -246,7 +250,7 @@ export default function GroupInfoModal({ conversationId, groupName, groupPicture
       await deleteGroup(conversationId);
       onDeleted ? onDeleted() : onClose();
     } catch (err) {
-      setActionError(err instanceof ApiError ? err.message : "Could not delete this group.");
+      setActionError(err instanceof ApiError ? err.message : t("emp.couldNotDeleteThisGroup"));
       setDeleting(false);
     }
   }
@@ -270,7 +274,7 @@ export default function GroupInfoModal({ conversationId, groupName, groupPicture
       onRenamed?.(updated.name);
       setRenaming(false);
     } catch (err) {
-      setActionError(err instanceof ApiError ? err.message : "Could not rename this group.");
+      setActionError(err instanceof ApiError ? err.message : t("emp.couldNotRenameThisGroup"));
     } finally {
       setSavingName(false);
     }
@@ -285,7 +289,7 @@ export default function GroupInfoModal({ conversationId, groupName, groupPicture
       const updated = await changeGroupPicture(conversationId, url);
       setPictureUrl(updated.pictureUrl);
     } catch (err) {
-      setActionError(err instanceof ApiError ? err.message : "Could not change the group photo.");
+      setActionError(err instanceof ApiError ? err.message : t("emp.couldNotChangeTheGroupPhoto"));
     } finally {
       setPictureBusy(false);
     }
@@ -318,7 +322,7 @@ export default function GroupInfoModal({ conversationId, groupName, groupPicture
       setInviteSelection({ employeeIds: new Set(), staffUserIds: new Set() });
       await reload();
     } catch (err) {
-      setActionError(err instanceof ApiError ? err.message : "Could not send this invite.");
+      setActionError(err instanceof ApiError ? err.message : t("emp.couldNotSendThisInvite"));
     } finally {
       setInviting(false);
     }
@@ -331,7 +335,7 @@ export default function GroupInfoModal({ conversationId, groupName, groupPicture
       const updated = await removeGroupMember(conversationId, member.id);
       setMembers(updated);
     } catch (err) {
-      setActionError(err instanceof ApiError ? err.message : "Could not remove this member.");
+      setActionError(err instanceof ApiError ? err.message : t("emp.couldNotRemoveThisMember"));
       reload();
     } finally {
       setBusyId(null);
@@ -345,7 +349,7 @@ export default function GroupInfoModal({ conversationId, groupName, groupPicture
       const updated = await setGroupMemberAdmin(conversationId, member.id, !member.isAdmin);
       setMembers(updated);
     } catch (err) {
-      setActionError(err instanceof ApiError ? err.message : "Could not update admin status.");
+      setActionError(err instanceof ApiError ? err.message : t("emp.couldNotUpdateAdminStatus"));
     } finally {
       setBusyId(null);
     }
@@ -359,14 +363,14 @@ export default function GroupInfoModal({ conversationId, groupName, groupPicture
       await updateGroupSettings(conversationId, { openJoin: next });
       setOpenJoin(next);
     } catch (err) {
-      setActionError(err instanceof ApiError ? err.message : "Could not update this setting.");
+      setActionError(err instanceof ApiError ? err.message : t("emp.couldNotUpdateThisSetting"));
     } finally {
       setSavingOpenJoin(false);
     }
   }
 
   return (
-    <Modal open onClose={onClose} title="Group Info">
+    <Modal open onClose={onClose} title={t("emp.groupInfo")}>
       <div className="space-y-4">
         <div className="flex items-center gap-3">
           <label className={`relative h-14 w-14 shrink-0 rounded-2xl bg-gradient-to-br from-[#F47A20] to-[#c95c10] grid place-items-center overflow-hidden ${canManage ? "cursor-pointer" : ""}`}>
@@ -405,7 +409,7 @@ export default function GroupInfoModal({ conversationId, groupName, groupPicture
             <div className="flex-1 flex items-center gap-2 min-w-0">
               <h3 className="text-base font-semibold text-white truncate">{name}</h3>
               {canManage && (
-                <button type="button" onClick={() => setRenaming(true)} className="p-1 text-[#4C5266] hover:text-white shrink-0" aria-label="Rename group">
+                <button type="button" onClick={() => setRenaming(true)} className="p-1 text-[#4C5266] hover:text-white shrink-0" aria-label={t("emp.renameGroup")}>
                   <Pencil size={13} />
                 </button>
               )}
@@ -423,7 +427,7 @@ export default function GroupInfoModal({ conversationId, groupName, groupPicture
               section === "members" ? "bg-[#F47A20] text-white" : "bg-white/[0.06] text-[#9AA1B4] hover:text-white"
             }`}
           >
-            <Users2 size={13} /> Members
+            <Users2 size={13} /> {t("emp.members")}
           </button>
           <button
             type="button"
@@ -432,7 +436,7 @@ export default function GroupInfoModal({ conversationId, groupName, groupPicture
               section === "media" ? "bg-[#F47A20] text-white" : "bg-white/[0.06] text-[#9AA1B4] hover:text-white"
             }`}
           >
-            <ImageIcon size={13} /> Media
+            <ImageIcon size={13} /> {t("emp.media")}
           </button>
         </div>
 
@@ -442,10 +446,10 @@ export default function GroupInfoModal({ conversationId, groupName, groupPicture
         <>
         <div>
           <p className="mb-2 text-[10px] uppercase tracking-wide text-[#8B93A8]">
-            Members {members ? `(${members.length})` : ""}
+            {t("emp.members")} {members ? `(${members.length})` : ""}
           </p>
           {loading ? (
-            <p className="text-xs text-[#4C5266] py-4 text-center">Loading members...</p>
+            <p className="text-xs text-[#4C5266] py-4 text-center">{t("emp.loadingMembers")}</p>
           ) : error ? (
             <p className="text-xs text-red-400 py-4 text-center">{error}</p>
           ) : (
@@ -454,12 +458,12 @@ export default function GroupInfoModal({ conversationId, groupName, groupPicture
                 <div key={m.id} className="flex items-center gap-3 rounded-xl p-2.5 bg-[#1A1F33]/70 border border-white/[0.06]">
                   <span className="relative w-8 h-8 rounded-full bg-white/[0.06] flex items-center justify-center text-xs font-semibold text-white shrink-0">
                     {initialsOf(m.name)}
-                    {m.online && <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-400 ring-2 ring-[#1A1F33]" aria-hidden="true" />}
+                    {m.online && <span className="absolute bottom-0 end-0 w-2.5 h-2.5 rounded-full bg-emerald-400 ring-2 ring-[#1A1F33]" aria-hidden="true" />}
                   </span>
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-medium text-white truncate flex items-center gap-1.5">
                       {m.name}
-                      {m.isAdmin && <ShieldCheck size={12} className="text-[#F47A20]" aria-label="Admin" />}
+                      {m.isAdmin && <ShieldCheck size={12} className="text-[#F47A20]" aria-label={t("emp.admin")} />}
                     </p>
                     <p className="text-[11px] text-[#8B93A8]">{m.position}</p>
                   </div>
@@ -471,7 +475,7 @@ export default function GroupInfoModal({ conversationId, groupName, groupPicture
                         disabled={busyId === m.id}
                         className="p-1.5 text-[#4C5266] hover:text-[#F47A20] disabled:opacity-50"
                         aria-label={m.isAdmin ? `Remove admin from ${m.name}` : `Promote ${m.name} to admin`}
-                        title={m.isAdmin ? "Remove admin" : "Promote to admin"}
+                        title={m.isAdmin ? t("emp.removeAdmin") : t("emp.promoteToAdmin")}
                       >
                         {busyId === m.id ? <Loader2 size={14} className="animate-spin" /> : m.isAdmin ? <Shield size={14} /> : <ShieldCheck size={14} />}
                       </button>
@@ -499,13 +503,13 @@ export default function GroupInfoModal({ conversationId, groupName, groupPicture
               onClick={() => { setAddingOpen((v) => !v); setInviteResult(null); }}
               className="w-full flex items-center justify-center gap-2 rounded-xl py-2.5 text-xs font-semibold text-white bg-white/[0.06] hover:bg-white/[0.1] transition-colors duration-150"
             >
-              <UserPlus size={14} /> Add Member
+              <UserPlus size={14} /> {t("emp.addMember")}
             </button>
             {addingOpen && (
               <div className="mt-2 space-y-2">
                 {!canManage && (
                   <p className="text-[11px] text-[#8B93A8]">
-                    {openJoin ? "Anyone you add joins immediately." : "A group admin will need to approve anyone you add."}
+                    {openJoin ? t("emp.anyoneYouAddJoinsImmediately") : t("emp.aGroupAdminWillNeedTo")}
                   </p>
                 )}
                 <GroupMemberPicker selected={inviteSelection} onChange={setInviteSelection} />
@@ -522,7 +526,7 @@ export default function GroupInfoModal({ conversationId, groupName, groupPicture
                   className="w-full flex items-center justify-center gap-2 rounded-xl py-2.5 text-xs font-semibold text-white bg-[#F47A20] hover:bg-[#ff8b36] disabled:bg-white/10 disabled:text-[#4C5266] transition-colors"
                 >
                   {inviting ? <Loader2 size={13} className="animate-spin" /> : <UserPlus size={13} />}
-                  {inviting ? "Sending..." : "Send"}
+                  {inviting ? t("emp.sending") : t("emp.send")}
                 </button>
               </div>
             )}
@@ -536,7 +540,7 @@ export default function GroupInfoModal({ conversationId, groupName, groupPicture
             disabled={savingOpenJoin}
             className="w-full flex items-center justify-between rounded-lg px-3 py-2.5 bg-white/[0.03] border border-white/[0.06] disabled:opacity-50"
           >
-            <span className="text-xs text-[#9AA1B4]">Let anyone in without approval</span>
+            <span className="text-xs text-[#9AA1B4]">{t("emp.letAnyoneInWithoutApproval")}</span>
             <span className={`shrink-0 w-9 h-5 rounded-full p-0.5 transition-colors ${openJoin ? "bg-[#F47A20]" : "bg-white/10"}`}>
               <span className={`block w-4 h-4 rounded-full bg-white transition-transform ${openJoin ? "translate-x-4" : ""}`} />
             </span>
@@ -549,7 +553,7 @@ export default function GroupInfoModal({ conversationId, groupName, groupPicture
           <div className="pt-2 border-t border-white/[0.06]">
             {confirmingDelete ? (
               <div className="space-y-2">
-                <p className="text-xs text-red-400">Delete this group permanently? All messages, media, and members will be removed. This cannot be undone.</p>
+                <p className="text-xs text-red-400">{t("emp.deleteThisGroupPermanentlyAllMessages")}</p>
                 <div className="flex gap-2">
                   <button
                     type="button"
@@ -557,7 +561,7 @@ export default function GroupInfoModal({ conversationId, groupName, groupPicture
                     disabled={deleting}
                     className="flex-1 rounded-xl py-2.5 text-xs font-medium text-[#9AA1B4] bg-white/[0.06] hover:bg-white/[0.1] disabled:opacity-50"
                   >
-                    Cancel
+                    {t("emp.cancel")}
                   </button>
                   <button
                     type="button"
@@ -575,7 +579,7 @@ export default function GroupInfoModal({ conversationId, groupName, groupPicture
                 onClick={() => setConfirmingDelete(true)}
                 className="w-full flex items-center justify-center gap-2 rounded-xl py-2.5 text-xs font-semibold text-red-400 bg-red-500/[0.06] hover:bg-red-500/10 transition-colors"
               >
-                <Trash2 size={14} /> Delete Group
+                <Trash2 size={14} /> {t("emp.deleteGroup")}
               </button>
             )}
           </div>

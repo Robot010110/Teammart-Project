@@ -1,22 +1,29 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Check, Loader2, Info } from "lucide-react";
 import { updateMyPreferences } from "../../../services/profileService";
 import { ApiError } from "../../../services/apiClient";
+import { TAG_TO_API, API_TO_TAG, setLanguageTag } from "../../../i18n";
 
 // LanguageSettings.jsx — Settings -> Language.
 //
 // Exactly two languages, matching what the product actually offers. The
 // choice is stored on the account (not localStorage) so it follows the
-// person across devices and survives a reinstall.
+// person across devices and survives a reinstall; i18n/index.js keeps a
+// local mirror purely so the pre-login screens, where no profile exists
+// yet, can still render in the right language.
 //
-// Honest about coverage: choosing Kurdish translates the Settings
-// screens today, and the note below says so rather than implying the
-// whole app is localized. See i18n/settingsStrings.js.
-export default function LanguageSettings({ profile, loading, onChanged, t }) {
+// Switching is immediate and does NOT reload the app: setLanguageTag()
+// changes i18next, every subscribed component re-renders, and <html
+// dir>/font swap in the same tick. The account write happens after, so
+// a slow or failed network call never blocks the visible switch — it
+// just rolls the selection back if it fails.
+export default function LanguageSettings({ profile, loading, onChanged }) {
+  const { t, i18n } = useTranslation();
   // Derived rather than snapshotted, for the same reason as
   // NotificationSettings: `profile` is still loading on first render.
   const [override, setOverride] = useState(null);
-  const language = override ?? profile?.language ?? "ENGLISH";
+  const language = override ?? profile?.language ?? API_TO_TAG[i18n.language] ?? "ENGLISH";
   const [saving, setSaving] = useState(null);
   const [error, setError] = useState(null);
 
@@ -25,8 +32,8 @@ export default function LanguageSettings({ profile, loading, onChanged, t }) {
     // glyphs and renders "🇬🇧" as boxed "GB" letters, so the two rows
     // looked inconsistent. Text tags render identically on every platform,
     // and a flag would be the wrong symbol for Kurdish anyway.
-    { key: "ENGLISH", label: t.english, sub: t.englishSub, tag: "EN" },
-    { key: "KURDISH", label: t.kurdish, sub: t.kurdishSub, tag: "KU" },
+    { key: "ENGLISH", label: t("settings.english"), sub: t("settings.englishSub"), tag: "EN" },
+    { key: "KURDISH", label: t("settings.kurdish"), sub: t("settings.kurdishSub"), tag: "KU" },
   ];
 
   async function choose(next) {
@@ -35,12 +42,16 @@ export default function LanguageSettings({ profile, loading, onChanged, t }) {
     setOverride(next);
     setSaving(next);
     setError(null);
+    // Switch the UI first — the person sees the result of their tap
+    // immediately rather than after a round trip.
+    setLanguageTag(API_TO_TAG[next]);
     try {
       await updateMyPreferences({ language: next });
       onChanged?.({ language: next });
     } catch (err) {
       setOverride(previous);
-      setError(err instanceof ApiError ? err.message : "Could not save your language.");
+      setLanguageTag(API_TO_TAG[previous]);
+      setError(err instanceof ApiError ? err.message : t("settings.languageSaveError"));
     } finally {
       setSaving(null);
     }
@@ -59,7 +70,7 @@ export default function LanguageSettings({ profile, loading, onChanged, t }) {
               type="button"
               onClick={() => choose(o.key)}
               aria-pressed={active}
-              className={`flex w-full items-center gap-3 rounded-2xl border p-3.5 text-left transition-all duration-200 active:scale-[0.99] ${
+              className={`flex w-full items-center gap-3 rounded-2xl border p-3.5 text-start transition-all duration-200 active:scale-[0.99] ${
                 active
                   ? "border-[#F47A20]/55 bg-[#F47A20]/[0.09] shadow-[0_0_20px_-8px_rgba(244,122,32,0.9)]"
                   : "border-white/[0.07] bg-[#111A2D]/80 hover:border-white/[0.16]"
@@ -98,8 +109,8 @@ export default function LanguageSettings({ profile, loading, onChanged, t }) {
       {error && <p className="text-[12.5px] text-red-400">{error}</p>}
 
       <div className="flex items-start gap-2.5 rounded-2xl border border-white/[0.07] bg-white/[0.03] px-3.5 py-3">
-        <Info size={15} className="mt-0.5 shrink-0 text-[#8B93A8]" />
-        <p className="text-[11.5px] leading-relaxed text-[#8B93A8]">{t.languageFootnote}</p>
+        <Info size={14} className="mt-0.5 shrink-0 text-[#8B93A8]" />
+        <p className="text-[11.5px] leading-relaxed text-[#8B93A8]">{t("settings.languageFootnote")}</p>
       </div>
     </div>
   );

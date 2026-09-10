@@ -61,7 +61,7 @@ export default function AdminWorkspace({ session, onLogout }) {
             endpoint is already unscoped for ADMIN (see
             itemReportsController.listZoneItemReports), so this is one
             report system with two scopes, not a second one. */}
-        <Route path="expired-items" element={<RmExpiredItemsPage scopeLabel="across the organization" />} />
+        <Route path="expired-items" element={<RmExpiredItemsPage scopeLabelKey="admin.scopeAcrossTheOrganization" />} />
         <Route path="communications" element={<CommunicationHistoryScreen session={session} basePath={BASE_PATH} />} />
         <Route path="communications/new" element={<CommunicationComposer session={session} basePath={BASE_PATH} />} />
         <Route path="chat" element={<AdminChatPage session={session} />} />

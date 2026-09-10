@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { CalendarCheck2, LogIn, LogOut, Coffee, Check, History, Loader2, AlertTriangle, RotateCcw } from "lucide-react";
 import { checkIn, checkOut, getTodayAttendance, startBreak, endBreak } from "../../../services/attendanceService";
 import { ApiError } from "../../../services/apiClient";
@@ -35,7 +36,7 @@ function elapsed(ms) {
 // checked out, slate not yet started.
 const TONES = {
   in: {
-    label: "Checked In",
+    label: "emp.checkedIn",
     text: "text-emerald-400",
     dot: "bg-emerald-400",
     ring: "border-emerald-500/25",
@@ -44,7 +45,7 @@ const TONES = {
     iconBg: "bg-emerald-500/[0.12]",
   },
   break: {
-    label: "On Break",
+    label: "emp.onBreak",
     text: "text-violet-400",
     dot: "bg-violet-400",
     ring: "border-violet-500/25",
@@ -53,7 +54,7 @@ const TONES = {
     iconBg: "bg-violet-500/[0.12]",
   },
   out: {
-    label: "Checked Out",
+    label: "emp.checkedOut",
     text: "text-[#FF5C5C]",
     dot: "bg-[#FF5C5C]",
     ring: "border-red-500/25",
@@ -62,7 +63,7 @@ const TONES = {
     iconBg: "bg-red-500/[0.12]",
   },
   none: {
-    label: "Not Checked In",
+    label: "emp.notCheckedIn",
     text: "text-[#9AA1B4]",
     dot: "bg-white/25",
     ring: "border-white/[0.09]",
@@ -100,6 +101,7 @@ function ActionButton({ onClick, disabled, busy, icon: Icon, label, tone, title 
 }
 
 export default function AttendanceStatusCenter({ onViewHistory, onChanged }) {
+  const { t } = useTranslation();
   const [record, setRecord] = useState(null);
   const [loaded, setLoaded] = useState(false);
   // Distinct from `record === null`, which is the real "nothing recorded
@@ -145,7 +147,7 @@ export default function AttendanceStatusCenter({ onViewHistory, onChanged }) {
     } catch (err) {
       // Never pretend success — the state stays exactly as the backend
       // last reported it and the reason is shown.
-      setError(err instanceof ApiError ? err.message : "Something went wrong. Please try again.");
+      setError(err instanceof ApiError ? err.message : t("emp.somethingWentWrongPleaseTryAgain"));
     } finally {
       setBusy(null);
     }
@@ -159,9 +161,9 @@ export default function AttendanceStatusCenter({ onViewHistory, onChanged }) {
     return (
       <div className="rounded-[20px] p-4 bg-red-500/[0.05] border border-red-500/20 flex items-center justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-[11px] uppercase tracking-wide text-[#8B93A8]">Attendance</p>
+          <p className="text-[11px] uppercase tracking-wide text-[#8B93A8]">{t("emp.attendance")}</p>
           <p className="mt-0.5 flex items-center gap-1.5 text-sm font-semibold text-red-300">
-            <AlertTriangle size={15} className="shrink-0" /> Status unavailable
+            <AlertTriangle size={15} className="shrink-0" /> {t("emp.statusUnavailable")}
           </p>
         </div>
         <button
@@ -169,7 +171,7 @@ export default function AttendanceStatusCenter({ onViewHistory, onChanged }) {
           onClick={() => setReloadKey((k) => k + 1)}
           className="shrink-0 flex items-center gap-1.5 rounded-xl px-4 py-2.5 text-xs font-semibold text-white bg-white/10 hover:bg-white/15 active:scale-95 transition-all"
         >
-          <RotateCcw size={14} /> Retry
+          <RotateCcw size={14} /> {t("emp.retry")}
         </button>
       </div>
     );
@@ -187,7 +189,7 @@ export default function AttendanceStatusCenter({ onViewHistory, onChanged }) {
   const checkoutAvailable = checkoutAvailableAt != null && now >= checkoutAvailableAt;
 
   const state = onBreak ? "break" : isCheckedOut ? "out" : isCheckedIn ? "in" : "none";
-  const t = TONES[state];
+  const tone = TONES[state];
 
   const since = onBreak
     ? `On break for ${elapsed(now - new Date(record.breakStart).getTime())}`
@@ -195,30 +197,30 @@ export default function AttendanceStatusCenter({ onViewHistory, onChanged }) {
       ? `At ${clockTime(record.checkOut)}`
       : isCheckedIn
         ? `Since ${clockTime(record.checkIn)}`
-        : "No check-in recorded today";
+        : t("emp.noCheckInRecordedToday");
 
   return (
     <section
-      className={`relative overflow-hidden rounded-[20px] border ${t.ring} bg-[#0D1223]/85 transition-colors duration-500`}
+      className={`relative overflow-hidden rounded-[20px] border ${tone.ring} bg-[#0D1223]/85 transition-colors duration-500`}
     >
       {/* Ambient state wash — the card itself carries the semantic tone. */}
-      <div className={`absolute inset-0 bg-gradient-to-br ${t.wash} to-transparent pointer-events-none`} aria-hidden="true" />
-      <div className="absolute -top-16 -left-10 w-48 h-48 rounded-full bg-current opacity-[0.05] blur-3xl pointer-events-none" aria-hidden="true" />
+      <div className={`absolute inset-0 bg-gradient-to-br ${tone.wash} to-transparent pointer-events-none`} aria-hidden="true" />
+      <div className="absolute -top-16 -start-10 w-48 h-48 rounded-full bg-current opacity-[0.05] blur-3xl pointer-events-none" aria-hidden="true" />
 
       <div className="relative p-4 sm:p-5">
         {/* Desktop puts status and actions on one row; mobile stacks them. */}
         <div className="flex flex-col lg:flex-row lg:items-center gap-4">
           <div className="flex items-center gap-3.5 min-w-0 lg:flex-1">
             <span
-              className={`shrink-0 w-14 h-14 sm:w-16 sm:h-16 rounded-full grid place-items-center ${t.iconBg} ${t.halo} ${t.text}`}
+              className={`shrink-0 w-14 h-14 sm:w-16 sm:h-16 rounded-full grid place-items-center ${tone.iconBg} ${tone.halo} ${tone.text}`}
             >
               <CalendarCheck2 size={26} strokeWidth={1.9} />
             </span>
             <div className="min-w-0">
-              <p className="text-[12.5px] text-[#8B93A8]">You are currently</p>
-              <p className={`font-display text-[22px] sm:text-[26px] font-bold leading-tight flex items-center gap-2 ${t.text}`}>
-                {t.label}
-                <span className={`w-2 h-2 rounded-full ${t.dot} ${state !== "none" ? "animate-glow-pulse" : ""}`} />
+              <p className="text-[12.5px] text-[#8B93A8]">{t("emp.youAreCurrently")}</p>
+              <p className={`font-display text-[22px] sm:text-[26px] font-bold leading-tight flex items-center gap-2 ${tone.text}`}>
+                {t(tone.label)}
+                <span className={`w-2 h-2 rounded-full ${tone.dot} ${state !== "none" ? "animate-glow-pulse" : ""}`} />
               </p>
               <p className="mt-0.5 text-[12.5px] text-[#9AA1B4]">{since}</p>
             </div>
@@ -231,7 +233,7 @@ export default function AttendanceStatusCenter({ onViewHistory, onChanged }) {
                 disabled={busy !== null}
                 busy={busy === "in"}
                 icon={LogIn}
-                label="Check In"
+                label={t("emp.checkIn")}
                 tone="orange"
               />
             )}
@@ -242,7 +244,7 @@ export default function AttendanceStatusCenter({ onViewHistory, onChanged }) {
                 disabled={busy !== null}
                 busy={busy === "endBreak"}
                 icon={Check}
-                label="End Break"
+                label={t("emp.endBreak")}
                 tone="violet"
               />
             )}
@@ -254,7 +256,7 @@ export default function AttendanceStatusCenter({ onViewHistory, onChanged }) {
                   disabled={busy !== null || !checkoutAvailable}
                   busy={busy === "out"}
                   icon={LogOut}
-                  label="Check Out"
+                  label={t("emp.checkOut")}
                   tone="red"
                   title={!checkoutAvailable ? `Check-out available at ${clockTime(checkoutAvailableAt)}` : undefined}
                 />
@@ -263,11 +265,11 @@ export default function AttendanceStatusCenter({ onViewHistory, onChanged }) {
                   disabled={busy !== null || !breakAvailable}
                   busy={busy === "break"}
                   icon={Coffee}
-                  label="Break"
+                  label={t("emp.break")}
                   tone="violet"
                   title={
                     breakDone
-                      ? "Break already taken today"
+                      ? t("emp.breakAlreadyTakenToday")
                       : !breakAvailable && breakAvailableAt
                         ? `Break available at ${clockTime(breakAvailableAt)}`
                         : undefined
@@ -276,16 +278,16 @@ export default function AttendanceStatusCenter({ onViewHistory, onChanged }) {
               </>
             )}
 
-            <ActionButton onClick={onViewHistory} icon={History} label="History" tone="blue" />
+            <ActionButton onClick={onViewHistory} icon={History} label={t("emp.history")} tone="blue" />
           </div>
         </div>
 
         {/* Real gate explanations — why a disabled button is disabled. */}
         {isCheckedIn && !onBreak && (!checkoutAvailable || (!breakAvailable && !breakDone)) && (
           <div className="relative mt-3 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-[#5C6479]">
-            {!checkoutAvailable && checkoutAvailableAt && <span>Check-out at {clockTime(checkoutAvailableAt)}</span>}
-            {!breakAvailable && !breakDone && breakAvailableAt && <span>Break at {clockTime(breakAvailableAt)}</span>}
-            {breakDone && <span>Break completed</span>}
+            {!checkoutAvailable && checkoutAvailableAt && <span>{t("emp.checkOutAtTime", { time: clockTime(checkoutAvailableAt) })}</span>}
+            {!breakAvailable && !breakDone && breakAvailableAt && <span>{t("emp.breakAtTime", { time: clockTime(breakAvailableAt) })}</span>}
+            {breakDone && <span>{t("emp.breakCompleted")}</span>}
           </div>
         )}
 

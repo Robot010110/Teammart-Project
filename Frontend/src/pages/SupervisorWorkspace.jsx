@@ -1,4 +1,5 @@
 import { Routes, Route, Navigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { Home, Users, MessageCircle, Store, Settings as SettingsIcon } from "lucide-react";
 import AppShell from "../components/employee/AppShell";
 import SettingsScreen from "../components/employee/SettingsScreen";
@@ -24,17 +25,18 @@ const BASE_PATH = "/supervisor";
 // acceptance tests use as their example) is now real nested routes with
 // a :employeeId param — see SupervisorEmployeeProfileRoute.jsx.
 export default function SupervisorWorkspace({ session, onLogout }) {
+  const { t } = useTranslation();
   // Employees management isn't part of the Overlooking account's
   // permission set (spec §15's Overlooking summary only lists Chat +
   // Card Sales) — the backend's GET /api/employees already 403s for
   // OVERLOOKING_SUPERVISOR, so the tab is hidden rather than left to
   // error out.
   const tabs = [
-    { key: "home", label: "Home", icon: Home },
-    ...(session.staffRole !== "OVERLOOKING_SUPERVISOR" ? [{ key: "employees", label: "Employees", icon: Users }] : []),
-    { key: "chat", label: "Chat", icon: MessageCircle },
-    { key: "market", label: "Market", icon: Store },
-    { key: "settings", label: "Settings", icon: SettingsIcon },
+    { key: "home", label: t("emp.navHome"), icon: Home },
+    ...(session.staffRole !== "OVERLOOKING_SUPERVISOR" ? [{ key: "employees", label: t("sup.employees"), icon: Users }] : []),
+    { key: "chat", label: t("emp.chat"), icon: MessageCircle },
+    { key: "market", label: t("sup.market"), icon: Store },
+    { key: "settings", label: t("emp.settings"), icon: SettingsIcon },
   ];
 
   return (

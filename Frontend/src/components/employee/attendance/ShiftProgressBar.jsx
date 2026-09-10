@@ -1,4 +1,5 @@
 import { LogIn, LogOut } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 // ShiftProgressBar.jsx — the desktop reference's check-in -> check-out
 // progress rail. Desktop-only (lg:) by design: on a phone the same
@@ -10,6 +11,7 @@ import { LogIn, LogOut } from "lucide-react";
 // stores and staff can adjust), not a hardcoded 8. Nothing is drawn at
 // all until there is a real check-in.
 export default function ShiftProgressBar({ record, now }) {
+  const { t } = useTranslation();
   const checkIn = record?.checkIn ? new Date(record.checkIn).getTime() : null;
   if (checkIn == null) return null;
 
@@ -29,14 +31,14 @@ export default function ShiftProgressBar({ record, now }) {
             <LogIn size={15} strokeWidth={2.1} />
           </span>
           <div>
-            <p className="text-[12.5px] font-semibold text-emerald-400 leading-none">Check In</p>
+            <p className="text-[12.5px] font-semibold text-emerald-400 leading-none">{t("emp.checkIn")}</p>
             <p className="mt-1 text-[11.5px] text-[#9AA1B4] tabular-nums">{timeLabel(checkIn)}</p>
           </div>
         </div>
 
         <div className="relative flex-1 h-[2px] rounded-full bg-white/[0.08]">
           <div
-            className="absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-emerald-400 to-[#F47A20] transition-[width] duration-1000 ease-out"
+            className="absolute inset-y-0 start-0 rounded-full bg-gradient-to-r from-emerald-400 to-[#F47A20] transition-[width] duration-1000 ease-out"
             style={{ width: `${pct}%`, boxShadow: "0 0 10px 1px rgba(244,122,32,0.55)" }}
           />
           <span
@@ -62,7 +64,7 @@ export default function ShiftProgressBar({ record, now }) {
           </span>
           <div>
             <p className={`text-[12.5px] font-semibold leading-none ${done ? "text-[#FF5C5C]" : "text-[#F9A03C]"}`}>
-              Check Out
+              {t("emp.checkOut")}
             </p>
             <p className="mt-1 text-[11.5px] text-[#9AA1B4] tabular-nums">
               {done ? timeLabel(checkOut) : `${requiredH}h required`}

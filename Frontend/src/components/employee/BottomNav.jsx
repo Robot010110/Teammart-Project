@@ -31,7 +31,7 @@ export default function BottomNav({ tabs, activeTab, onSelect }) {
                   className={`transition-colors duration-300 ${isActive ? "text-[#F47A20]" : "text-[#8B93A8]"}`}
                 />
                 {tab.badge ? (
-                  <span className="absolute -top-1 -right-1.5 min-w-[16px] h-4 px-1 rounded-full bg-[#F47A20] text-white text-[10px] font-bold flex items-center justify-center leading-none shadow-[0_0_6px_rgba(244,122,32,0.6)]">
+                  <span className="absolute -top-1 -end-1.5 min-w-[16px] h-4 px-1 rounded-full bg-[#F47A20] text-white text-[10px] font-bold flex items-center justify-center leading-none shadow-[0_0_6px_rgba(244,122,32,0.6)]">
                     {tab.badge > 9 ? "9+" : tab.badge}
                   </span>
                 ) : null}

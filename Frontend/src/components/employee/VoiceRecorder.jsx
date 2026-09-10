@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Mic, Square, Play, Pause, Send, Trash2, Loader2 } from "lucide-react";
 import { uploadAttachment, formatDuration } from "../../utils/fileEncoding";
 
@@ -10,6 +11,7 @@ import { uploadAttachment, formatDuration } from "../../utils/fileEncoding";
 // recording"). REST-only, same as the rest of this app's chat
 // architecture — no WebSocket involved in any of this.
 export default function VoiceRecorder({ onRecorded, onCancel }) {
+  const { t } = useTranslation();
   const [state, setState] = useState("idle"); // idle | recording | recorded | unsupported
   const [seconds, setSeconds] = useState(0);
   const [previewUrl, setPreviewUrl] = useState(null);
@@ -55,7 +57,7 @@ export default function VoiceRecorder({ onRecorded, onCancel }) {
       setSeconds(0);
       timerRef.current = setInterval(() => setSeconds((s) => s + 1), 1000);
     } catch {
-      setError("Could not access the microphone. Check your browser/device permissions.");
+      setError(t("emp.couldNotAccessTheMicrophoneCheck"));
       setState("idle");
     }
   }
@@ -97,7 +99,7 @@ export default function VoiceRecorder({ onRecorded, onCancel }) {
   if (state === "unsupported") {
     return (
       <p className="text-xs text-[#8B93A8] px-1">
-        Voice messages aren't supported in this browser. Try Upload Photo/File instead.
+        {t("emp.voiceMessagesArentSupportedInThis")}
       </p>
     );
   }
@@ -110,10 +112,10 @@ export default function VoiceRecorder({ onRecorded, onCancel }) {
           onClick={startRecording}
           className="flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium text-white bg-[#F47A20] hover:bg-[#ff8b36]"
         >
-          <Mic size={15} /> Record Voice Message
+          <Mic size={15} /> {t("emp.recordVoiceMessage")}
         </button>
         <button type="button" onClick={onCancel} className="text-xs text-[#9AA1B4] hover:text-white">
-          Cancel
+          {t("emp.cancel")}
         </button>
         {error && <p className="text-xs text-red-400">{error}</p>}
       </div>
@@ -130,7 +132,7 @@ export default function VoiceRecorder({ onRecorded, onCancel }) {
           onClick={stopRecording}
           className="flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-xs font-semibold text-white bg-red-500/80 hover:bg-red-500"
         >
-          <Square size={13} /> Stop
+          <Square size={13} /> {t("emp.stop")}
         </button>
       </div>
     );
@@ -148,14 +150,14 @@ export default function VoiceRecorder({ onRecorded, onCancel }) {
         {playing ? <Pause size={15} /> : <Play size={15} />}
       </button>
       <span className="text-sm font-mono text-white">{formatDuration(seconds)}</span>
-      <button type="button" onClick={retake} className="p-1.5 text-[#9AA1B4] hover:text-red-400" aria-label="Retake">
+      <button type="button" onClick={retake} className="p-1.5 text-[#9AA1B4] hover:text-red-400" aria-label={t("emp.retake")}>
         <Trash2 size={15} />
       </button>
       <button
         type="button"
         onClick={handleSend}
         disabled={preparing}
-        className="ml-auto flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-xs font-semibold text-white bg-[#F47A20] hover:bg-[#ff8b36] disabled:opacity-50"
+        className="ms-auto flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-xs font-semibold text-white bg-[#F47A20] hover:bg-[#ff8b36] disabled:opacity-50"
       >
         {preparing ? <Loader2 size={13} className="animate-spin" /> : <Send size={13} />}
         Send

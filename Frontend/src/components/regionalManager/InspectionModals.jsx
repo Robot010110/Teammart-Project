@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Star, Loader2, ShieldAlert, Sparkles } from "lucide-react";
 import Modal from "../common/Modal";
 import { rateMarket, addMarketNote, sendMarketFeedback } from "../../services/marketManagementService";
@@ -14,6 +15,7 @@ import { ApiError } from "../../services/apiClient";
 // in one file rather than three near-identical ones.
 
 export function RateMarketModal({ open, marketId, visitId, onClose, onSaved }) {
+  const { t } = useTranslation();
   const [rating, setRating] = useState(0);
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -21,7 +23,7 @@ export function RateMarketModal({ open, marketId, visitId, onClose, onSaved }) {
 
   async function handleSubmit() {
     if (rating < 1) {
-      setError("Choose a rating from 1 to 10.");
+      setError(t("rm.chooseARatingFrom1To"));
       return;
     }
     setSubmitting(true);
@@ -32,17 +34,17 @@ export function RateMarketModal({ open, marketId, visitId, onClose, onSaved }) {
       setRating(0);
       setNotes("");
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Could not save this rating.");
+      setError(err instanceof ApiError ? err.message : t("rm.couldNotSaveThisRating"));
     } finally {
       setSubmitting(false);
     }
   }
 
   return (
-    <Modal open={open} onClose={onClose} title="Rate Market">
+    <Modal open={open} onClose={onClose} title={t("rm.rateMarket")}>
       <div className="space-y-4">
         <div>
-          <label className="block text-xs uppercase tracking-wide text-[#8B93A8] mb-2">Rating (1-10)</label>
+          <label className="block text-xs uppercase tracking-wide text-[#8B93A8] mb-2">{t("rm.rating110")}</label>
           <div className="grid grid-cols-5 sm:grid-cols-10 gap-1.5">
             {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
               <button
@@ -64,12 +66,12 @@ export function RateMarketModal({ open, marketId, visitId, onClose, onSaved }) {
           )}
         </div>
         <div>
-          <label className="block text-xs uppercase tracking-wide text-[#8B93A8] mb-1.5">Notes (optional)</label>
+          <label className="block text-xs uppercase tracking-wide text-[#8B93A8] mb-1.5">{t("emp.notesOptional")}</label>
           <textarea
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             rows={3}
-            placeholder="What informed this rating?"
+            placeholder={t("rm.whatInformedThisRating")}
             className="w-full rounded-lg bg-white/[0.04] border border-white/[0.06] px-3 py-2.5 text-sm text-white placeholder:text-[#4C5266] outline-none focus:border-[#F47A20]/50 resize-none"
           />
         </div>
@@ -81,7 +83,7 @@ export function RateMarketModal({ open, marketId, visitId, onClose, onSaved }) {
           className="w-full flex items-center justify-center gap-2 rounded-xl py-3 text-sm font-semibold text-white bg-[#F47A20] hover:bg-[#ff8b36] disabled:opacity-50 transition-colors"
         >
           {submitting ? <Loader2 size={15} className="animate-spin" /> : <Star size={15} />}
-          Submit Rating
+          {t("rm.submitRating")}
         </button>
       </div>
     </Modal>
@@ -89,6 +91,7 @@ export function RateMarketModal({ open, marketId, visitId, onClose, onSaved }) {
 }
 
 export function AddNoteModal({ open, marketId, visitId, onClose, onSaved }) {
+  const { t } = useTranslation();
   const [content, setContent] = useState("");
   const [category, setCategory] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -96,7 +99,7 @@ export function AddNoteModal({ open, marketId, visitId, onClose, onSaved }) {
 
   async function handleSubmit() {
     if (!content.trim()) {
-      setError("Write a note before saving.");
+      setError(t("rm.writeANoteBeforeSaving"));
       return;
     }
     setSubmitting(true);
@@ -107,33 +110,33 @@ export function AddNoteModal({ open, marketId, visitId, onClose, onSaved }) {
       setContent("");
       setCategory("");
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Could not save this note.");
+      setError(err instanceof ApiError ? err.message : t("rm.couldNotSaveThisNote"));
     } finally {
       setSubmitting(false);
     }
   }
 
   return (
-    <Modal open={open} onClose={onClose} title="Management Note">
+    <Modal open={open} onClose={onClose} title={t("rm.managementNote")}>
       <div className="space-y-4">
-        <p className="text-xs text-[#8B93A8]">Internal only — never shown to the market's Supervisor.</p>
+        <p className="text-xs text-[#8B93A8]">{t("rm.internalOnlyNeverShownToThe")}</p>
         <div>
-          <label className="block text-xs uppercase tracking-wide text-[#8B93A8] mb-1.5">Note</label>
+          <label className="block text-xs uppercase tracking-wide text-[#8B93A8] mb-1.5">{t("rm.note")}</label>
           <textarea
             value={content}
             onChange={(e) => setContent(e.target.value)}
             rows={4}
-            placeholder="e.g. Freezer section needs better organization. Follow up next visit."
+            placeholder={t("rm.eGFreezerSectionNeedsBetter")}
             className="w-full rounded-lg bg-white/[0.04] border border-white/[0.06] px-3 py-2.5 text-sm text-white placeholder:text-[#4C5266] outline-none focus:border-[#F47A20]/50 resize-none"
           />
         </div>
         <div>
-          <label className="block text-xs uppercase tracking-wide text-[#8B93A8] mb-1.5">Category (optional)</label>
+          <label className="block text-xs uppercase tracking-wide text-[#8B93A8] mb-1.5">{t("rm.categoryOptional")}</label>
           <input
             type="text"
             value={category}
             onChange={(e) => setCategory(e.target.value)}
-            placeholder="e.g. Cleanliness, Staffing"
+            placeholder={t("rm.eGCleanlinessStaffing")}
             className="w-full rounded-lg bg-white/[0.04] border border-white/[0.06] px-3 py-2.5 text-sm text-white placeholder:text-[#4C5266] outline-none focus:border-[#F47A20]/50"
           />
         </div>
@@ -144,7 +147,7 @@ export function AddNoteModal({ open, marketId, visitId, onClose, onSaved }) {
           disabled={submitting}
           className="w-full flex items-center justify-center gap-2 rounded-xl py-3 text-sm font-semibold text-white bg-[#F47A20] hover:bg-[#ff8b36] disabled:opacity-50 transition-colors"
         >
-          {submitting ? <Loader2 size={15} className="animate-spin" /> : "Save Note"}
+          {submitting ? <Loader2 size={15} className="animate-spin" /> : t("rm.saveNote")}
         </button>
       </div>
     </Modal>
@@ -154,6 +157,7 @@ export function AddNoteModal({ open, marketId, visitId, onClose, onSaved }) {
 const PRIORITIES = ["LOW", "NORMAL", "HIGH", "URGENT"];
 
 export function SendFeedbackModal({ open, type, marketId, visitId, onClose, onSaved }) {
+  const { t } = useTranslation();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState("");
@@ -165,7 +169,7 @@ export function SendFeedbackModal({ open, type, marketId, visitId, onClose, onSa
 
   async function handleSubmit() {
     if (!title.trim() || !description.trim()) {
-      setError("Title and description are both required.");
+      setError(t("rm.titleAndDescriptionAreBothRequired"));
       return;
     }
     setSubmitting(true);
@@ -185,21 +189,21 @@ export function SendFeedbackModal({ open, type, marketId, visitId, onClose, onSa
       setCategory("");
       setPriority("NORMAL");
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Could not send this.");
+      setError(err instanceof ApiError ? err.message : t("rm.couldNotSendThis"));
     } finally {
       setSubmitting(false);
     }
   }
 
   return (
-    <Modal open={open} onClose={onClose} title={isWarning ? "Send Warning" : "Send Recognition"}>
+    <Modal open={open} onClose={onClose} title={isWarning ? t("rm.sendWarning") : t("rm.sendRecognition")}>
       <div className="space-y-4">
         <p className={`flex items-center gap-1.5 text-xs ${isWarning ? "text-red-400" : "text-emerald-400"}`}>
           {isWarning ? <ShieldAlert size={13} /> : <Sparkles size={13} />}
           Sent directly to this market's Supervisor as a formal record — not a chat message.
         </p>
         <div>
-          <label className="block text-xs uppercase tracking-wide text-[#8B93A8] mb-1.5">Title</label>
+          <label className="block text-xs uppercase tracking-wide text-[#8B93A8] mb-1.5">{t("sup.title")}</label>
           <input
             type="text"
             value={title}
@@ -209,33 +213,33 @@ export function SendFeedbackModal({ open, type, marketId, visitId, onClose, onSa
           />
         </div>
         <div>
-          <label className="block text-xs uppercase tracking-wide text-[#8B93A8] mb-1.5">Description</label>
+          <label className="block text-xs uppercase tracking-wide text-[#8B93A8] mb-1.5">{t("sup.description")}</label>
           <textarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             rows={4}
             placeholder={
               isWarning
-                ? "Today we visited your market and noticed the Fresh section requires improvement..."
-                : "We visited your market today and found it clean and well organized..."
+                ? t("rm.todayWeVisitedYourMarketAnd")
+                : t("rm.weVisitedYourMarketTodayAnd")
             }
             className="w-full rounded-lg bg-white/[0.04] border border-white/[0.06] px-3 py-2.5 text-sm text-white placeholder:text-[#4C5266] outline-none focus:border-[#F47A20]/50 resize-none"
           />
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="block text-xs uppercase tracking-wide text-[#8B93A8] mb-1.5">Category (optional)</label>
+            <label className="block text-xs uppercase tracking-wide text-[#8B93A8] mb-1.5">{t("rm.categoryOptional")}</label>
             <input
               type="text"
               value={category}
               onChange={(e) => setCategory(e.target.value)}
-              placeholder="e.g. Cleanliness"
+              placeholder={t("rm.eGCleanliness")}
               className="w-full rounded-lg bg-white/[0.04] border border-white/[0.06] px-3 py-2.5 text-sm text-white placeholder:text-[#4C5266] outline-none focus:border-[#F47A20]/50"
             />
           </div>
           {isWarning && (
             <div>
-              <label className="block text-xs uppercase tracking-wide text-[#8B93A8] mb-1.5">Priority</label>
+              <label className="block text-xs uppercase tracking-wide text-[#8B93A8] mb-1.5">{t("emp.priority")}</label>
               <select
                 value={priority}
                 onChange={(e) => setPriority(e.target.value)}
@@ -256,7 +260,7 @@ export function SendFeedbackModal({ open, type, marketId, visitId, onClose, onSa
           }`}
         >
           {submitting ? <Loader2 size={15} className="animate-spin" /> : isWarning ? <ShieldAlert size={15} /> : <Sparkles size={15} />}
-          {isWarning ? "Send Warning" : "Send Recognition"}
+          {isWarning ? t("rm.sendWarning") : t("rm.sendRecognition")}
         </button>
       </div>
     </Modal>

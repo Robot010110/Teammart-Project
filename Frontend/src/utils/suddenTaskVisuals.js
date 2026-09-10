@@ -9,17 +9,20 @@ import { Package, Sparkles, ClipboardList, Tag, Trash2, Store, ListChecks } from
 // project (confirmed during the Activity tab redesign) — icons are the
 // honest way to reproduce the reference's "semantic visual per task
 // type" without inventing per-task artwork.
+// `label` holds a translation KEY, not display text — this module has
+// no access to `t()`, so every consumer must resolve it with t(visual.label)
+// at render time (same pattern as data/auth.js's ROLE_OPTIONS).
 // `glow` maps each category to one of index.css's shared neon glow
 // utilities (glow-orange/emerald/sky/violet/red) — same five-tone
 // TeamMart visual system used everywhere else, not a one-off per file.
 export const CATEGORY_VISUALS = {
-  GENERAL: { icon: ListChecks, label: "General", tone: "text-[#F47A20]", bg: "bg-[#F47A20]/10", glow: "glow-orange" },
-  RESTOCKING: { icon: Package, label: "Restocking", tone: "text-sky-400", bg: "bg-sky-500/10", glow: "glow-sky" },
-  CLEANING: { icon: Sparkles, label: "Cleaning", tone: "text-emerald-400", bg: "bg-emerald-500/10", glow: "glow-emerald" },
-  INVENTORY: { icon: ClipboardList, label: "Inventory", tone: "text-violet-400", bg: "bg-violet-500/10", glow: "glow-violet" },
-  PRICE_LABEL: { icon: Tag, label: "Price Label", tone: "text-amber-400", bg: "bg-amber-500/10", glow: "glow-orange" },
-  EXPIRED_WASTE: { icon: Trash2, label: "Expired Items", tone: "text-red-400", bg: "bg-red-500/10", glow: "glow-red" },
-  DEPARTMENT_CLOSING: { icon: Store, label: "Department Closing", tone: "text-[#F47A20]", bg: "bg-[#F47A20]/10", glow: "glow-orange" },
+  GENERAL: { icon: ListChecks, label: "emp.catGeneralTask", tone: "text-[#F47A20]", bg: "bg-[#F47A20]/10", glow: "glow-orange" },
+  RESTOCKING: { icon: Package, label: "emp.catRestocking", tone: "text-sky-400", bg: "bg-sky-500/10", glow: "glow-sky" },
+  CLEANING: { icon: Sparkles, label: "emp.catCleaningTask", tone: "text-emerald-400", bg: "bg-emerald-500/10", glow: "glow-emerald" },
+  INVENTORY: { icon: ClipboardList, label: "emp.catInventoryTask", tone: "text-violet-400", bg: "bg-violet-500/10", glow: "glow-violet" },
+  PRICE_LABEL: { icon: Tag, label: "emp.catPriceLabel", tone: "text-amber-400", bg: "bg-amber-500/10", glow: "glow-orange" },
+  EXPIRED_WASTE: { icon: Trash2, label: "emp.catExpiredItems", tone: "text-red-400", bg: "bg-red-500/10", glow: "glow-red" },
+  DEPARTMENT_CLOSING: { icon: Store, label: "emp.catDepartmentClosing", tone: "text-[#F47A20]", bg: "bg-[#F47A20]/10", glow: "glow-orange" },
 };
 
 export function categoryVisual(category) {

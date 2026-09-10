@@ -8,7 +8,9 @@ import SupervisorWorkspace from "./pages/SupervisorWorkspace";
 import RegionalManagerWorkspace from "./pages/RegionalManagerWorkspace";
 import AdminWorkspace from "./pages/AdminWorkspace";
 import { isAuthenticated, logout as clearEmployeeToken } from "./services/authService";
-import { getProfile } from "./services/profileService";
+import { getProfile, updateMyPreferences } from "./services/profileService";
+import { applyProfileLanguage, consumeExplicitLanguageChoice, TAG_TO_API } from "./i18n";
+import i18n from "./i18n";
 import { listMarkets } from "./services/marketService";
 import { onUnauthorized } from "./services/apiClient";
 import { initialsOf } from "./utils/initials";
@@ -72,6 +74,41 @@ function AppRoutes() {
     else if (newSession.role === "supervisor") navigate("/supervisor", { replace: true });
     else if (newSession.employeeRole === "CASHIER") navigate("/cashier", { replace: true });
     else navigate("/me", { replace: true });
+
+    // Reconcile the pre-login language with the account's saved one —
+    // see i18n/index.js's own comment on consumeExplicitLanguageChoice
+    // for why intent (not just "what's currently showing") decides which
+    // one wins. Fire-and-forget either way: this must never block or
+    // fail the login itself.
+    if (consumeExplicitLanguageChoice()) {
+      // The person actively picked a language on the login screen this
+      // visit — that choice already IS the current UI language (the
+      // toggle applied it immediately), so there is nothing to change
+      // here. Only sync it up to the account so it follows them to
+      // other devices too, exactly like changing it in Settings would.
+      updateMyPreferences({ language: TAG_TO_API[i18n.language] }).catch(() => {
+        // Non-fatal — the choice still holds for this session via the
+        // localStorage mirror; it just won't have synced to the account
+        // this time. Settings offers the same change again later.
+      });
+    } else {
+      // Nobody touched the toggle — whatever language is showing is
+      // just ambient state (the localStorage mirror or the "en"
+      // default), not a real choice, so the account's own saved
+      // preference is what should actually decide it. This lands a beat
+      // after the workspace itself mounts (its own first-load requests
+      // are already in flight), so a person whose account is set to a
+      // different language than what's currently showing sees a brief,
+      // self-correcting flip rather than an instant switch — the same
+      // trade-off the existing page-reload session-restore path already
+      // makes below, just without its "Loading…" gate.
+      getProfile()
+        .then((profile) => applyProfileLanguage(profile.language))
+        .catch(() => {
+          // Non-fatal — worst case the pre-login language stays showing,
+          // which is still a language the person has actually used.
+        });
+    }
   };
 
   const handleLogout = () => {
@@ -94,6 +131,10 @@ function AppRoutes() {
     }
     getProfile()
       .then(async (profile) => {
+        // The account carries the language preference, so apply it as
+        // soon as the profile lands: before this point the app was using
+        // the local mirror (all a logged-out visitor can have).
+        applyProfileLanguage(profile.language);
         if (profile.kind === "employee") {
           setSession({
             role: "employee",
@@ -124,7 +165,11 @@ function AppRoutes() {
             zoneId: profile.zoneId,
             marketName,
             shift: isOverlooking ? "EVENING" : "MORNING",
-            title: isOverlooking ? "Overlooking" : "Supervisor",
+            // A translation KEY, not display text — the session outlives any
+            // language switch, so resolving it here would freeze the title in
+            // whatever language was active at login. SupervisorProfileCard
+            // resolves it at render instead.
+            titleKey: isOverlooking ? "roles.overlooking" : "roles.supervisor",
             displayName: profile.name,
             initials: initialsOf(profile.name),
           });

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Camera, X, Loader2, Lock } from "lucide-react";
 import Modal from "../common/Modal";
 import AuthenticatedImage from "../common/AuthenticatedImage";
@@ -35,6 +36,7 @@ function formatTimeNow() {
 }
 
 export default function SubmitTaskModal({ option, activity, onClose, onSaved }) {
+  const { t } = useTranslation();
   const isEdit = !!activity;
   const open = !!option || !!activity;
 
@@ -48,7 +50,9 @@ export default function SubmitTaskModal({ option, activity, onClose, onSaved }) 
 
   if (!open) return null;
 
-  const title = isEdit ? `Edit: ${CATEGORY_LABELS[activity.category] || activity.category}` : option.label;
+  const title = isEdit
+    ? t("emp.editCategory", { category: CATEGORY_LABELS[activity.category] ? t(CATEGORY_LABELS[activity.category]) : activity.category })
+    : t(option.label);
 
   // Belt-and-suspenders: TaskStatusTabs only ever opens this modal for an
   // editable activity (see canEditActivity), but re-checking here means
@@ -62,7 +66,7 @@ export default function SubmitTaskModal({ option, activity, onClose, onSaved }) 
         <div className="flex flex-col items-center gap-2 py-6 text-center">
           <Lock size={20} className="text-[#4C5266]" />
           <p className="text-sm text-[#9AA1B4]">
-            This activity is already <span className="text-white font-medium">{activity.status.toLowerCase()}</span> and
+            {t("rm.thisActivityIsAlready")} <span className="text-white font-medium">{activity.status.toLowerCase()}</span> and
             can no longer be edited.
           </p>
         </div>
@@ -97,7 +101,7 @@ export default function SubmitTaskModal({ option, activity, onClose, onSaved }) 
         setNewImages((prev) => [...prev, ...converted]);
       }
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Could not attach that image. Please try again.");
+      setError(err instanceof ApiError ? err.message : t("rm.couldNotAttachThatImagePlease"));
     } finally {
       setImageBusy(false);
       setUploadProgress(0);
@@ -115,7 +119,7 @@ export default function SubmitTaskModal({ option, activity, onClose, onSaved }) 
       await deleteActivityImage(activity.id, imageId);
       setExistingImages((prev) => prev.filter((img) => img.id !== imageId));
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Could not remove that image. Please try again.");
+      setError(err instanceof ApiError ? err.message : t("rm.couldNotRemoveThatImagePlease"));
     } finally {
       setImageBusy(false);
     }
@@ -129,7 +133,7 @@ export default function SubmitTaskModal({ option, activity, onClose, onSaved }) 
         const patch = { notes };
         if (submitForReview && activity.status === "DRAFT") patch.status = "PENDING";
         const updated = await updateActivity(activity.id, patch);
-        onSaved({ ...updated, images: existingImages }, "Activity updated.");
+        onSaved({ ...updated, images: existingImages }, t("rm.activityUpdated"));
       } else {
         const created = await createActivity({
           category: option.category,
@@ -139,11 +143,11 @@ export default function SubmitTaskModal({ option, activity, onClose, onSaved }) 
           status: submitForReview ? "PENDING" : "DRAFT",
           imageUrls: newImages.map((img) => img.url),
         });
-        onSaved(created, submitForReview ? "Activity submitted for review." : "Saved as draft.");
+        onSaved(created, submitForReview ? t("rm.activitySubmittedForReview") : t("rm.savedAsDraft"));
       }
       onClose();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Could not save this activity. Please try again.");
+      setError(err instanceof ApiError ? err.message : t("rm.couldNotSaveThisActivityPlease"));
     } finally {
       setSubmitting(false);
     }
@@ -155,18 +159,18 @@ export default function SubmitTaskModal({ option, activity, onClose, onSaved }) 
     <Modal open={open} onClose={onClose} title={title}>
       <div className="space-y-4">
         <div>
-          <label className="block text-xs uppercase tracking-wide text-[#8B93A8] mb-1.5">Notes (optional)</label>
+          <label className="block text-xs uppercase tracking-wide text-[#8B93A8] mb-1.5">{t("emp.notesOptional")}</label>
           <textarea
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             rows={3}
-            placeholder="Anything your supervisor should know..."
+            placeholder={t("rm.anythingYourSupervisorShouldKnow")}
             className="w-full rounded-lg bg-white/[0.04] border border-white/[0.06] px-3 py-3 text-base sm:text-sm text-white placeholder:text-[#4C5266] outline-none focus:border-[#F47A20]/50 transition-colors duration-200 resize-none"
           />
         </div>
 
         <div>
-          <label className="block text-xs uppercase tracking-wide text-[#8B93A8] mb-1.5">Photos (optional)</label>
+          <label className="block text-xs uppercase tracking-wide text-[#8B93A8] mb-1.5">{t("rm.photosOptional")}</label>
           <div className="flex flex-wrap gap-2">
             {existingImages.map((img) => (
               <div key={img.id} className="relative h-16 w-16 rounded-lg overflow-hidden ring-1 ring-white/10">
@@ -175,8 +179,8 @@ export default function SubmitTaskModal({ option, activity, onClose, onSaved }) 
                   type="button"
                   onClick={() => removeExistingImage(img.id)}
                   disabled={busy}
-                  aria-label="Remove photo"
-                  className="absolute -top-1 -right-1 h-6 w-6 rounded-full bg-black/80 grid place-items-center"
+                  aria-label={t("emp.removePhoto")}
+                  className="absolute -top-1 -end-1 h-6 w-6 rounded-full bg-black/80 grid place-items-center"
                 >
                   <X size={12} className="text-white" />
                 </button>
@@ -189,8 +193,8 @@ export default function SubmitTaskModal({ option, activity, onClose, onSaved }) 
                   type="button"
                   onClick={() => removeNewImage(i)}
                   disabled={busy}
-                  aria-label="Remove photo"
-                  className="absolute -top-1 -right-1 h-6 w-6 rounded-full bg-black/80 grid place-items-center"
+                  aria-label={t("emp.removePhoto")}
+                  className="absolute -top-1 -end-1 h-6 w-6 rounded-full bg-black/80 grid place-items-center"
                 >
                   <X size={12} className="text-white" />
                 </button>
@@ -216,7 +220,7 @@ export default function SubmitTaskModal({ option, activity, onClose, onSaved }) 
                 disabled={busy}
                 onChange={(e) => { handleAddFiles(e.target.files); e.target.value = ""; }}
                 className="hidden"
-                aria-label="Add photo"
+                aria-label={t("rm.addPhoto")}
               />
             </label>
           </div>
@@ -231,7 +235,7 @@ export default function SubmitTaskModal({ option, activity, onClose, onSaved }) 
               disabled={busy}
               className="flex-1 rounded-xl py-3 text-sm font-semibold text-[#9AA1B4] bg-white/[0.06] hover:bg-white/[0.1] active:bg-white/[0.14] disabled:opacity-50 transition-colors duration-200"
             >
-              {isEdit ? "Save Draft" : "Save as Draft"}
+              {isEdit ? t("rm.saveDraft") : t("rm.saveAsDraft")}
             </button>
           )}
           <button
@@ -239,7 +243,7 @@ export default function SubmitTaskModal({ option, activity, onClose, onSaved }) 
             disabled={busy}
             className="flex-1 rounded-xl py-3 text-sm font-semibold text-white bg-[#F47A20] hover:bg-[#ff8b36] active:bg-[#e06f18] disabled:bg-white/10 disabled:text-[#4C5266] transition-colors duration-200 shadow-lg shadow-orange-900/20"
           >
-            {submitting ? "Submitting..." : isEdit && activity.status === "PENDING" ? "Save Changes" : "Submit for Review"}
+            {submitting ? t("emp.submitting") : isEdit && activity.status === "PENDING" ? t("rm.saveChanges") : t("rm.submitForReview")}
           </button>
         </div>
       </div>

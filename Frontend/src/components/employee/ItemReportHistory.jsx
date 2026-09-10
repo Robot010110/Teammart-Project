@@ -1,22 +1,24 @@
 import { Trash2, PackageX, Clock3 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import ActivityStatusPill from "../common/ActivityStatusPill";
 
 // ItemReportHistory.jsx — this month's Expired/Wasted Items reports, same
 // row-card shell as TaskStatusTabs.jsx uses for Activities.
 
-const CONDITION_LABEL = { EXPIRED: "Expired", WASTED: "Wasted" };
+const CONDITION_LABEL = { EXPIRED: "emp.expired", WASTED: "emp.wasted" };
 const CONDITION_ICON = { EXPIRED: Clock3, WASTED: Trash2 };
 
 const dateTimeLabel = (isoString) =>
   new Date(isoString).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 
 export default function ItemReportHistory({ reports }) {
+  const { t } = useTranslation();
   if (reports.length === 0) {
-    return <p className="text-sm text-[#4C5266] text-center py-8">No reports for this month.</p>;
+    return <p className="text-sm text-[#4C5266] text-center py-8">{t("emp.noReportsForThisMonth")}</p>;
   }
 
   return (
-    <div className="space-y-2.5 max-h-[360px] overflow-y-auto pr-1">
+    <div className="space-y-2.5 max-h-[360px] overflow-y-auto pe-1">
       {reports.map((report) => {
         const Icon = CONDITION_ICON[report.condition] || PackageX;
         return (
@@ -28,8 +30,8 @@ export default function ItemReportHistory({ reports }) {
               <ActivityStatusPill status={report.status} />
             </div>
             <div className="mt-1.5 flex items-center gap-4 text-xs text-[#9AA1B4]">
-              <span>{CONDITION_LABEL[report.condition]}</span>
-              <span>Qty {report.quantity}</span>
+              <span>{CONDITION_LABEL[report.condition] ? t(CONDITION_LABEL[report.condition]) : report.condition}</span>
+              <span>{t("emp.qtyValue", { value: report.quantity })}</span>
               <span>{dateTimeLabel(report.reportedAt)}</span>
             </div>
             {report.notes && <p className="mt-1.5 text-xs text-[#8B93A8]">{report.notes}</p>}

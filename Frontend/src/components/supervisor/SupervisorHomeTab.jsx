@@ -1,4 +1,5 @@
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { Circle, ChevronRight } from "lucide-react";
 import { useAsync } from "../../hooks/useAsync";
 import SupervisorProfileCard from "./SupervisorProfileCard";
@@ -11,9 +12,9 @@ import { getTodayAttendance } from "../../services/attendanceService";
 
 function greeting() {
   const hour = new Date().getHours();
-  if (hour < 12) return "Good morning";
-  if (hour < 18) return "Good afternoon";
-  return "Good evening";
+  if (hour < 12) return "sup.goodMorning";
+  if (hour < 18) return "sup.goodAfternoon";
+  return "sup.goodEvening";
 }
 
 function todayLabel() {
@@ -46,6 +47,7 @@ function todayLabel() {
 // component's own comment for its exact backend source. Nothing here
 // duplicates a data source under a different name.
 export default function SupervisorHomeTab({ session, basePath }) {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   // Real on-duty state — the same GET /attendance/today
   // AttendanceCheckInCard itself reads, fetched once here and handed
@@ -59,7 +61,11 @@ export default function SupervisorHomeTab({ session, basePath }) {
       <div className="flex items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-display font-bold text-white">
-            {greeting()}, {session.displayName?.split(" ")[0]} 👋
+            {t("sup.greetingWithName", {
+              greeting: t(greeting()),
+              name: session.displayName?.split(" ")[0],
+            })}{" "}
+            👋
           </h1>
           <p className="text-xs text-[#8B93A8] mt-0.5">{todayLabel()}</p>
         </div>
@@ -69,7 +75,7 @@ export default function SupervisorHomeTab({ session, basePath }) {
           }`}
         >
           <Circle size={7} className="fill-current" />
-          {onDuty ? "On Duty" : "Off Duty"}
+          {onDuty ? t("sup.onDuty") : t("sup.offDuty")}
         </span>
       </div>
 
@@ -78,19 +84,19 @@ export default function SupervisorHomeTab({ session, basePath }) {
       <AttendanceCheckInCard />
 
       <section>
-        <h2 className="mb-3 text-sm font-semibold text-white">Today's Overview</h2>
+        <h2 className="mb-3 text-sm font-semibold text-white">{t("sup.todaysOverview")}</h2>
         <SupervisorTodayOverview session={session} basePath={basePath} />
       </section>
 
       <section>
         <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-white">Recent Activity</h2>
+          <h2 className="text-sm font-semibold text-white">{t("sup.recentActivity")}</h2>
           <button
             type="button"
             onClick={() => navigate(`${basePath}/activity`)}
             className="flex items-center gap-0.5 text-[11.5px] font-semibold text-[#F47A20] hover:text-[#ff8b36]"
           >
-            See All <ChevronRight size={13} />
+            See All <ChevronRight size={13} className="rtl-flip" />
           </button>
         </div>
         <TodayActivityFeed marketId={session.marketId} todayOnly limit={4} />

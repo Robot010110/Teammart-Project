@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { ChevronLeft, Phone, MessageCircle, Store, Users2, ShieldCheck, Clock3, MapPin, ChevronRight } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAsync } from "../hooks/useAsync";
@@ -13,9 +14,9 @@ import { listActivitiesForMarket } from "../services/activityService";
 import { initialsOf } from "../utils/initials";
 
 const LIVE = {
-  ACTIVE: { label: "Active", chip: "bg-emerald-500/15 text-emerald-400 ring-emerald-500/30", dot: "bg-emerald-400" },
-  ON_BREAK: { label: "On Break", chip: "bg-amber-500/15 text-amber-400 ring-amber-500/30", dot: "bg-amber-400" },
-  OFF: { label: "Off Shift", chip: "bg-[#0D1424]/90 text-[#8B93A8] ring-white/10", dot: "bg-[#4C5266]" },
+  ACTIVE: { label: "status.active", chip: "bg-emerald-500/15 text-emerald-400 ring-emerald-500/30", dot: "bg-emerald-400" },
+  ON_BREAK: { label: "emp.onBreak", chip: "bg-amber-500/15 text-amber-400 ring-amber-500/30", dot: "bg-amber-400" },
+  OFF: { label: "rm.offShift", chip: "bg-[#0D1424]/90 text-[#8B93A8] ring-white/10", dot: "bg-[#4C5266]" },
 };
 
 function InfoRow({ icon: Icon, label, value, tone }) {
@@ -25,7 +26,7 @@ function InfoRow({ icon: Icon, label, value, tone }) {
         <Icon size={14} />
       </span>
       <span className="text-[12px] text-[#8B93A8]">{label}</span>
-      <span className="ml-auto min-w-0 truncate text-right text-[12.5px] font-medium text-white">{value}</span>
+      <span className="ms-auto min-w-0 truncate text-end text-[12.5px] font-medium text-white">{value}</span>
     </div>
   );
 }
@@ -59,6 +60,7 @@ function clockLabel(iso) {
 //     createdAt is shown, labelled as exactly that, rather than dressed
 //     up as an employment date.
 export default function RmSupervisorProfilePage({ userId, onBack, basePath = "/rm" }) {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { data: sup, error, loading, reload } = useAsync(() => getAccessibleSupervisor(userId), { deps: [userId] });
 
@@ -111,12 +113,12 @@ export default function RmSupervisorProfilePage({ userId, onBack, basePath = "/r
           <button
             type="button"
             onClick={onBack}
-            aria-label="Back to employees"
+            aria-label={t("sup.backToEmployees")}
             className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-white/10 bg-white/[0.06] text-white transition-all hover:bg-white/10 active:scale-95"
           >
-            <ChevronLeft size={17} />
+            <ChevronLeft size={17} className="rtl-flip" />
           </button>
-          <h1 className="font-display text-xl font-bold text-white">Supervisor</h1>
+          <h1 className="font-display text-xl font-bold text-white">{t("roles.supervisor")}</h1>
         </div>
         <ErrorBanner message={error} onRetry={reload} />
       </div>
@@ -124,7 +126,7 @@ export default function RmSupervisorProfilePage({ userId, onBack, basePath = "/r
   }
 
   const state = sup.onBreak ? LIVE.ON_BREAK : sup.onShift ? LIVE.ACTIVE : LIVE.OFF;
-  const roleLabel = sup.kind === "OVERLOOKING" ? "Overlooking Supervisor" : "Supervisor";
+  const roleLabel = sup.kind === "OVERLOOKING" ? t("emp.overlookingSupervisor") : t("roles.supervisor");
 
   return (
     <div className="mx-auto max-w-lg animate-fade-up px-4 pb-4 pt-4 sm:max-w-3xl sm:px-6">
@@ -132,10 +134,10 @@ export default function RmSupervisorProfilePage({ userId, onBack, basePath = "/r
         <button
           type="button"
           onClick={onBack}
-          aria-label="Back to employees"
+          aria-label={t("sup.backToEmployees")}
           className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-white/10 bg-white/[0.06] text-white transition-all hover:bg-white/10 active:scale-95"
         >
-          <ChevronLeft size={17} />
+          <ChevronLeft size={17} className="rtl-flip" />
         </button>
         {sup.whatsappNumber && (
           <a
@@ -160,10 +162,10 @@ export default function RmSupervisorProfilePage({ userId, onBack, basePath = "/r
             )}
           </span>
           <span
-            className={`absolute -bottom-1 left-1/2 inline-flex -translate-x-1/2 items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-[10.5px] font-semibold ring-1 ring-inset backdrop-blur-md ${state.chip}`}
+            className={`absolute -bottom-1 start-1/2 inline-flex -translate-x-1/2 items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-[10.5px] font-semibold ring-1 ring-inset backdrop-blur-md ${state.chip}`}
           >
             <span className={`h-1.5 w-1.5 rounded-full ${state.dot}`} />
-            {state.label}
+            {t(state.label)}
           </span>
         </div>
 
@@ -184,12 +186,12 @@ export default function RmSupervisorProfilePage({ userId, onBack, basePath = "/r
             className="flex flex-col items-center gap-1.5 rounded-2xl border border-white/[0.07] bg-[#111A2D]/80 py-3 backdrop-blur-xl transition-all duration-200 hover:border-[#F47A20]/30 active:scale-[0.97]"
           >
             <Phone size={17} className="text-emerald-400" />
-            <span className="text-[11px] font-medium text-[#C4C9D6]">Call</span>
+            <span className="text-[11px] font-medium text-[#C4C9D6]">{t("rm.call")}</span>
           </a>
         ) : (
           <div className="flex flex-col items-center gap-1.5 rounded-2xl border border-white/[0.05] bg-[#111A2D]/40 py-3 opacity-50">
             <Phone size={17} className="text-[#5C6479]" />
-            <span className="text-[11px] font-medium text-[#5C6479]">No number</span>
+            <span className="text-[11px] font-medium text-[#5C6479]">{t("rm.noNumber")}</span>
           </div>
         )}
         <button
@@ -198,22 +200,22 @@ export default function RmSupervisorProfilePage({ userId, onBack, basePath = "/r
           className="flex flex-col items-center gap-1.5 rounded-2xl border border-white/[0.07] bg-[#111A2D]/80 py-3 backdrop-blur-xl transition-all duration-200 hover:border-[#F47A20]/30 active:scale-[0.97]"
         >
           <MessageCircle size={17} className="text-[#F47A20]" />
-          <span className="text-[11px] font-medium text-[#C4C9D6]">Message</span>
+          <span className="text-[11px] font-medium text-[#C4C9D6]">{t("rm.message")}</span>
         </button>
       </div>
 
       {/* Assignment */}
       <div className="mt-2.5 divide-y divide-white/[0.05] rounded-2xl border border-white/[0.07] bg-[#111A2D]/80 px-3.5 backdrop-blur-xl">
-        <InfoRow icon={Store} label="Market" value={sup.market?.name ?? "—"} tone="text-[#F47A20] bg-[#F47A20]/10" />
-        <InfoRow icon={MapPin} label="Zone" value={sup.market ? `Zone ${sup.market.zoneNumber}` : "—"} tone="text-sky-400 bg-sky-500/10" />
-        <InfoRow icon={Users2} label="Team size" value={`${sup.employeeCount} employees`} tone="text-[#7EA6FF] bg-[#7EA6FF]/10" />
+        <InfoRow icon={Store} label={t("sup.market")} value={sup.market?.name ?? "—"} tone="text-[#F47A20] bg-[#F47A20]/10" />
+        <InfoRow icon={MapPin} label={t("emp.catZone")} value={sup.market ? `Zone ${sup.market.zoneNumber}` : "—"} tone="text-sky-400 bg-sky-500/10" />
+        <InfoRow icon={Users2} label={t("rm.teamSize")} value={`${sup.employeeCount} employees`} tone="text-[#7EA6FF] bg-[#7EA6FF]/10" />
         <InfoRow
           icon={Clock3}
-          label="Today"
+          label={t("common.today")}
           value={
             sup.checkInAt
               ? `${clockLabel(sup.checkInAt)}${sup.checkOutAt ? ` – ${clockLabel(sup.checkOutAt)}` : ""}`
-              : "Not checked in"
+              : t("emp.notCheckedIn")
           }
           tone="text-violet-400 bg-violet-500/10"
         />
@@ -224,12 +226,12 @@ export default function RmSupervisorProfilePage({ userId, onBack, basePath = "/r
           whole zone (computeZoneMetrics + ZonePerformanceCard), pointed
           at this one market instead. Every figure is real; a metric with
           no data yet renders "—" rather than a fabricated number.
-          "Market Health" is necessarily 0% or 100% for a single market:
+          t("rm.marketHealth") is necessarily 0% or 100% for a single market:
           it means "has open issues, or not". */}
       {sup.market && (
         <div className="mt-2.5">
           <ZonePerformanceCard
-            title="Market Performance"
+            title={t("rm.marketPerformance")}
             footnote={sup.market.name}
             overall={marketMetrics.overall}
             metrics={marketMetrics.metrics}
@@ -244,12 +246,12 @@ export default function RmSupervisorProfilePage({ userId, onBack, basePath = "/r
         <section className="mt-4">
           <h2 className="mb-2 flex items-center gap-2 text-[14px] font-semibold text-white">
             <span className="h-3.5 w-[3px] rounded-full bg-[#F47A20] shadow-[0_0_8px_rgba(244,122,32,0.8)]" />
-            Assigned Market
+            {t("rm.assignedMarket")}
           </h2>
           <button
             type="button"
             onClick={() => navigate(`${basePath}/markets/${sup.market.id}`)}
-            className="group flex w-full items-center gap-3 rounded-[18px] border border-white/[0.07] bg-[#111A2D]/80 p-3 text-left backdrop-blur-xl transition-all duration-200 hover:border-[#F47A20]/30 active:scale-[0.985]"
+            className="group flex w-full items-center gap-3 rounded-[18px] border border-white/[0.07] bg-[#111A2D]/80 p-3 text-start backdrop-blur-xl transition-all duration-200 hover:border-[#F47A20]/30 active:scale-[0.985]"
           >
             <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#F47A20]/10 text-[#F47A20]">
               <Store size={17} />
@@ -260,7 +262,7 @@ export default function RmSupervisorProfilePage({ userId, onBack, basePath = "/r
                 Zone {sup.market.zoneNumber} · {sup.employeeCount} employees
               </p>
             </div>
-            <ChevronRight size={16} className="shrink-0 text-[#4C5266] transition-all group-hover:translate-x-0.5 group-hover:text-[#F47A20]" />
+            <ChevronRight size={16} className="shrink-0 text-[#4C5266] transition-all group-hover:translate-x-0.5 group-hover:text-[#F47A20] rtl-flip" />
           </button>
         </section>
       )}

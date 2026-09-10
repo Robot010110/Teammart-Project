@@ -22,7 +22,7 @@ export default function Breadcrumb({ items }) {
                 {item.label}
               </span>
             )}
-            {!isLast && <ChevronRight size={14} className="text-[#4C5266]" />}
+            {!isLast && <ChevronRight size={14} className="text-[#4C5266] rtl-flip" />}
           </span>
         );
       })}

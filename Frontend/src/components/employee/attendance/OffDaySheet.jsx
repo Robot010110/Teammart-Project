@@ -1,4 +1,5 @@
 import { useEffect, useId, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { createPortal } from "react-dom";
 import { X, CalendarOff, CalendarClock, AlertTriangle, Check, Loader2 } from "lucide-react";
 import { createLeaveRequest, getOffDayQuota } from "../../../services/leaveRequestService";
@@ -26,29 +27,33 @@ import { ApiError } from "../../../services/apiClient";
 // every one of them inside its own transaction and is the only thing
 // that can actually be trusted; this sheet exists so a doomed request
 // never gets a chance to reach the server in the first place.
+// `label`/`unavailable` hold translation KEYS (module scope has no `t`).
+// `describe` returns a {key, params} pair rather than a pre-built string,
+// so the render site can interpolate the real quota number through t()
+// instead of baking English words + a number together at this scope.
 const OFF_TYPES = [
   {
     type: "WEEKLY_OFF",
-    label: "Weekly Off",
+    label: "emp.weeklyOff",
     icon: CalendarOff,
     tone: { text: "text-[#F9A03C]", bg: "bg-[#F47A20]/[0.12]", ring: "border-[#F47A20]/30", glow: "shadow-[0_0_14px_-2px_rgba(244,122,32,0.55)]" },
-    describe: (q) => `Use your ${q?.weekly?.max ?? 1} weekly off for this week.`,
-    unavailable: (q) => (q?.weekly && !q.weekly.available ? "Already used this week." : null),
+    describe: (q) => ({ key: "emp.weeklyOffDescribe", params: { count: q?.weekly?.max ?? 1 } }),
+    unavailable: (q) => (q?.weekly && !q.weekly.available ? "emp.alreadyUsedThisWeek" : null),
   },
   {
     type: "MONTHLY_OFF",
-    label: "Monthly Off",
+    label: "emp.monthlyOff",
     icon: CalendarClock,
     tone: { text: "text-violet-400", bg: "bg-violet-500/[0.12]", ring: "border-violet-500/30", glow: "shadow-[0_0_14px_-2px_rgba(167,139,250,0.55)]" },
-    describe: (q) => `Use 1 of ${q?.monthly?.max ?? 2} monthly off days.`,
-    unavailable: (q) => (q?.monthly && !q.monthly.available ? "Both monthly off days have already been used." : null),
+    describe: (q) => ({ key: "emp.monthlyOffDescribe", params: { count: q?.monthly?.max ?? 2 } }),
+    unavailable: (q) => (q?.monthly && !q.monthly.available ? "emp.bothMonthlyOffDaysHaveAlready" : null),
   },
   {
     type: "EMERGENCY_OFF",
-    label: "Emergency Off",
+    label: "emp.emergencyOff",
     icon: AlertTriangle,
     tone: { text: "text-[#FF5C5C]", bg: "bg-red-500/[0.12]", ring: "border-red-500/30", glow: "shadow-[0_0_14px_-2px_rgba(255,92,92,0.55)]" },
-    describe: () => "For urgent or unexpected situations.",
+    describe: () => ({ key: "emp.forUrgentOrUnexpectedSituations" }),
     // No quota exists for Emergency Off in this app's business rules —
     // deliberately never disabled here, and never labelled "Unlimited"
     // either (see leaveRequestsController.getOffDayQuota's own comment:
@@ -63,6 +68,7 @@ function formatFullDate(date) {
 }
 
 export default function OffDaySheet({ date, onClose, onCreated }) {
+  const { t } = useTranslation();
   const titleId = useId();
   // "choose" -> "confirm" -> "success"
   const [stage, setStage] = useState("choose");
@@ -82,10 +88,16 @@ export default function OffDaySheet({ date, onClose, onCreated }) {
 
   const { data: quota, error: quotaError, loading: quotaLoading } = useAsync(() => getOffDayQuota(isoDate), {
     deps: [isoDate],
-    fallbackError: "Could not load your off-day quota.",
+    fallbackError: t("emp.couldNotLoadYourOffDay"),
   });
 
   useEffect(() => {
+    // The DOM KeyboardEvent.key value is always the literal string
+    // "Escape" in every browser/OS regardless of UI language -- it is a
+    // technical constant, not user-facing text, so it must NEVER be
+    // translated. Passing it through t() would break the key in Kurdish,
+    // since it would compare against the Kurdish word instead of what the
+    // browser actually sends.
     const onKey = (e) => e.key === "Escape" && onClose();
     window.addEventListener("keydown", onKey);
     const prevOverflow = document.body.style.overflow;
@@ -114,7 +126,7 @@ export default function OffDaySheet({ date, onClose, onCreated }) {
       // verbatim — they already match the wording this flow needs,
       // since the backend is the authoritative source for exactly these
       // rules.
-      setSubmitError(err instanceof ApiError ? err.message : "Unable to create your off day. Please try again.");
+      setSubmitError(err instanceof ApiError ? err.message : t("emp.unableToCreateYourOffDay"));
     } finally {
       setSubmitting(false);
     }
@@ -138,14 +150,14 @@ export default function OffDaySheet({ date, onClose, onCreated }) {
         <div className="flex items-center justify-between px-5 pt-2 sm:pt-5">
           <div>
             <h3 id={titleId} className="font-display text-[17px] font-bold text-white">
-              {stage === "success" ? "" : "Choose Off Type"}
+              {stage === "success" ? "" : t("emp.chooseOffType")}
             </h3>
             {stage !== "success" && <p className="mt-0.5 text-[12.5px] text-[#9AA1B4]">{formatFullDate(date)}</p>}
           </div>
           <button
             type="button"
             onClick={onClose}
-            aria-label="Close"
+            aria-label={t("emp.close")}
             className="shrink-0 h-9 w-9 rounded-full grid place-items-center bg-white/5 hover:bg-white/10 active:scale-95 transition-all"
           >
             <X size={16} className="text-white" />
@@ -156,32 +168,33 @@ export default function OffDaySheet({ date, onClose, onCreated }) {
           {stage === "choose" && (
             <div className="space-y-2.5">
               {quotaError && <p className="text-xs text-red-400 mb-1">{quotaError}</p>}
-              {OFF_TYPES.map((t) => {
-                const blockedReason = !quotaLoading ? t.unavailable(quota) : null;
+              {OFF_TYPES.map((opt) => {
+                const blockedReason = !quotaLoading ? opt.unavailable(quota) : null;
                 const disabled = quotaLoading || !!blockedReason;
-                const Icon = t.icon;
+                const Icon = opt.icon;
+                const { key: describeKey, params: describeParams } = opt.describe(quota);
                 return (
                   <button
-                    key={t.type}
+                    key={opt.type}
                     type="button"
                     disabled={disabled}
                     onClick={() => {
-                      setSelected(t);
+                      setSelected(opt);
                       setStage("confirm");
                     }}
-                    className={`w-full flex items-center gap-3 rounded-2xl border px-4 py-3.5 text-left transition-all duration-150 ${
+                    className={`w-full flex items-center gap-3 rounded-2xl border px-4 py-3.5 text-start transition-all duration-150 ${
                       disabled
                         ? "opacity-40 cursor-not-allowed border-white/[0.06] bg-white/[0.02]"
-                        : `${t.tone.ring} bg-white/[0.03] hover:bg-white/[0.06] active:scale-[0.98]`
+                        : `${opt.tone.ring} bg-white/[0.03] hover:bg-white/[0.06] active:scale-[0.98]`
                     }`}
                   >
-                    <span className={`shrink-0 w-10 h-10 rounded-xl grid place-items-center ${t.tone.bg} ${t.tone.text} ${!disabled ? t.tone.glow : ""}`}>
+                    <span className={`shrink-0 w-10 h-10 rounded-xl grid place-items-center ${opt.tone.bg} ${opt.tone.text} ${!disabled ? opt.tone.glow : ""}`}>
                       <Icon size={18} strokeWidth={2} />
                     </span>
                     <div className="min-w-0 flex-1">
-                      <p className="text-[14px] font-semibold text-white">{t.label}</p>
+                      <p className="text-[14px] font-semibold text-white">{t(opt.label)}</p>
                       <p className="mt-0.5 text-[12px] text-[#9AA1B4]">
-                        {blockedReason ?? t.describe(quota)}
+                        {blockedReason ? t(blockedReason) : t(describeKey, describeParams)}
                       </p>
                     </div>
                   </button>
@@ -196,26 +209,26 @@ export default function OffDaySheet({ date, onClose, onCreated }) {
                 <span className={`mx-auto mb-3 w-12 h-12 rounded-full grid place-items-center ${selected.tone.bg} ${selected.tone.text} ${selected.tone.glow}`}>
                   <selected.icon size={22} strokeWidth={2} />
                 </span>
-                <p className="font-display text-[18px] font-bold text-white">{selected.label}</p>
+                <p className="font-display text-[18px] font-bold text-white">{t(selected.label)}</p>
                 <p className="mt-1 text-[13px] text-[#9AA1B4]">{formatFullDate(date)}</p>
               </div>
 
               {reasonRequired && (
                 <div className="mt-4">
                   <label htmlFor="emergency-off-reason" className="block text-[12.5px] font-medium text-[#9AA1B4] mb-1.5">
-                    Reason <span className="text-[#FF5C5C]">*</span>
+                    {t("emp.reason")} <span className="text-[#FF5C5C]">*</span>
                   </label>
                   <textarea
                     id="emergency-off-reason"
                     value={reason}
                     onChange={(e) => setReason(e.target.value)}
-                    placeholder="What's the urgent or unexpected situation?"
+                    placeholder={t("emp.whatsTheUrgentOrUnexpectedSituation")}
                     rows={3}
                     maxLength={500}
                     className="w-full rounded-xl border border-white/10 bg-white/[0.04] px-3.5 py-2.5 text-[13.5px] text-white placeholder:text-[#5C6479] focus:outline-none focus:border-red-500/40 resize-none"
                   />
                   <p className="mt-1 text-[11px] text-[#5C6479]">
-                    Required — this is shared with your Supervisor's notification.
+                    {t("emp.requiredThisIsSharedWithYour")}
                   </p>
                 </div>
               )}
@@ -237,7 +250,7 @@ export default function OffDaySheet({ date, onClose, onCreated }) {
                   disabled={submitting}
                   className="flex-1 rounded-xl px-4 py-3 text-[13.5px] font-semibold text-[#9AA1B4] bg-white/[0.04] hover:bg-white/[0.07] active:scale-[0.98] transition-all disabled:opacity-50"
                 >
-                  Back
+                  {t("emp.back")}
                 </button>
                 <button
                   type="button"
@@ -246,7 +259,7 @@ export default function OffDaySheet({ date, onClose, onCreated }) {
                   className="flex-[2] flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-[13.5px] font-semibold text-white bg-[#F47A20] hover:bg-[#ff8b36] active:scale-[0.98] shadow-[0_0_18px_-3px_rgba(244,122,32,0.7)] transition-all disabled:opacity-60"
                 >
                   {submitting ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />}
-                  Confirm
+                  {t("emp.confirm")}
                 </button>
               </div>
             </div>
@@ -257,7 +270,7 @@ export default function OffDaySheet({ date, onClose, onCreated }) {
               <span className={`mx-auto mb-4 w-16 h-16 rounded-full grid place-items-center ${selected.tone.bg} ${selected.tone.text} ${selected.tone.glow}`}>
                 <Check size={30} strokeWidth={2.4} />
               </span>
-              <p className="font-display text-[19px] font-bold text-white">{selected.label} Added</p>
+              <p className="font-display text-[19px] font-bold text-white">{t(selected.label)} {t("emp.added")}</p>
               <p className="mt-1 text-[13.5px] text-[#9AA1B4]">{formatFullDate(date)}</p>
 
               {/* Never claims a notification that didn't actually happen
@@ -267,7 +280,7 @@ export default function OffDaySheet({ date, onClose, onCreated }) {
                   all, since no notification is ever sent for it. */}
               {selected.type !== "WEEKLY_OFF" && (
                 <p className="mt-3 text-[12.5px] text-[#8B93A8]">
-                  {result.notified ? "Notification sent to your supervisor." : "Recorded — your supervisor was not notified."}
+                  {result.notified ? t("emp.notificationSentToYourSupervisor") : t("emp.recordedYourSupervisorWasNotNotified")}
                 </p>
               )}
 
@@ -276,7 +289,7 @@ export default function OffDaySheet({ date, onClose, onCreated }) {
                 onClick={onClose}
                 className="mt-5 w-full rounded-xl px-4 py-3 text-[13.5px] font-semibold text-white bg-[#F47A20] hover:bg-[#ff8b36] active:scale-[0.98] shadow-[0_0_18px_-3px_rgba(244,122,32,0.7)] transition-all"
               >
-                Done
+                {t("emp.done")}
               </button>
             </div>
           )}

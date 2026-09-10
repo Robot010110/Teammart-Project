@@ -1,4 +1,5 @@
 import { ClipboardList, Flame, Clock4 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import AnimatedNumber from "../common/AnimatedNumber";
 
 // TaskOverviewBar.jsx — My Tasks redesign: compact real stats over the
@@ -7,6 +8,7 @@ import AnimatedNumber from "../common/AnimatedNumber";
 // due time (most won't, since it's optional). Counts animate up on
 // mount via AnimatedNumber.
 export default function TaskOverviewBar({ activeCount, highPriorityCount, dueSoonCount }) {
+  const { t } = useTranslation();
   return (
     <div className="card-premium flex items-center gap-4 rounded-2xl px-4 py-3 bg-[#171C2E]/80 border border-white/[0.06] backdrop-blur-xl mb-4">
       <div className="flex items-center gap-2">
@@ -15,7 +17,7 @@ export default function TaskOverviewBar({ activeCount, highPriorityCount, dueSoo
         </span>
         <div>
           <p className="text-sm font-bold text-white leading-none"><AnimatedNumber value={activeCount} /></p>
-          <p className="text-[10px] text-[#8B93A8] mt-0.5">Active</p>
+          <p className="text-[10px] text-[#8B93A8] mt-0.5">{t("emp.active")}</p>
         </div>
       </div>
       <div className="w-px h-8 bg-white/[0.06]" />
@@ -25,7 +27,7 @@ export default function TaskOverviewBar({ activeCount, highPriorityCount, dueSoo
         </span>
         <div>
           <p className="text-sm font-bold text-white leading-none"><AnimatedNumber value={highPriorityCount} /></p>
-          <p className="text-[10px] text-[#8B93A8] mt-0.5">High Priority</p>
+          <p className="text-[10px] text-[#8B93A8] mt-0.5">{t("emp.highPriority")}</p>
         </div>
       </div>
       <div className="w-px h-8 bg-white/[0.06]" />
@@ -35,7 +37,7 @@ export default function TaskOverviewBar({ activeCount, highPriorityCount, dueSoo
         </span>
         <div>
           <p className="text-sm font-bold text-white leading-none"><AnimatedNumber value={dueSoonCount} /></p>
-          <p className="text-[10px] text-[#8B93A8] mt-0.5">Due Soon</p>
+          <p className="text-[10px] text-[#8B93A8] mt-0.5">{t("emp.dueSoon")}</p>
         </div>
       </div>
     </div>

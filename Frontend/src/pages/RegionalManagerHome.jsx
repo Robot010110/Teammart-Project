@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { useAsync } from "../hooks/useAsync";
 import ErrorBanner from "../components/common/ErrorBanner";
@@ -37,6 +38,7 @@ const BASE_PATH = "/rm";
 // their own error) as soon as their own data lands, instead of the
 // whole page waiting on the slowest call.
 export default function RegionalManagerHome({ session }) {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const zoneIds = useMemo(() => session.zoneIds ?? [], [session.zoneIds]);
 
@@ -92,7 +94,7 @@ export default function RegionalManagerHome({ session }) {
       )}
 
       <ZoneOverviewCard
-        zoneLabel={zoneLabel ?? "No zone assigned"}
+        zoneLabel={zoneLabel ?? t("rm.noZoneAssigned")}
         marketCount={zoneMarketCount}
         employeeCount={zoneEmployeeCount}
         markets={markets}

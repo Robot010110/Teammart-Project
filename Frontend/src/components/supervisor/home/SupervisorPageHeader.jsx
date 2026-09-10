@@ -1,4 +1,5 @@
 import { ArrowLeft } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 // SupervisorPageHeader.jsx — the shared header for the four dedicated
 // pages Today Overview's cards open (Alerts, Recent Activity, Pending
@@ -6,15 +7,16 @@ import { ArrowLeft } from "lucide-react";
 // each page inventing its own — the visual system is already carrying
 // enough weight in the hero card.
 export default function SupervisorPageHeader({ title, subtitle, onBack }) {
+  const { t } = useTranslation();
   return (
     <div className="flex items-center gap-3 mb-5">
       <button
         type="button"
         onClick={onBack}
-        aria-label="Back"
+        aria-label={t("common.back")}
         className="shrink-0 w-10 h-10 grid place-items-center rounded-xl text-[#9AA1B4] hover:text-white hover:bg-white/[0.06] active:scale-95 transition-all"
       >
-        <ArrowLeft size={19} />
+        <ArrowLeft size={19} className="rtl-flip" />
       </button>
       <div className="min-w-0">
         <h1 className="font-display text-lg font-bold text-white">{title}</h1>

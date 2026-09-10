@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import {
   ArrowLeft, Layers, Store, ChevronRight, Search, Plus,
@@ -31,36 +32,37 @@ const ACCENTS = [
 // the exact label MarketCard.jsx already uses everywhere else in the
 // app for this same status — a display-only mapping, not a data change.
 const STATUS_META = {
-  Active: { label: "Active", tone: "bg-emerald-500/12 text-emerald-400 ring-emerald-500/30 shadow-[0_0_10px_-3px_rgba(52,211,153,0.6)]" },
-  Maintenance: { label: "Maintenance", tone: "bg-amber-500/12 text-amber-400 ring-amber-500/30 shadow-[0_0_10px_-3px_rgba(251,191,36,0.6)]" },
-  Closed: { label: "Inactive", tone: "bg-red-500/12 text-red-400 ring-red-500/30 shadow-[0_0_10px_-3px_rgba(248,113,113,0.6)]" },
+  Active: { label: "status.active", tone: "bg-emerald-500/12 text-emerald-400 ring-emerald-500/30 shadow-[0_0_10px_-3px_rgba(52,211,153,0.6)]" },
+  Maintenance: { label: "rm.maintenance", tone: "bg-amber-500/12 text-amber-400 ring-amber-500/30 shadow-[0_0_10px_-3px_rgba(251,191,36,0.6)]" },
+  Closed: { label: "status.inactive", tone: "bg-red-500/12 text-red-400 ring-red-500/30 shadow-[0_0_10px_-3px_rgba(248,113,113,0.6)]" },
 };
 
 const STAFF_ROLE_META = {
-  SUPERVISOR: { label: "Supervisor", icon: ShieldCheck, tone: "text-[#A5B4FC] bg-[#818CF8]/15 ring-[#818CF8]/35 shadow-[0_0_10px_-3px_rgba(129,140,248,0.7)]" },
-  OVERLOOKING_SUPERVISOR: { label: "Overlooking Sup.", icon: ShieldCheck, tone: "text-[#A5B4FC] bg-[#818CF8]/15 ring-[#818CF8]/35 shadow-[0_0_10px_-3px_rgba(129,140,248,0.7)]" },
-  REGIONAL_MANAGER: { label: "Regional Manager", icon: Crown, tone: "text-[#FBBF24] bg-[#FBBF24]/15 ring-[#FBBF24]/35 shadow-[0_0_10px_-3px_rgba(251,191,36,0.7)]" },
+  SUPERVISOR: { label: "roles.supervisor", icon: ShieldCheck, tone: "text-[#A5B4FC] bg-[#818CF8]/15 ring-[#818CF8]/35 shadow-[0_0_10px_-3px_rgba(129,140,248,0.7)]" },
+  OVERLOOKING_SUPERVISOR: { label: "admin.overlookingSup", icon: ShieldCheck, tone: "text-[#A5B4FC] bg-[#818CF8]/15 ring-[#818CF8]/35 shadow-[0_0_10px_-3px_rgba(129,140,248,0.7)]" },
+  REGIONAL_MANAGER: { label: "roles.regionalManager", icon: Crown, tone: "text-[#FBBF24] bg-[#FBBF24]/15 ring-[#FBBF24]/35 shadow-[0_0_10px_-3px_rgba(251,191,36,0.7)]" },
 };
 
 function MarketTile({ market, accent, onOpen, index }) {
+  const { t } = useTranslation();
   const statusMeta = STATUS_META[market.status] ?? STATUS_META.Active;
   return (
     <button
       type="button"
       onClick={onOpen}
       style={{ animationDelay: `${Math.min(index, 10) * 35}ms` }}
-      className={`group animate-fade-up relative overflow-hidden rounded-2xl border ${accent.border} ${accent.borderHover} bg-gradient-to-b from-[#131D33]/90 to-[#0C1424]/90 p-4 text-left backdrop-blur-xl transition-all duration-200 hover:-translate-y-0.5 active:scale-[0.98]`}
+      className={`group animate-fade-up relative overflow-hidden rounded-2xl border ${accent.border} ${accent.borderHover} bg-gradient-to-b from-[#131D33]/90 to-[#0C1424]/90 p-4 text-start backdrop-blur-xl transition-all duration-200 hover:-translate-y-0.5 active:scale-[0.98]`}
     >
       <div className="flex items-start justify-between">
         <span className={`grid h-10 w-10 place-items-center rounded-xl ring-2 ring-inset ${accent.icon}`}>
           <Store size={18} />
         </span>
-        <ChevronRight size={16} className="mt-2.5 shrink-0 text-[#4C5266] transition-all duration-150 group-hover:translate-x-0.5 group-hover:text-[#F47A20]" />
+        <ChevronRight size={16} className="mt-2.5 shrink-0 text-[#4C5266] transition-all duration-150 group-hover:translate-x-0.5 group-hover:text-[#F47A20] rtl-flip" />
       </div>
       <p className="mt-3 truncate font-display text-[15px] font-bold text-white">{market.name}</p>
-      <p className="mt-1 text-[12px] text-[#8B93A8]">{market.employees} employee{market.employees === 1 ? "" : "s"}</p>
+      <p className="mt-1 text-[12px] text-[#8B93A8]">{market.employees === 1 ? t("rm.employeeCount", { count: market.employees }) : t("rm.employeesCount", { count: market.employees })}</p>
       <span className={`mt-2.5 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold ring-1 ring-inset ${statusMeta.tone}`}>
-        <span className="h-1.5 w-1.5 rounded-full bg-current" /> {statusMeta.label}
+        <span className="h-1.5 w-1.5 rounded-full bg-current" /> {t(statusMeta.label)}
       </span>
     </button>
   );
@@ -92,6 +94,7 @@ function MarketTile({ market, accent, onOpen, index }) {
 // page — the same real profile (employees, supervisor, activity, sales)
 // Admin already has, not a new one.
 export default function AdminZoneMarketsPage({ zoneId, onOpenMarket, onBack }) {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { data: zone, error: zoneError, loading: zoneLoading, reload: reloadZone } = useAsync(() => getZone(zoneId), { deps: [zoneId] });
   const { data: staffAccounts, error: staffError, loading: staffLoading } = useAsync(() => listStaffAccounts(), { deps: [] });
@@ -108,6 +111,8 @@ export default function AdminZoneMarketsPage({ zoneId, onOpenMarket, onBack }) {
     return q ? markets.filter((m) => m.name.toLowerCase().includes(q)) : markets;
   }, [markets, search]);
 
+  // Compared against the market's real stored status, so this stays the
+  // literal backend value — never a translated string.
   const activeCount = markets.filter((m) => m.status === "Active").length;
   const totalEmployees = markets.reduce((sum, m) => sum + m.employees, 0);
 
@@ -146,9 +151,9 @@ export default function AdminZoneMarketsPage({ zoneId, onOpenMarket, onBack }) {
       <button
         type="button"
         onClick={onBack}
-        className="flex items-center gap-1.5 text-sm text-[#9AA1B4] hover:text-white mb-4 -ml-1 py-1.5 px-1 transition-colors duration-150"
+        className="flex items-center gap-1.5 text-sm text-[#9AA1B4] hover:text-white mb-4 -ms-1 py-1.5 px-1 transition-colors duration-150"
       >
-        <ArrowLeft size={15} /> Back to Zones
+        <ArrowLeft size={15} className="rtl-flip" /> {t("admin.backToZones")}
       </button>
 
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between mb-5">
@@ -157,9 +162,9 @@ export default function AdminZoneMarketsPage({ zoneId, onOpenMarket, onBack }) {
             <Layers size={20} className="text-[#FFB578]" />
           </span>
           <div>
-            <h1 className="font-display text-[22px] font-bold text-white">{loading ? "Zone" : `Zone ${zone.number}`}</h1>
+            <h1 className="font-display text-[22px] font-bold text-white">{loading ? t("emp.catZone") : t("rm.zoneNumbered", { number: zone.number })}</h1>
             <p className="mt-0.5 text-[13px] text-[#9AA1B4]">
-              {loading ? "Loading..." : `Manager: ${zone.manager} · ${markets.length} market${markets.length === 1 ? "" : "s"} · ${totalEmployees} employee${totalEmployees === 1 ? "" : "s"}`}
+              {loading ? t("emp.loading") : t("rm.zoneSummaryLine", { manager: zone.manager, markets: markets.length, employees: totalEmployees })}
             </p>
           </div>
         </div>
@@ -179,11 +184,11 @@ export default function AdminZoneMarketsPage({ zoneId, onOpenMarket, onBack }) {
       </div>
 
       {/* Markets / Zone Staff — both real destinations; see this file's
-          header comment for why "Reports" isn't a third tab. */}
+          header comment for why t("emp.tabReports") isn't a third tab. */}
       <div className="flex gap-2 mb-4">
         {[
-          { key: "markets", label: "Markets", icon: Store, count: markets.length },
-          { key: "staff", label: "Zone Staff", icon: Users2, count: zoneStaff.length },
+          { key: "markets", label: t("rm.markets"), icon: Store, count: markets.length },
+          { key: "staff", label: t("admin.zoneStaff"), icon: Users2, count: zoneStaff.length },
         ].map((v) => {
           const Icon = v.icon;
           const activeTab = tab === v.key;
@@ -198,7 +203,7 @@ export default function AdminZoneMarketsPage({ zoneId, onOpenMarket, onBack }) {
                   : "bg-[#111A2D]/80 text-[#8B93A8] ring-1 ring-white/[0.06] hover:text-white hover:bg-white/[0.05] hover:ring-white/[0.12]"
               }`}
             >
-              <Icon size={15} /> {v.label} {!loading && `(${v.count})`}
+              <Icon size={15} /> {t(v.label)} {!loading && `(${v.count})`}
             </button>
           );
         })}
@@ -208,12 +213,12 @@ export default function AdminZoneMarketsPage({ zoneId, onOpenMarket, onBack }) {
         <>
           <div className="flex flex-col sm:flex-row gap-3 mb-4">
             <div className="relative flex-1 min-w-[220px]">
-              <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#4C5266]" />
+              <Search size={15} className="absolute start-3.5 top-1/2 -translate-y-1/2 text-[#4C5266]" />
               <input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search markets..."
-                className="w-full rounded-xl bg-gradient-to-b from-[#131C31]/90 to-[#0F1728]/90 border border-white/[0.09] pl-10 pr-3 py-2.5 text-sm text-white placeholder:text-[#5C6479] outline-none transition-all duration-150 focus:border-[#F47A20]/55 focus:shadow-[0_0_0_3px_rgba(244,122,32,0.15)]"
+                placeholder={t("rm.searchMarkets2")}
+                className="w-full rounded-xl bg-gradient-to-b from-[#131C31]/90 to-[#0F1728]/90 border border-white/[0.09] ps-10 pe-3 py-2.5 text-sm text-white placeholder:text-[#5C6479] outline-none transition-all duration-150 focus:border-[#F47A20]/55 focus:shadow-[0_0_0_3px_rgba(244,122,32,0.15)]"
               />
             </div>
             {!loading && (
@@ -222,7 +227,7 @@ export default function AdminZoneMarketsPage({ zoneId, onOpenMarket, onBack }) {
                 onClick={() => setAddOpen(true)}
                 className="flex items-center gap-1.5 shrink-0 rounded-xl px-4 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-[#F47A20] to-[#E0561A] shadow-[0_4px_24px_-6px_rgba(244,122,32,0.75)] ring-1 ring-white/10 transition-all duration-150 hover:from-[#ff8b36] hover:to-[#F47A20] active:scale-[0.97]"
               >
-                <Plus size={15} /> New Market
+                <Plus size={15} /> {t("admin.newMarket")}
               </button>
             )}
           </div>
@@ -235,11 +240,11 @@ export default function AdminZoneMarketsPage({ zoneId, onOpenMarket, onBack }) {
             <ErrorBanner message={zoneError} onRetry={reloadZone} />
           ) : markets.length === 0 ? (
             <div className="rounded-2xl p-10 bg-[#111A2D]/80 border border-white/[0.07] text-center text-sm text-[#8B93A8]">
-              No markets in this zone yet.
+              {t("admin.noMarketsInThisZoneYet")}
             </div>
           ) : filteredMarkets.length === 0 ? (
             <div className="rounded-2xl p-10 bg-[#111A2D]/80 border border-white/[0.07] text-center text-sm text-[#8B93A8]">
-              No matching markets found.
+              {t("admin.noMatchingMarketsFound")}
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -255,7 +260,7 @@ export default function AdminZoneMarketsPage({ zoneId, onOpenMarket, onBack }) {
         <ErrorBanner message={staffError} />
       ) : zoneStaff.length === 0 ? (
         <div className="rounded-2xl p-10 bg-[#111A2D]/80 border border-white/[0.07] text-center text-sm text-[#8B93A8]">
-          No staff assigned to this zone yet.
+          {t("admin.noStaffAssignedToThisZone")}
         </div>
       ) : (
         <div className="rounded-2xl border border-white/[0.08] bg-gradient-to-b from-[#101A2E]/90 to-[#0A0F1D]/90 shadow-[0_20px_50px_-24px_rgba(0,0,0,0.85)] backdrop-blur-xl divide-y divide-white/[0.05]">
@@ -268,7 +273,7 @@ export default function AdminZoneMarketsPage({ zoneId, onOpenMarket, onBack }) {
                 type="button"
                 onClick={() => openStaff(person)}
                 style={{ animationDelay: `${Math.min(i, 8) * 30}ms` }}
-                className="animate-fade-up flex w-full items-center gap-3 px-4 py-3.5 text-left transition-colors hover:bg-white/[0.03]"
+                className="animate-fade-up flex w-full items-center gap-3 px-4 py-3.5 text-start transition-colors hover:bg-white/[0.03]"
               >
                 <span className="grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-full bg-gradient-to-br from-[#1D2D5C] to-[#16233D] text-[11px] font-bold text-white ring-1 ring-white/10">
                   {initialsOf(person.name)}
@@ -278,9 +283,9 @@ export default function AdminZoneMarketsPage({ zoneId, onOpenMarket, onBack }) {
                   <p className="text-[11.5px] text-[#6B7284]">{person.marketName ?? `Zone ${zone?.number}`}</p>
                 </div>
                 <span className={`shrink-0 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium ring-1 ring-inset ${roleMeta.tone}`}>
-                  <RoleIcon size={12} /> {roleMeta.label}
+                  <RoleIcon size={12} /> {t(roleMeta.label)}
                 </span>
-                <ChevronRight size={15} className="shrink-0 text-[#4C5266]" />
+                <ChevronRight size={15} className="shrink-0 text-[#4C5266] rtl-flip" />
               </button>
             );
           })}

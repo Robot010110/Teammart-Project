@@ -1,4 +1,5 @@
 import AuthenticatedImage from "../../common/AuthenticatedImage";
+import { useTranslation } from "react-i18next";
 import { activityMeta, initialsOfName, clockLabel } from "./activityMeta";
 
 // MarketActivityItem.jsx — one row of the market's activity feed:
@@ -10,9 +11,10 @@ import { activityMeta, initialsOfName, clockLabel } from "./activityMeta";
 // images. Nothing is derived or filled in; a missing department simply
 // isn't rendered rather than being replaced with a placeholder.
 export default function MarketActivityItem({ activity, index = 0, showDivider }) {
+  const { t } = useTranslation();
   const meta = activityMeta(activity);
   const Icon = meta.icon;
-  const who = activity.employee?.name ?? activity.submittedByStaff?.name ?? "Someone";
+  const who = activity.employee?.name ?? activity.submittedByStaff?.name ?? t("rm.someone");
   const department = activity.employee?.department ?? activity.department ?? null;
   const thumb = activity.images?.[0]?.url ?? null;
 
@@ -34,7 +36,7 @@ export default function MarketActivityItem({ activity, index = 0, showDivider })
           <p className="min-w-0 truncate text-[12.5px] font-semibold text-white">{who}</p>
           <span className="shrink-0 text-[10.5px] tabular-nums text-[#5C6479]">{clockLabel(activity.date)}</span>
         </div>
-        <p className="truncate text-[11.5px] text-[#9AA1B4]">{meta.label}</p>
+        <p className="truncate text-[11.5px] text-[#9AA1B4]">{t(meta.label)}</p>
         {department && <p className="truncate text-[10.5px] text-[#5C6479]">{department}</p>}
       </div>
 

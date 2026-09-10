@@ -1,4 +1,5 @@
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import SupervisorPageHeader from "./SupervisorPageHeader";
 import TodayActivityFeed from "../TodayActivityFeed";
 
@@ -8,10 +9,11 @@ import TodayActivityFeed from "../TodayActivityFeed";
 // items) instead of Home's today-only teaser — same real 5-source merge,
 // same detail/review modal, just not date-limited.
 export default function SupervisorRecentActivityPage({ session, basePath }) {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   return (
     <div className="px-4 sm:px-6 py-6 max-w-4xl mx-auto animate-fade-up">
-      <SupervisorPageHeader title="Recent Activity" subtitle="Everything that's happened in your market" onBack={() => navigate(`${basePath}/home`)} />
+      <SupervisorPageHeader title={t("sup.recentActivity")} subtitle={t("sup.everythingThatsHappenedInYourMarket")} onBack={() => navigate(`${basePath}/home`)} />
       <TodayActivityFeed marketId={session.marketId} todayOnly={false} />
     </div>
   );

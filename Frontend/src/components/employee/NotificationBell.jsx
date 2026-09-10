@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import {
@@ -57,6 +58,7 @@ function groupByDay(notifications) {
 }
 
 function NotificationRow({ notification, onOpen, onDelete }) {
+  const { t } = useTranslation();
   const { icon: Icon, tone } = iconFor(notification);
   return (
     <div
@@ -64,7 +66,7 @@ function NotificationRow({ notification, onOpen, onDelete }) {
         notification.read ? "bg-[#1A1F33]/40 border-white/[0.05]" : "bg-[#1A1F33]/70 border-[#F47A20]/20"
       }`}
     >
-      <button type="button" onClick={() => onOpen(notification)} className="flex items-start gap-3 min-w-0 flex-1 text-left">
+      <button type="button" onClick={() => onOpen(notification)} className="flex items-start gap-3 min-w-0 flex-1 text-start">
         <span className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${tone}`}>
           <Icon size={16} />
         </span>
@@ -83,7 +85,7 @@ function NotificationRow({ notification, onOpen, onDelete }) {
           e.stopPropagation();
           onDelete(notification.id);
         }}
-        aria-label="Delete notification"
+        aria-label={t("emp.deleteNotification")}
         className="shrink-0 p-1.5 mt-0.5 rounded-lg text-[#4C5266] hover:text-red-400 hover:bg-red-500/10 transition-colors"
       >
         <Trash2 size={14} />
@@ -105,6 +107,7 @@ function NotificationRow({ notification, onOpen, onDelete }) {
 // PATCH .../read-all) — no second notification architecture, this is
 // still the one always-reachable entry point into that data.
 export default function NotificationBell({ basePath }) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const navigate = useNavigate();
   const { data, error, loading, setData, reload } = useAsync(() => listMyNotifications({ limit: 30 }), { deps: [] });
@@ -192,12 +195,12 @@ export default function NotificationBell({ basePath }) {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        aria-label="Notifications"
+        aria-label={t("emp.notifications")}
         className="relative h-9 w-9 rounded-full grid place-items-center bg-white/5 hover:bg-white/10 active:bg-white/15 transition-colors duration-200"
       >
         <Bell size={17} className="text-[#E8E8E8]" strokeWidth={1.8} />
         {unreadCount > 0 && (
-          <span className="absolute -top-0.5 -right-0.5 h-4 w-4 rounded-full bg-[#F47A20] text-[10px] font-bold text-white grid place-items-center ring-2 ring-[#1A1A1A] glow-orange animate-glow-pulse">
+          <span className="absolute -top-0.5 -end-0.5 h-4 w-4 rounded-full bg-[#F47A20] text-[10px] font-bold text-white grid place-items-center ring-2 ring-[#1A1A1A] glow-orange animate-glow-pulse">
             {unreadCount > 9 ? "9+" : unreadCount}
           </span>
         )}
@@ -208,16 +211,16 @@ export default function NotificationBell({ basePath }) {
           <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setOpen(false)} />
           <div className="relative w-full sm:max-w-md sm:mx-4 max-h-[80vh] flex flex-col rounded-t-2xl sm:rounded-2xl bg-[#171C2E] border border-white/[0.08] shadow-2xl animate-fade-up">
             <div className="flex items-center justify-between px-4 py-3.5 border-b border-white/[0.06] shrink-0">
-              <h2 className="text-sm font-semibold text-white">Notifications</h2>
+              <h2 className="text-sm font-semibold text-white">{t("emp.notifications")}</h2>
               <div className="flex items-center gap-3">
                 {unreadCount > 0 && (
                   <button type="button" onClick={handleMarkAllRead} className="flex items-center gap-1 text-xs font-medium text-[#F47A20] hover:text-[#ff8b36]">
-                    <CheckCheck size={13} /> Mark all read
+                    <CheckCheck size={13} /> {t("emp.markAllRead")}
                   </button>
                 )}
                 {notifications.length > 0 && (
                   <button type="button" onClick={handleDeleteAll} className="flex items-center gap-1 text-xs font-medium text-[#9AA1B4] hover:text-red-400">
-                    <Trash2 size={13} /> Delete all
+                    <Trash2 size={13} /> {t("emp.deleteAll")}
                   </button>
                 )}
                 <button type="button" onClick={() => setOpen(false)} className="p-1 text-[#9AA1B4] hover:text-white">
@@ -234,11 +237,11 @@ export default function NotificationBell({ basePath }) {
               ) : notifications.length === 0 ? (
                 <div className="py-10 text-center">
                   <BellOff size={22} className="mx-auto text-[#4C5266] mb-2" />
-                  <p className="text-sm text-white font-medium">You're all caught up</p>
-                  <p className="text-xs text-[#8B93A8] mt-1">No notifications right now.</p>
+                  <p className="text-sm text-white font-medium">{t("emp.youreAllCaughtUp")}</p>
+                  <p className="text-xs text-[#8B93A8] mt-1">{t("emp.noNotificationsRightNow")}</p>
                 </div>
               ) : (
-                ["Today", "Yesterday", "Earlier"].map((label) =>
+                [t("emp.today"), t("emp.yesterday"), t("emp.earlier")].map((label) =>
                   groups[label].length > 0 ? (
                     <div key={label}>
                       <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-[#8B93A8]">{label}</h3>

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { ArrowLeft, HardHat, Wallet, CreditCard, AlertCircle } from "lucide-react";
 import CinematicBackground from "./CinematicBackground";
 import CredentialField from "./CredentialField";
@@ -7,6 +8,7 @@ import PrimaryLoginButton from "./PrimaryLoginButton";
 import { employeeLogin, cashierLogin } from "../../services/authService";
 import { ApiError } from "../../services/apiClient";
 import { initialsOf } from "../../utils/initials";
+import LanguagePreLoginToggle from "./LanguagePreLoginToggle";
 
 // EmployeeLoginScreen.jsx — one combined form, both credential fields
 // together (no Code -> Continue -> Password wizard). Worker and Cashier
@@ -18,6 +20,7 @@ import { initialsOf } from "../../utils/initials";
 // Cashier's login identifier is stored in the same shape as a Worker's
 // employee code.
 export default function EmployeeLoginScreen({ onBack, onLogin }) {
+  const { t } = useTranslation();
   const [type, setType] = useState("worker"); // "worker" | "cashier"
   const [code, setCode] = useState("");
   const [password, setPassword] = useState("");
@@ -28,7 +31,7 @@ export default function EmployeeLoginScreen({ onBack, onLogin }) {
   async function handleSubmit(e) {
     e.preventDefault();
     if (!code.trim() || !password) {
-      setError("Enter your employee code and password.");
+      setError(t("auth.missingEmployeeCredentials"));
       return;
     }
     setSubmitting(true);
@@ -44,7 +47,7 @@ export default function EmployeeLoginScreen({ onBack, onLogin }) {
         initials: initialsOf(employee.name),
       });
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Unable to connect. Please try again.");
+      setError(err instanceof ApiError ? err.message : t("auth.errConnection"));
       setPassword("");
     } finally {
       setSubmitting(false);
@@ -60,10 +63,10 @@ export default function EmployeeLoginScreen({ onBack, onLogin }) {
           <button
             type="button"
             onClick={onBack}
-            aria-label="Back to role selection"
+            aria-label={t("auth.backToRoleSelection")}
             className="w-10 h-10 grid place-items-center rounded-full bg-white/[0.06] border border-white/10 text-white hover:bg-white/10 active:scale-95 transition-all"
           >
-            <ArrowLeft size={17} />
+            <ArrowLeft size={17} className="rtl-flip" />
           </button>
           <div className="flex items-center gap-2">
             <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-[#F47A20] to-[#c95c10] grid place-items-center shadow-[0_0_12px_-2px_rgba(244,122,32,0.6)]">
@@ -73,7 +76,7 @@ export default function EmployeeLoginScreen({ onBack, onLogin }) {
               TEAM<span className="text-[#F47A20]">MART</span>
             </p>
           </div>
-          <span className="w-10" aria-hidden="true" />
+          <LanguagePreLoginToggle />
         </div>
 
         <div className="flex-1 flex items-center w-full max-w-sm">
@@ -82,10 +85,10 @@ export default function EmployeeLoginScreen({ onBack, onLogin }) {
               <span className="mx-auto mb-4 w-14 h-14 rounded-2xl bg-[#F47A20]/12 grid place-items-center shadow-[0_0_20px_-4px_rgba(244,122,32,0.6)]">
                 <CreditCard size={24} className="text-[#F47A20]" />
               </span>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#F9A03C]">Welcome Back</p>
-              <h1 className="mt-1 font-display text-2xl font-extrabold text-white">Employee Login</h1>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#F9A03C]">{t("auth.welcomeBack")}</p>
+              <h1 className="mt-1 font-display text-2xl font-extrabold text-white">{t("auth.employeeLogin")}</h1>
               <p className="mt-2 text-[13px] text-[#9AA1B4] leading-snug">
-                Enter your code and password to continue to your workspace.
+                {t("auth.employeeLoginLead")}
               </p>
             </div>
 
@@ -93,17 +96,17 @@ export default function EmployeeLoginScreen({ onBack, onLogin }) {
               {/* Worker / Cashier — a real, functional toggle (see this
                   file's own top comment), not a decorative one. */}
               <div className="grid grid-cols-2 gap-2 mb-5">
-                <TypeButton icon={HardHat} label="Worker" active={type === "worker"} onClick={() => setType("worker")} />
-                <TypeButton icon={Wallet} label="Cashier" active={type === "cashier"} onClick={() => setType("cashier")} />
+                <TypeButton icon={HardHat} label={t("roles.worker")} active={type === "worker"} onClick={() => setType("worker")} />
+                <TypeButton icon={Wallet} label={t("roles.cashier")} active={type === "cashier"} onClick={() => setType("cashier")} />
               </div>
 
               <form onSubmit={handleSubmit} className="space-y-4">
                 <CredentialField
                   icon={CreditCard}
-                  label="Employee Code"
+                  label={t("auth.employeeCode")}
                   value={code}
                   onChange={setCode}
-                  placeholder="e.g. TM-4821"
+                  placeholder={t("auth.employeeCodePlaceholder")}
                   error={!!error}
                   autoFocus
                 />
@@ -122,7 +125,7 @@ export default function EmployeeLoginScreen({ onBack, onLogin }) {
                     onChange={(e) => setRememberMe(e.target.checked)}
                     className="w-4 h-4 rounded border-white/20 bg-white/[0.04] accent-[#F47A20]"
                   />
-                  <span className="text-[12.5px] text-[#9AA1B4]">Remember me</span>
+                  <span className="text-[12.5px] text-[#9AA1B4]">{t("auth.rememberMe")}</span>
                 </label>
 
                 <div className="pt-1">
@@ -133,7 +136,7 @@ export default function EmployeeLoginScreen({ onBack, onLogin }) {
           </div>
         </div>
 
-        <p className="pb-2 text-[11.5px] text-[#5C6479] text-center">Your work drives our success. Let's make it happen today.</p>
+        <p className="pb-2 text-[11.5px] text-[#5C6479] text-center">{t("auth.employeeTagline")}</p>
       </div>
     </div>
   );

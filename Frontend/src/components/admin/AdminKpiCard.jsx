@@ -66,7 +66,7 @@ export default function AdminKpiCard({ icon: Icon, value, label, tone = "blue", 
     <Tag
       {...(onClick ? { type: "button", onClick } : {})}
       style={{ boxShadow: `0 10px 30px -18px rgba(0,0,0,0.9), ${cfg.outerGlow.replace(/_/g, " ")}` }}
-      className={`group relative overflow-hidden rounded-2xl border ${cfg.border} ${cfg.borderHover} bg-gradient-to-b from-[#131D33]/95 to-[#0C1424]/95 p-4 text-left backdrop-blur-xl
+      className={`group relative overflow-hidden rounded-2xl border ${cfg.border} ${cfg.borderHover} bg-gradient-to-b from-[#131D33]/95 to-[#0C1424]/95 p-4 text-start backdrop-blur-xl
                   transition-all duration-200 animate-fade-up ${
                     onClick ? "hover:-translate-y-0.5 active:scale-[0.99] cursor-pointer" : ""
                   }`}
@@ -75,7 +75,7 @@ export default function AdminKpiCard({ icon: Icon, value, label, tone = "blue", 
           brighter icon on an otherwise flat card. Clipped by the card's
           own `overflow-hidden`, so it reads as a soft colored wash across
           the top of the card rather than a visible shape. */}
-      <span className={`pointer-events-none absolute -left-10 -top-10 h-36 w-36 rounded-full blur-3xl ${cfg.blob}`} aria-hidden="true" />
+      <span className={`pointer-events-none absolute -start-10 -top-10 h-36 w-36 rounded-full blur-3xl ${cfg.blob}`} aria-hidden="true" />
 
       <span className={`relative grid h-10 w-10 place-items-center rounded-xl ring-2 ring-inset ${cfg.icon}`}>
         <Icon size={18} />

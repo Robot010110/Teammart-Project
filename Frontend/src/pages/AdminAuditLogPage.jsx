@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { useAsync } from "../hooks/useAsync";
 import ErrorBanner from "../components/common/ErrorBanner";
@@ -12,8 +13,30 @@ const ACTIONS = [
   "MARKET_VISIT_CANCELLED", "INSPECTION_STARTED", "INSPECTION_COMPLETED", "INSPECTION_CANCELLED",
 ];
 
-function actionLabel(a) {
-  return a.replace(/_/g, " ");
+// The enum VALUE is what the filter sends to the backend; only the label
+// shown beside it is translated.
+export const ACTION_LABEL = {
+  ROLE_CHANGED: "admin.actRoleChanged",
+  MARKET_ASSIGNMENT_CHANGED: "admin.actMarketAssignmentChanged",
+  ZONE_ASSIGNMENT_CHANGED: "admin.actZoneAssignmentChanged",
+  DEPARTMENT_ASSIGNMENT_CHANGED: "admin.actDepartmentAssignmentChanged",
+  SHIFT_CHANGED: "admin.actShiftChanged",
+  EMPLOYEE_ID_CHANGED: "admin.actEmployeeIdChanged",
+  PASSWORD_RESET: "admin.actPasswordReset",
+  ACCOUNT_SUSPENDED: "admin.actAccountSuspended",
+  ACCOUNT_BANNED: "admin.actAccountBanned",
+  ACCOUNT_REACTIVATED: "admin.actAccountReactivated",
+  EMPLOYEE_PROMOTED: "admin.actEmployeePromoted",
+  STAFF_DEMOTED: "admin.actStaffDemoted",
+  MARKET_VISIT_STARTED: "admin.actMarketVisitStarted",
+  MARKET_VISIT_COMPLETED: "admin.actMarketVisitCompleted",
+  MARKET_VISIT_CANCELLED: "admin.actMarketVisitCancelled",
+  INSPECTION_STARTED: "admin.actInspectionStarted",
+  INSPECTION_COMPLETED: "admin.actInspectionCompleted",
+  INSPECTION_CANCELLED: "admin.actInspectionCancelled",
+};
+export function actionLabel(a, t) {
+  return ACTION_LABEL[a] ? t(ACTION_LABEL[a]) : a.replace(/_/g, " ");
 }
 
 function dateLabel(iso) {
@@ -24,6 +47,7 @@ function dateLabel(iso) {
 // filterable view over AuditLog (backend: adminAuditController.js). No
 // edit/delete UI exists here — none exists on the backend either.
 export default function AdminAuditLogPage() {
+  const { t } = useTranslation();
   const [action, setAction] = useState("");
   const [page, setPage] = useState(1);
   const [expanded, setExpanded] = useState(null);
@@ -39,13 +63,13 @@ export default function AdminAuditLogPage() {
 
   return (
     <div className="px-4 sm:px-6 md:px-10 py-6 md:py-8 max-w-4xl mx-auto animate-fade-up">
-      <h1 className="font-display text-xl md:text-2xl font-bold text-white mb-1">Admin Audit Log</h1>
-      <p className="text-sm text-[#9AA1B4] mb-4">{loading ? "Loading..." : `${data?.total ?? 0} recorded actions`}</p>
+      <h1 className="font-display text-xl md:text-2xl font-bold text-white mb-1">{t("admin.adminAuditLog")}</h1>
+      <p className="text-sm text-[#9AA1B4] mb-4">{loading ? t("emp.loading") : t("admin.recordedActionsCount", { count: data?.total ?? 0 })}</p>
 
       <div className="flex flex-wrap gap-3 mb-4">
         <select value={action} onChange={(e) => { setAction(e.target.value); setPage(1); }} className={selectClass}>
-          <option value="">All Actions</option>
-          {ACTIONS.map((a) => <option key={a} value={a}>{actionLabel(a)}</option>)}
+          <option value="">{t("admin.allActions")}</option>
+          {ACTIONS.map((a) => <option key={a} value={a}>{actionLabel(a, t)}</option>)}
         </select>
       </div>
 
@@ -55,7 +79,7 @@ export default function AdminAuditLogPage() {
         <ErrorBanner message={error} onRetry={reload} />
       ) : data.entries.length === 0 ? (
         <div className="rounded-2xl p-10 bg-[#171C2E]/80 border border-white/[0.06] text-center text-sm text-[#8B93A8]">
-          No audit entries match these filters.
+          {t("admin.noAuditEntriesMatchTheseFilters")}
         </div>
       ) : (
         <div className="space-y-2">
@@ -66,25 +90,25 @@ export default function AdminAuditLogPage() {
                 <button
                   type="button"
                   onClick={() => setExpanded(isOpen ? null : e.id)}
-                  className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left"
+                  className="w-full flex items-center justify-between gap-3 px-4 py-3 text-start"
                 >
                   <div className="min-w-0">
                     <p className="text-[11px] text-[#6B7284]">{dateLabel(e.createdAt)}</p>
                     <p className="text-sm text-white truncate">
-                      <span className="font-semibold">{e.actor?.name}</span> — {actionLabel(e.action)}
+                      <span className="font-semibold">{e.actor?.name}</span> — {actionLabel(e.action, t)}
                     </p>
                     <p className="text-xs text-[#8B93A8] truncate">
-                      {e.targetType} {e.targetId} {e.market ? `· ${e.market.name}` : ""} {e.zone ? `· Zone ${e.zone.number}` : ""}
+                      {e.targetType} {e.targetId} {e.market ? `· ${e.market.name}` : ""} {e.zone ? `· ${t("rm.zoneNumbered", { number: e.zone.number })}` : ""}
                     </p>
                   </div>
                   {isOpen ? <ChevronUp size={16} className="text-[#4C5266] shrink-0" /> : <ChevronDown size={16} className="text-[#4C5266] shrink-0" />}
                 </button>
                 {isOpen && (
                   <div className="px-4 pb-3 text-xs text-[#8B93A8] space-y-1 border-t border-white/[0.06] pt-2">
-                    {e.reason && <p>Reason: <span className="text-white">{e.reason}</span></p>}
-                    {e.previousValue && <p>Before: <span className="text-white">{JSON.stringify(e.previousValue)}</span></p>}
-                    {e.newValue && <p>After: <span className="text-white">{JSON.stringify(e.newValue)}</span></p>}
-                    {e.metadata && <p>Details: <span className="text-white">{JSON.stringify(e.metadata)}</span></p>}
+                    {e.reason && <p>{t("admin.reason")} <span className="text-white">{e.reason}</span></p>}
+                    {e.previousValue && <p>{t("admin.before")} <span className="text-white">{JSON.stringify(e.previousValue)}</span></p>}
+                    {e.newValue && <p>{t("admin.after")} <span className="text-white">{JSON.stringify(e.newValue)}</span></p>}
+                    {e.metadata && <p>{t("admin.details")} <span className="text-white">{JSON.stringify(e.metadata)}</span></p>}
                   </div>
                 )}
               </div>
@@ -95,9 +119,9 @@ export default function AdminAuditLogPage() {
 
       {data && totalPages > 1 && (
         <div className="flex items-center justify-between mt-4 text-sm">
-          <button type="button" disabled={page <= 1} onClick={() => setPage((p) => p - 1)} className="text-[#8B93A8] disabled:opacity-40">Previous</button>
-          <span className="text-[#6B7284] text-xs">Page {page} of {totalPages}</span>
-          <button type="button" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)} className="text-[#8B93A8] disabled:opacity-40">Next</button>
+          <button type="button" disabled={page <= 1} onClick={() => setPage((p) => p - 1)} className="text-[#8B93A8] disabled:opacity-40">{t("rm.previous")}</button>
+          <span className="text-[#6B7284] text-xs">{t("rm.pageOfTotal", { page, total: totalPages })}</span>
+          <button type="button" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)} className="text-[#8B93A8] disabled:opacity-40">{t("common.next")}</button>
         </div>
       )}
     </div>

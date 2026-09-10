@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { KeyRound, Check, Loader2 } from "lucide-react";
 import { updateEmployee } from "../../services/staffEmployeeService";
 import { ApiError } from "../../services/apiClient";
@@ -13,8 +14,9 @@ import { ApiError } from "../../services/apiClient";
 // employee's User ID is shown as plain text there, not re-editable from
 // this card (self-service change from their own Settings covers that).
 export default function AssignCredentialsField({ employee, onSaved }) {
+  const { t } = useTranslation();
   const [editing, setEditing] = useState(false);
-  const idLabel = employee.role === "CASHIER" ? "Username" : "Employee Code";
+  const idLabel = employee.role === "CASHIER" ? t("sup.username") : t("auth.employeeCode");
   const idField = employee.role === "CASHIER" ? "username" : "employeeCode";
   const [idValue, setIdValue] = useState("");
   const [password, setPassword] = useState("");
@@ -23,7 +25,7 @@ export default function AssignCredentialsField({ employee, onSaved }) {
 
   async function handleSave() {
     if (!idValue.trim() || password.length < 6) {
-      setError("Enter a User ID and a password of at least 6 characters.");
+      setError(t("sup.enterAUserIdAndA"));
       return;
     }
     setSaving(true);
@@ -33,7 +35,7 @@ export default function AssignCredentialsField({ employee, onSaved }) {
       onSaved(updated);
       setEditing(false);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Could not assign credentials.");
+      setError(err instanceof ApiError ? err.message : t("sup.couldNotAssignCredentials"));
     } finally {
       setSaving(false);
     }
@@ -43,7 +45,7 @@ export default function AssignCredentialsField({ employee, onSaved }) {
     return (
       <div className="rounded-xl p-3 bg-white/[0.03] border border-[#F47A20]/30">
         <p className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-[#8B93A8] mb-1.5">
-          <KeyRound size={11} /> Assign Credentials
+          <KeyRound size={11} /> {t("sup.assignCredentials")}
         </p>
         <div className="space-y-2">
           <input
@@ -56,7 +58,7 @@ export default function AssignCredentialsField({ employee, onSaved }) {
           <input
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            placeholder="Temporary password"
+            placeholder={t("sup.temporaryPassword")}
             className="w-full rounded-lg bg-white/[0.05] border border-white/[0.1] px-2.5 py-2 text-sm text-white placeholder:text-[#4C5266] outline-none focus:border-[#F47A20]/50"
           />
         </div>
@@ -68,7 +70,7 @@ export default function AssignCredentialsField({ employee, onSaved }) {
             disabled={saving}
             className="flex-1 flex items-center justify-center gap-1 rounded-lg py-1.5 text-xs font-semibold text-white bg-[#F47A20] hover:bg-[#ff8b36] disabled:opacity-50"
           >
-            {saving ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />} Save
+            {saving ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />} {t("common.save")}
           </button>
           <button
             type="button"
@@ -76,7 +78,7 @@ export default function AssignCredentialsField({ employee, onSaved }) {
             disabled={saving}
             className="flex-1 rounded-lg py-1.5 text-xs font-medium text-[#9AA1B4] bg-white/[0.06] hover:bg-white/[0.1]"
           >
-            Cancel
+            {t("common.cancel")}
           </button>
         </div>
       </div>
@@ -87,12 +89,12 @@ export default function AssignCredentialsField({ employee, onSaved }) {
     <button
       type="button"
       onClick={() => setEditing(true)}
-      className="w-full rounded-xl p-3 bg-amber-500/[0.06] border border-amber-500/20 text-left hover:border-amber-500/35 transition-colors"
+      className="w-full rounded-xl p-3 bg-amber-500/[0.06] border border-amber-500/20 text-start hover:border-amber-500/35 transition-colors"
     >
       <p className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-amber-400">
-        <KeyRound size={11} /> Pending — No Login Yet
+        <KeyRound size={11} /> {t("sup.pendingNoLoginYet")}
       </p>
-      <p className="mt-1 text-sm font-medium text-white">Tap to assign a {idLabel.toLowerCase()} and temporary password</p>
+      <p className="mt-1 text-sm font-medium text-white">{t("sup.tapToAssignIdAndPassword", { idLabel: idLabel.toLowerCase() })}</p>
     </button>
   );
 }

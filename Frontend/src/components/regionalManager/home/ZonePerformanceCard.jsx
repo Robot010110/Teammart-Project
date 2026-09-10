@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { CalendarCheck, CheckSquare, Store, ShieldCheck, ChevronRight } from "lucide-react";
 import PerformanceScoreRing from "../../employee/performance/PerformanceScoreRing";
 
@@ -71,17 +72,21 @@ export default function ZonePerformanceCard({
   marketCount,
   onOpenDetails,
   loading,
-  title = "Zone Performance",
+  title,
   footnote,
 }) {
-  const defaultFootnote = `Across ${marketCount} market${marketCount === 1 ? "" : "s"}`;
+  const { t } = useTranslation();
+  // `title` defaults in the body, not the parameter list: the default is a
+  // translated string, and `t` only exists once the component is running.
+  const heading = title ?? t("rm.zonePerformance");
+  const defaultFootnote = t("rm.acrossMarketsCount", { count: marketCount });
 
   return (
     <section className="rounded-[20px] border border-white/[0.07] bg-gradient-to-b from-[#111A2D]/90 to-[#0C1424]/90 p-4 backdrop-blur-xl shadow-[0_10px_36px_-18px_rgba(0,0,0,0.9)]">
       <div className="flex items-center justify-between gap-3">
         <h2 className="flex items-center gap-2 text-[14px] font-semibold text-white">
           <span className="h-3.5 w-[3px] rounded-full bg-[#F47A20] shadow-[0_0_8px_rgba(244,122,32,0.8)]" />
-          {title}
+          {heading}
         </h2>
         {onOpenDetails && (
           <button
@@ -89,22 +94,22 @@ export default function ZonePerformanceCard({
             onClick={onOpenDetails}
             className="flex shrink-0 items-center gap-0.5 text-[11.5px] font-medium text-[#F47A20] transition-colors hover:text-[#ff9a4d]"
           >
-            View Details <ChevronRight size={13} />
+            {t("rm.viewDetails")} <ChevronRight size={13} className="rtl-flip" />
           </button>
         )}
       </div>
 
       <div className="mt-3 flex items-center gap-3">
         <div className="shrink-0">
-          <PerformanceScoreRing rate={loading ? null : overall} size={112} label={"Overall\nPerformance"} />
+          <PerformanceScoreRing rate={loading ? null : overall} size={112} label={t("rm.overallNperformance")} />
           <p className="mt-1 text-center text-[10.5px] text-[#5C6479]">
-            {loading ? "Loading…" : (footnote ?? defaultFootnote)}
+            {loading ? t("common.loading") : (footnote ?? defaultFootnote)}
           </p>
         </div>
 
         <div className="min-w-0 flex-1 space-y-2.5">
           {metrics.map((m) => (
-            <MetricRow key={m.key} metricKey={m.key} label={m.label} value={loading ? null : m.value} />
+            <MetricRow key={m.key} metricKey={m.key} label={t(m.label)} value={loading ? null : m.value} />
           ))}
         </div>
       </div>

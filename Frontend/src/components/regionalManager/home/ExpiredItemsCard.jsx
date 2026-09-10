@@ -1,4 +1,5 @@
 import { PackageX, ChevronRight } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { useAsync } from "../../../hooks/useAsync";
 import { listZoneItemReports } from "../../../services/itemReportService";
 
@@ -11,9 +12,10 @@ import { listZoneItemReports } from "../../../services/itemReportService";
 // card needs the counts, not the rows — it never downloads the feed just
 // to count it.
 export default function ExpiredItemsCard({ onOpen }) {
+  const { t } = useTranslation();
   const { data, error, loading } = useAsync(
     () => listZoneItemReports({ period: "all", page: 1, pageSize: 1 }),
-    { deps: [], fallbackError: "Could not load expired items." }
+    { deps: [], fallbackError: t("rm.couldNotLoadExpiredItems") }
   );
 
   const total = data?.total ?? 0;
@@ -23,7 +25,7 @@ export default function ExpiredItemsCard({ onOpen }) {
     <button
       type="button"
       onClick={onOpen}
-      className="group flex w-full items-center gap-3 rounded-[18px] border border-white/[0.07] bg-[#111A2D]/80 p-3.5 text-left backdrop-blur-xl
+      className="group flex w-full items-center gap-3 rounded-[18px] border border-white/[0.07] bg-[#111A2D]/80 p-3.5 text-start backdrop-blur-xl
                  transition-all duration-200 hover:border-[#F47A20]/30 hover:bg-[#131E33]/90 active:scale-[0.985]"
     >
       <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-amber-500/10 text-amber-400 ring-1 ring-inset ring-amber-500/25">
@@ -31,9 +33,9 @@ export default function ExpiredItemsCard({ onOpen }) {
       </span>
 
       <div className="min-w-0 flex-1">
-        <p className="text-[13.5px] font-semibold text-white">Expired Items</p>
+        <p className="text-[13.5px] font-semibold text-white">{t("emp.catExpiredItems")}</p>
         <p className="mt-0.5 truncate text-[11.5px] text-[#8B93A8]">
-          {loading ? "Loading…" : error ? "Tap to open" : `${total} report${total === 1 ? "" : "s"} across your markets`}
+          {loading ? t("common.loading") : error ? t("rm.tapToOpen") : (total === 1 ? t("rm.reportAcrossMarkets", { count: total }) : t("rm.reportsAcrossMarkets", { count: total }))}
         </p>
       </div>
 
@@ -43,7 +45,7 @@ export default function ExpiredItemsCard({ onOpen }) {
         </span>
       )}
 
-      <ChevronRight size={16} className="shrink-0 text-[#4C5266] transition-all duration-200 group-hover:translate-x-0.5 group-hover:text-[#F47A20]" />
+      <ChevronRight size={16} className="shrink-0 text-[#4C5266] transition-all duration-200 group-hover:translate-x-0.5 group-hover:text-[#F47A20] rtl-flip" />
     </button>
   );
 }

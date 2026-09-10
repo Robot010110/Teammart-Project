@@ -1,4 +1,5 @@
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import SupervisorPageHeader from "./SupervisorPageHeader";
 import TodayActivityFeed from "../TodayActivityFeed";
 
@@ -8,10 +9,11 @@ import TodayActivityFeed from "../TodayActivityFeed";
 // exactly the things still awaiting the Supervisor's own Approve/Reject
 // decision (Activities, Wasted Overall reports, Extra Hours requests).
 export default function SupervisorPendingTasksPage({ session, basePath }) {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   return (
     <div className="px-4 sm:px-6 py-6 max-w-4xl mx-auto animate-fade-up">
-      <SupervisorPageHeader title="Pending Tasks" subtitle="Waiting on your review" onBack={() => navigate(`${basePath}/home`)} />
+      <SupervisorPageHeader title={t("sup.pendingTasks")} subtitle={t("sup.waitingOnYourReview")} onBack={() => navigate(`${basePath}/home`)} />
       <TodayActivityFeed marketId={session.marketId} todayOnly={false} pendingOnly />
     </div>
   );

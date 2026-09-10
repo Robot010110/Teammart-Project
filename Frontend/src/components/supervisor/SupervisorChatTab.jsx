@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useNavigate, useParams } from "react-router-dom";
 import { ChevronRight, UsersRound, Search } from "lucide-react";
 import { useAsync } from "../../hooks/useAsync";
@@ -17,6 +18,10 @@ import { listEmployeesByMarket } from "../../services/staffEmployeeService";
 import { listMyStaffConversations, postWarningBroadcast, setConversationPreference } from "../../services/chatService";
 import { initialsOf } from "../../utils/initials";
 
+// Role comes from the EmployeeRole enum so it translates; `position` is a
+// free-text column and is only the fallback. Same mapping as
+// EmployeesListScreen.jsx's own card.
+const ROLE_LABEL = { WORKER: "roles.worker", CASHIER: "roles.cashier", BUTCHER: "sup.butcher" };
 const EMPLOYEE_CHANNEL_PREFIX = "employee-";
 const LIST_POLL_MS = 12000;
 
@@ -33,6 +38,7 @@ const LIST_POLL_MS = 12000;
 // §6-8) reuse this exact same Conversation/Message architecture through
 // a new CUSTOM_GROUP type — see chatController.createGroup and friends.
 export default function SupervisorChatTab({ session, basePath }) {
+  const { t } = useTranslation();
   const { data: conversations, setData: setConversations, error, loading, reload } = useAsync(listMyStaffConversations, { deps: [] });
   const { data: employees } = useAsync(() => listEmployeesByMarket(session.marketId), { deps: [session.marketId] });
   const { channelId } = useParams();
@@ -102,7 +108,7 @@ export default function SupervisorChatTab({ session, basePath }) {
     if (!openConversation) {
       return (
         <div className="px-4 sm:px-6 py-6 max-w-4xl mx-auto">
-          <ErrorBanner message="This conversation could not be found." onRetry={() => navigate(chatBase)} />
+          <ErrorBanner message={t("emp.thisConversationCouldNotBeFound")} onRetry={() => navigate(chatBase)} />
         </div>
       );
     }
@@ -136,8 +142,8 @@ export default function SupervisorChatTab({ session, basePath }) {
   return (
     <div className="px-4 sm:px-6 py-6 max-w-4xl mx-auto animate-fade-up">
       <div className="mb-4">
-        <h1 className="text-xl font-bold text-white">Chat</h1>
-        <p className="text-sm text-[#8B93A8] mt-0.5">Your market's communication hub</p>
+        <h1 className="text-xl font-bold text-white">{t("emp.chat")}</h1>
+        <p className="text-sm text-[#8B93A8] mt-0.5">{t("sup.yourMarketsCommunicationHub")}</p>
       </div>
 
       {loading ? (
@@ -153,14 +159,14 @@ export default function SupervisorChatTab({ session, basePath }) {
           individualsExtra={
             employees?.length > 0 && (
               <section>
-                <h2 className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-[#8B93A8]">Start a new chat</h2>
+                <h2 className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-[#8B93A8]">{t("emp.startANewChat")}</h2>
                 <div className="relative mb-2.5">
-                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#4C5266]" />
+                  <Search size={14} className="absolute start-3 top-1/2 -translate-y-1/2 text-[#4C5266]" />
                   <input
                     value={employeeSearch}
                     onChange={(e) => setEmployeeSearch(e.target.value)}
-                    placeholder="Search employees"
-                    className="w-full rounded-lg bg-white/[0.04] border border-white/[0.06] pl-9 pr-3 py-2.5 text-sm text-white placeholder:text-[#4C5266] outline-none focus:border-[#F47A20]/50"
+                    placeholder={t("emp.searchEmployees")}
+                    className="w-full rounded-lg bg-white/[0.04] border border-white/[0.06] ps-9 pe-3 py-2.5 text-sm text-white placeholder:text-[#4C5266] outline-none focus:border-[#F47A20]/50"
                   />
                 </div>
                 <div className="space-y-2">
@@ -176,11 +182,11 @@ export default function SupervisorChatTab({ session, basePath }) {
                         <span className="w-9 h-9 rounded-full bg-white/[0.06] flex items-center justify-center text-xs font-semibold text-white shrink-0">
                           {initialsOf(e.name)}
                         </span>
-                        <div className="min-w-0 flex-1 text-left">
+                        <div className="min-w-0 flex-1 text-start">
                           <p className="text-sm font-medium text-white truncate">{e.name}</p>
-                          <p className="text-xs text-[#8B93A8]">{e.position}</p>
+                          <p className="text-xs text-[#8B93A8]">{ROLE_LABEL[e.role] ? t(ROLE_LABEL[e.role]) : e.position}</p>
                         </div>
-                        <ChevronRight size={16} className="text-[#4C5266] shrink-0" />
+                        <ChevronRight size={16} className="text-[#4C5266] shrink-0 rtl-flip" />
                       </button>
                     ))}
                 </div>
@@ -193,7 +199,7 @@ export default function SupervisorChatTab({ session, basePath }) {
               onClick={() => setCreatingGroup(true)}
               className="w-full flex items-center justify-center gap-1.5 rounded-xl px-3 py-2.5 mb-1 text-xs font-semibold text-white bg-[#F47A20] hover:bg-[#ff8b36] transition-colors duration-150"
             >
-              <UsersRound size={14} /> Create Group
+              <UsersRound size={14} /> {t("sup.createGroup")}
             </button>
           }
         />

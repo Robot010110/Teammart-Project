@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useNavigate, useParams } from "react-router-dom";
 import ErrorBanner from "../common/ErrorBanner";
 import { SkeletonCard } from "../common/SkeletonCard";
@@ -11,11 +12,12 @@ import { useAsync } from "../../hooks/useAsync";
 // SuddenTaskDetailScreen, whose own onBack/onUpdated (fired after both a
 // real start and a real complete) already fit a route-driven caller.
 export default function SuddenTaskDetailRoute({ basePath }) {
+  const { t } = useTranslation();
   const { taskId } = useParams();
   const navigate = useNavigate();
   const { data: task, setData: setTask, error, loading, reload } = useAsync(
     () => getSuddenTask(taskId),
-    { deps: [taskId], fallbackError: "Could not load this task." }
+    { deps: [taskId], fallbackError: t("emp.couldNotLoadThisTask") }
   );
   const [locallyUpdated, setLocallyUpdated] = useState(null);
 

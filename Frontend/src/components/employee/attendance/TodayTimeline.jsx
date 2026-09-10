@@ -1,4 +1,5 @@
 import { LogIn, Coffee, LogOut, Check } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 // TodayTimeline.jsx — today's four real attendance events, in order:
 // Checked In, Break Started, Break Ended, Checked Out.
@@ -32,20 +33,21 @@ const TONES = {
 };
 
 export default function TodayTimeline({ record }) {
+  const { t } = useTranslation();
   const events = [
     {
       key: "in",
       icon: LogIn,
-      label: "Checked In",
+      label: t("emp.checkedIn"),
       time: record?.checkIn,
       tone: "emerald",
-      note: record?.checkIn ? (record.status === "LATE" ? "Late" : "On Time") : null,
+      note: record?.checkIn ? (record.status === "LATE" ? t("emp.late") : t("emp.onTime")) : null,
       noteTone: record?.status === "LATE" ? "text-[#F9A03C] bg-[#F47A20]/[0.12]" : "text-emerald-400 bg-emerald-500/[0.12]",
     },
     {
       key: "bs",
       icon: Coffee,
-      label: "Break Started",
+      label: t("emp.breakStarted"),
       time: record?.breakStart,
       tone: "violet",
       note: duration(record?.breakStart, record?.breakEnd),
@@ -54,7 +56,7 @@ export default function TodayTimeline({ record }) {
     {
       key: "be",
       icon: Check,
-      label: "Break Ended",
+      label: t("emp.breakEnded"),
       time: record?.breakEnd,
       tone: "violet",
       note: duration(record?.breakStart, record?.breakEnd),
@@ -63,7 +65,7 @@ export default function TodayTimeline({ record }) {
     {
       key: "out",
       icon: LogOut,
-      label: "Checked Out",
+      label: t("emp.checkedOut"),
       time: record?.checkOut,
       tone: "red",
       note: null,

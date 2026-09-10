@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { ShieldAlert, ShieldOff, ShieldCheck, KeyRound, ArrowUpCircle, Building2, CreditCard } from "lucide-react";
 import Modal from "../components/common/Modal";
 import { useAsync } from "../hooks/useAsync";
@@ -23,6 +24,7 @@ const selectClass = inputClass;
 // updateEmployee/assignDepartment endpoints (already ADMIN-accessible)
 // rather than duplicating them — see adminService.js's own comment.
 export default function AdminEmployeeActionsPanel({ employee, onChanged }) {
+  const { t } = useTranslation();
   const [modal, setModal] = useState(null); // "promote" | "assignment" | "id" | "password" | "status"
   const [statusTarget, setStatusTarget] = useState(null); // "SUSPENDED" | "BANNED" | "ACTIVE"
 
@@ -32,9 +34,9 @@ export default function AdminEmployeeActionsPanel({ employee, onChanged }) {
   return (
     <div className="rounded-2xl p-4 bg-[#171C2E]/80 border border-white/[0.06]">
       <div className="flex items-center justify-between mb-3">
-        <h2 className="text-sm font-semibold text-white">Administrative Actions</h2>
+        <h2 className="text-sm font-semibold text-white">{t("admin.administrativeActions")}</h2>
         <div className="flex items-center gap-2 text-[11px]">
-          <span className="text-[#8B93A8]">Employment: <span className="text-white">{employee.employmentStatus}</span></span>
+          <span className="text-[#8B93A8]">{t("admin.employment")} <span className="text-white">{employee.employmentStatus}</span></span>
           <span className="text-[#8B93A8]">·</span>
           <span className={employee.accountStatus === "ACTIVE" ? "text-emerald-400" : "text-red-400"}>
             Account: {employee.accountStatus}
@@ -43,18 +45,18 @@ export default function AdminEmployeeActionsPanel({ employee, onChanged }) {
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-        <ActionButton icon={ArrowUpCircle} label="Promote to Staff" onClick={() => setModal("promote")} disabled={employee.accountStatus !== "ACTIVE"} />
-        <ActionButton icon={Building2} label="Change Assignment" onClick={() => setModal("assignment")} />
-        <ActionButton icon={CreditCard} label="Change ID" onClick={() => setModal("id")} />
-        <ActionButton icon={KeyRound} label="Reset Password" onClick={() => setModal("password")} />
+        <ActionButton icon={ArrowUpCircle} label={t("admin.promoteToStaff")} onClick={() => setModal("promote")} disabled={employee.accountStatus !== "ACTIVE"} />
+        <ActionButton icon={Building2} label={t("admin.changeAssignment")} onClick={() => setModal("assignment")} />
+        <ActionButton icon={CreditCard} label={t("admin.changeId")} onClick={() => setModal("id")} />
+        <ActionButton icon={KeyRound} label={t("admin.resetPassword")} onClick={() => setModal("password")} />
         {canSuspendBan && (
           <>
-            <ActionButton icon={ShieldAlert} label="Suspend" tone="amber" onClick={() => { setStatusTarget("SUSPENDED"); setModal("status"); }} />
-            <ActionButton icon={ShieldOff} label="Ban" tone="red" onClick={() => { setStatusTarget("BANNED"); setModal("status"); }} />
+            <ActionButton icon={ShieldAlert} label={t("admin.suspend")} tone="amber" onClick={() => { setStatusTarget("SUSPENDED"); setModal("status"); }} />
+            <ActionButton icon={ShieldOff} label={t("admin.ban")} tone="red" onClick={() => { setStatusTarget("BANNED"); setModal("status"); }} />
           </>
         )}
         {canReactivate && (
-          <ActionButton icon={ShieldCheck} label="Reactivate" tone="emerald" onClick={() => { setStatusTarget("ACTIVE"); setModal("status"); }} />
+          <ActionButton icon={ShieldCheck} label={t("admin.reactivate")} tone="emerald" onClick={() => { setStatusTarget("ACTIVE"); setModal("status"); }} />
         )}
       </div>
 
@@ -95,6 +97,7 @@ function ErrorText({ error }) {
 
 // --- Promote (Employee -> Staff account-type transition, §5-7) ---
 function PromoteModal({ employee, onClose, onDone }) {
+  const { t } = useTranslation();
   const [role, setRole] = useState("SUPERVISOR");
   const { data: markets } = useAsync(listMarkets, { deps: [] });
   const [marketId, setMarketId] = useState("");
@@ -121,47 +124,47 @@ function PromoteModal({ employee, onClose, onDone }) {
       onClose();
       onDone();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Could not promote this employee.");
+      setError(err instanceof ApiError ? err.message : t("admin.couldNotPromoteThisEmployee"));
     } finally {
       setBusy(false);
     }
   }
 
   return (
-    <Modal open onClose={onClose} title="Change Role">
+    <Modal open onClose={onClose} title={t("admin.changeRole")}>
       <div className="space-y-4">
         {!confirming ? (
           <>
             <div>
-              <label className="block text-xs uppercase tracking-wide text-[#8B93A8] mb-1.5">New Role</label>
+              <label className="block text-xs uppercase tracking-wide text-[#8B93A8] mb-1.5">{t("admin.newRole")}</label>
               <select value={role} onChange={(e) => setRole(e.target.value)} className={selectClass}>
-                <option value="SUPERVISOR">Supervisor</option>
-                <option value="OVERLOOKING_SUPERVISOR">Overlooking Supervisor</option>
-                <option value="REGIONAL_MANAGER">Regional Manager</option>
+                <option value="SUPERVISOR">{t("roles.supervisor")}</option>
+                <option value="OVERLOOKING_SUPERVISOR">{t("emp.overlookingSupervisor")}</option>
+                <option value="REGIONAL_MANAGER">{t("roles.regionalManager")}</option>
               </select>
             </div>
             {needsMarket && (
               <div>
-                <label className="block text-xs uppercase tracking-wide text-[#8B93A8] mb-1.5">Market</label>
+                <label className="block text-xs uppercase tracking-wide text-[#8B93A8] mb-1.5">{t("sup.market")}</label>
                 <select value={marketId} onChange={(e) => setMarketId(e.target.value)} className={selectClass}>
-                  <option value="">Select a market</option>
+                  <option value="">{t("admin.selectAMarket")}</option>
                   {(markets ?? []).map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
                 </select>
               </div>
             )}
             {needsZone && (
               <div>
-                <label className="block text-xs uppercase tracking-wide text-[#8B93A8] mb-1.5">Zone Number</label>
-                <input type="number" value={zoneId} onChange={(e) => setZoneId(e.target.value)} placeholder="e.g. 1" className={inputClass} />
+                <label className="block text-xs uppercase tracking-wide text-[#8B93A8] mb-1.5">{t("admin.zoneNumber")}</label>
+                <input type="number" value={zoneId} onChange={(e) => setZoneId(e.target.value)} placeholder={t("admin.eG1")} className={inputClass} />
               </div>
             )}
             <div>
-              <label className="block text-xs uppercase tracking-wide text-[#8B93A8] mb-1.5">New Staff Email</label>
+              <label className="block text-xs uppercase tracking-wide text-[#8B93A8] mb-1.5">{t("admin.newStaffEmail")}</label>
               <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className={inputClass} />
             </div>
             <div>
-              <label className="block text-xs uppercase tracking-wide text-[#8B93A8] mb-1.5">Initial Password</label>
-              <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="At least 8 characters" className={inputClass} autoComplete="new-password" />
+              <label className="block text-xs uppercase tracking-wide text-[#8B93A8] mb-1.5">{t("admin.initialPassword")}</label>
+              <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder={t("admin.atLeast8Characters")} className={inputClass} autoComplete="new-password" />
             </div>
             <button
               type="button"
@@ -169,23 +172,23 @@ function PromoteModal({ employee, onClose, onDone }) {
               onClick={() => setConfirming(true)}
               className="w-full rounded-xl py-3 text-sm font-semibold text-white bg-[#F47A20] hover:bg-[#ff8b36] disabled:bg-white/10 disabled:text-[#4C5266] transition-colors"
             >
-              Continue
+              {t("admin.continue")}
             </button>
           </>
         ) : (
           <>
             <div className="rounded-xl p-4 bg-white/[0.03] border border-white/[0.06] text-sm">
               <p className="text-white font-semibold mb-2">{employee.name}</p>
-              <p className="text-[#8B93A8]">Worker/Cashier <span className="text-white">→</span> {role.replace(/_/g, " ")}</p>
-              {needsMarket && <p className="text-[#8B93A8] mt-1">Market: <span className="text-white">{markets?.find((m) => m.id === marketId)?.name}</span></p>}
-              {needsZone && <p className="text-[#8B93A8] mt-1">Zone: <span className="text-white">{zoneId}</span></p>}
-              <p className="text-[11px] text-amber-400/90 mt-2">Their existing employee login will stop working immediately.</p>
+              <p className="text-[#8B93A8]">{t("admin.workerCashier")} <span className="text-white">→</span> {role.replace(/_/g, " ")}</p>
+              {needsMarket && <p className="text-[#8B93A8] mt-1">{t("admin.market")} <span className="text-white">{markets?.find((m) => m.id === marketId)?.name}</span></p>}
+              {needsZone && <p className="text-[#8B93A8] mt-1">{t("admin.zone")} <span className="text-white">{zoneId}</span></p>}
+              <p className="text-[11px] text-amber-400/90 mt-2">{t("admin.theirExistingEmployeeLoginWillStop")}</p>
             </div>
             <ErrorText error={error} />
             <div className="flex gap-2">
-              <button type="button" onClick={() => setConfirming(false)} disabled={busy} className="flex-1 rounded-xl py-3 text-sm font-semibold text-[#9AA1B4] bg-white/[0.06] hover:bg-white/[0.1] transition-colors">Back</button>
+              <button type="button" onClick={() => setConfirming(false)} disabled={busy} className="flex-1 rounded-xl py-3 text-sm font-semibold text-[#9AA1B4] bg-white/[0.06] hover:bg-white/[0.1] transition-colors">{t("common.back")}</button>
               <button type="button" onClick={handleConfirm} disabled={busy} className="flex-1 rounded-xl py-3 text-sm font-semibold text-white bg-[#F47A20] hover:bg-[#ff8b36] disabled:opacity-50 transition-colors">
-                {busy ? "Promoting..." : "Confirm Change"}
+                {busy ? t("admin.promoting") : t("admin.confirmChange")}
               </button>
             </div>
           </>
@@ -197,6 +200,7 @@ function PromoteModal({ employee, onClose, onDone }) {
 
 // --- Change Assignment (market/shift/department, §9/§11-12) ---
 function AssignmentModal({ employee, onClose, onDone }) {
+  const { t } = useTranslation();
   const { data: markets } = useAsync(listMarkets, { deps: [] });
   const [marketId, setMarketId] = useState(employee.marketId);
   const [shift, setShift] = useState(employee.shift ?? employee.cashierShift ?? "");
@@ -217,30 +221,30 @@ function AssignmentModal({ employee, onClose, onDone }) {
       onClose();
       onDone();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Could not update this assignment.");
+      setError(err instanceof ApiError ? err.message : t("admin.couldNotUpdateThisAssignment"));
     } finally {
       setBusy(false);
     }
   }
 
   return (
-    <Modal open onClose={onClose} title="Change Assignment">
+    <Modal open onClose={onClose} title={t("admin.changeAssignment")}>
       <div className="space-y-4">
         <div>
-          <label className="block text-xs uppercase tracking-wide text-[#8B93A8] mb-1.5">Market</label>
+          <label className="block text-xs uppercase tracking-wide text-[#8B93A8] mb-1.5">{t("sup.market")}</label>
           <select value={marketId} onChange={(e) => setMarketId(e.target.value)} className={selectClass}>
             {(markets ?? []).map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
           </select>
         </div>
         <div>
-          <label className="block text-xs uppercase tracking-wide text-[#8B93A8] mb-1.5">Shift</label>
-          <input value={shift} onChange={(e) => setShift(e.target.value)} placeholder="e.g. MORNING" className={inputClass} />
+          <label className="block text-xs uppercase tracking-wide text-[#8B93A8] mb-1.5">{t("emp.shift")}</label>
+          <input value={shift} onChange={(e) => setShift(e.target.value)} placeholder={t("admin.eGMorning")} className={inputClass} />
         </div>
         {marketId === employee.marketId && (
           <div>
-            <label className="block text-xs uppercase tracking-wide text-[#8B93A8] mb-1.5">Department</label>
+            <label className="block text-xs uppercase tracking-wide text-[#8B93A8] mb-1.5">{t("emp.department")}</label>
             <select value={department} onChange={(e) => setDepartment(e.target.value)} className={selectClass}>
-              <option value="">No change</option>
+              <option value="">{t("admin.noChange")}</option>
               {(departments ?? []).map((d) => (
                 <option key={d.marketDepartmentId ?? d.department} value={d.department}>{d.department}</option>
               ))}
@@ -248,7 +252,7 @@ function AssignmentModal({ employee, onClose, onDone }) {
           </div>
         )}
         {marketId !== employee.marketId && (
-          <p className="text-[11px] text-amber-400/90">Changing market clears the current department — assign a new one afterward from the market's own screen.</p>
+          <p className="text-[11px] text-amber-400/90">{t("admin.changingMarketClearsTheCurrentDepartment")}</p>
         )}
         <ErrorText error={error} />
         <button
@@ -257,7 +261,7 @@ function AssignmentModal({ employee, onClose, onDone }) {
           disabled={busy}
           className="w-full rounded-xl py-3 text-sm font-semibold text-white bg-[#F47A20] hover:bg-[#ff8b36] disabled:opacity-50 transition-colors"
         >
-          {busy ? "Saving..." : "Confirm Change"}
+          {busy ? t("emp.saving") : t("admin.confirmChange")}
         </button>
       </div>
     </Modal>
@@ -266,6 +270,7 @@ function AssignmentModal({ employee, onClose, onDone }) {
 
 // --- Change Employee ID (§13) ---
 function ChangeIdModal({ employee, onClose, onDone }) {
+  const { t } = useTranslation();
   const isCashier = employee.role === "CASHIER";
   const [value, setValue] = useState((isCashier ? employee.username : employee.employeeCode) ?? "");
   const [busy, setBusy] = useState(false);
@@ -279,17 +284,17 @@ function ChangeIdModal({ employee, onClose, onDone }) {
       onClose();
       onDone();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "This ID is already in use.");
+      setError(err instanceof ApiError ? err.message : t("admin.thisIdIsAlreadyInUse"));
     } finally {
       setBusy(false);
     }
   }
 
   return (
-    <Modal open onClose={onClose} title="Change Employee ID">
+    <Modal open onClose={onClose} title={t("admin.changeEmployeeId")}>
       <div className="space-y-4">
         <div>
-          <label className="block text-xs uppercase tracking-wide text-[#8B93A8] mb-1.5">{isCashier ? "Username" : "Employee Code"}</label>
+          <label className="block text-xs uppercase tracking-wide text-[#8B93A8] mb-1.5">{isCashier ? t("sup.username") : t("auth.employeeCode")}</label>
           <input value={value} onChange={(e) => setValue(e.target.value)} className={inputClass} />
         </div>
         <ErrorText error={error} />
@@ -299,7 +304,7 @@ function ChangeIdModal({ employee, onClose, onDone }) {
           disabled={busy || !value.trim()}
           className="w-full rounded-xl py-3 text-sm font-semibold text-white bg-[#F47A20] hover:bg-[#ff8b36] disabled:opacity-50 transition-colors"
         >
-          {busy ? "Saving..." : "Confirm Change"}
+          {busy ? t("emp.saving") : t("admin.confirmChange")}
         </button>
       </div>
     </Modal>
@@ -308,14 +313,15 @@ function ChangeIdModal({ employee, onClose, onDone }) {
 
 // --- Reset Password (§14/§31) ---
 function ResetPasswordModal({ employee, onClose, onDone }) {
+  const { t } = useTranslation();
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
 
   async function handleConfirm() {
-    if (password.length < 8) return setError("Password must be at least 8 characters.");
-    if (password !== confirm) return setError("Passwords do not match.");
+    if (password.length < 8) return setError(t("admin.passwordMustBeAtLeast8"));
+    if (password !== confirm) return setError(t("admin.passwordsDoNotMatch"));
     setBusy(true);
     setError(null);
     try {
@@ -323,7 +329,7 @@ function ResetPasswordModal({ employee, onClose, onDone }) {
       onClose();
       onDone();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Could not reset the password.");
+      setError(err instanceof ApiError ? err.message : t("admin.couldNotResetThePassword"));
     } finally {
       setBusy(false);
       setPassword("");
@@ -332,15 +338,15 @@ function ResetPasswordModal({ employee, onClose, onDone }) {
   }
 
   return (
-    <Modal open onClose={onClose} title="Reset Password">
+    <Modal open onClose={onClose} title={t("admin.resetPassword")}>
       <div className="space-y-4">
-        <p className="text-xs text-[#8B93A8]">This employee's existing session will be signed out immediately.</p>
+        <p className="text-xs text-[#8B93A8]">{t("admin.thisEmployeeSExistingSessionWill")}</p>
         <div>
-          <label className="block text-xs uppercase tracking-wide text-[#8B93A8] mb-1.5">New Password</label>
+          <label className="block text-xs uppercase tracking-wide text-[#8B93A8] mb-1.5">{t("settings.newPassword")}</label>
           <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} className={inputClass} autoComplete="new-password" />
         </div>
         <div>
-          <label className="block text-xs uppercase tracking-wide text-[#8B93A8] mb-1.5">Confirm Password</label>
+          <label className="block text-xs uppercase tracking-wide text-[#8B93A8] mb-1.5">{t("admin.confirmPassword")}</label>
           <input type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} className={inputClass} autoComplete="new-password" />
         </div>
         <ErrorText error={error} />
@@ -350,7 +356,7 @@ function ResetPasswordModal({ employee, onClose, onDone }) {
           disabled={busy}
           className="w-full rounded-xl py-3 text-sm font-semibold text-white bg-[#F47A20] hover:bg-[#ff8b36] disabled:opacity-50 transition-colors"
         >
-          {busy ? "Resetting..." : "Confirm Reset"}
+          {busy ? t("admin.resetting") : t("admin.confirmReset")}
         </button>
       </div>
     </Modal>
@@ -359,14 +365,15 @@ function ResetPasswordModal({ employee, onClose, onDone }) {
 
 // --- Account status: Suspend / Ban / Reactivate (§16-18) ---
 function StatusModal({ employee, targetStatus, onClose, onDone }) {
+  const { t } = useTranslation();
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
   const needsReason = targetStatus !== "ACTIVE";
-  const title = targetStatus === "SUSPENDED" ? "Suspend Account" : targetStatus === "BANNED" ? "Ban Account" : "Reactivate Account";
+  const title = targetStatus === "SUSPENDED" ? t("admin.suspendAccount") : targetStatus === "BANNED" ? t("admin.banAccount") : t("admin.reactivateAccount");
 
   async function handleConfirm() {
-    if (needsReason && !reason.trim()) return setError("A reason is required.");
+    if (needsReason && !reason.trim()) return setError(t("admin.aReasonIsRequired"));
     setBusy(true);
     setError(null);
     try {
@@ -382,7 +389,7 @@ function StatusModal({ employee, targetStatus, onClose, onDone }) {
       onClose();
       onDone();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Could not update the account status.");
+      setError(err instanceof ApiError ? err.message : t("admin.couldNotUpdateTheAccountStatus"));
     } finally {
       setBusy(false);
     }
@@ -392,17 +399,17 @@ function StatusModal({ employee, targetStatus, onClose, onDone }) {
     <Modal open onClose={onClose} title={title}>
       <div className="space-y-4">
         <p className="text-xs text-[#8B93A8]">
-          {targetStatus === "ACTIVE" ? "This employee will be able to log in again." : "This employee will no longer be able to log in. Their history is preserved."}
+          {targetStatus === "ACTIVE" ? t("admin.thisEmployeeWillBeAbleTo") : t("admin.thisEmployeeWillNoLongerBe")}
         </p>
         {needsReason && (
           <div>
-            <label className="block text-xs uppercase tracking-wide text-[#8B93A8] mb-1.5">Reason</label>
+            <label className="block text-xs uppercase tracking-wide text-[#8B93A8] mb-1.5">{t("emp.reason")}</label>
             <textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={3} className={inputClass} />
           </div>
         )}
         <ErrorText error={error} />
         <div className="flex gap-2">
-          <button type="button" onClick={onClose} disabled={busy} className="flex-1 rounded-xl py-3 text-sm font-semibold text-[#9AA1B4] bg-white/[0.06] hover:bg-white/[0.1] transition-colors">Cancel</button>
+          <button type="button" onClick={onClose} disabled={busy} className="flex-1 rounded-xl py-3 text-sm font-semibold text-[#9AA1B4] bg-white/[0.06] hover:bg-white/[0.1] transition-colors">{t("common.cancel")}</button>
           <button
             type="button"
             onClick={handleConfirm}
@@ -411,7 +418,7 @@ function StatusModal({ employee, targetStatus, onClose, onDone }) {
               targetStatus === "ACTIVE" ? "bg-emerald-600 hover:bg-emerald-500" : "bg-red-600 hover:bg-red-500"
             }`}
           >
-            {busy ? "Saving..." : `Confirm ${title}`}
+            {busy ? t("emp.saving") : t("rm.confirmAction", { action: title })}
           </button>
         </div>
       </div>

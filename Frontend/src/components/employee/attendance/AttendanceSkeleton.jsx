@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 // AttendanceSkeleton.jsx — the Attendance page's loading state.
 //
 // Mirrors the real layout's silhouette at both breakpoints (status hero,
@@ -11,8 +12,9 @@ function Block({ className = "" }) {
 }
 
 export default function AttendanceSkeleton() {
+  const { t } = useTranslation();
   return (
-    <div className="space-y-4" aria-busy="true" aria-label="Loading attendance">
+    <div className="space-y-4" aria-busy="true" aria-label={t("emp.loadingAttendance")}>
       <Block className="h-[132px] rounded-[20px]" />
 
       <div className="grid grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-3">

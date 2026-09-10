@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { ChevronRight } from "lucide-react";
 
 const BAR_TONES = [
@@ -17,6 +18,7 @@ const BAR_TONES = [
 // with nothing to score yet shows "—" and an empty track rather than a
 // zero that would read as failure.
 export default function AdminZonePerformance({ zones, loading, onOpenZones }) {
+  const { t } = useTranslation();
   const [grown, setGrown] = useState(false);
 
   useEffect(() => {
@@ -33,14 +35,14 @@ export default function AdminZonePerformance({ zones, loading, onOpenZones }) {
       <div className="flex items-center justify-between gap-3">
         <h2 className="flex items-center gap-2 text-[14px] font-semibold text-white">
           <span className="h-3.5 w-[3px] rounded-full bg-[#F47A20] shadow-[0_0_8px_rgba(244,122,32,0.8)]" />
-          Zone Performance
+          {t("rm.zonePerformance")}
         </h2>
         <button
           type="button"
           onClick={onOpenZones}
           className="flex shrink-0 items-center gap-0.5 text-[11.5px] font-medium text-[#F47A20] transition-colors hover:text-[#ff9a4d]"
         >
-          View Details <ChevronRight size={13} />
+          {t("rm.viewDetails")} <ChevronRight size={13} className="rtl-flip" />
         </button>
       </div>
 
@@ -51,7 +53,7 @@ export default function AdminZonePerformance({ zones, loading, onOpenZones }) {
           ))}
         </div>
       ) : zones.length === 0 ? (
-        <p className="py-12 text-center text-[12.5px] text-[#8B93A8]">No zones to report on yet.</p>
+        <p className="py-12 text-center text-[12.5px] text-[#8B93A8]">{t("admin.noZonesToReportOnYet")}</p>
       ) : (
         <div className="mt-4 flex h-[176px] items-end justify-around gap-3 px-1">
           {zones.map((z, i) => {

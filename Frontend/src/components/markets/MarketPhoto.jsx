@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Store, Camera, Loader2 } from "lucide-react";
 import AuthenticatedImage from "../common/AuthenticatedImage";
 import { prepareImageForUpload } from "../../services/activityService";
@@ -54,6 +55,7 @@ function MarketPhotoFallback({ size }) {
 // preview state pretending to be saved — onUploaded only fires after
 // the backend confirms the write.
 export default function MarketPhoto({ photoUrl, size = "sm", editable = false, marketId, onUploaded }) {
+  const { t } = useTranslation();
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState(null);
   const inputRef = useRef(null);
@@ -67,7 +69,7 @@ export default function MarketPhoto({ photoUrl, size = "sm", editable = false, m
       const updated = await updateMarket(marketId, { photoUrl: url });
       onUploaded?.(updated.photoUrl ?? url);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Could not update the market photo. Please try again.");
+      setError(err instanceof ApiError ? err.message : t("rm.couldNotUpdateTheMarketPhoto"));
     } finally {
       setUploading(false);
     }
@@ -93,8 +95,8 @@ export default function MarketPhoto({ photoUrl, size = "sm", editable = false, m
             type="button"
             onClick={() => inputRef.current?.click()}
             disabled={uploading}
-            aria-label="Change market photo"
-            className="absolute -bottom-1.5 -right-1.5 h-7 w-7 rounded-full bg-[#171C2E] ring-2 ring-[#1A1A1A] grid place-items-center text-white hover:bg-[#232a45] disabled:opacity-60 transition-colors"
+            aria-label={t("rm.changeMarketPhoto")}
+            className="absolute -bottom-1.5 -end-1.5 h-7 w-7 rounded-full bg-[#171C2E] ring-2 ring-[#1A1A1A] grid place-items-center text-white hover:bg-[#232a45] disabled:opacity-60 transition-colors"
           >
             {uploading ? <Loader2 size={13} className="animate-spin" /> : <Camera size={13} />}
           </button>

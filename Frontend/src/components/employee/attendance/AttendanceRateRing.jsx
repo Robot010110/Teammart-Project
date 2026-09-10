@@ -1,4 +1,5 @@
 import { useEffect, useId, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 // AttendanceRateRing.jsx — the animated Attendance Rate ring.
 //
@@ -24,7 +25,11 @@ function toneFor(rate) {
   return { from: "#FFB067", mid: "#FF7A5C", to: "#EF4444", glow: "rgba(255,92,92,0.35)" };
 }
 
-export default function AttendanceRateRing({ rate, size = 150, label = "This Month" }) {
+export default function AttendanceRateRing({ rate, size = 150, label }) {
+  const { t } = useTranslation();
+  // Default resolved in the body, not the parameter list: `t`
+  // only exists once the component is running.
+  label = label ?? t("emp.thisMonth");
   const uid = useId();
   const stroke = Math.round(size * 0.075);
   const radius = (size - stroke) / 2 - 4;
@@ -63,7 +68,7 @@ export default function AttendanceRateRing({ rate, size = 150, label = "This Mon
       className="relative shrink-0"
       style={{ width: size, height: size }}
       role="img"
-      aria-label={rate == null ? "Attendance rate: no data yet" : `Attendance rate ${rate.toFixed(1)} percent, ${label}`}
+      aria-label={rate == null ? t("emp.attendanceRateNoDataYet") : `Attendance rate ${rate.toFixed(1)} percent, ${label}`}
     >
       <div
         className="absolute inset-0 rounded-full animate-glow-pulse"

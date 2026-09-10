@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import ErrorBanner from "../common/ErrorBanner";
 import { SkeletonCard } from "../common/SkeletonCard";
 import ConversationScreen from "../employee/ConversationScreen";
@@ -13,6 +14,7 @@ import { ApiError } from "../../services/apiClient";
 // it, and vice versa" actually true: both sides render the same messages
 // fetched from the same backend conversation row.
 export default function StaffEmployeeConversationRoute({ employeeId, currentStaffUserId, onBack }) {
+  const { t } = useTranslation();
   const [conversation, setConversation] = useState(null);
   const [error, setError] = useState(null);
 
@@ -22,7 +24,7 @@ export default function StaffEmployeeConversationRoute({ employeeId, currentStaf
     setError(null);
     getOrCreateEmployeeConversationForSupervisor(employeeId)
       .then((conv) => { if (!cancelled) setConversation(conv); })
-      .catch((err) => { if (!cancelled) setError(err instanceof ApiError ? err.message : "Could not open this conversation."); });
+      .catch((err) => { if (!cancelled) setError(err instanceof ApiError ? err.message : t("sup.couldNotOpenThisConversation")); });
     return () => { cancelled = true; };
   }, [employeeId]);
 

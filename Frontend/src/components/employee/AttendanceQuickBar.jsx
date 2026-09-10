@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { LogIn, LogOut, Coffee, Check, Loader2, AlertTriangle, RotateCcw } from "lucide-react";
 import { checkIn, checkOut, getTodayAttendance, startBreak, endBreak } from "../../services/attendanceService";
 import { ApiError } from "../../services/apiClient";
@@ -38,6 +39,7 @@ function formatElapsed(ms) {
 // (see the brief: "Today's Performance is for SUMMARY, this bar is for
 // ACTIONS").
 export default function AttendanceQuickBar() {
+  const { t } = useTranslation();
   const [record, setRecord] = useState(null);
   const [loaded, setLoaded] = useState(false);
   // See AttendanceCheckInCard.jsx's own comment — `record === null` is
@@ -80,7 +82,7 @@ export default function AttendanceQuickBar() {
       setRecord(updated);
       setNow(Date.now());
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Something went wrong. Please try again.");
+      setError(err instanceof ApiError ? err.message : t("emp.somethingWentWrongPleaseTryAgain"));
     } finally {
       setBusy(null);
     }
@@ -108,9 +110,9 @@ export default function AttendanceQuickBar() {
     return (
       <div className="rounded-2xl px-4 py-3 bg-red-500/5 border border-red-500/20 flex items-center justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-[10px] uppercase tracking-wide text-[#8B93A8]">Attendance</p>
+          <p className="text-[10px] uppercase tracking-wide text-[#8B93A8]">{t("emp.attendance")}</p>
           <p className="text-sm font-semibold flex items-center gap-1.5 text-red-300">
-            <AlertTriangle size={14} className="shrink-0" /> Status unavailable
+            <AlertTriangle size={14} className="shrink-0" /> {t("emp.statusUnavailable")}
           </p>
         </div>
         <button
@@ -118,7 +120,7 @@ export default function AttendanceQuickBar() {
           onClick={() => setReloadKey((k) => k + 1)}
           className="shrink-0 flex items-center gap-1.5 rounded-xl px-4 py-2.5 text-xs font-semibold text-white bg-white/10 hover:bg-white/15 active:scale-95 transition-all duration-150"
         >
-          <RotateCcw size={14} /> Retry
+          <RotateCcw size={14} /> {t("emp.retry")}
         </button>
       </div>
     );
@@ -126,20 +128,20 @@ export default function AttendanceQuickBar() {
 
   // Status label + accent tone, one of: not checked in / checked in /
   // on break / checked out — the only four real states this model has.
-  let statusLabel = "Not Checked In";
+  let statusLabel = t("emp.notCheckedIn");
   let statusSub = null;
   let tone = { text: "text-[#8B93A8]", dot: "bg-white/20" };
   if (onBreak) {
-    statusLabel = "On Break";
+    statusLabel = t("emp.onBreak");
     statusSub = formatElapsed(now - new Date(record.breakStart).getTime());
     tone = { text: "text-violet-400", dot: "bg-violet-400" };
   } else if (isCheckedOut) {
-    statusLabel = "Checked Out";
-    statusSub = `at ${formatClockTime(record.checkOut)}`;
+    statusLabel = t("emp.checkedOut");
+    statusSub = t("emp.atTime", { time: formatClockTime(record.checkOut) });
     tone = { text: "text-[#8B93A8]", dot: "bg-white/20" };
   } else if (isCheckedIn) {
-    statusLabel = "Checked In";
-    statusSub = `Since ${formatClockTime(record.checkIn)}`;
+    statusLabel = t("emp.checkedIn");
+    statusSub = t("emp.sinceTime", { time: formatClockTime(record.checkIn) });
     tone = { text: "text-emerald-400", dot: "bg-emerald-400" };
   }
 
@@ -147,7 +149,7 @@ export default function AttendanceQuickBar() {
     <div className="card-premium rounded-2xl px-4 py-3 bg-[#171C2E]/80 border border-white/[0.06] backdrop-blur-xl transition-all duration-300">
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-[10px] uppercase tracking-wide text-[#8B93A8]">Attendance</p>
+          <p className="text-[10px] uppercase tracking-wide text-[#8B93A8]">{t("emp.attendance")}</p>
           <p className={`text-sm font-semibold flex items-center gap-1.5 ${tone.text}`}>
             <span className={`w-1.5 h-1.5 rounded-full ${tone.dot} ${isCheckedIn || onBreak ? "animate-glow-pulse" : ""}`} />
             {statusLabel}
@@ -185,8 +187,8 @@ export default function AttendanceQuickBar() {
                   type="button"
                   onClick={() => run(startBreak, "break")}
                   disabled={busy !== null}
-                  title="Start Break"
-                  aria-label="Start Break"
+                  title={t("emp.startBreak")}
+                  aria-label={t("emp.startBreak")}
                   className="glow-sky-soft flex items-center justify-center w-10 h-10 rounded-xl text-sky-400 bg-sky-500/10 hover:bg-sky-500/15 active:scale-95 disabled:opacity-50 transition-all duration-150"
                 >
                   {busy === "break" ? <Loader2 size={14} className="animate-spin" /> : <Coffee size={16} />}
@@ -196,7 +198,7 @@ export default function AttendanceQuickBar() {
                 type="button"
                 onClick={() => run(checkOut, "out")}
                 disabled={busy !== null || !checkoutAvailable}
-                title={!checkoutAvailable ? `Check-out available at ${formatClockTime(checkoutAvailableAt)}` : undefined}
+                title={!checkoutAvailable ? t("emp.checkoutAvailableAt", { time: formatClockTime(checkoutAvailableAt) }) : undefined}
                 className="flex items-center gap-1.5 rounded-xl px-4 py-2.5 text-xs font-semibold text-white bg-red-500/80 hover:bg-red-500 active:scale-95 disabled:opacity-40 disabled:bg-white/10 transition-all duration-150"
               >
                 {busy === "out" ? <Loader2 size={14} className="animate-spin" /> : <LogOut size={14} />} Check Out

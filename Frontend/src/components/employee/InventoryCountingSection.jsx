@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { ClipboardList, MapPin, ShieldCheck, Clock, Camera } from "lucide-react";
 import InventoryCountingFlow from "./InventoryCountingFlow";
 import ErrorBanner from "../common/ErrorBanner";
@@ -20,6 +21,7 @@ function dateLabel(iso) {
 // immediately know"), a "Submit Inventory Count" entry point, and recent
 // submissions from this employee's own Activity history.
 export default function InventoryCountingSection() {
+  const { t } = useTranslation();
   const { data: assignment, error: assignmentError, loading: assignmentLoading } = useAsync(getMyAssignment, { deps: [] });
   const { data: activities, setData: setActivities, error: activitiesError, loading: activitiesLoading } = useAsync(
     () => listActivities({ category: "ITEM_COUNTING" }),
@@ -40,9 +42,9 @@ export default function InventoryCountingSection() {
         <div className="flex items-start justify-between gap-3">
           <div>
             <p className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-[#8B93A8]">
-              <ClipboardList size={11} /> Assigned Department
+              <ClipboardList size={11} /> {t("emp.assignedDepartment")}
             </p>
-            <p className="mt-1 text-base font-semibold text-white">{assignment.assignedDepartment || "Not assigned"}</p>
+            <p className="mt-1 text-base font-semibold text-white">{assignment.assignedDepartment || t("emp.notAssigned")}</p>
             {assignment.countingArea && (
               <p className="mt-1 flex items-center gap-1.5 text-xs text-[#9AA1B4]">
                 <MapPin size={12} /> {assignment.countingArea}
@@ -55,7 +57,7 @@ export default function InventoryCountingSection() {
                 assignment.verifiedAt ? "bg-emerald-500/10 text-emerald-400" : "bg-amber-500/10 text-amber-400"
               }`}
             >
-              <ShieldCheck size={11} /> {assignment.verifiedAt ? "Verified" : "Pending Verification"}
+              <ShieldCheck size={11} /> {assignment.verifiedAt ? t("emp.verified") : t("emp.pendingVerification")}
             </span>
           )}
         </div>
@@ -73,7 +75,7 @@ export default function InventoryCountingSection() {
           onClick={() => setFlowOpen(true)}
           className="mt-4 w-full flex items-center justify-center gap-2 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-white bg-[#F47A20] hover:bg-[#ff8b36] active:bg-[#e06f18] transition-colors duration-150"
         >
-          <Camera size={14} /> Submit Inventory Count
+          <Camera size={14} /> {t("emp.submitInventoryCount")}
         </button>
       </div>
 
@@ -87,7 +89,7 @@ export default function InventoryCountingSection() {
             <div key={a.id} className="rounded-xl p-3.5 bg-[#1A1F33]/70 border border-white/[0.06]">
               <div className="flex items-start justify-between gap-3">
                 <span className="text-sm text-white">
-                  {a.countingAssignment?.assignedDepartment ?? "Inventory Count"}
+                  {a.countingAssignment?.assignedDepartment ?? t("emp.inventoryCount")}
                   {a.countingAssignment?.countingArea ? ` — ${a.countingAssignment.countingArea}` : ""}
                 </span>
                 <ActivityStatusPill status={a.status} />

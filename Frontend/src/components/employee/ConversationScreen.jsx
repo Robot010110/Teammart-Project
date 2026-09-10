@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { createPortal } from "react-dom";
 import {
   ArrowLeft, Send, ShieldAlert, Loader2, Paperclip, Camera, File as FileIcon, Mic, Download, X,
@@ -15,6 +16,7 @@ import ForwardMessageModal from "./ForwardMessageModal";
 import Modal from "../common/Modal";
 import { useAsync } from "../../hooks/useAsync";
 import { initialsOf } from "../../utils/initials";
+import { conversationTitle } from "../../utils/chatCategories";
 import { ApiError } from "../../services/apiClient";
 
 const POLL_MS = 4000;
@@ -92,6 +94,7 @@ function linkifyBody(body) {
 }
 
 function MessageAttachment({ message }) {
+  const { t } = useTranslation();
   if (message.imageUrl) {
     return <AuthenticatedImage src={message.imageUrl} alt="" className="mt-1.5 rounded-lg max-h-56 w-full object-cover" />;
   }
@@ -104,7 +107,7 @@ function MessageAttachment({ message }) {
       >
         <FileIcon size={18} className="shrink-0" />
         <div className="min-w-0 flex-1">
-          <p className="text-xs font-medium truncate">{message.attachmentName || "File"}</p>
+          <p className="text-xs font-medium truncate">{message.attachmentName || t("emp.file")}</p>
           <p className="text-[10px] opacity-70">{formatFileSize(message.attachmentSize)}</p>
         </div>
         <Download size={14} className="shrink-0" />
@@ -140,18 +143,19 @@ function seenByTimeLabel(iso) {
 // on open, never assembled from anything already in local state, so it
 // can never drift from what the server actually knows.
 function SeenByModal({ conversationId, messageId, onClose }) {
+  const { t } = useTranslation();
   const { data, loading, error } = useAsync(() => getMessageSeenBy(conversationId, messageId), { deps: [conversationId, messageId] });
 
   return (
-    <Modal open onClose={onClose} title="Seen By">
+    <Modal open onClose={onClose} title={t("emp.seenBy")}>
       {loading ? (
-        <p className="text-sm text-[#4C5266] text-center py-6">Loading...</p>
+        <p className="text-sm text-[#4C5266] text-center py-6">{t("emp.loading")}</p>
       ) : error ? (
         <p className="text-sm text-red-400 text-center py-6">{error}</p>
       ) : data.count === 0 ? (
         <div className="text-center py-6">
           <Eye size={22} className="mx-auto text-[#4C5266] mb-2" />
-          <p className="text-sm text-[#8B93A8]">No one else has seen this message yet.</p>
+          <p className="text-sm text-[#8B93A8]">{t("emp.noOneElseHasSeenThis")}</p>
         </div>
       ) : (
         <div className="space-y-2 max-h-[320px] overflow-y-auto">
@@ -171,6 +175,7 @@ function SeenByModal({ conversationId, messageId, onClose }) {
 }
 
 function MessageActionSheet({ message, canEdit, canDelete, canRecognize, canSeeSeenBy, onClose, onReact, onReply, onForward, onCopy, onEdit, onDelete, onSeenBy }) {
+  const { t } = useTranslation();
   const [recognizeMode, setRecognizeMode] = useState(false);
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-end sm:items-center sm:justify-center" role="dialog" aria-modal="true">
@@ -184,7 +189,7 @@ function MessageActionSheet({ message, canEdit, canDelete, canRecognize, canSeeS
               recognizeMode ? "bg-amber-500/15 text-amber-400" : "text-[#9AA1B4] hover:bg-white/[0.05]"
             }`}
           >
-            <Award size={13} /> {recognizeMode ? "Sending as Management Recognition — pick an emoji" : "Send as Management Recognition"}
+            <Award size={13} /> {recognizeMode ? t("emp.sendingAsManagementRecognitionPickAn") : t("emp.sendAsManagementRecognition")}
           </button>
         )}
         <div className="flex items-center justify-center gap-1.5 px-3 py-3 border-b border-white/[0.06]">
@@ -201,29 +206,29 @@ function MessageActionSheet({ message, canEdit, canDelete, canRecognize, canSeeS
         </div>
         <div className="py-1.5">
           <button type="button" onClick={onReply} className="w-full flex items-center gap-3 px-4 py-3 text-sm text-white hover:bg-white/[0.05]">
-            <Reply size={16} /> Reply
+            <Reply size={16} /> {t("emp.reply")}
           </button>
           <button type="button" onClick={onForward} className="w-full flex items-center gap-3 px-4 py-3 text-sm text-white hover:bg-white/[0.05]">
-            <Forward size={16} /> Forward
+            <Forward size={16} /> {t("emp.forward")}
           </button>
           {message.body && (
             <button type="button" onClick={onCopy} className="w-full flex items-center gap-3 px-4 py-3 text-sm text-white hover:bg-white/[0.05]">
-              <Copy size={16} /> Copy
+              <Copy size={16} /> {t("emp.copy")}
             </button>
           )}
           {canSeeSeenBy && (
             <button type="button" onClick={onSeenBy} className="w-full flex items-center gap-3 px-4 py-3 text-sm text-white hover:bg-white/[0.05]">
-              <Eye size={16} /> Seen By
+              <Eye size={16} /> {t("emp.seenBy")}
             </button>
           )}
           {canEdit && (
             <button type="button" onClick={onEdit} className="w-full flex items-center gap-3 px-4 py-3 text-sm text-white hover:bg-white/[0.05]">
-              <Pencil size={16} /> Edit
+              <Pencil size={16} /> {t("emp.edit")}
             </button>
           )}
           {canDelete && (
             <button type="button" onClick={onDelete} className="w-full flex items-center gap-3 px-4 py-3 text-sm text-red-400 hover:bg-red-500/10">
-              <Trash2 size={16} /> Delete
+              <Trash2 size={16} /> {t("emp.delete")}
             </button>
           )}
         </div>
@@ -234,11 +239,11 @@ function MessageActionSheet({ message, canEdit, canDelete, canRecognize, canSeeS
 }
 
 function roleLabel(role) {
-  if (role === "REGIONAL_MANAGER") return "Regional Manager";
-  if (role === "ADMIN") return "Admin";
-  if (role === "OVERLOOKING_SUPERVISOR") return "Overlooking Supervisor";
-  if (role === "SUPERVISOR") return "Supervisor";
-  return "Management";
+  if (role === "REGIONAL_MANAGER") return "emp.regionalManager";
+  if (role === "ADMIN") return "emp.admin";
+  if (role === "OVERLOOKING_SUPERVISOR") return "emp.overlookingSupervisor";
+  if (role === "SUPERVISOR") return "emp.supervisor";
+  return "emp.management";
 }
 
 function ReactionPills({ reactions, currentUserId, currentUserKind, onToggle }) {
@@ -307,6 +312,7 @@ function ReactionPills({ reactions, currentUserId, currentUserKind, onToggle }) 
 // unset, Warnings stays fully read-only here (the Employee Chat tab's
 // case, and a non-Supervisor staff viewer).
 export default function ConversationScreen({ conversation, currentUserId, currentUserKind = "employee", onBack, onBroadcast, onOpenGroupInfo }) {
+  const { t } = useTranslation();
   // Real "X members, Y online" — Chat UI redesign: fetched for every
   // group-like conversation via the shared presence-summary endpoint
   // (chatController.getPresenceSummary), which already mirrors the exact
@@ -431,7 +437,7 @@ export default function ConversationScreen({ conversation, currentUserId, curren
       const url = await prepareImageForUpload(file);
       setPendingAttachment({ kind: "image", url });
     } catch {
-      setError("Could not process that photo. Please try again.");
+      setError(t("emp.couldNotProcessThatPhotoPlease"));
     } finally {
       setAttachBusy(false);
     }
@@ -441,7 +447,7 @@ export default function ConversationScreen({ conversation, currentUserId, curren
     if (!file) return;
     setAttachMenuOpen(false);
     if (file.size > MAX_ATTACHMENT_BYTES) {
-      setError("That file is too large (15MB max).");
+      setError(t("emp.thatFileIsTooLarge15mb"));
       return;
     }
     setAttachBusy(true);
@@ -456,7 +462,7 @@ export default function ConversationScreen({ conversation, currentUserId, curren
         size: file.size,
       });
     } catch {
-      setError("Could not attach that file. Please try again.");
+      setError(t("emp.couldNotAttachThatFilePlease"));
     } finally {
       setAttachBusy(false);
     }
@@ -548,7 +554,7 @@ export default function ConversationScreen({ conversation, currentUserId, curren
       setPendingMentions([]);
       setMentionQuery(null);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Could not send this message.");
+      setError(err instanceof ApiError ? err.message : t("emp.couldNotSendThisMessage"));
     } finally {
       setSending(false);
     }
@@ -565,7 +571,7 @@ export default function ConversationScreen({ conversation, currentUserId, curren
       lastFetchRef.current = message.createdAt;
       setBroadcastDraft("");
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Could not send this announcement.");
+      setError(err instanceof ApiError ? err.message : t("emp.couldNotSendThisAnnouncement"));
     } finally {
       setBroadcasting(false);
     }
@@ -577,7 +583,7 @@ export default function ConversationScreen({ conversation, currentUserId, curren
       const { reactions } = await reactToMessage(conversation.id, message.id, emoji, recognition);
       setMessages((prev) => prev.map((m) => (m.id === message.id ? { ...m, reactions } : m)));
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Could not react to this message.");
+      setError(err instanceof ApiError ? err.message : t("emp.couldNotReactToThisMessage"));
     }
   }
 
@@ -595,7 +601,7 @@ export default function ConversationScreen({ conversation, currentUserId, curren
       setMessages((prev) => prev.map((m) => (m.id === message.id ? updated : m)));
       setEditingId(null);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Could not save this edit.");
+      setError(err instanceof ApiError ? err.message : t("emp.couldNotSaveThisEdit"));
     }
   }
 
@@ -605,7 +611,7 @@ export default function ConversationScreen({ conversation, currentUserId, curren
       const updated = await deleteMessage(conversation.id, message.id);
       setMessages((prev) => prev.map((m) => (m.id === message.id ? updated : m)));
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Could not delete this message.");
+      setError(err instanceof ApiError ? err.message : t("emp.couldNotDeleteThisMessage"));
     }
   }
 
@@ -619,8 +625,8 @@ export default function ConversationScreen({ conversation, currentUserId, curren
   return (
     <div className="flex flex-col h-full min-h-[calc(100vh-96px)]">
       <div className="px-4 sm:px-6 py-3.5 flex items-center gap-2.5 border-b border-white/[0.06]">
-        <button type="button" onClick={onBack} className="shrink-0 p-1.5 -ml-1.5 text-[#9AA1B4] hover:text-white">
-          <ArrowLeft size={18} />
+        <button type="button" onClick={onBack} className="shrink-0 p-1.5 -ms-1.5 text-[#9AA1B4] hover:text-white">
+          <ArrowLeft size={18} className="rtl-flip" />
         </button>
 
         {searchOpen ? (
@@ -631,14 +637,14 @@ export default function ConversationScreen({ conversation, currentUserId, curren
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search in this conversation..."
+              placeholder={t("emp.searchInThisConversation")}
               className="flex-1 min-w-0 bg-transparent text-sm text-white placeholder:text-[#4C5266] outline-none"
             />
             <button
               type="button"
               onClick={() => { setSearchOpen(false); setSearchQuery(""); }}
               className="shrink-0 p-1.5 text-[#4C5266] hover:text-white"
-              aria-label="Close search"
+              aria-label={t("emp.closeSearch")}
             >
               <X size={16} />
             </button>
@@ -660,15 +666,15 @@ export default function ConversationScreen({ conversation, currentUserId, curren
                 <MessageCircle size={16} />
               )}
               {presence?.onlineCount > 0 && (
-                <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-400 ring-2 ring-[#1A1A1A]" aria-hidden="true" />
+                <span className="absolute bottom-0 end-0 w-2.5 h-2.5 rounded-full bg-emerald-400 ring-2 ring-[#1A1A1A]" aria-hidden="true" />
               )}
             </span>
             <div className="flex-1 min-w-0">
-              <h1 className="text-sm font-semibold text-white truncate">{conversation.title}</h1>
+              <h1 className="text-sm font-semibold text-white truncate">{conversationTitle(conversation, t)}</h1>
               {presence?.memberCount != null && (
                 <p className="text-[11px] text-[#8B93A8]">
-                  {presence.memberCount} member{presence.memberCount === 1 ? "" : "s"}
-                  {presence.onlineCount > 0 ? `, ${presence.onlineCount} online` : ""}
+                  {t("emp.memberCount", { count: presence.memberCount })}
+                  {presence.onlineCount > 0 ? t("emp.onlineCountSuffix", { count: presence.onlineCount }) : ""}
                 </p>
               )}
             </div>
@@ -676,7 +682,7 @@ export default function ConversationScreen({ conversation, currentUserId, curren
               type="button"
               onClick={() => setSearchOpen(true)}
               className="shrink-0 p-1.5 text-[#9AA1B4] hover:text-white"
-              aria-label="Search in conversation"
+              aria-label={t("emp.searchInConversation")}
             >
               <Search size={17} />
             </button>
@@ -684,8 +690,8 @@ export default function ConversationScreen({ conversation, currentUserId, curren
               <button
                 type="button"
                 onClick={onOpenGroupInfo}
-                className="shrink-0 p-1.5 -mr-1.5 text-[#9AA1B4] hover:text-white"
-                aria-label="Group info"
+                className="shrink-0 p-1.5 -me-1.5 text-[#9AA1B4] hover:text-white"
+                aria-label={t("emp.groupInfo2")}
               >
                 <Users2 size={17} />
               </button>
@@ -697,9 +703,9 @@ export default function ConversationScreen({ conversation, currentUserId, curren
       {searchOpen ? (
         <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4">
           {searchQuery.trim().length < 2 ? (
-            <p className="text-center text-xs text-[#4C5266] py-6">Type at least 2 characters to search.</p>
+            <p className="text-center text-xs text-[#4C5266] py-6">{t("emp.typeAtLeast2CharactersTo")}</p>
           ) : searchingMessages ? (
-            <p className="text-center text-xs text-[#4C5266] py-6">Searching...</p>
+            <p className="text-center text-xs text-[#4C5266] py-6">{t("emp.searching")}</p>
           ) : searchResults?.messages?.length ? (
             <div className="space-y-2">
               {searchResults.messages.map((m) => (
@@ -713,18 +719,18 @@ export default function ConversationScreen({ conversation, currentUserId, curren
               ))}
             </div>
           ) : (
-            <p className="text-center text-xs text-[#4C5266] py-6">No messages found.</p>
+            <p className="text-center text-xs text-[#4C5266] py-6">{t("emp.noMessagesFound")}</p>
           )}
         </div>
       ) : (
       <div ref={scrollRef} onScroll={handleScroll} className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 space-y-2.5">
         {loadingInitial ? (
-          <p className="text-center text-xs text-[#4C5266] py-6">Loading messages...</p>
+          <p className="text-center text-xs text-[#4C5266] py-6">{t("emp.loadingMessages")}</p>
         ) : messages.length === 0 ? (
-          <p className="text-center text-xs text-[#4C5266] py-10">No messages yet.</p>
+          <p className="text-center text-xs text-[#4C5266] py-10">{t("emp.noMessagesYet")}</p>
         ) : (
           <>
-            {loadingOlder && <p className="text-center text-[11px] text-[#4C5266] py-2">Loading older messages...</p>}
+            {loadingOlder && <p className="text-center text-[11px] text-[#4C5266] py-2">{t("emp.loadingOlderMessages")}</p>}
             {messages.map((m) => {
               const isMine = currentUserKind === "staff" ? m.senderUserId === currentUserId : m.senderEmployeeId === currentUserId;
               const senderName = m.senderEmployee?.name || m.senderUser?.name;
@@ -767,22 +773,22 @@ export default function ConversationScreen({ conversation, currentUserId, curren
                         <p className="text-[11px] font-semibold text-[#F47A20] mb-0.5">{senderName}</p>
                       )}
                       {isMine && GROUP_LIKE_TYPES.has(conversation.type) && !isDeleted && (
-                        <p className="text-[11px] font-semibold text-white/80 mb-0.5">You</p>
+                        <p className="text-[11px] font-semibold text-white/80 mb-0.5">{t("emp.you")}</p>
                       )}
                       {m.forwardedFromSenderName && !isDeleted && (
                         <p className={`flex items-center gap-1 text-[11px] italic mb-0.5 ${isMine ? "text-white/70" : "text-[#8B93A8]"}`}>
-                          <Forward size={11} /> Forwarded from {m.forwardedFromSenderName}
+                          <Forward size={11} /> {t("emp.forwardedFromName", { name: m.forwardedFromSenderName })}
                         </p>
                       )}
 
                       {isDeleted ? (
-                        <p className="text-sm flex items-center gap-1.5"><Trash2 size={12} /> This message was deleted</p>
+                        <p className="text-sm flex items-center gap-1.5"><Trash2 size={12} /> {t("emp.thisMessageWasDeleted")}</p>
                       ) : (
                         <>
                           {m.replyTo && (
-                            <div className={`mb-1.5 rounded-lg px-2.5 py-1.5 border-l-2 ${isMine ? "bg-black/10 border-white/40" : "bg-black/20 border-[#F47A20]/50"}`}>
-                              <p className="text-[10px] font-semibold opacity-80">{replySenderName || "Deleted message"}</p>
-                              <p className="text-xs opacity-70 truncate">{m.replyTo.deletedAt ? "This message was deleted" : m.replyTo.body}</p>
+                            <div className={`mb-1.5 rounded-lg px-2.5 py-1.5 border-s-2 ${isMine ? "bg-black/10 border-white/40" : "bg-black/20 border-[#F47A20]/50"}`}>
+                              <p className="text-[10px] font-semibold opacity-80">{replySenderName || t("emp.deletedMessage")}</p>
+                              <p className="text-xs opacity-70 truncate">{m.replyTo.deletedAt ? t("emp.thisMessageWasDeleted") : m.replyTo.body}</p>
                             </div>
                           )}
 
@@ -796,8 +802,8 @@ export default function ConversationScreen({ conversation, currentUserId, curren
                                 className="w-full resize-none rounded-lg bg-black/20 border border-white/20 px-2 py-1.5 text-sm text-white outline-none"
                               />
                               <div className="flex justify-end gap-2 mt-1.5">
-                                <button type="button" onClick={() => setEditingId(null)} className="text-xs opacity-80 hover:opacity-100">Cancel</button>
-                                <button type="button" onClick={() => submitEdit(m)} className="text-xs font-semibold">Save</button>
+                                <button type="button" onClick={() => setEditingId(null)} className="text-xs opacity-80 hover:opacity-100">{t("emp.cancel")}</button>
+                                <button type="button" onClick={() => submitEdit(m)} className="text-xs font-semibold">{t("emp.save")}</button>
                               </div>
                             </div>
                           ) : (
@@ -818,9 +824,9 @@ export default function ConversationScreen({ conversation, currentUserId, curren
                             <p className="text-[10px]">{timeLabel(m.createdAt)}{m.editedAt ? " · Edited" : ""}</p>
                             {isMine && m.id === myLastMessageId && (
                               theirLastReadAt && new Date(theirLastReadAt) >= new Date(m.createdAt) ? (
-                                <span className="flex items-center gap-0.5 text-[10px]" title="Seen"><CheckCheck size={11} /> Seen</span>
+                                <span className="flex items-center gap-0.5 text-[10px]" title={t("emp.seen")}><CheckCheck size={11} /> {t("emp.seen")}</span>
                               ) : (
-                                <span className="flex items-center gap-0.5 text-[10px]" title="Sent"><Check size={11} /></span>
+                                <span className="flex items-center gap-0.5 text-[10px]" title={t("emp.sent")}><Check size={11} /></span>
                               )
                             )}
                           </div>
@@ -833,7 +839,7 @@ export default function ConversationScreen({ conversation, currentUserId, curren
                         type="button"
                         onClick={() => setActionSheetFor(m)}
                         className="shrink-0 mb-1 p-1.5 rounded-full text-[#4C5266] hover:text-white hover:bg-white/[0.06] sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
-                        aria-label="Message actions"
+                        aria-label={t("emp.messageActions")}
                       >
                         <MoreHorizontal size={15} />
                       </button>
@@ -861,7 +867,7 @@ export default function ConversationScreen({ conversation, currentUserId, curren
                 }
               }}
               rows={1}
-              placeholder={conversation.type === "ZONE_ANNOUNCEMENTS" ? "Send an announcement to your zone..." : "Send an announcement to your market..."}
+              placeholder={conversation.type === "ZONE_ANNOUNCEMENTS" ? t("emp.sendAnAnnouncementToYourZone") : t("emp.sendAnAnnouncementToYourMarket")}
               className="flex-1 min-w-0 resize-none rounded-xl bg-white/[0.04] border border-amber-500/20 px-3.5 py-2.5 text-sm text-white placeholder:text-[#4C5266] outline-none focus:border-amber-500/50 max-h-28"
             />
             <button
@@ -877,19 +883,19 @@ export default function ConversationScreen({ conversation, currentUserId, curren
       ) : isWarnings ? (
         <div className="px-4 sm:px-6 py-3 border-t border-white/[0.06] flex items-center gap-2 text-xs text-[#8B93A8]">
           <ShieldAlert size={14} className="text-amber-400 shrink-0" />
-          {conversation.type === "ZONE_ANNOUNCEMENTS" ? "Only a Regional Manager or Admin can post here." : "Only a supervisor can post here."}
+          {conversation.type === "ZONE_ANNOUNCEMENTS" ? t("emp.onlyARegionalManagerOrAdmin") : t("emp.onlyASupervisorCanPostHere")}
         </div>
       ) : (
         <div className="px-4 sm:px-6 py-3 border-t border-white/[0.06]">
           {error && <p className="mb-2 text-xs text-red-400">{error}</p>}
 
           {replyTo && (
-            <div className="mb-2 flex items-center gap-2 rounded-lg p-2 bg-white/[0.04] border-l-2 border-[#F47A20]/60">
+            <div className="mb-2 flex items-center gap-2 rounded-lg p-2 bg-white/[0.04] border-s-2 border-[#F47A20]/60">
               <div className="min-w-0 flex-1">
                 <p className="text-[10px] font-semibold text-[#F47A20]">
                   Replying to {replyTo.senderEmployee?.name || replyTo.senderUser?.name || "message"}
                 </p>
-                <p className="text-xs text-[#9AA1B4] truncate">{replyTo.body || "Attachment"}</p>
+                <p className="text-xs text-[#9AA1B4] truncate">{replyTo.body || t("emp.attachment")}</p>
               </div>
               <button type="button" onClick={() => setReplyTo(null)} className="p-1 text-[#4C5266] hover:text-white">
                 <X size={14} />
@@ -912,7 +918,7 @@ export default function ConversationScreen({ conversation, currentUserId, curren
                   )}
                   <span className="flex-1 min-w-0 text-xs text-[#9AA1B4] truncate">
                     {pendingAttachment.name ||
-                      (pendingAttachment.kind === "voice" ? `Voice message · ${formatDuration(pendingAttachment.durationSec)}` : "Photo attached")}
+                      (pendingAttachment.kind === "voice" ? `Voice message · ${formatDuration(pendingAttachment.durationSec)}` : t("emp.photoAttached"))}
                   </span>
                   <button type="button" onClick={() => setPendingAttachment(null)} className="p-1 text-[#4C5266] hover:text-white">
                     <X size={14} />
@@ -927,7 +933,7 @@ export default function ConversationScreen({ conversation, currentUserId, curren
                       key={`${c.kind}-${c.id}`}
                       type="button"
                       onClick={() => selectMention(c, c.kind)}
-                      className="w-full flex items-center gap-2 px-3.5 py-2.5 text-sm text-white hover:bg-white/[0.06] text-left"
+                      className="w-full flex items-center gap-2 px-3.5 py-2.5 text-sm text-white hover:bg-white/[0.06] text-start"
                     >
                       <span className="w-6 h-6 rounded-full bg-white/[0.06] flex items-center justify-center text-[10px] font-semibold shrink-0">
                         {c.name.split(" ").map((p) => p[0]).slice(0, 2).join("")}
@@ -949,27 +955,27 @@ export default function ConversationScreen({ conversation, currentUserId, curren
                     {attachBusy ? <Loader2 size={17} className="animate-spin" /> : <Paperclip size={17} />}
                   </button>
                   {attachMenuOpen && (
-                    <div className="absolute bottom-14 left-0 z-10 w-44 rounded-xl bg-[#1F2436] border border-white/10 shadow-xl overflow-hidden">
+                    <div className="absolute bottom-14 start-0 z-10 w-44 rounded-xl bg-[#1F2436] border border-white/10 shadow-xl overflow-hidden">
                       <button
                         type="button"
                         onClick={() => photoInputRef.current?.click()}
                         className="w-full flex items-center gap-2.5 px-3.5 py-3 text-sm text-white hover:bg-white/[0.06]"
                       >
-                        <Camera size={15} /> Photo
+                        <Camera size={15} /> {t("emp.photo")}
                       </button>
                       <button
                         type="button"
                         onClick={() => fileInputRef.current?.click()}
                         className="w-full flex items-center gap-2.5 px-3.5 py-3 text-sm text-white hover:bg-white/[0.06]"
                       >
-                        <FileIcon size={15} /> File
+                        <FileIcon size={15} /> {t("emp.file")}
                       </button>
                       <button
                         type="button"
                         onClick={() => { setAttachMenuOpen(false); setRecordingVoice(true); }}
                         className="w-full flex items-center gap-2.5 px-3.5 py-3 text-sm text-white hover:bg-white/[0.06]"
                       >
-                        <Mic size={15} /> Voice Message
+                        <Mic size={15} /> {t("emp.voiceMessage")}
                       </button>
                     </div>
                   )}
@@ -998,7 +1004,7 @@ export default function ConversationScreen({ conversation, currentUserId, curren
                     }
                   }}
                   rows={1}
-                  placeholder="Message... (@ to mention)"
+                  placeholder={t("emp.messageToMention")}
                   className="flex-1 min-w-0 resize-none rounded-xl bg-white/[0.04] border border-white/[0.06] px-3.5 py-2.5 text-sm text-white placeholder:text-[#4C5266] outline-none focus:border-[#F47A20]/50 max-h-28"
                 />
                 <button

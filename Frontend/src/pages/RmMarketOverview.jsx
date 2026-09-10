@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   Users2, UserCheck, Star, CalendarClock, ChevronRight, ShieldAlert, Sparkles,
   NotebookPen, History, ClipboardList, DollarSign, CreditCard, Moon, ArrowLeft,
@@ -19,9 +20,9 @@ import { useToast } from "../hooks/useToast";
 import Toast from "../components/common/Toast";
 
 const STATUS = {
-  ACTIVE: { label: "Active", dot: "bg-emerald-400", text: "text-emerald-400", ring: "ring-emerald-500/25", bg: "bg-emerald-500/12" },
-  MAINTENANCE: { label: "Maintenance", dot: "bg-amber-400", text: "text-amber-400", ring: "ring-amber-500/25", bg: "bg-amber-500/12" },
-  CLOSED: { label: "Inactive", dot: "bg-red-400", text: "text-red-400", ring: "ring-red-500/25", bg: "bg-red-500/12" },
+  ACTIVE: { label: "status.active", dot: "bg-emerald-400", text: "text-emerald-400", ring: "ring-emerald-500/25", bg: "bg-emerald-500/12" },
+  MAINTENANCE: { label: "rm.maintenance", dot: "bg-amber-400", text: "text-amber-400", ring: "ring-amber-500/25", bg: "bg-amber-500/12" },
+  CLOSED: { label: "status.inactive", dot: "bg-red-400", text: "text-red-400", ring: "ring-red-500/25", bg: "bg-red-500/12" },
 };
 
 function StatTile({ icon: Icon, tone, value, label, onClick }) {
@@ -29,7 +30,7 @@ function StatTile({ icon: Icon, tone, value, label, onClick }) {
   return (
     <Tag_
       {...(onClick ? { type: "button", onClick } : {})}
-      className={`rounded-2xl border border-white/[0.07] bg-[#111A2D]/80 p-3 text-left backdrop-blur-xl transition-all duration-200 ${
+      className={`rounded-2xl border border-white/[0.07] bg-[#111A2D]/80 p-3 text-start backdrop-blur-xl transition-all duration-200 ${
         onClick ? "hover:border-[#F47A20]/30 active:scale-[0.98]" : ""
       }`}
     >
@@ -60,7 +61,7 @@ function SectionCard({ section, onOpen }) {
     <button
       type="button"
       onClick={onOpen}
-      className="rounded-xl border border-white/[0.06] bg-[#111A2D]/70 p-3 text-left transition-colors hover:border-[#F47A20]/25"
+      className="rounded-xl border border-white/[0.06] bg-[#111A2D]/70 p-3 text-start transition-colors hover:border-[#F47A20]/25"
     >
       <p className="truncate text-[13px] font-semibold text-white">{section.department}</p>
       <div className="mt-1.5 flex items-center gap-3 text-[11px] text-[#9AA1B4]">
@@ -86,6 +87,7 @@ function SectionCard({ section, onOpen }) {
 // access-checked server-side against this market (assertMarketAccess),
 // so a Regional Manager can never open a market outside their zones.
 export default function RmMarketOverview({ marketId, onOpenSection, onOpenHistory, onOpenTotalSales, onOpenCardSales, onOpenEmployees, onOpenActivityToday, onOpenSupervisor, onBack }) {
+  const { t } = useTranslation();
   const { data: overview, error, loading, reload } = useAsync(() => getMarketOverview(marketId), { deps: [marketId] });
   const { data: sections, error: sectionsError, loading: sectionsLoading } = useAsync(() => listMarketSections(marketId), { deps: [marketId] });
   // Open Issues + Recent Activity — the two real sources the reference's
@@ -115,7 +117,7 @@ export default function RmMarketOverview({ marketId, onOpenSection, onOpenHistor
 
   function handleSaved(kind) {
     setModal(null);
-    setToast(kind === "rate" ? "Rating saved." : kind === "note" ? "Note saved." : kind === "warning" ? "Warning sent to the Supervisor." : "Recognition sent to the Supervisor.");
+    setToast(kind === "rate" ? t("rm.ratingSaved") : kind === "note" ? t("rm.noteSaved") : kind === "warning" ? t("rm.warningSentToTheSupervisor") : t("rm.recognitionSentToTheSupervisor"));
     reload();
   }
 
@@ -156,10 +158,10 @@ export default function RmMarketOverview({ marketId, onOpenSection, onOpenHistor
         <button
           type="button"
           onClick={onBack}
-          aria-label="Back to markets"
-          className="absolute left-3 top-3 grid h-9 w-9 place-items-center rounded-full border border-white/10 bg-black/45 text-white backdrop-blur-md transition-all hover:bg-black/65 active:scale-95"
+          aria-label={t("rm.backToMarkets")}
+          className="absolute start-3 top-3 grid h-9 w-9 place-items-center rounded-full border border-white/10 bg-black/45 text-white backdrop-blur-md transition-all hover:bg-black/65 active:scale-95"
         >
-          <ArrowLeft size={16} />
+          <ArrowLeft size={16} className="rtl-flip" />
         </button>
 
         {/* Pinned to the hero's own top-right rather than sitting beside
@@ -167,10 +169,10 @@ export default function RmMarketOverview({ marketId, onOpenSection, onOpenHistor
             supervisor on a second line) would otherwise push the pill
             out of alignment on a narrow screen. */}
         <span
-          className={`absolute right-3 top-3 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium ring-1 ring-inset backdrop-blur-md ${status.bg} ${status.text} ${status.ring}`}
+          className={`absolute end-3 top-3 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium ring-1 ring-inset backdrop-blur-md ${status.bg} ${status.text} ${status.ring}`}
         >
           <span className={`h-1.5 w-1.5 rounded-full ${status.dot}`} />
-          {status.label}
+          {t(status.label)}
         </span>
 
         <div className="absolute inset-x-3 bottom-3">
@@ -194,7 +196,7 @@ export default function RmMarketOverview({ marketId, onOpenSection, onOpenHistor
                   {overview.supervisor.name}
                 </button>
               ) : (
-                "Unassigned"
+                t("rm.unassigned")
               )}
             </span>
             {overview.overlookingSupervisor && (
@@ -227,22 +229,22 @@ export default function RmMarketOverview({ marketId, onOpenSection, onOpenHistor
           icon={Users2}
           tone="bg-[#7EA6FF]/10 text-[#7EA6FF]"
           value={overview.employeeCount}
-          label="Total Employees"
+          label={t("rm.totalEmployees")}
           onClick={onOpenEmployees}
         />
-        <StatTile icon={UserCheck} tone="bg-emerald-500/10 text-emerald-400" value={overview.activeCount} label="Active Now" />
+        <StatTile icon={UserCheck} tone="bg-emerald-500/10 text-emerald-400" value={overview.activeCount} label={t("rm.activeNow")} />
         <StatTile
           icon={Star}
           tone="bg-amber-500/10 text-amber-400"
           value={overview.currentRating != null ? `${overview.currentRating}/10` : "—"}
-          label="Performance"
+          label={t("emp.performance")}
           onClick={() => openModal("rate")}
         />
         <StatTile
           icon={AlertTriangle}
           tone={openIssues > 0 ? "bg-red-500/10 text-red-400" : "bg-white/[0.05] text-[#6B7488]"}
           value={openIssues}
-          label="Open Issues"
+          label={t("rm.openIssues")}
         />
       </div>
 
@@ -250,43 +252,43 @@ export default function RmMarketOverview({ marketId, onOpenSection, onOpenHistor
           Employees is deliberately NOT here: the Total Employees tile
           above is what opens the roster. */}
       <div className="mt-2.5 grid grid-cols-3 gap-2.5">
-        <QuickAction icon={DollarSign} label="Sales" onClick={onOpenTotalSales} />
-        <QuickAction icon={CreditCard} label="Card Sales" onClick={onOpenCardSales} />
-        <QuickAction icon={History} label="History" onClick={onOpenHistory} />
+        <QuickAction icon={DollarSign} label={t("rm.sales")} onClick={onOpenTotalSales} />
+        <QuickAction icon={CreditCard} label={t("rm.cardSales")} onClick={onOpenCardSales} />
+        <QuickAction icon={History} label={t("emp.history")} onClick={onOpenHistory} />
       </div>
 
       {/* Today's sales summary — kept from the previous layout, both
           still real entry points with their real values. */}
       <div className="mt-2.5 grid grid-cols-2 gap-2.5">
-        <button type="button" onClick={onOpenTotalSales} className="rounded-2xl border border-white/[0.07] bg-[#111A2D]/80 p-3 text-left transition-colors hover:border-[#F47A20]/25">
+        <button type="button" onClick={onOpenTotalSales} className="rounded-2xl border border-white/[0.07] bg-[#111A2D]/80 p-3 text-start transition-colors hover:border-[#F47A20]/25">
           <p className="flex items-center gap-1.5 text-[15px] font-bold text-white">
             <DollarSign size={14} className="text-[#F47A20]" /> {overview.totalSalesToday ? overview.totalSalesToday.amount.toFixed(2) : "—"}
           </p>
-          <p className="mt-1 text-[10.5px] uppercase tracking-wide text-[#8B93A8]">Total Sales · Today</p>
+          <p className="mt-1 text-[10.5px] uppercase tracking-wide text-[#8B93A8]">{t("rm.totalSalesToday")}</p>
         </button>
-        <button type="button" onClick={onOpenCardSales} className="rounded-2xl border border-white/[0.07] bg-[#111A2D]/80 p-3 text-left transition-colors hover:border-[#F47A20]/25">
+        <button type="button" onClick={onOpenCardSales} className="rounded-2xl border border-white/[0.07] bg-[#111A2D]/80 p-3 text-start transition-colors hover:border-[#F47A20]/25">
           <p className="flex items-center gap-1.5 text-[15px] font-bold text-white">
             <CreditCard size={14} className="text-[#F47A20]" />
             {["MORNING", "AFTERNOON", "NIGHT"].filter((s) => overview.cardSalesToday?.[s]).length}/3
           </p>
-          <p className="mt-1 text-[10.5px] uppercase tracking-wide text-[#8B93A8]">Card Sales · Shifts</p>
+          <p className="mt-1 text-[10.5px] uppercase tracking-wide text-[#8B93A8]">{t("rm.cardSalesShifts")}</p>
         </button>
       </div>
 
       {/* Market Activity Today — this market's own work, today only.
-          Short here on purpose; the full day lives behind "See All". */}
+          Short here on purpose; the full day lives behind t("sup.seeAll"). */}
       <section className="mt-4">
         <div className="mb-2 flex items-center justify-between">
           <h2 className="flex items-center gap-2 text-[14px] font-semibold text-white">
             <span className="h-3.5 w-[3px] rounded-full bg-[#F47A20] shadow-[0_0_8px_rgba(244,122,32,0.8)]" />
-            Market Activity Today
+            {t("rm.marketActivityToday")}
           </h2>
           <button
             type="button"
             onClick={onOpenActivityToday}
             className="flex items-center gap-0.5 text-[11.5px] font-medium text-[#F47A20] transition-colors hover:text-[#ff9a4d]"
           >
-            See All <ChevronRight size={13} />
+            {t("sup.seeAll")} <ChevronRight size={13} className="rtl-flip" />
           </button>
         </div>
 
@@ -299,17 +301,17 @@ export default function RmMarketOverview({ marketId, onOpenSection, onOpenHistor
           created to group them, then the same four modals as before). */}
       <div className="mt-4 flex flex-wrap gap-2">
         <button type="button" onClick={() => openModal("rate")} className="flex items-center gap-1.5 rounded-xl bg-white/[0.05] px-3.5 py-2.5 text-[12.5px] font-medium text-white transition-colors hover:bg-white/[0.09]">
-          <Star size={14} /> Rate Market
+          <Star size={14} /> {t("rm.rateMarket")}
         </button>
         <button type="button" onClick={() => openModal("warning")} className="flex items-center gap-1.5 rounded-xl bg-red-500/10 px-3.5 py-2.5 text-[12.5px] font-medium text-red-400 transition-colors hover:bg-red-500/15">
-          <ShieldAlert size={14} /> Send Warning
+          <ShieldAlert size={14} /> {t("rm.sendWarning")}
         </button>
         <button type="button" onClick={() => openModal("recognition")} className="flex items-center gap-1.5 rounded-xl bg-emerald-500/10 px-3.5 py-2.5 text-[12.5px] font-medium text-emerald-400 transition-colors hover:bg-emerald-500/15">
-          <Sparkles size={14} /> Send Recognition
+          <Sparkles size={14} /> {t("rm.sendRecognition")}
         </button>
         <button type="button" onClick={onOpenHistory} className="flex items-center gap-1.5 rounded-xl bg-white/[0.05] px-3.5 py-2.5 text-[12.5px] font-medium text-white transition-colors hover:bg-white/[0.09]">
           <CalendarClock size={14} />
-          {overview.lastVisitDate ? new Date(overview.lastVisitDate).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "No visits"}
+          {overview.lastVisitDate ? new Date(overview.lastVisitDate).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : t("rm.noVisits")}
         </button>
       </div>
 
@@ -319,7 +321,7 @@ export default function RmMarketOverview({ marketId, onOpenSection, onOpenHistor
 
       <section className="mt-5">
         <h2 className="mb-2 flex items-center gap-1.5 text-[13px] font-semibold uppercase tracking-wider text-[#8B93A8]">
-          <ClipboardList size={13} /> Sections
+          <ClipboardList size={13} /> {t("rm.sections")}
         </h2>
         {sectionsLoading ? (
           <SkeletonCard className="h-24" />
@@ -327,7 +329,7 @@ export default function RmMarketOverview({ marketId, onOpenSection, onOpenHistor
           <ErrorBanner message={sectionsError} />
         ) : sections.length === 0 ? (
           <div className="rounded-xl border border-white/[0.06] bg-[#111A2D]/70 p-5 text-center text-[12.5px] text-[#8B93A8]">
-            No employees assigned to a department yet.
+            {t("rm.noEmployeesAssignedToADepartment")}
           </div>
         ) : (
           <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">

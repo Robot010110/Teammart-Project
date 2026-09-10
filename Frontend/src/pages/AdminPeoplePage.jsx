@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import {
   Search, Users, UserRound, ShieldCheck, Crown, HardHat, Wallet, Beef,
@@ -28,32 +29,32 @@ const PAGE_SIZE = 10;
 // slightly-different gray pill (visual pass; the roles/colors themselves
 // are unchanged).
 const ROLE_META = {
-  WORKER: { label: "Worker", icon: HardHat, tone: "text-[#7EA6FF] bg-[#7EA6FF]/12 ring-[#7EA6FF]/30 shadow-[0_0_10px_-3px_rgba(126,166,255,0.65)]" },
-  CASHIER: { label: "Cashier", icon: Wallet, tone: "text-[#C08BFF] bg-[#C08BFF]/12 ring-[#C08BFF]/30 shadow-[0_0_10px_-3px_rgba(192,139,255,0.65)]" },
-  BUTCHER: { label: "Butcher", icon: Beef, tone: "text-amber-400 bg-amber-500/12 ring-amber-500/30 shadow-[0_0_10px_-3px_rgba(251,191,36,0.65)]" },
-  SUPERVISOR: { label: "Supervisor", icon: ShieldCheck, tone: "text-[#A5B4FC] bg-[#818CF8]/15 ring-[#818CF8]/35 shadow-[0_0_10px_-3px_rgba(129,140,248,0.7)]" },
-  OVERLOOKING_SUPERVISOR: { label: "Overlooking Sup.", icon: ShieldCheck, tone: "text-[#A5B4FC] bg-[#818CF8]/15 ring-[#818CF8]/35 shadow-[0_0_10px_-3px_rgba(129,140,248,0.7)]" },
-  REGIONAL_MANAGER: { label: "Regional Manager", icon: Crown, tone: "text-[#FBBF24] bg-[#FBBF24]/15 ring-[#FBBF24]/35 shadow-[0_0_10px_-3px_rgba(251,191,36,0.7)]" },
+  WORKER: { label: "roles.worker", icon: HardHat, tone: "text-[#7EA6FF] bg-[#7EA6FF]/12 ring-[#7EA6FF]/30 shadow-[0_0_10px_-3px_rgba(126,166,255,0.65)]" },
+  CASHIER: { label: "roles.cashier", icon: Wallet, tone: "text-[#C08BFF] bg-[#C08BFF]/12 ring-[#C08BFF]/30 shadow-[0_0_10px_-3px_rgba(192,139,255,0.65)]" },
+  BUTCHER: { label: "sup.butcher", icon: Beef, tone: "text-amber-400 bg-amber-500/12 ring-amber-500/30 shadow-[0_0_10px_-3px_rgba(251,191,36,0.65)]" },
+  SUPERVISOR: { label: "roles.supervisor", icon: ShieldCheck, tone: "text-[#A5B4FC] bg-[#818CF8]/15 ring-[#818CF8]/35 shadow-[0_0_10px_-3px_rgba(129,140,248,0.7)]" },
+  OVERLOOKING_SUPERVISOR: { label: "admin.overlookingSup", icon: ShieldCheck, tone: "text-[#A5B4FC] bg-[#818CF8]/15 ring-[#818CF8]/35 shadow-[0_0_10px_-3px_rgba(129,140,248,0.7)]" },
+  REGIONAL_MANAGER: { label: "roles.regionalManager", icon: Crown, tone: "text-[#FBBF24] bg-[#FBBF24]/15 ring-[#FBBF24]/35 shadow-[0_0_10px_-3px_rgba(251,191,36,0.7)]" },
 };
 
 const EMPLOYMENT_STATUS_META = {
-  ACTIVE: { label: "Active", tone: "bg-emerald-500/12 text-emerald-400 ring-emerald-500/30 shadow-[0_0_10px_-3px_rgba(52,211,153,0.6)]" },
-  ON_LEAVE: { label: "On Leave", tone: "bg-amber-500/12 text-amber-400 ring-amber-500/30 shadow-[0_0_10px_-3px_rgba(251,191,36,0.6)]" },
-  INACTIVE: { label: "Inactive", tone: "bg-red-500/12 text-red-400 ring-red-500/30 shadow-[0_0_10px_-3px_rgba(248,113,113,0.6)]" },
+  ACTIVE: { label: "status.active", tone: "bg-emerald-500/12 text-emerald-400 ring-emerald-500/30 shadow-[0_0_10px_-3px_rgba(52,211,153,0.6)]" },
+  ON_LEAVE: { label: "emp.onLeave", tone: "bg-amber-500/12 text-amber-400 ring-amber-500/30 shadow-[0_0_10px_-3px_rgba(251,191,36,0.6)]" },
+  INACTIVE: { label: "status.inactive", tone: "bg-red-500/12 text-red-400 ring-red-500/30 shadow-[0_0_10px_-3px_rgba(248,113,113,0.6)]" },
 };
 // Users don't share Employee's employmentStatus enum — accountStatus is
 // a different, real enum (ACTIVE/SUSPENDED/BANNED). Shown with the same
 // visual language rather than invented as a fake "On Leave" for staff.
 const ACCOUNT_STATUS_META = {
-  ACTIVE: { label: "Active", tone: "bg-emerald-500/12 text-emerald-400 ring-emerald-500/30 shadow-[0_0_10px_-3px_rgba(52,211,153,0.6)]" },
-  SUSPENDED: { label: "Suspended", tone: "bg-amber-500/12 text-amber-400 ring-amber-500/30 shadow-[0_0_10px_-3px_rgba(251,191,36,0.6)]" },
-  BANNED: { label: "Banned", tone: "bg-red-500/12 text-red-400 ring-red-500/30 shadow-[0_0_10px_-3px_rgba(248,113,113,0.6)]" },
+  ACTIVE: { label: "status.active", tone: "bg-emerald-500/12 text-emerald-400 ring-emerald-500/30 shadow-[0_0_10px_-3px_rgba(52,211,153,0.6)]" },
+  SUSPENDED: { label: "admin.suspended", tone: "bg-amber-500/12 text-amber-400 ring-amber-500/30 shadow-[0_0_10px_-3px_rgba(251,191,36,0.6)]" },
+  BANNED: { label: "admin.banned", tone: "bg-red-500/12 text-red-400 ring-red-500/30 shadow-[0_0_10px_-3px_rgba(248,113,113,0.6)]" },
 };
 
 const SHIFT_META = {
-  MORNING: { label: "Morning", icon: Sunrise },
-  EVENING: { label: "Evening", icon: Sunset },
-  NIGHT: { label: "Night", icon: Moon },
+  MORNING: { label: "emp.morning", icon: Sunrise },
+  EVENING: { label: "emp.evening", icon: Sunset },
+  NIGHT: { label: "emp.night", icon: Moon },
 };
 
 function useDebounced(value, delayMs) {
@@ -112,13 +113,14 @@ function shapeStaff(u) {
 }
 
 function ShiftCell({ shift }) {
+  const { t } = useTranslation();
   if (!shift) return <span className="text-[#5C6479]">—</span>;
   const meta = SHIFT_META[shift];
   if (!meta) return <span className="text-[#C4C9D6]">{shift}</span>; // legacy free-text value — shown as-is, not fabricated into an icon it doesn't have
   const Icon = meta.icon;
   return (
     <span className="inline-flex items-center gap-1.5 text-[#C4C9D6]">
-      <Icon size={13} className="text-[#8B93A8]" /> {meta.label}
+      <Icon size={13} className="text-[#8B93A8]" /> {t(meta.label)}
     </span>
   );
 }
@@ -159,6 +161,7 @@ function ShiftCell({ shift }) {
 // anywhere in the app to model this on. The real, required search this
 // page needs — searching the People table itself — is built and wired.
 export default function AdminPeoplePage() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [tab, setTab] = useState("workforce"); // "workforce" | "staff"
   const [marketId, setMarketId] = useState("");
@@ -226,12 +229,12 @@ export default function AdminPeoplePage() {
 
   const roleOptions =
     tab === "workforce"
-      ? [{ value: "WORKER", label: "Workers" }, { value: "CASHIER", label: "Cashiers" }] // Butcher deliberately not offered as a filter — see spec
-      : [{ value: "SUPERVISOR", label: "Supervisors" }, { value: "REGIONAL_MANAGER", label: "Regional Managers" }];
+      ? [{ value: "WORKER", label: t("rm.workers") }, { value: "CASHIER", label: t("rm.cashiers") }] // Butcher deliberately not offered as a filter — see spec
+      : [{ value: "SUPERVISOR", label: t("rm.supervisors") }, { value: "REGIONAL_MANAGER", label: t("admin.regionalManagers") }];
   const statusOptions =
     tab === "workforce"
-      ? [{ value: "ACTIVE", label: "Active" }, { value: "ON_LEAVE", label: "On Leave" }, { value: "INACTIVE", label: "Inactive" }]
-      : [{ value: "ACTIVE", label: "Active" }, { value: "SUSPENDED", label: "Suspended" }, { value: "BANNED", label: "Banned" }];
+      ? [{ value: "ACTIVE", label: t("status.active") }, { value: "ON_LEAVE", label: t("emp.onLeave") }, { value: "INACTIVE", label: t("status.inactive") }]
+      : [{ value: "ACTIVE", label: t("status.active") }, { value: "SUSPENDED", label: t("admin.suspended") }, { value: "BANNED", label: t("admin.banned") }];
 
   function openPerson(row) {
     if (row.href) navigate(row.href);
@@ -250,32 +253,32 @@ export default function AdminPeoplePage() {
     <div className="max-w-7xl mx-auto animate-fade-up" onClick={() => setOpenMenuKey(null)}>
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between mb-5">
         <div>
-          <h1 className="font-display text-xl md:text-[26px] font-bold text-white">People</h1>
-          <p className="mt-1 text-sm text-[#9AA1B4]">Manage all employees and staff across your company</p>
+          <h1 className="font-display text-xl md:text-[26px] font-bold text-white">{t("admin.people")}</h1>
+          <p className="mt-1 text-sm text-[#9AA1B4]">{t("admin.manageAllEmployeesAndStaffAcross")}</p>
         </div>
         <button
           type="button"
           onClick={() => setAddOpen(true)}
           className="flex items-center gap-1.5 self-start rounded-xl px-4 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-[#F47A20] to-[#E0561A] shadow-[0_4px_24px_-6px_rgba(244,122,32,0.75)] ring-1 ring-white/10 transition-all duration-150 hover:from-[#ff8b36] hover:to-[#F47A20] hover:shadow-[0_4px_28px_-4px_rgba(244,122,32,0.9)] active:scale-[0.97]"
         >
-          <UserPlus size={15} /> Add Person
+          <UserPlus size={15} /> {t("admin.addPerson")}
         </button>
       </div>
 
       {/* KPIs — always organization-wide, unaffected by the active tab */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
-        <AdminKpiCard icon={Users} tone="blue" value={loading ? undefined : kpi.total} label="Total People" loading={loading} />
-        <AdminKpiCard icon={UserRound} tone="green" value={loading ? undefined : kpi.employeesCount} label="Employees" loading={loading} onClick={() => setTab("workforce")} />
-        <AdminKpiCard icon={ShieldCheck} tone="purple" value={loading ? undefined : kpi.supervisors} label="Supervisors" loading={loading} onClick={() => setTab("staff")} />
-        <AdminKpiCard icon={Crown} tone="amber" value={loading ? undefined : kpi.regionalManagers} label="Regional Managers" loading={loading} onClick={() => setTab("staff")} />
+        <AdminKpiCard icon={Users} tone="blue" value={loading ? undefined : kpi.total} label={t("admin.totalPeople")} loading={loading} />
+        <AdminKpiCard icon={UserRound} tone="green" value={loading ? undefined : kpi.employeesCount} label={t("sup.employees")} loading={loading} onClick={() => setTab("workforce")} />
+        <AdminKpiCard icon={ShieldCheck} tone="purple" value={loading ? undefined : kpi.supervisors} label={t("rm.supervisors")} loading={loading} onClick={() => setTab("staff")} />
+        <AdminKpiCard icon={Crown} tone="amber" value={loading ? undefined : kpi.regionalManagers} label={t("admin.regionalManagers")} loading={loading} onClick={() => setTab("staff")} />
       </div>
 
       {/* Workforce / Staff Accounts — a real filter switching the data
           source, not a decorative tab. */}
       <div className="flex gap-2 mb-4">
         {[
-          { key: "workforce", label: "Workforce", icon: UserRound },
-          { key: "staff", label: "Staff Accounts", icon: ShieldCheck },
+          { key: "workforce", label: t("admin.workforce"), icon: UserRound },
+          { key: "staff", label: t("admin.staffAccounts"), icon: ShieldCheck },
         ].map((v) => {
           const Icon = v.icon;
           const activeTab = tab === v.key;
@@ -290,7 +293,7 @@ export default function AdminPeoplePage() {
                   : "bg-[#111A2D]/80 text-[#8B93A8] ring-1 ring-white/[0.06] hover:text-white hover:bg-white/[0.05] hover:ring-white/[0.12]"
               }`}
             >
-              <Icon size={15} /> {v.label}
+              <Icon size={15} /> {t(v.label)}
             </button>
           );
         })}
@@ -299,30 +302,30 @@ export default function AdminPeoplePage() {
       {/* Search + filters */}
       <div className="flex flex-col lg:flex-row flex-wrap gap-3 mb-4">
         <div className="relative flex-1 min-w-[240px]">
-          <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#4C5266]" />
+          <Search size={15} className="absolute start-3.5 top-1/2 -translate-y-1/2 text-[#4C5266]" />
           <input
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
-            placeholder={tab === "workforce" ? "Search by name, ID, or email..." : "Search by name, ID, or email..."}
-            className="w-full rounded-xl bg-gradient-to-b from-[#131C31]/90 to-[#0F1728]/90 border border-white/[0.09] pl-10 pr-3 py-2.5 text-sm text-white placeholder:text-[#5C6479] outline-none transition-all duration-150 focus:border-[#F47A20]/55 focus:shadow-[0_0_0_3px_rgba(244,122,32,0.15)]"
+            placeholder={tab === "workforce" ? t("admin.searchByNameIdOrEmail") : t("admin.searchByNameIdOrEmail")}
+            className="w-full rounded-xl bg-gradient-to-b from-[#131C31]/90 to-[#0F1728]/90 border border-white/[0.09] ps-10 pe-3 py-2.5 text-sm text-white placeholder:text-[#5C6479] outline-none transition-all duration-150 focus:border-[#F47A20]/55 focus:shadow-[0_0_0_3px_rgba(244,122,32,0.15)]"
           />
         </div>
         <select value={marketId} onChange={(e) => setMarketId(e.target.value)} className={selectClass}>
-          <option value="">All Markets</option>
+          <option value="">{t("rm.allMarkets")}</option>
           {(markets ?? []).map((m) => (
             <option key={m.id} value={m.id}>{m.name}</option>
           ))}
         </select>
         <select value={role} onChange={(e) => setRole(e.target.value)} className={selectClass}>
-          <option value="">All Roles</option>
+          <option value="">{t("admin.allRoles")}</option>
           {roleOptions.map((r) => (
-            <option key={r.value} value={r.value}>{r.label}</option>
+            <option key={r.value} value={r.value}>{t(r.label)}</option>
           ))}
         </select>
         <select value={status} onChange={(e) => setStatus(e.target.value)} className={selectClass}>
-          <option value="">All Statuses</option>
+          <option value="">{t("admin.allStatuses")}</option>
           {statusOptions.map((s) => (
-            <option key={s.value} value={s.value}>{s.label}</option>
+            <option key={s.value} value={s.value}>{t(s.label)}</option>
           ))}
         </select>
       </div>
@@ -336,25 +339,25 @@ export default function AdminPeoplePage() {
         <div className="rounded-2xl p-10 bg-[#111A2D]/80 border border-white/[0.07] text-center">
           <p className="text-sm font-medium text-white">
             {marketId || role || status || search
-              ? "No people match your filters."
+              ? t("admin.noPeopleMatchYourFilters")
               : tab === "workforce"
-                ? "No employees found."
-                : "No staff accounts found."}
+                ? t("admin.noEmployeesFound")
+                : t("admin.noStaffAccountsFound")}
           </p>
-          {(marketId || role || status || search) && <p className="mt-1 text-xs text-[#8B93A8]">Try clearing the search and filters above.</p>}
+          {(marketId || role || status || search) && <p className="mt-1 text-xs text-[#8B93A8]">{t("admin.tryClearingTheSearchAndFilters")}</p>}
         </div>
       ) : (
         <div className="rounded-2xl border border-white/[0.08] bg-gradient-to-b from-[#101A2E]/90 to-[#0A0F1D]/90 shadow-[0_20px_50px_-24px_rgba(0,0,0,0.85)] backdrop-blur-xl overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[860px] text-left">
+            <table className="w-full min-w-[860px] text-start">
               <thead>
                 <tr className="border-b border-white/[0.06] text-[11px] uppercase tracking-wide text-[#6B7284]">
-                  <th className="px-4 py-3 font-medium">Person</th>
-                  <th className="px-4 py-3 font-medium">Role</th>
-                  <th className="px-4 py-3 font-medium">Market</th>
-                  <th className="px-4 py-3 font-medium">Shift</th>
-                  <th className="px-4 py-3 font-medium">Status</th>
-                  <th className="px-4 py-3 font-medium text-right">Actions</th>
+                  <th className="px-4 py-3 font-medium">{t("admin.person")}</th>
+                  <th className="px-4 py-3 font-medium">{t("admin.role")}</th>
+                  <th className="px-4 py-3 font-medium">{t("sup.market")}</th>
+                  <th className="px-4 py-3 font-medium">{t("emp.shift")}</th>
+                  <th className="px-4 py-3 font-medium">{t("sup.status")}</th>
+                  <th className="px-4 py-3 font-medium text-end">{t("admin.actions")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -390,7 +393,7 @@ export default function AdminPeoplePage() {
                       </td>
                       <td className="px-4 py-3">
                         <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium ring-1 ring-inset ${roleMeta?.tone ?? "text-[#9AA1B4] bg-white/[0.06] ring-white/10"}`}>
-                          <RoleIcon size={12} /> {roleMeta?.label ?? r.role?.replace(/_/g, " ")}
+                          <RoleIcon size={12} /> {roleMeta?.label ? t(roleMeta.label) : r.role?.replace(/_/g, " ")}
                         </span>
                       </td>
                       <td className="px-4 py-3 text-[13px] text-[#C4C9D6]">
@@ -406,14 +409,14 @@ export default function AdminPeoplePage() {
                       <td className="px-4 py-3 text-[13px]"><ShiftCell shift={r.shift} /></td>
                       <td className="px-4 py-3">
                         <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold ring-1 ring-inset ${statusMeta?.tone ?? "bg-white/[0.06] text-[#9AA1B4] ring-white/10"}`}>
-                          <span className="h-1.5 w-1.5 rounded-full bg-current" /> {statusMeta?.label ?? r.status}
+                          <span className="h-1.5 w-1.5 rounded-full bg-current" /> {statusMeta?.label ? t(statusMeta.label) : r.status}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-right relative">
+                      <td className="px-4 py-3 text-end relative">
                         <button
                           type="button"
                           onClick={(e) => { e.stopPropagation(); setOpenMenuKey(openMenuKey === r.key ? null : r.key); }}
-                          aria-label="Row actions"
+                          aria-label={t("admin.rowActions")}
                           className="grid h-8 w-8 place-items-center rounded-lg text-[#6B7284] transition-colors hover:bg-white/[0.06] hover:text-white"
                         >
                           <MoreVertical size={16} />
@@ -421,27 +424,27 @@ export default function AdminPeoplePage() {
                         {openMenuKey === r.key && (
                           <div
                             onClick={(e) => e.stopPropagation()}
-                            className="absolute right-4 top-11 z-20 w-48 rounded-xl border border-white/[0.08] bg-[#151B2E] p-1.5 shadow-[0_16px_40px_-12px_rgba(0,0,0,0.7)]"
+                            className="absolute end-4 top-11 z-20 w-48 rounded-xl border border-white/[0.08] bg-[#151B2E] p-1.5 shadow-[0_16px_40px_-12px_rgba(0,0,0,0.7)]"
                           >
                             {canViewProfile && (
                               <button
                                 type="button"
                                 onClick={() => { setOpenMenuKey(null); navigate(r.href); }}
-                                className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-[12.5px] text-[#C4C9D6] transition-colors hover:bg-white/[0.06] hover:text-white"
+                                className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-start text-[12.5px] text-[#C4C9D6] transition-colors hover:bg-white/[0.06] hover:text-white"
                               >
-                                <UserRound size={13} /> View Profile
+                                <UserRound size={13} /> {t("admin.viewProfile")}
                               </button>
                             )}
                             {canManageAccount && (
                               <button
                                 type="button"
                                 onClick={() => { setOpenMenuKey(null); setManageStaff(r.raw); }}
-                                className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-[12.5px] text-[#C4C9D6] transition-colors hover:bg-white/[0.06] hover:text-white"
+                                className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-start text-[12.5px] text-[#C4C9D6] transition-colors hover:bg-white/[0.06] hover:text-white"
                               >
-                                <KeyRound size={13} /> Manage Account
+                                <KeyRound size={13} /> {t("admin.manageAccount")}
                               </button>
                             )}
-                            {!canViewProfile && !canManageAccount && <p className="px-3 py-2 text-[11.5px] text-[#5C6479]">No actions available</p>}
+                            {!canViewProfile && !canManageAccount && <p className="px-3 py-2 text-[11.5px] text-[#5C6479]">{t("admin.noActionsAvailable")}</p>}
                           </div>
                         )}
                       </td>
@@ -463,10 +466,10 @@ export default function AdminPeoplePage() {
                 type="button"
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
                 disabled={currentPage === 1}
-                aria-label="Previous page"
+                aria-label={t("admin.previousPage")}
                 className="grid h-8 w-8 place-items-center rounded-lg border border-white/[0.07] text-[#8B93A8] transition-colors hover:bg-white/[0.06] hover:text-white disabled:opacity-30"
               >
-                <ChevronLeft size={14} />
+                <ChevronLeft size={14} className="rtl-flip" />
               </button>
               {Array.from({ length: totalPages }, (_, i) => i + 1)
                 .filter((p) => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 1)
@@ -495,10 +498,10 @@ export default function AdminPeoplePage() {
                 type="button"
                 onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                 disabled={currentPage === totalPages}
-                aria-label="Next page"
+                aria-label={t("admin.nextPage")}
                 className="grid h-8 w-8 place-items-center rounded-lg border border-white/[0.07] text-[#8B93A8] transition-colors hover:bg-white/[0.06] hover:text-white disabled:opacity-30"
               >
-                <ChevronRight size={14} />
+                <ChevronRight size={14} className="rtl-flip" />
               </button>
             </div>
           </div>
@@ -528,10 +531,10 @@ const fieldClass =
   "w-full rounded-lg bg-white/[0.04] border border-white/[0.06] px-3 py-3 text-base sm:text-sm text-white placeholder:text-[#4C5266] outline-none focus:border-[#F47A20]/50";
 
 const STAFF_ROLES = [
-  { value: "REGIONAL_MANAGER", label: "Regional Manager" },
-  { value: "SUPERVISOR", label: "Supervisor" },
-  { value: "OVERLOOKING_SUPERVISOR", label: "Overlooking Supervisor" },
-  { value: "ADMIN", label: "Admin" },
+  { value: "REGIONAL_MANAGER", label: "roles.regionalManager" },
+  { value: "SUPERVISOR", label: "roles.supervisor" },
+  { value: "OVERLOOKING_SUPERVISOR", label: "emp.overlookingSupervisor" },
+  { value: "ADMIN", label: "roles.admin" },
 ];
 
 // AddPersonModal — the real create-person workflow, in two real forms:
@@ -548,6 +551,7 @@ const STAFF_ROLES = [
 // just set) that is shown once and never retrievable again — matching
 // this app's "no plaintext password persistence" rule.
 function AddPersonModal({ markets, onClose, onCreated }) {
+  const { t } = useTranslation();
   const [kind, setKind] = useState("employee"); // "employee" | "staff"
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
@@ -567,9 +571,9 @@ function AddPersonModal({ markets, onClose, onCreated }) {
         marketId: empForm.marketId,
         shift: empForm.shift.trim() || undefined,
       });
-      setResult({ name: created.name, credentialLabel: "Employee ID", credentialValue: created.employeeCode, extra: `Temporary password: ${created.temporaryPassword}` });
+      setResult({ name: created.name, credentialLabel: t("settings.employeeId"), credentialValue: created.employeeCode, extra: `Temporary password: ${created.temporaryPassword}` });
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Could not create this employee.");
+      setError(err instanceof ApiError ? err.message : t("admin.couldNotCreateThisEmployee"));
     } finally {
       setSaving(false);
     }
@@ -587,9 +591,9 @@ function AddPersonModal({ markets, onClose, onCreated }) {
         role: staffForm.role,
         loginId: staffForm.loginId.trim() || undefined,
       });
-      setResult({ name: staffForm.name.trim(), credentialLabel: "Sign in with", credentialValue: staffForm.email.trim() });
+      setResult({ name: staffForm.name.trim(), credentialLabel: t("admin.signInWith"), credentialValue: staffForm.email.trim() });
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Could not create this account.");
+      setError(err instanceof ApiError ? err.message : t("admin.couldNotCreateThisAccount"));
     } finally {
       setSaving(false);
     }
@@ -597,21 +601,21 @@ function AddPersonModal({ markets, onClose, onCreated }) {
 
   if (result) {
     return (
-      <Modal open onClose={onCreated} title="Person Added">
+      <Modal open onClose={onCreated} title={t("admin.personAdded")}>
         <div className="space-y-3 text-center">
           <div className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-emerald-500/10 text-emerald-400 ring-1 ring-emerald-500/25">
             <Check size={22} />
           </div>
           <p className="text-sm text-white">
-            <span className="font-semibold">{result.name}</span> was created.
+            {t("admin.personWasCreated", { name: result.name })}
           </p>
-          <div className="rounded-xl border border-white/[0.08] bg-white/[0.03] p-3 text-left">
+          <div className="rounded-xl border border-white/[0.08] bg-white/[0.03] p-3 text-start">
             <p className="text-[11px] uppercase tracking-wide text-[#8B93A8]">{result.credentialLabel}</p>
             <p className="mt-0.5 font-mono text-[14px] text-white">{result.credentialValue}</p>
             {result.extra && <p className="mt-1.5 text-[11.5px] text-amber-400">{result.extra} — write this down, it cannot be shown again.</p>}
           </div>
           <button type="button" onClick={onCreated} className="w-full rounded-xl bg-[#F47A20] py-3 text-sm font-semibold text-white hover:bg-[#ff8b36] transition-colors">
-            Done
+            {t("common.done")}
           </button>
         </div>
       </Modal>
@@ -619,9 +623,9 @@ function AddPersonModal({ markets, onClose, onCreated }) {
   }
 
   return (
-    <Modal open onClose={onClose} title="Add Person">
+    <Modal open onClose={onClose} title={t("admin.addPerson")}>
       <div className="mb-4 flex gap-2">
-        {[{ key: "employee", label: "New Employee" }, { key: "staff", label: "New Staff Account" }].map((k) => (
+        {[{ key: "employee", label: t("admin.newEmployee") }, { key: "staff", label: t("admin.newStaffAccount") }].map((k) => (
           <button
             key={k.key}
             type="button"
@@ -630,22 +634,22 @@ function AddPersonModal({ markets, onClose, onCreated }) {
               kind === k.key ? "bg-[#F47A20] text-white" : "bg-white/[0.05] text-[#9AA1B4] hover:bg-white/[0.09]"
             }`}
           >
-            {k.label}
+            {t(k.label)}
           </button>
         ))}
       </div>
 
       {kind === "employee" ? (
         <form onSubmit={handleCreateEmployee} className="space-y-3">
-          <input value={empForm.name} onChange={(e) => setEmpForm((f) => ({ ...f, name: e.target.value }))} placeholder="Full name" required className={fieldClass} />
-          <input value={empForm.position} onChange={(e) => setEmpForm((f) => ({ ...f, position: e.target.value }))} placeholder="Position (e.g. Shelf Stocker)" required className={fieldClass} />
+          <input value={empForm.name} onChange={(e) => setEmpForm((f) => ({ ...f, name: e.target.value }))} placeholder={t("admin.fullName")} required className={fieldClass} />
+          <input value={empForm.position} onChange={(e) => setEmpForm((f) => ({ ...f, position: e.target.value }))} placeholder={t("admin.positionEGShelfStocker")} required className={fieldClass} />
           <select value={empForm.marketId} onChange={(e) => setEmpForm((f) => ({ ...f, marketId: e.target.value }))} required className={fieldClass}>
-            <option value="" disabled>Select a market</option>
+            <option value="" disabled>{t("admin.selectAMarket")}</option>
             {markets.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
           </select>
-          <input value={empForm.shift} onChange={(e) => setEmpForm((f) => ({ ...f, shift: e.target.value }))} placeholder="Shift (optional, e.g. Morning)" className={fieldClass} />
+          <input value={empForm.shift} onChange={(e) => setEmpForm((f) => ({ ...f, shift: e.target.value }))} placeholder={t("admin.shiftOptionalEGMorning")} className={fieldClass} />
           <p className="text-[11px] text-[#6B7284]">
-            Creates a Worker with a generated Employee ID and a one-time temporary password shown after creation.
+            {t("admin.createsAWorkerWithAGenerated")}
           </p>
           {error && <p className="text-xs text-red-400">{error}</p>}
           <button type="submit" disabled={saving} className="w-full flex items-center justify-center gap-1.5 rounded-xl py-3 text-sm font-semibold text-white bg-[#F47A20] hover:bg-[#ff8b36] disabled:bg-white/10 disabled:text-[#4C5266] transition-colors">
@@ -654,17 +658,17 @@ function AddPersonModal({ markets, onClose, onCreated }) {
         </form>
       ) : (
         <form onSubmit={handleCreateStaff} className="space-y-3">
-          <input value={staffForm.name} onChange={(e) => setStaffForm((f) => ({ ...f, name: e.target.value }))} placeholder="Full name" required className={fieldClass} />
-          <input type="email" value={staffForm.email} onChange={(e) => setStaffForm((f) => ({ ...f, email: e.target.value }))} placeholder="Email" autoCapitalize="none" required className={fieldClass} />
-          <input type="password" value={staffForm.password} onChange={(e) => setStaffForm((f) => ({ ...f, password: e.target.value }))} placeholder="Password (min 8 characters)" autoComplete="new-password" required minLength={8} className={fieldClass} />
+          <input value={staffForm.name} onChange={(e) => setStaffForm((f) => ({ ...f, name: e.target.value }))} placeholder={t("admin.fullName")} required className={fieldClass} />
+          <input type="email" value={staffForm.email} onChange={(e) => setStaffForm((f) => ({ ...f, email: e.target.value }))} placeholder={t("auth.email")} autoCapitalize="none" required className={fieldClass} />
+          <input type="password" value={staffForm.password} onChange={(e) => setStaffForm((f) => ({ ...f, password: e.target.value }))} placeholder={t("admin.passwordMin8Characters")} autoComplete="new-password" required minLength={8} className={fieldClass} />
           <select value={staffForm.role} onChange={(e) => setStaffForm((f) => ({ ...f, role: e.target.value }))} className={fieldClass}>
-            {STAFF_ROLES.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
+            {STAFF_ROLES.map((r) => <option key={r.value} value={r.value}>{t(r.label)}</option>)}
           </select>
           {(staffForm.role === "SUPERVISOR" || staffForm.role === "OVERLOOKING_SUPERVISOR") && (
-            <input value={staffForm.loginId} onChange={(e) => setStaffForm((f) => ({ ...f, loginId: e.target.value }))} placeholder="User ID (optional — can be set later)" autoCapitalize="none" className={fieldClass} />
+            <input value={staffForm.loginId} onChange={(e) => setStaffForm((f) => ({ ...f, loginId: e.target.value }))} placeholder={t("admin.userIdOptionalCanBeSet")} autoCapitalize="none" className={fieldClass} />
           )}
           <p className="text-[11px] text-[#6B7284]">
-            Market/zone assignment happens separately, from Zones & Markets or this account's own Manage Account panel.
+            {t("admin.marketZoneAssignmentHappensSeparatelyFrom")}
           </p>
           {error && <p className="text-xs text-red-400">{error}</p>}
           <button type="submit" disabled={saving} className="w-full flex items-center justify-center gap-1.5 rounded-xl py-3 text-sm font-semibold text-white bg-[#F47A20] hover:bg-[#ff8b36] disabled:bg-white/10 disabled:text-[#4C5266] transition-colors">

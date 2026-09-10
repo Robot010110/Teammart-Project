@@ -1,4 +1,5 @@
 import { ArrowLeft, CalendarDays } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 // AttendanceHeader.jsx — the Attendance page header, in the two forms
 // the references show.
@@ -13,6 +14,7 @@ import { ArrowLeft, CalendarDays } from "lucide-react";
 // The calendar button is not decorative: it jumps to the month grid,
 // which is the one thing a person opening this header icon would want.
 export default function AttendanceHeader({ onBack, onJumpToCalendar }) {
+  const { t } = useTranslation();
   return (
     <header className="mb-4">
       {/* Desktop — back link above a large title. */}
@@ -20,11 +22,11 @@ export default function AttendanceHeader({ onBack, onJumpToCalendar }) {
         <button
           type="button"
           onClick={onBack}
-          className="text-[13px] text-[#9AA1B4] hover:text-white transition-colors -ml-1 px-1 py-1"
+          className="text-[13px] text-[#9AA1B4] hover:text-white transition-colors -ms-1 px-1 py-1"
         >
-          ← Back to Profile
+          {t("emp.backToProfile2")}
         </button>
-        <h1 className="mt-2 font-display text-[26px] font-extrabold text-white">Attendance</h1>
+        <h1 className="mt-2 font-display text-[26px] font-extrabold text-white">{t("emp.attendance")}</h1>
       </div>
 
       {/* Mobile — centred title flanked by the two controls. */}
@@ -32,18 +34,18 @@ export default function AttendanceHeader({ onBack, onJumpToCalendar }) {
         <button
           type="button"
           onClick={onBack}
-          aria-label="Back to Profile"
+          aria-label={t("emp.backToProfile")}
           className="shrink-0 w-10 h-10 grid place-items-center rounded-xl text-white hover:bg-white/[0.06] active:scale-95 transition-all"
         >
-          <ArrowLeft size={20} />
+          <ArrowLeft size={20} className="rtl-flip" />
         </button>
 
-        <h1 className="font-display text-[19px] font-bold text-white text-center">Attendance</h1>
+        <h1 className="font-display text-[19px] font-bold text-white text-center">{t("emp.attendance")}</h1>
 
         <button
           type="button"
           onClick={onJumpToCalendar}
-          aria-label="Go to calendar"
+          aria-label={t("emp.goToCalendar")}
           className="shrink-0 w-10 h-10 grid place-items-center rounded-xl text-white bg-white/[0.03] border border-white/[0.08] hover:bg-white/[0.07] active:scale-95 transition-all"
         >
           <CalendarDays size={18} />

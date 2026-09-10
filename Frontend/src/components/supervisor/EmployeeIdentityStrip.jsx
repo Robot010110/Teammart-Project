@@ -1,10 +1,11 @@
+import { useTranslation } from "react-i18next";
 import { HardHat, Wallet, Beef, ShieldCheck, Store, Clock3 } from "lucide-react";
 import { initialsOf } from "../../utils/initials";
 
 const ROLE_META = {
-  WORKER: { label: "Worker", icon: HardHat, tone: "text-[#7EA6FF] bg-[#7EA6FF]/10 ring-[#7EA6FF]/20" },
-  CASHIER: { label: "Cashier", icon: Wallet, tone: "text-[#C08BFF] bg-[#C08BFF]/10 ring-[#C08BFF]/20" },
-  BUTCHER: { label: "Butcher", icon: Beef, tone: "text-amber-400 bg-amber-500/10 ring-amber-500/20" },
+  WORKER: { label: "roles.worker", icon: HardHat, tone: "text-[#7EA6FF] bg-[#7EA6FF]/10 ring-[#7EA6FF]/20" },
+  CASHIER: { label: "roles.cashier", icon: Wallet, tone: "text-[#C08BFF] bg-[#C08BFF]/10 ring-[#C08BFF]/20" },
+  BUTCHER: { label: "sup.butcher", icon: Beef, tone: "text-amber-400 bg-amber-500/10 ring-amber-500/20" },
 };
 
 // EmployeeIdentityStrip.jsx — the same compact employee identity row
@@ -14,6 +15,7 @@ const ROLE_META = {
 // visually identical instead of drifting — first built for the
 // Attendance redesign, now shared rather than copy-pasted again.
 export default function EmployeeIdentityStrip({ employee, marketName }) {
+  const { t } = useTranslation();
   if (!employee) return null;
   const roleMeta = ROLE_META[employee.role];
   const RoleIcon = roleMeta?.icon ?? ShieldCheck;
@@ -29,7 +31,7 @@ export default function EmployeeIdentityStrip({ employee, marketName }) {
           <h1 className="font-display text-[16px] font-bold text-white truncate">{employee.name}</h1>
           {employee.employmentStatus === "ACTIVE" && (
             <span className="shrink-0 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold text-emerald-400 bg-emerald-500/10 ring-1 ring-inset ring-emerald-500/25">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_1px_rgba(52,211,153,0.8)]" /> Active
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_1px_rgba(52,211,153,0.8)]" /> {t("status.active")}
             </span>
           )}
         </div>
@@ -37,7 +39,7 @@ export default function EmployeeIdentityStrip({ employee, marketName }) {
           {employee.employeeCode && <span className="tabular-nums">{employee.employeeCode}</span>}
           {roleMeta && (
             <span className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 ring-1 ring-inset ${roleMeta.tone}`}>
-              <RoleIcon size={10} /> {roleMeta.label}
+              <RoleIcon size={10} /> {t(roleMeta.label)}
             </span>
           )}
           {marketName && <span className="flex items-center gap-1"><Store size={11} /> {marketName}</span>}

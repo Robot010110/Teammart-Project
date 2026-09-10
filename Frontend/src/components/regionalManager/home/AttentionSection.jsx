@@ -1,12 +1,13 @@
 import { AlertTriangle, ChevronRight, ShieldCheck } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
-function timeAgo(iso) {
+function timeAgo(iso, t) {
   const minutes = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
-  if (minutes < 1) return "Just now";
-  if (minutes < 60) return `${minutes}m ago`;
+  if (minutes < 1) return t("sup.justNow");
+  if (minutes < 60) return t("common.minutesAgo", { count: minutes });
   const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  return `${Math.floor(hours / 24)}d ago`;
+  if (hours < 24) return t("common.hoursAgo", { count: hours });
+  return t("common.daysAgo", { count: Math.floor(hours / 24) });
 }
 
 // AttentionSection.jsx — only what actually needs the Regional Manager
@@ -15,6 +16,7 @@ function timeAgo(iso) {
 // records the full Reports view acts on — not a separate alert system,
 // and not every warning in the app dumped onto Home.
 export default function AttentionSection({ problems, onViewAll, onOpen, loading }) {
+  const { t } = useTranslation();
   const items = (problems ?? []).slice(0, 2);
 
   return (
@@ -22,7 +24,7 @@ export default function AttentionSection({ problems, onViewAll, onOpen, loading 
       <div className="mb-2 flex items-center justify-between">
         <h2 className="flex items-center gap-2 text-[14px] font-semibold text-white">
           <span className="h-3.5 w-[3px] rounded-full bg-[#F47A20] shadow-[0_0_8px_rgba(244,122,32,0.8)]" />
-          Attention
+          {t("rm.attention")}
         </h2>
         {(problems?.length ?? 0) > 0 && (
           <button
@@ -30,7 +32,7 @@ export default function AttentionSection({ problems, onViewAll, onOpen, loading 
             onClick={onViewAll}
             className="flex items-center gap-0.5 text-[11.5px] font-medium text-[#F47A20] transition-colors hover:text-[#ff9a4d]"
           >
-            View All <ChevronRight size={13} />
+            {t("common.viewAll")} <ChevronRight size={13} className="rtl-flip" />
           </button>
         )}
       </div>
@@ -43,8 +45,8 @@ export default function AttentionSection({ problems, onViewAll, onOpen, loading 
             <ShieldCheck size={15} />
           </span>
           <div className="min-w-0">
-            <p className="text-[13px] font-semibold text-white">Nothing needs attention</p>
-            <p className="text-[11.5px] text-[#8B93A8]">No open reports across your markets</p>
+            <p className="text-[13px] font-semibold text-white">{t("rm.nothingNeedsAttention")}</p>
+            <p className="text-[11.5px] text-[#8B93A8]">{t("rm.noOpenReportsAcrossYourMarkets")}</p>
           </div>
         </div>
       ) : (
@@ -54,7 +56,7 @@ export default function AttentionSection({ problems, onViewAll, onOpen, loading 
               key={p.id}
               type="button"
               onClick={onOpen}
-              className="flex w-full items-center gap-2.5 rounded-2xl border border-red-500/15 bg-red-500/[0.05] px-3.5 py-3 text-left transition-colors hover:border-red-500/30"
+              className="flex w-full items-center gap-2.5 rounded-2xl border border-red-500/15 bg-red-500/[0.05] px-3.5 py-3 text-start transition-colors hover:border-red-500/30"
             >
               <span className="grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-red-500/10 text-red-400">
                 <AlertTriangle size={15} />
@@ -68,10 +70,10 @@ export default function AttentionSection({ problems, onViewAll, onOpen, loading 
                   {p.market?.name ? `${p.market.name} — ` : ""}
                   {p.problemType}
                 </p>
-                <p className="truncate text-[11.5px] text-[#9AA1B4]">{p.location || p.description || "Open report"}</p>
+                <p className="truncate text-[11.5px] text-[#9AA1B4]">{p.location || p.description || t("rm.openReport")}</p>
               </div>
-              <span className="shrink-0 text-[10.5px] text-[#5C6479]">{timeAgo(p.createdAt)}</span>
-              <ChevronRight size={14} className="shrink-0 text-[#4C5266]" />
+              <span className="shrink-0 text-[10.5px] text-[#5C6479]">{timeAgo(p.createdAt, t)}</span>
+              <ChevronRight size={14} className="shrink-0 text-[#4C5266] rtl-flip" />
             </button>
           ))}
         </div>

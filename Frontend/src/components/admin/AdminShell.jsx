@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Outlet, useLocation } from "react-router-dom";
 import { Menu } from "lucide-react";
 import AdminSidebar, { ADMIN_NAV, isNavActive } from "./AdminSidebar";
@@ -17,6 +18,7 @@ import NotificationBell from "../employee/NotificationBell";
 // The ambient glow layer matches the rest of the app's environment (see
 // AppShell.jsx) so Admin still reads as the same product.
 export default function AdminShell({ session }) {
+  const { t } = useTranslation();
   const location = useLocation();
   const [drawerOpen, setDrawerOpen] = useState(false);
 
@@ -31,24 +33,24 @@ export default function AdminShell({ session }) {
   return (
     <div className="relative min-h-screen bg-[#050A18]">
       <div className="pointer-events-none fixed inset-0 overflow-hidden" aria-hidden="true">
-        <div className="absolute -top-24 right-1/4 h-80 w-80 rounded-full bg-[#F47A20]/[0.06] blur-3xl animate-ambient-drift" />
-        <div className="absolute bottom-0 left-1/3 h-80 w-80 rounded-full bg-[#1D2D5C]/40 blur-3xl animate-ambient-drift" style={{ animationDelay: "-4.5s" }} />
+        <div className="absolute -top-24 end-1/4 h-80 w-80 rounded-full bg-[#F47A20]/[0.06] blur-3xl animate-ambient-drift" />
+        <div className="absolute bottom-0 start-1/3 h-80 w-80 rounded-full bg-[#1D2D5C]/40 blur-3xl animate-ambient-drift" style={{ animationDelay: "-4.5s" }} />
       </div>
 
       <AdminSidebar session={session} pathname={location.pathname} open={drawerOpen} onClose={() => setDrawerOpen(false)} />
 
-      <div className="relative lg:pl-[248px]">
+      <div className="relative lg:ps-[248px]">
         <header className="sticky top-0 z-30 flex h-14 items-center justify-between gap-3 border-b border-white/[0.05] bg-[#050A18]/85 px-4 backdrop-blur-xl sm:px-6">
           <div className="flex min-w-0 items-center gap-3">
             <button
               type="button"
               onClick={() => setDrawerOpen(true)}
-              aria-label="Open navigation"
+              aria-label={t("admin.openNavigation")}
               className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-white/[0.07] bg-white/[0.04] text-[#C4C9D6] transition-colors hover:text-white lg:hidden"
             >
               <Menu size={17} />
             </button>
-            <h1 className="truncate font-display text-[16px] font-semibold text-white">{current?.label ?? "Admin"}</h1>
+            <h1 className="truncate font-display text-[16px] font-semibold text-white">{current?.label ? t(current.label) : t("roles.admin")}</h1>
           </div>
           <NotificationBell basePath="/admin" />
         </header>

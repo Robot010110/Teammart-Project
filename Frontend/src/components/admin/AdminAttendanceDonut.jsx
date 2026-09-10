@@ -1,4 +1,5 @@
 import { useEffect, useId, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { ChevronRight } from "lucide-react";
 
 // The real states listCompanyAttendance reports (see
@@ -7,13 +8,14 @@ import { ChevronRight } from "lucide-react";
 // "on break" and "checked out" from "never checked in", and collapsing
 // them would misreport who is actually in a store right now.
 const SLICES = [
-  { key: "working", label: "Working", color: "#22C08A" },
-  { key: "onBreak", label: "On Break", color: "#F5B23D" },
-  { key: "checkedOut", label: "Checked Out", color: "#7EA6FF" },
-  { key: "missing", label: "Not Checked In", color: "#E05561" },
+  { key: "working", label: "admin.working", color: "#22C08A" },
+  { key: "onBreak", label: "emp.onBreak", color: "#F5B23D" },
+  { key: "checkedOut", label: "emp.checkedOut", color: "#7EA6FF" },
+  { key: "missing", label: "emp.notCheckedIn", color: "#E05561" },
 ];
 
 export default function AdminAttendanceDonut({ summary, loading, onOpenAttendance }) {
+  const { t } = useTranslation();
   const uid = useId();
   const [drawn, setDrawn] = useState(false);
 
@@ -51,14 +53,14 @@ export default function AdminAttendanceDonut({ summary, loading, onOpenAttendanc
       <div className="flex items-center justify-between gap-3">
         <h2 className="flex items-center gap-2 text-[14px] font-semibold text-white">
           <span className="h-3.5 w-[3px] rounded-full bg-[#F47A20] shadow-[0_0_8px_rgba(244,122,32,0.8)]" />
-          Today's Attendance
+          {t("admin.todaySAttendance")}
         </h2>
         <button
           type="button"
           onClick={onOpenAttendance}
           className="flex shrink-0 items-center gap-0.5 text-[11.5px] font-medium text-[#F47A20] transition-colors hover:text-[#ff9a4d]"
         >
-          View Details <ChevronRight size={13} />
+          {t("rm.viewDetails")} <ChevronRight size={13} className="rtl-flip" />
         </button>
       </div>
 
@@ -71,7 +73,7 @@ export default function AdminAttendanceDonut({ summary, loading, onOpenAttendanc
         </div>
       ) : (
         <div className="mt-4 flex flex-col items-center gap-5 sm:flex-row">
-          <div className="relative shrink-0" style={{ width: size, height: size }} role="img" aria-label={rate == null ? "No attendance recorded today" : `${Math.round(rate)} percent on shift`}>
+          <div className="relative shrink-0" style={{ width: size, height: size }} role="img" aria-label={rate == null ? t("admin.noAttendanceRecordedToday") : `${Math.round(rate)} percent on shift`}>
             <svg width={size} height={size} className="-rotate-90">
               <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth={stroke} />
               {total > 0 &&
@@ -94,7 +96,7 @@ export default function AdminAttendanceDonut({ summary, loading, onOpenAttendanc
               <span className="font-display text-[26px] font-extrabold tabular-nums text-white">
                 {rate == null ? "—" : `${Math.round(rate)}%`}
               </span>
-              <span className="text-[10.5px] text-[#8B93A8]">On shift</span>
+              <span className="text-[10.5px] text-[#8B93A8]">{t("admin.onShift")}</span>
             </div>
           </div>
 
@@ -102,16 +104,16 @@ export default function AdminAttendanceDonut({ summary, loading, onOpenAttendanc
             {arcs.map((a) => (
               <div key={a.key} className="flex items-center gap-2.5">
                 <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: a.color }} />
-                <span className="min-w-0 flex-1 truncate text-[12.5px] text-[#9AA1B4]">{a.label}</span>
+                <span className="min-w-0 flex-1 truncate text-[12.5px] text-[#9AA1B4]">{t(a.label)}</span>
                 <span className="shrink-0 text-[13px] font-semibold tabular-nums text-white">{a.value}</span>
               </div>
             ))}
             <div className="!mt-3 flex items-center justify-between border-t border-white/[0.06] pt-2.5">
-              <span className="text-[11.5px] text-[#5C6479]">Tracked today</span>
+              <span className="text-[11.5px] text-[#5C6479]">{t("admin.trackedToday")}</span>
               <span className="text-[12.5px] font-semibold tabular-nums text-[#C4C9D6]">{total}</span>
             </div>
             {(summary?.late ?? 0) > 0 && (
-              <p className="text-[11px] text-amber-400">{summary.late} marked late today</p>
+              <p className="text-[11px] text-amber-400">{t("rm.markedLateToday", { count: summary.late })}</p>
             )}
           </div>
         </div>

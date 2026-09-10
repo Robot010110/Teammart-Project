@@ -101,6 +101,31 @@ const OWNER_RESOLVERS = [
     if (!r) return null;
     return { rule: "employeeOwned", employeeId: r.employeeId, marketId: r.marketId };
   },
+  // Koch product catalog photo (KochProduct.imageUrl) — admin-set
+  // artwork for the Cashier's product picker, same "any authenticated
+  // account" rule as an identity photo (employeeProfilePicture above):
+  // it's catalog display art, not restricted evidence, and every
+  // Cashier at every market needs to be able to see it, not just
+  // whichever admin happened to upload it (see uploaderFallback below —
+  // without this resolver a product photo would silently 403 for
+  // everyone except its uploader).
+  async function kochProductPhoto(filename) {
+    const p = await prisma.kochProduct.findFirst({ where: { imageUrl: { contains: filename } }, select: { id: true } });
+    return p ? { rule: "profilePicture" } : null;
+  },
+  // Koch Operation evidence — Worker's work photo, or a Cashier's receipt
+  // photo. Same single-photo, employee-owned pattern as the reports
+  // above; the image is also embedded in the auto-posted Koch Operation
+  // chat message (see messageAttachment below), so a market's staff can
+  // reach it that way too via the "conversation" rule.
+  async function kochOperationEvidence(filename) {
+    const r = await prisma.kochOperation.findFirst({
+      where: { evidenceUrl: { contains: filename } },
+      select: { employeeId: true, marketId: true },
+    });
+    if (!r) return null;
+    return { rule: "employeeOwned", employeeId: r.employeeId, marketId: r.marketId };
+  },
   // Legacy Task before/after photos (Task has no frontend caller today,
   // but the fields exist and could hold data — see the model's own
   // comment in schema.prisma).

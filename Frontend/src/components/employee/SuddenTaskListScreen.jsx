@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { ArrowUpDown } from "lucide-react";
 import ErrorBanner from "../common/ErrorBanner";
@@ -10,14 +11,14 @@ import { listSuddenTasks } from "../../services/suddenTaskService";
 import { useAsync } from "../../hooks/useAsync";
 
 const TABS = [
-  { key: "active", label: "Active" },
-  { key: "completed", label: "Completed" },
+  { key: "active", label: "emp.active" },
+  { key: "completed", label: "emp.completed" },
 ];
 const SORTS = [
-  { key: "priority", label: "Priority" },
-  { key: "dueSoon", label: "Due Soon" },
-  { key: "newest", label: "Newest" },
-  { key: "oldest", label: "Oldest" },
+  { key: "priority", label: "emp.priority" },
+  { key: "dueSoon", label: "emp.dueSoon" },
+  { key: "newest", label: "emp.newest" },
+  { key: "oldest", label: "emp.oldest" },
 ];
 const PRIORITY_RANK = { URGENT: 0, HIGH: 1, NORMAL: 2 };
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -50,8 +51,9 @@ function sortTasks(tasks, sort) {
 // EmployeeWorkspace.jsx/CashierWorkspace.jsx and
 // SuddenTaskDetailRoute.jsx for the other half of this flow.
 export default function SuddenTaskListScreen({ basePath }) {
+  const { t } = useTranslation();
   const { data: tasks, error, loading, reload } = useAsync(listSuddenTasks, {
-    fallbackError: "Could not load your tasks.",
+    fallbackError: t("emp.couldNotLoadYourTasks"),
   });
   const [tab, setTab] = useState("active");
   const [sort, setSort] = useState("newest");
@@ -69,8 +71,8 @@ export default function SuddenTaskListScreen({ basePath }) {
   return (
     <div className="px-4 sm:px-6 py-6 max-w-4xl mx-auto animate-fade-up">
       <div className="mb-4">
-        <h1 className="text-2xl font-bold text-white">My Tasks</h1>
-        <p className="text-sm text-[#8B93A8] mt-0.5">Stay focused. Complete what matters.</p>
+        <h1 className="text-2xl font-bold text-white">{t("emp.myTasks")}</h1>
+        <p className="text-sm text-[#8B93A8] mt-0.5">{t("emp.stayFocusedCompleteWhatMatters")}</p>
       </div>
 
       {loading ? (
@@ -80,23 +82,23 @@ export default function SuddenTaskListScreen({ basePath }) {
       ) : (
         <>
           <div className="flex items-center gap-1 mb-4 rounded-xl bg-white/[0.04] p-1">
-            {TABS.map((t) => {
-              const count = t.key === "active" ? activeTasks.length : completedTasks.length;
-              const selected = tab === t.key;
+            {TABS.map((tab_) => {
+              const count = tab_.key === "active" ? activeTasks.length : completedTasks.length;
+              const selected = tab === tab_.key;
               return (
                 <button
-                  key={t.key}
+                  key={tab_.key}
                   type="button"
-                  onClick={() => setTab(t.key)}
+                  onClick={() => setTab(tab_.key)}
                   className={`flex-1 rounded-lg px-3 py-2 text-xs font-semibold transition-colors duration-150 ${
                     selected
-                      ? t.key === "completed"
+                      ? tab_.key === "completed"
                         ? "bg-emerald-500/15 text-emerald-400"
                         : "bg-[#F47A20] text-white"
                       : "text-[#9AA1B4] hover:text-white"
                   }`}
                 >
-                  {t.label} ({count})
+                  {t(tab_.label)} ({count})
                 </button>
               );
             })}
@@ -113,18 +115,18 @@ export default function SuddenTaskListScreen({ basePath }) {
                 onClick={() => setSortOpen((v) => !v)}
                 className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11px] font-semibold text-[#9AA1B4] bg-white/[0.04] hover:text-white"
               >
-                <ArrowUpDown size={12} /> {SORTS.find((s) => s.key === sort)?.label}
+                <ArrowUpDown size={12} /> {t(SORTS.find((s) => s.key === sort)?.label ?? "")}
               </button>
               {sortOpen && (
-                <div className="absolute top-9 right-0 z-10 w-36 rounded-xl bg-[#1F2436] border border-white/10 shadow-xl overflow-hidden">
+                <div className="absolute top-9 end-0 z-10 w-36 rounded-xl bg-[#1F2436] border border-white/10 shadow-xl overflow-hidden">
                   {SORTS.map((s) => (
                     <button
                       key={s.key}
                       type="button"
                       onClick={() => { setSort(s.key); setSortOpen(false); }}
-                      className={`w-full text-left px-3.5 py-2.5 text-xs ${sort === s.key ? "text-[#F47A20] font-semibold" : "text-white"} hover:bg-white/[0.06]`}
+                      className={`w-full text-start px-3.5 py-2.5 text-xs ${sort === s.key ? "text-[#F47A20] font-semibold" : "text-white"} hover:bg-white/[0.06]`}
                     >
-                      {s.label}
+                      {t(s.label)}
                     </button>
                   ))}
                 </div>

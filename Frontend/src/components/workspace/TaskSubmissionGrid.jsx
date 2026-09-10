@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import {
   Sparkles, Palette, ClipboardList, Tag, PackagePlus,
 } from "lucide-react";
@@ -15,6 +16,7 @@ const ICONS = {
 };
 
 export default function TaskSubmissionGrid({ options, onSelect }) {
+  const { t } = useTranslation();
   return (
     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
       {options.map((option, i) => {
@@ -31,7 +33,7 @@ export default function TaskSubmissionGrid({ options, onSelect }) {
             <div className="h-10 w-10 rounded-lg bg-[#F47A20]/10 grid place-items-center">
               <Icon size={18} className="text-[#F47A20]" />
             </div>
-            <span className="text-xs font-medium text-white leading-tight">{option.label}</span>
+            <span className="text-xs font-medium text-white leading-tight">{t(option.label)}</span>
           </button>
         );
       })}

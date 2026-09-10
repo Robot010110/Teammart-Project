@@ -1,4 +1,5 @@
 import { ArrowLeft, Timer } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { categoryVisual } from "../../utils/suddenTaskVisuals";
 import ErrorBanner from "../common/ErrorBanner";
 import { SkeletonCard } from "../common/SkeletonCard";
@@ -26,6 +27,7 @@ function durationLabel(ms) {
 // (startedAt/completedAt), scoped to today, rather than inventing an
 // attendance-day join that doesn't exist.
 export default function TodayWorkLogScreen({ onBack }) {
+  const { t } = useTranslation();
   const { data: tasks, error, loading, reload } = useAsync(listSuddenTasks, { deps: [] });
 
   const todaysWork = (tasks ?? [])
@@ -40,13 +42,13 @@ export default function TodayWorkLogScreen({ onBack }) {
 
   return (
     <div className="px-4 sm:px-6 py-6 max-w-4xl mx-auto animate-fade-up">
-      <button type="button" onClick={onBack} className="flex items-center gap-1.5 text-sm text-[#9AA1B4] hover:text-white mb-4 -ml-1 py-1.5 px-1">
-        <ArrowLeft size={16} /> Back to Home
+      <button type="button" onClick={onBack} className="flex items-center gap-1.5 text-sm text-[#9AA1B4] hover:text-white mb-4 -ms-1 py-1.5 px-1">
+        <ArrowLeft size={16} className="rtl-flip" /> {t("emp.backToHome")}
       </button>
 
       <div className="mb-5">
-        <h1 className="text-xl font-bold text-white">Today's Work</h1>
-        <p className="text-sm text-[#8B93A8] mt-0.5">What you did today, and how long it took.</p>
+        <h1 className="text-xl font-bold text-white">{t("emp.todaysWork")}</h1>
+        <p className="text-sm text-[#8B93A8] mt-0.5">{t("emp.whatYouDidTodayAndHow")}</p>
       </div>
 
       {loading ? (
@@ -61,32 +63,32 @@ export default function TodayWorkLogScreen({ onBack }) {
             </span>
             <div>
               <p className="text-lg font-bold text-white leading-none">{durationLabel(totalMs)}</p>
-              <p className="text-xs text-[#8B93A8] mt-1">Total time on tasks today</p>
+              <p className="text-xs text-[#8B93A8] mt-1">{t("emp.totalTimeOnTasksToday")}</p>
             </div>
           </div>
 
           {todaysWork.length === 0 ? (
-            <p className="text-sm text-[#4C5266] text-center py-10">No task activity yet today.</p>
+            <p className="text-sm text-[#4C5266] text-center py-10">{t("emp.noTaskActivityYetToday")}</p>
           ) : (
             <div className="space-y-2.5">
-              {todaysWork.map((t) => {
-                const visual = categoryVisual(t.category);
+              {todaysWork.map((task) => {
+                const visual = categoryVisual(task.category);
                 const Icon = visual.icon;
-                const inProgress = t.status === "IN_PROGRESS";
-                const durationMs = t.startedAt
-                  ? (t.completedAt ? new Date(t.completedAt).getTime() : Date.now()) - new Date(t.startedAt).getTime()
+                const inProgress = task.status === "IN_PROGRESS";
+                const durationMs = task.startedAt
+                  ? (task.completedAt ? new Date(task.completedAt).getTime() : Date.now()) - new Date(task.startedAt).getTime()
                   : null;
                 return (
-                  <div key={t.id} className="rounded-xl p-3.5 bg-[#1A1F33]/70 border border-white/[0.06]">
+                  <div key={task.id} className="rounded-xl p-3.5 bg-[#1A1F33]/70 border border-white/[0.06]">
                     <div className="flex items-start gap-3">
                       <span className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${visual.bg} ${visual.tone} ${visual.glow}`}>
                         <Icon size={16} />
                       </span>
                       <div className="min-w-0 flex-1">
-                        <p className="text-sm font-medium text-white truncate">{t.title}</p>
+                        <p className="text-sm font-medium text-white truncate">{task.title}</p>
                         <p className="text-xs text-[#8B93A8] mt-0.5">
-                          {t.startedAt ? `Started ${timeLabel(t.startedAt)}` : `Assigned ${timeLabel(t.assignedAt)}`}
-                          {t.completedAt ? ` · Completed ${timeLabel(t.completedAt)}` : inProgress ? " · In progress" : ""}
+                          {task.startedAt ? t("emp.startedAt", { time: timeLabel(task.startedAt) }) : t("emp.assignedAt", { time: timeLabel(task.assignedAt) })}
+                          {task.completedAt ? ` · ${t("emp.completedAtInline", { time: timeLabel(task.completedAt) })}` : inProgress ? ` · ${t("emp.inProgressDot")}` : ""}
                         </p>
                       </div>
                       {durationMs != null && (

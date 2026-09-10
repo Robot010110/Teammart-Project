@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Search, TrendingUp, TrendingDown, Minus } from "lucide-react";
 import Breadcrumb from "../components/layout/Breadcrumb";
 import ErrorBanner from "../components/common/ErrorBanner";
@@ -30,6 +31,7 @@ function ChangeBadge({ pct }) {
 }
 
 function MarketSalesCard({ market, currency }) {
+  const { t } = useTranslation();
   return (
     <div className="rounded-2xl p-4 bg-[#171C2E]/80 border border-white/[0.06]">
       <div className="flex items-center justify-between gap-2">
@@ -38,11 +40,11 @@ function MarketSalesCard({ market, currency }) {
       </div>
       <div className="mt-3 grid grid-cols-2 gap-3">
         <div>
-          <p className="text-[11px] uppercase tracking-wide text-[#8B93A8]">Today</p>
+          <p className="text-[11px] uppercase tracking-wide text-[#8B93A8]">{t("common.today")}</p>
           <p className="mt-0.5 text-lg font-display font-bold text-white">{formatCurrency(market.today, currency)}</p>
         </div>
         <div>
-          <p className="text-[11px] uppercase tracking-wide text-[#8B93A8]">Yesterday</p>
+          <p className="text-[11px] uppercase tracking-wide text-[#8B93A8]">{t("common.yesterday")}</p>
           <p className="mt-0.5 text-lg font-display font-bold text-[#9AA1B4]">{formatCurrency(market.yesterday, currency)}</p>
         </div>
       </div>
@@ -57,6 +59,7 @@ function MarketSalesCard({ market, currency }) {
 // returns the full per-market breakdown — see that controller's own
 // comment), never a second fetch of raw reports re-aggregated here.
 export default function RmAllMarketsSalesPage({ onBack }) {
+  const { t } = useTranslation();
   const [query, setQuery] = useState("");
   const [currency, setCurrency] = useState("USD");
   const { data, error, loading, reload } = useAsync(() => getZoneSalesSummary({ date: todayIso(), days: 2 }), { deps: [] });
@@ -70,10 +73,10 @@ export default function RmAllMarketsSalesPage({ onBack }) {
 
   return (
     <div className="px-4 sm:px-6 py-6 max-w-2xl mx-auto animate-fade-up pb-10">
-      <Breadcrumb items={[{ label: "Market Activities", onClick: onBack }, { label: "All Markets" }]} />
+      <Breadcrumb items={[{ label: t("rm.marketActivities"), onClick: onBack }, { label: t("rm.allMarkets") }]} />
 
       <div className="mt-4 flex items-center justify-between gap-3">
-        <h1 className="text-xl font-bold text-white">All Markets — Sales</h1>
+        <h1 className="text-xl font-bold text-white">{t("rm.allMarketsSales")}</h1>
         <select
           value={currency}
           onChange={(e) => setCurrency(e.target.value)}
@@ -86,13 +89,13 @@ export default function RmAllMarketsSalesPage({ onBack }) {
       </div>
 
       <div className="relative mt-4">
-        <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#4C5266]" />
+        <Search size={15} className="absolute start-3.5 top-1/2 -translate-y-1/2 text-[#4C5266]" />
         <input
           type="text"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search markets..."
-          className="w-full rounded-xl bg-white/[0.04] border border-white/[0.06] pl-10 pr-3 py-2.5 text-sm text-white placeholder:text-[#4C5266] outline-none focus:border-[#F47A20]/50"
+          placeholder={t("rm.searchMarkets2")}
+          className="w-full rounded-xl bg-white/[0.04] border border-white/[0.06] ps-10 pe-3 py-2.5 text-sm text-white placeholder:text-[#4C5266] outline-none focus:border-[#F47A20]/50"
         />
       </div>
 
@@ -103,7 +106,7 @@ export default function RmAllMarketsSalesPage({ onBack }) {
           <ErrorBanner message={error} onRetry={reload} />
         ) : filtered.length === 0 ? (
           <div className="rounded-2xl p-10 bg-[#171C2E]/80 border border-white/[0.06] text-center text-sm text-[#8B93A8]">
-            {query ? "No markets match your search." : "No markets are assigned to you yet."}
+            {query ? t("rm.noMarketsMatchYourSearch") : t("rm.noMarketsAreAssignedToYou")}
           </div>
         ) : (
           filtered.map((m) => <MarketSalesCard key={m.marketId} market={m} currency={currency} />)

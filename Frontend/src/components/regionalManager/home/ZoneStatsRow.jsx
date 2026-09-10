@@ -1,4 +1,5 @@
 import { Users, UserCog, Store } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 const TONE = {
   employees: "text-[#7EA6FF] bg-[#7EA6FF]/10",
@@ -11,7 +12,7 @@ function StatCard({ tone, icon: Icon, label, value, onClick, loading }) {
     <button
       type="button"
       onClick={onClick}
-      className="rounded-2xl border border-white/[0.07] bg-[#111A2D]/80 px-2.5 py-3 text-left backdrop-blur-xl transition-all duration-200 hover:border-white/[0.14] active:scale-[0.98]"
+      className="rounded-2xl border border-white/[0.07] bg-[#111A2D]/80 px-2.5 py-3 text-start backdrop-blur-xl transition-all duration-200 hover:border-white/[0.14] active:scale-[0.98]"
     >
       <span className={`grid h-7 w-7 place-items-center rounded-lg ${TONE[tone]}`}>
         <Icon size={14} />
@@ -31,12 +32,13 @@ function StatCard({ tone, icon: Icon, label, value, onClick, loading }) {
 //   Supervisors distinct assigned supervisor/overlooking names
 //   Markets     the zone's real market count
 export default function ZoneStatsRow({ employees, supervisors, markets, basePath, navigate, loading }) {
+  const { t } = useTranslation();
   return (
     <div className="grid grid-cols-3 gap-2.5">
       <StatCard
         tone="employees"
         icon={Users}
-        label="Employees"
+        label={t("sup.employees")}
         value={employees}
         loading={loading}
         onClick={() => navigate(`${basePath}/employees`)}
@@ -44,7 +46,7 @@ export default function ZoneStatsRow({ employees, supervisors, markets, basePath
       <StatCard
         tone="supervisors"
         icon={UserCog}
-        label="Supervisors"
+        label={t("rm.supervisors")}
         value={supervisors}
         loading={loading}
         onClick={() => navigate(`${basePath}/markets`)}
@@ -52,7 +54,7 @@ export default function ZoneStatsRow({ employees, supervisors, markets, basePath
       <StatCard
         tone="markets"
         icon={Store}
-        label="Markets"
+        label={t("rm.markets")}
         value={markets}
         loading={loading}
         onClick={() => navigate(`${basePath}/markets`)}

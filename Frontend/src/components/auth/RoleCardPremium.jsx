@@ -1,4 +1,5 @@
 import { ArrowRight, Crown, ShieldCheck, ClipboardList, UserCircle2 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 // RoleCardPremium.jsx — Stage 1's four role cards. Same icon choices
 // RoleCard.jsx already established (kept for continuity — this isn't a
@@ -71,6 +72,7 @@ const THEME = {
 // decorative fake: the card visibly lights up and THEN the app
 // navigates, rather than an instant hard cut.
 export default function RoleCardPremium({ role, onSelect, index = 0, pending }) {
+  const { t } = useTranslation();
   const Icon = ICONS[role.key];
   const theme = THEME[role.key];
 
@@ -79,13 +81,13 @@ export default function RoleCardPremium({ role, onSelect, index = 0, pending }) 
       type="button"
       style={{ animationDelay: `${index * 90}ms` }}
       onClick={() => onSelect(role.key)}
-      aria-label={`Continue as ${role.label}`}
+      aria-label={t("auth.continueAs", { role: t(role.labelKey) })}
       // A horizontal row — icon left, title/description center, arrow
       // right — rather than the previous stacked-tile shape, so the full
       // width of the card is one comfortable thumb target instead of a
       // small square. min-h keeps every card the same comfortable height
       // regardless of how long its description runs.
-      className={`animate-fade-up group relative flex w-full min-h-[76px] sm:min-h-[84px] items-center gap-3.5 sm:gap-4 rounded-2xl border px-4 py-4 sm:px-5 text-left backdrop-blur-xl transition-all duration-300 ease-out active:scale-[0.98] ${
+      className={`animate-fade-up group relative flex w-full min-h-[76px] sm:min-h-[84px] items-center gap-3.5 sm:gap-4 rounded-2xl border px-4 py-4 sm:px-5 text-start backdrop-blur-xl transition-all duration-300 ease-out active:scale-[0.98] ${
         pending
           ? `bg-gradient-to-r from-[#151B2E]/95 to-[#0D1223]/95 ${theme.borderActive} ${theme.glowActive} -translate-y-0.5 scale-[1.01]`
           : `bg-gradient-to-r from-[#12172A]/80 to-[#0D1223]/85 ${theme.border} ${theme.borderHover} ${theme.glowHover} hover:-translate-y-0.5`
@@ -100,14 +102,19 @@ export default function RoleCardPremium({ role, onSelect, index = 0, pending }) 
       </span>
 
       <span className="min-w-0 flex-1">
-        <span className="block font-display text-[16px] sm:text-[17px] font-bold text-white">{role.label}</span>
-        <span className="mt-0.5 block text-[12.5px] sm:text-[13px] leading-snug text-[#9AA1B4]">{role.tagline}</span>
+        <span className="block font-display text-[16px] sm:text-[17px] font-bold text-white">{t(role.labelKey)}</span>
+        <span className="mt-0.5 block text-[12.5px] sm:text-[13px] leading-snug text-[#9AA1B4]">{t(role.taglineKey)}</span>
       </span>
 
       <ArrowRight
         size={19}
-        className={`shrink-0 transition-all duration-300 ${
-          pending ? `${theme.arrowActive} translate-x-1.5` : `${theme.arrowIdle} group-hover:translate-x-1`
+        // rtl-flip mirrors the glyph so it points INTO the card's reading
+        // direction in Kurdish; rtl:-translate-x-* mirrors the nudge that
+        // goes with it, which would otherwise slide the wrong way.
+        className={`shrink-0 transition-all duration-300 rtl-flip ${
+          pending
+            ? `${theme.arrowActive} translate-x-1.5 rtl:-translate-x-1.5`
+            : `${theme.arrowIdle} group-hover:translate-x-1 rtl:group-hover:-translate-x-1`
         }`}
       />
     </button>

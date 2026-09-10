@@ -1,4 +1,5 @@
 import { useEffect, useId, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 // PerformanceScoreRing.jsx — the page's visual centrepiece.
 //
@@ -26,7 +27,11 @@ import { useEffect, useId, useState } from "react";
 // completely unchanged; the Regional Manager's Zone Performance card
 // reuses this exact ring with its own caption rather than cloning the
 // four-layer glow build below into a second component.
-export default function PerformanceScoreRing({ rate, size = 188, label = "Overall Score" }) {
+export default function PerformanceScoreRing({ rate, size = 188, label }) {
+  const { t } = useTranslation();
+  // Default resolved in the body, not the parameter list: `t`
+  // only exists once the component is running.
+  label = label ?? t("emp.overallScore");
   const uid = useId();
   const stroke = Math.round(size * 0.055);
   const radius = (size - stroke) / 2 - 6;
@@ -66,7 +71,7 @@ export default function PerformanceScoreRing({ rate, size = 188, label = "Overal
       className="relative shrink-0"
       style={{ width: size, height: size }}
       role="img"
-      aria-label={rate == null ? "Overall score: no data yet" : `Overall score: ${Math.round(rate)} percent`}
+      aria-label={rate == null ? t("emp.overallScoreNoDataYet") : `Overall score: ${Math.round(rate)} percent`}
     >
       {/* Ambient light spill onto the card surface behind the ring. */}
       <div

@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 // PerformanceSkeleton.jsx — the Performance page's loading state.
 //
 // Deliberately mirrors the real layout's silhouette (hero card with a
@@ -12,8 +13,9 @@ function Block({ className = "" }) {
 }
 
 export default function PerformanceSkeleton() {
+  const { t } = useTranslation();
   return (
-    <div className="space-y-6" aria-busy="true" aria-label="Loading performance">
+    <div className="space-y-6" aria-busy="true" aria-label={t("emp.loadingPerformance")}>
       {/* Hero — ring on the left, three status rows stacked on the right,
           matching the real layout so nothing reflows once data lands. */}
       <div className="shimmer rounded-[22px] bg-[#0D1223]/80 border border-white/[0.06] p-3.5 flex items-center gap-3">

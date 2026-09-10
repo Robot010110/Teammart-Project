@@ -1,4 +1,5 @@
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { Users, AlertTriangle, Sparkles } from "lucide-react";
 import { useAsync } from "../../hooks/useAsync";
 import { SkeletonCard } from "../common/SkeletonCard";
@@ -18,7 +19,7 @@ function StatTile({ icon: Icon, label, value, onClick }) {
     <Comp
       type={onClick ? "button" : undefined}
       onClick={onClick}
-      className={`rounded-2xl p-4 bg-[#1A1F33]/70 border border-white/[0.06] text-left ${onClick ? "hover:border-[#F47A20]/25 transition-colors" : ""}`}
+      className={`rounded-2xl p-4 bg-[#1A1F33]/70 border border-white/[0.06] text-start ${onClick ? "hover:border-[#F47A20]/25 transition-colors" : ""}`}
     >
       <span className="w-8 h-8 rounded-lg bg-[#F47A20]/10 text-[#F47A20] grid place-items-center mb-2">
         <Icon size={15} />
@@ -37,6 +38,7 @@ function StatTile({ icon: Icon, label, value, onClick }) {
 // (GET /api/activities, filtered client-side to today the same way
 // WastedItemsSection already does). Nothing here is invented.
 export default function SupervisorOverviewStats({ session, basePath }) {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { data: employees, loading: loadingEmployees } = useAsync(
     () => listEmployeesByMarket(session.marketId),
@@ -59,9 +61,9 @@ export default function SupervisorOverviewStats({ session, basePath }) {
 
   return (
     <div className="grid grid-cols-3 gap-3">
-      <StatTile icon={Users} label="Employees Assigned" value={employees?.length} onClick={() => navigate(`${basePath}/employees`)} />
-      <StatTile icon={AlertTriangle} label="Active Problems" value={problems?.length} onClick={() => navigate(`${basePath}/market`)} />
-      <StatTile icon={Sparkles} label="Today's Activities" value={todaysActivityCount} />
+      <StatTile icon={Users} label={t("sup.employeesAssigned")} value={employees?.length} onClick={() => navigate(`${basePath}/employees`)} />
+      <StatTile icon={AlertTriangle} label={t("sup.activeProblems")} value={problems?.length} onClick={() => navigate(`${basePath}/market`)} />
+      <StatTile icon={Sparkles} label={t("sup.todaysActivities")} value={todaysActivityCount} />
     </div>
   );
 }

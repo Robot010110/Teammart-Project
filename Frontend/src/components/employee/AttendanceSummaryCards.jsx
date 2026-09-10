@@ -1,4 +1,5 @@
 import { CalendarCheck, CalendarOff, Clock3, ListChecks, Gauge, Zap, AlertTriangle } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 // AttendanceSummaryCards.jsx — the Monthly Attendance Summary tiles:
 // Working Days, Days Off, Total Hours Worked, Total Required Hours, and
@@ -22,28 +23,29 @@ function rateTone(rate) {
 const formatHours = (hours) => `${Number(hours).toFixed(1)}h`;
 
 export default function AttendanceSummaryCards({ summary }) {
+  const { t } = useTranslation();
   const { totalWorkingDays, daysOff, totalHoursWorked, totalRequiredHours, extraHours, punishmentHours, attendanceRate } = summary;
 
   const items = [
-    { icon: CalendarCheck, label: "Working Days", value: totalWorkingDays },
-    { icon: CalendarOff, label: "Days Off", value: daysOff },
-    { icon: Clock3, label: "Total Hours Worked", value: formatHours(totalHoursWorked) },
-    { icon: ListChecks, label: "Total Required Hours", value: formatHours(totalRequiredHours) },
+    { icon: CalendarCheck, label: t("emp.workingDays"), value: totalWorkingDays },
+    { icon: CalendarOff, label: t("emp.daysOff"), value: daysOff },
+    { icon: Clock3, label: t("emp.totalHoursWorked"), value: formatHours(totalHoursWorked) },
+    { icon: ListChecks, label: t("emp.totalRequiredHours"), value: formatHours(totalRequiredHours) },
     {
       icon: Zap,
-      label: "Extra Hours",
+      label: t("emp.extraHours"),
       value: formatHours(extraHours ?? 0),
       valueClass: extraHours > 0 ? "text-emerald-400" : undefined,
     },
     {
       icon: AlertTriangle,
-      label: "Punishment Hours",
+      label: t("emp.punishmentHours"),
       value: formatHours(punishmentHours ?? 0),
       valueClass: punishmentHours > 0 ? "text-red-400" : undefined,
     },
     {
       icon: Gauge,
-      label: "Attendance Rate",
+      label: t("emp.attendanceRate"),
       value: attendanceRate == null ? "—" : `${attendanceRate.toFixed(1)}%`,
       valueClass: rateTone(attendanceRate),
     },

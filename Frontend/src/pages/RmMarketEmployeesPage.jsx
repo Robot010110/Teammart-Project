@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { ArrowLeft, Search, Users2, X } from "lucide-react";
 import { useAsync } from "../hooks/useAsync";
 import ErrorBanner from "../components/common/ErrorBanner";
@@ -6,10 +7,10 @@ import MarketEmployeeCard, { employeeState } from "../components/regionalManager
 import { getMarketOverview } from "../services/marketManagementService";
 
 const TABS = [
-  { key: "ALL", label: "All", dot: null },
-  { key: "ACTIVE", label: "Active", dot: "bg-emerald-400" },
-  { key: "ON_BREAK", label: "On Break", dot: "bg-amber-400" },
-  { key: "OFF_SHIFT", label: "Off Shift", dot: "bg-[#4C5266]" },
+  { key: "ALL", label: "common.all", dot: null },
+  { key: "ACTIVE", label: "status.active", dot: "bg-emerald-400" },
+  { key: "ON_BREAK", label: "emp.onBreak", dot: "bg-amber-400" },
+  { key: "OFF_SHIFT", label: "rm.offShift", dot: "bg-[#4C5266]" },
 ];
 
 // RmMarketEmployeesPage.jsx — the employees of ONE market.
@@ -22,6 +23,7 @@ const TABS = [
 // even if the client asked it to, and access to the market itself is
 // re-checked by assertMarketAccess on every request.
 export default function RmMarketEmployeesPage({ marketId, onBack, onOpenEmployee }) {
+  const { t } = useTranslation();
   const { data: overview, error, loading, reload } = useAsync(() => getMarketOverview(marketId), { deps: [marketId] });
   const [query, setQuery] = useState("");
   const [tab, setTab] = useState("ALL");
@@ -58,37 +60,37 @@ export default function RmMarketEmployeesPage({ marketId, onBack, onOpenEmployee
         <button
           type="button"
           onClick={onBack}
-          aria-label="Back to market"
+          aria-label={t("rm.backToMarket")}
           className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-white/10 bg-white/[0.06] text-white transition-all hover:bg-white/10 active:scale-95"
         >
-          <ArrowLeft size={16} />
+          <ArrowLeft size={16} className="rtl-flip" />
         </button>
         <div className="min-w-0">
           <h1 className="truncate font-display text-[22px] font-bold leading-tight text-white">
-            {loading ? "Employees" : overview?.name}
+            {loading ? t("sup.employees") : overview?.name}
           </h1>
           <p className="text-[12px] text-[#8B93A8]">
-            {loading ? "Loading team…" : `${counts.ALL} Employee${counts.ALL === 1 ? "" : "s"} · ${counts.ACTIVE} Active Now`}
+            {loading ? t("rm.loadingTeam") : t("rm.employeesActiveNow", { count: counts.ALL, active: counts.ACTIVE })}
           </p>
         </div>
       </div>
 
       <div className="relative mt-4">
-        <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#5C6479]" />
+        <Search size={15} className="absolute start-3.5 top-1/2 -translate-y-1/2 text-[#5C6479]" />
         <input
           type="text"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search employees…"
-          aria-label="Search employees"
-          className="w-full rounded-xl border border-white/[0.07] bg-[#111A2D]/80 py-2.5 pl-10 pr-9 text-[13.5px] text-white outline-none backdrop-blur-xl transition-colors placeholder:text-[#4C5266] focus:border-[#F47A20]/50"
+          placeholder={t("rm.searchEmployees")}
+          aria-label={t("emp.searchEmployees")}
+          className="w-full rounded-xl border border-white/[0.07] bg-[#111A2D]/80 py-2.5 ps-10 pe-9 text-[13.5px] text-white outline-none backdrop-blur-xl transition-colors placeholder:text-[#4C5266] focus:border-[#F47A20]/50"
         />
         {query && (
           <button
             type="button"
             onClick={() => setQuery("")}
-            aria-label="Clear employee search"
-            className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-full p-1 text-[#5C6479] transition-colors hover:text-white"
+            aria-label={t("rm.clearEmployeeSearch")}
+            className="absolute end-2.5 top-1/2 -translate-y-1/2 rounded-full p-1 text-[#5C6479] transition-colors hover:text-white"
           >
             <X size={13} />
           </button>
@@ -97,13 +99,13 @@ export default function RmMarketEmployeesPage({ marketId, onBack, onOpenEmployee
 
       <div className="-mx-4 mt-3 overflow-x-auto px-4 pb-1 sm:mx-0 sm:px-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         <div className="flex w-max gap-2">
-          {TABS.map((t) => {
-            const isActive = tab === t.key;
+          {TABS.map((tab_) => {
+            const isActive = tab === tab_.key;
             return (
               <button
-                key={t.key}
+                key={tab_.key}
                 type="button"
-                onClick={() => setTab(t.key)}
+                onClick={() => setTab(tab_.key)}
                 aria-pressed={isActive}
                 className={`flex shrink-0 items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-[12.5px] font-medium transition-all duration-200 ${
                   isActive
@@ -111,9 +113,9 @@ export default function RmMarketEmployeesPage({ marketId, onBack, onOpenEmployee
                     : "border-white/[0.07] bg-[#111A2D]/70 text-[#8B93A8] hover:border-white/[0.16] hover:text-white"
                 }`}
               >
-                {t.dot && <span className={`h-1.5 w-1.5 rounded-full ${t.dot}`} />}
-                {t.label}
-                <span className={isActive ? "text-[#F9A03C]" : "text-[#5C6479]"}>({counts[t.key]})</span>
+                {tab_.dot && <span className={`h-1.5 w-1.5 rounded-full ${tab_.dot}`} />}
+                {t(tab_.label)}
+                <span className={isActive ? "text-[#F9A03C]" : "text-[#5C6479]"}>({counts[tab_.key]})</span>
               </button>
             );
           })}
@@ -135,12 +137,12 @@ export default function RmMarketEmployeesPage({ marketId, onBack, onOpenEmployee
               <Users2 size={20} />
             </span>
             <p className="mt-3 text-[14px] font-semibold text-white">
-              {employees.length === 0 ? "No employees yet" : "No one matches"}
+              {employees.length === 0 ? t("rm.noEmployeesYet") : t("rm.noOneMatches")}
             </p>
             <p className="mt-1 text-[12.5px] text-[#8B93A8]">
               {employees.length === 0
-                ? "Employees assigned to this market will appear here."
-                : "Try a different search or status filter."}
+                ? t("rm.employeesAssignedToThisMarketWill")
+                : t("rm.tryADifferentSearchOrStatus")}
             </p>
           </div>
         ) : (

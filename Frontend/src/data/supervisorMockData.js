@@ -29,15 +29,21 @@
 // component can preserve relative placement without hardcoding pixel
 // coordinates.
 // ---------------------------------------------------------------------
+// `label` stays real English text — DepartmentReportBoard.jsx matches it
+// directly against the real DEPARTMENT_CLOSING Activity's `department`
+// field from the backend, so it can't become a language-dependent
+// translation key. `labelKey` is the separate translation key a display
+// component (MarketStructureGrid.jsx) uses to show this section's name
+// in the current language.
 export const MARKET_SECTIONS = [
-  { key: "DRINKS", label: "Drinks", row: 1, col: 1, span: 1 },
-  { key: "FREEZER", label: "Freezer", row: 1, col: 2, span: 1 },
-  { key: "FRESH", label: "Fresh", row: 1, col: 3, span: 1 },
-  { key: "FOOD", label: "Food", row: 2, col: 1, span: 2 },
-  { key: "NON_FOOD_1", label: "Non-Food 1", row: 2, col: 3, span: 1 },
-  { key: "NON_FOOD_2", label: "Non-Food 2", row: 3, col: 1, span: 1 },
-  { key: "SNACKS", label: "Snacks", row: 3, col: 2, span: 1 },
-  { key: "NUTS", label: "Nuts", row: 3, col: 3, span: 1 },
+  { key: "DRINKS", label: "Drinks", labelKey: "sup.sectionDrinks", row: 1, col: 1, span: 1 },
+  { key: "FREEZER", label: "Freezer", labelKey: "sup.sectionFreezer", row: 1, col: 2, span: 1 },
+  { key: "FRESH", label: "Fresh", labelKey: "sup.sectionFresh", row: 1, col: 3, span: 1 },
+  { key: "FOOD", label: "Food", labelKey: "sup.sectionFood", row: 2, col: 1, span: 2 },
+  { key: "NON_FOOD_1", label: "Non-Food 1", labelKey: "sup.sectionNonFood1", row: 2, col: 3, span: 1 },
+  { key: "NON_FOOD_2", label: "Non-Food 2", labelKey: "sup.sectionNonFood2", row: 3, col: 1, span: 1 },
+  { key: "SNACKS", label: "Snacks", labelKey: "sup.sectionSnacks", row: 3, col: 2, span: 1 },
+  { key: "NUTS", label: "Nuts", labelKey: "sup.sectionNuts", row: 3, col: 3, span: 1 },
 ];
 
 // ---------------------------------------------------------------------

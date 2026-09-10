@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { ArrowLeft, Info, X } from "lucide-react";
 
 // PerformanceHeader.jsx — the Performance page's own header, deliberately
@@ -16,6 +17,7 @@ import { ArrowLeft, Info, X } from "lucide-react";
 // control is real — it explains how the score is computed, which is the
 // one thing people reliably ask when shown a performance number.
 export default function PerformanceHeader({ onBack }) {
+  const { t } = useTranslation();
   const [showInfo, setShowInfo] = useState(false);
 
   return (
@@ -39,18 +41,18 @@ export default function PerformanceHeader({ onBack }) {
         <button
           type="button"
           onClick={onBack}
-          aria-label="Go back"
+          aria-label={t("emp.goBack")}
           className="shrink-0 w-11 h-11 grid place-items-center rounded-2xl bg-white/[0.03] border border-white/[0.09] text-white hover:bg-white/[0.07] active:scale-95 transition-all duration-150"
         >
-          <ArrowLeft size={19} />
+          <ArrowLeft size={19} className="rtl-flip" />
         </button>
 
-        <h1 className="font-display text-[30px] leading-none font-extrabold text-white text-center">Performance</h1>
+        <h1 className="font-display text-[30px] leading-none font-extrabold text-white text-center">{t("emp.performance")}</h1>
 
         <button
           type="button"
           onClick={() => setShowInfo((v) => !v)}
-          aria-label={showInfo ? "Hide how this is calculated" : "How is this calculated?"}
+          aria-label={showInfo ? t("emp.hideHowThisIsCalculated") : t("emp.howIsThisCalculated")}
           aria-expanded={showInfo}
           className={`shrink-0 w-11 h-11 grid place-items-center rounded-full border active:scale-95 transition-all duration-150 ${
             showInfo
@@ -62,14 +64,12 @@ export default function PerformanceHeader({ onBack }) {
         </button>
       </div>
 
-      <p className="mt-2 text-center text-[13.5px] text-[#8B93A8]">Your work, your progress.</p>
+      <p className="mt-2 text-center text-[13.5px] text-[#8B93A8]">{t("emp.yourWorkYourProgress")}</p>
 
       {showInfo && (
         <div className="mt-4 rounded-2xl p-4 bg-sky-500/[0.06] border border-sky-500/20 animate-fade-in">
           <p className="text-[13px] leading-relaxed text-[#C3C9D8]">
-            Your score is the share of your reviewed activities that were approved — approved ÷ (approved + rejected).
-            Drafts and activities still awaiting review are not counted either way, so the number only moves once a
-            supervisor has actually decided on your work.
+            {t("emp.scoreExplanation")}
           </p>
         </div>
       )}

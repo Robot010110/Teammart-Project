@@ -1,6 +1,8 @@
 import { Sun, Moon, ClipboardList, CheckCircle2, Clock3, Lightbulb } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import CashierCleaningSection from "./CashierCleaningSection";
 import PriceReportSection from "./PriceReportSection";
+import CashierKochOperationSection from "./CashierKochOperationSection";
 import ErrorBanner from "../common/ErrorBanner";
 import { SkeletonCard } from "../common/SkeletonCard";
 import { getProfile } from "../../services/profileService";
@@ -66,13 +68,14 @@ function SummaryTile({ icon: Icon, tone, value, label }) {
 // Reports Today (their own price reports, today only), and Active Time
 // Today (today's real AttendanceRecord) — nothing here is invented.
 export default function CashierActivityTab() {
+  const { t } = useTranslation();
   const { data: profile, error, loading, reload } = useAsync(getProfile, { deps: [] });
   const { data: completedTasks } = useAsync(() => listSuddenTasks({ status: "COMPLETED" }), { deps: [] });
   const { data: priceReports } = useAsync(listPriceReports, { deps: [] });
   const { data: attendance } = useAsync(getTodayAttendance, { deps: [] });
 
   const ShiftIcon = profile?.cashierShift === "EVENING" ? Moon : Sun;
-  const shiftLabel = profile?.cashierShift === "EVENING" ? "Evening Shift" : "Morning Shift";
+  const shiftLabel = profile?.cashierShift === "EVENING" ? t("emp.eveningShift") : t("emp.morningShift");
 
   const tasksToday = (completedTasks ?? []).filter((t) => isToday(t.completedAt ?? t.assignedAt)).length;
   const priceReportsToday = (priceReports ?? []).filter((r) => isToday(r.reportedAt)).length;
@@ -81,12 +84,12 @@ export default function CashierActivityTab() {
     <div className="px-4 sm:px-6 py-6 max-w-2xl mx-auto animate-fade-up pb-10">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h1 className="text-xl font-bold text-white">Daily Activity</h1>
-          <p className="text-sm text-[#8B93A8] mt-0.5">Cashier Workspace</p>
+          <h1 className="text-xl font-bold text-white">{t("emp.dailyActivity")}</h1>
+          <p className="text-sm text-[#8B93A8] mt-0.5">{t("emp.cashierWorkspace")}</p>
         </div>
         <div className="shrink-0 flex items-center gap-2 rounded-xl px-3 py-2 bg-[#171C2E]/80 border border-white/[0.06]">
           <ShiftIcon size={15} className="text-[#F47A20]" />
-          <div className="leading-tight text-right">
+          <div className="leading-tight text-end">
             <p className="text-xs font-semibold text-white">{shiftLabel}</p>
             <p className="text-[10px] text-[#8B93A8]">{todayLabel()}</p>
           </div>
@@ -108,19 +111,23 @@ export default function CashierActivityTab() {
           </section>
 
           <section className="mt-5">
-            <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-[#8B93A8]">Today's Summary</h2>
+            <CashierKochOperationSection />
+          </section>
+
+          <section className="mt-5">
+            <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-[#8B93A8]">{t("emp.todaysSummary")}</h2>
             <div className="grid grid-cols-3 gap-2.5">
-              <SummaryTile icon={ClipboardList} tone="bg-sky-500/10 text-sky-400" value={tasksToday} label="Tasks Completed Today" />
-              <SummaryTile icon={CheckCircle2} tone="bg-emerald-500/10 text-emerald-400" value={priceReportsToday} label="Price Reports Today" />
-              <SummaryTile icon={Clock3} tone="bg-violet-500/10 text-violet-400" value={activeTimeLabel(attendance)} label="Active Time Today" />
+              <SummaryTile icon={ClipboardList} tone="bg-sky-500/10 text-sky-400" value={tasksToday} label={t("emp.tasksCompletedToday")} />
+              <SummaryTile icon={CheckCircle2} tone="bg-emerald-500/10 text-emerald-400" value={priceReportsToday} label={t("emp.priceReportsToday")} />
+              <SummaryTile icon={Clock3} tone="bg-violet-500/10 text-violet-400" value={activeTimeLabel(attendance)} label={t("emp.activeTimeToday")} />
             </div>
           </section>
 
           <div className="mt-5 flex items-start gap-3 rounded-2xl px-4 py-3.5 bg-amber-500/[0.06] border border-amber-500/20">
             <Lightbulb size={16} className="text-amber-400 shrink-0 mt-0.5" />
             <div>
-              <p className="text-sm font-semibold text-white">Reminder</p>
-              <p className="text-xs text-[#9AA1B4] mt-0.5">Complete all cleaning tasks before the end of your shift.</p>
+              <p className="text-sm font-semibold text-white">{t("emp.reminder")}</p>
+              <p className="text-xs text-[#9AA1B4] mt-0.5">{t("emp.completeAllCleaningTasksBeforeThe")}</p>
             </div>
           </div>
         </>

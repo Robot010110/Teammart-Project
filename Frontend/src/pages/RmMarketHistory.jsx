@@ -1,4 +1,5 @@
 import { Star, NotebookPen, ShieldAlert, Sparkles, CalendarDays } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import Breadcrumb from "../components/layout/Breadcrumb";
 import ErrorBanner from "../components/common/ErrorBanner";
 import { SkeletonCard } from "../components/common/SkeletonCard";
@@ -14,6 +15,7 @@ function dateLabel(iso) {
 // where one exists so a single inspection reads as one entry rather than
 // scattered unrelated rows.
 export default function RmMarketHistory({ marketId, onBack }) {
+  const { t } = useTranslation();
   const { data, error, loading, reload } = useAsync(() => getMarketHistory(marketId), { deps: [marketId] });
 
   if (loading) return <div className="px-6 md:px-10 py-8 max-w-4xl mx-auto"><SkeletonCard className="h-64" /></div>;
@@ -46,12 +48,12 @@ export default function RmMarketHistory({ marketId, onBack }) {
 
   return (
     <div className="px-6 md:px-10 py-8 max-w-4xl mx-auto animate-fade-up">
-      <Breadcrumb items={[{ label: "Market", onClick: onBack }, { label: "History" }]} />
-      <h1 className="mt-4 font-display text-2xl font-bold text-white">Inspection History</h1>
+      <Breadcrumb items={[{ label: t("sup.market"), onClick: onBack }, { label: t("emp.history") }]} />
+      <h1 className="mt-4 font-display text-2xl font-bold text-white">{t("rm.inspectionHistory")}</h1>
 
       {isEmpty ? (
         <div className="mt-6 rounded-2xl p-10 bg-[#171C2E]/80 border border-white/[0.06] text-center text-sm text-[#8B93A8]">
-          No visits, ratings, or feedback recorded for this market yet.
+          {t("rm.noVisitsRatingsOrFeedbackRecorded")}
         </div>
       ) : (
         <div className="mt-6 space-y-4">
@@ -66,7 +68,7 @@ export default function RmMarketHistory({ marketId, onBack }) {
                 {f.map((fb) => <FeedbackRow key={fb.id} feedback={fb} />)}
                 {n.map((note) => <NoteRow key={note.id} note={note} />)}
                 {r.length === 0 && f.length === 0 && n.length === 0 && (
-                  <p className="text-xs text-[#4C5266]">No rating, notes, or feedback recorded for this visit.</p>
+                  <p className="text-xs text-[#4C5266]">{t("rm.noRatingNotesOrFeedbackRecorded")}</p>
                 )}
               </div>
             </div>

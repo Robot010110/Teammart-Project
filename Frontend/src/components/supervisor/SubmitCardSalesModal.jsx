@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Camera, Loader2, CheckCircle2, X } from "lucide-react";
 import Modal from "../common/Modal";
 import AuthenticatedImage from "../common/AuthenticatedImage";
@@ -11,9 +12,9 @@ function todayIso() {
 }
 
 const SHIFT_OPTIONS = [
-  { value: "MORNING", label: "Morning" },
-  { value: "AFTERNOON", label: "Afternoon" },
-  { value: "NIGHT", label: "Night" },
+  { value: "MORNING", label: "emp.morning" },
+  { value: "AFTERNOON", label: "sup.afternoon" },
+  { value: "NIGHT", label: "emp.night" },
 ];
 
 // SubmitCardSalesModal.jsx — spec §6-7: Supervisor or Overlooking picks
@@ -22,6 +23,7 @@ const SHIFT_OPTIONS = [
 // enforced clock times (spec: "should not be treated as rigid hardcoded
 // times") — the actual submission time is just whenever this is sent.
 export default function SubmitCardSalesModal({ open, onClose, defaultShift, onSaved }) {
+  const { t } = useTranslation();
   const [date, setDate] = useState(todayIso());
   const [shift, setShift] = useState(defaultShift ?? "MORNING");
   const [photos, setPhotos] = useState([]); // up to 2, { url } each
@@ -49,7 +51,7 @@ export default function SubmitCardSalesModal({ open, onClose, defaultShift, onSa
       const url = await prepareImageForUpload(file);
       setPhotos((prev) => [...prev, url]);
     } catch {
-      setError("Could not process that photo. Please try again.");
+      setError(t("emp.couldNotProcessThatPhotoPlease"));
     } finally {
       setPhotoBusy(false);
     }
@@ -57,7 +59,7 @@ export default function SubmitCardSalesModal({ open, onClose, defaultShift, onSa
 
   const handleSubmit = async () => {
     if (photos.length === 0) {
-      setError("Attach at least one photo of the card count.");
+      setError(t("sup.attachAtLeastOnePhotoOf"));
       return;
     }
     setSubmitting(true);
@@ -67,17 +69,17 @@ export default function SubmitCardSalesModal({ open, onClose, defaultShift, onSa
       onSaved(report);
       handleClose();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Could not submit this report. Please try again.");
+      setError(err instanceof ApiError ? err.message : t("emp.couldNotSubmitThisReportPlease"));
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <Modal open={open} onClose={handleClose} title="Submit Card Sales">
+    <Modal open={open} onClose={handleClose} title={t("sup.submitCardSales")}>
       <div className="space-y-4">
         <div>
-          <label className="block text-xs uppercase tracking-wide text-[#8B93A8] mb-1.5">Date</label>
+          <label className="block text-xs uppercase tracking-wide text-[#8B93A8] mb-1.5">{t("emp.date")}</label>
           <input
             type="date"
             value={date}
@@ -88,7 +90,7 @@ export default function SubmitCardSalesModal({ open, onClose, defaultShift, onSa
         </div>
 
         <div>
-          <label className="block text-xs uppercase tracking-wide text-[#8B93A8] mb-1.5">Shift</label>
+          <label className="block text-xs uppercase tracking-wide text-[#8B93A8] mb-1.5">{t("emp.shift")}</label>
           <div className="grid grid-cols-3 gap-2">
             {SHIFT_OPTIONS.map((opt) => (
               <button
@@ -99,7 +101,7 @@ export default function SubmitCardSalesModal({ open, onClose, defaultShift, onSa
                   shift === opt.value ? "bg-[#F47A20] text-white" : "bg-white/[0.04] text-[#9AA1B4] hover:bg-white/[0.08]"
                 }`}
               >
-                {opt.label}
+                {t(opt.label)}
               </button>
             ))}
           </div>
@@ -107,7 +109,7 @@ export default function SubmitCardSalesModal({ open, onClose, defaultShift, onSa
 
         <div>
           <label className="block text-xs uppercase tracking-wide text-[#8B93A8] mb-1.5">
-            Card Count Photo{photos.length > 0 ? `s (${photos.length}/2)` : "s (1 required, 2 max)"}
+            {photos.length > 0 ? t("sup.cardCountPhotoCount", { count: photos.length }) : t("sup.cardCountPhotoHint")}
           </label>
           <div className="flex gap-2 flex-wrap">
             {photos.map((url, i) => (
@@ -116,8 +118,8 @@ export default function SubmitCardSalesModal({ open, onClose, defaultShift, onSa
                 <button
                   type="button"
                   onClick={() => setPhotos((prev) => prev.filter((_, idx) => idx !== i))}
-                  aria-label="Remove photo"
-                  className="absolute -top-1 -right-1 h-6 w-6 rounded-full bg-black/80 grid place-items-center"
+                  aria-label={t("emp.removePhoto")}
+                  className="absolute -top-1 -end-1 h-6 w-6 rounded-full bg-black/80 grid place-items-center"
                 >
                   <X size={12} className="text-white" />
                 </button>
@@ -136,7 +138,7 @@ export default function SubmitCardSalesModal({ open, onClose, defaultShift, onSa
                   capture="environment"
                   className="hidden"
                   onChange={(e) => handlePhoto(e.target.files[0])}
-                  aria-label="Add card count photo"
+                  aria-label={t("sup.addCardCountPhoto")}
                 />
               </label>
             )}
@@ -151,7 +153,7 @@ export default function SubmitCardSalesModal({ open, onClose, defaultShift, onSa
             disabled={submitting}
             className="flex-1 rounded-xl py-3 text-sm font-semibold text-[#9AA1B4] bg-white/[0.06] hover:bg-white/[0.1] active:bg-white/[0.14] disabled:opacity-50 transition-colors duration-200"
           >
-            Cancel
+            {t("common.cancel")}
           </button>
           <button
             onClick={handleSubmit}
@@ -159,7 +161,7 @@ export default function SubmitCardSalesModal({ open, onClose, defaultShift, onSa
             className="flex-1 flex items-center justify-center gap-2 rounded-xl py-3 text-sm font-semibold text-white bg-[#F47A20] hover:bg-[#ff8b36] active:bg-[#e06f18] disabled:bg-white/10 disabled:text-[#4C5266] transition-colors duration-200"
           >
             {submitting ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
-            {submitting ? "Submitting..." : "Submit"}
+            {submitting ? t("emp.submitting") : t("common.submit")}
           </button>
         </div>
       </div>

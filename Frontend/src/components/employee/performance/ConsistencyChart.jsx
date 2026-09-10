@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { useTranslation } from "react-i18next";
 
 // ConsistencyChart.jsx — "Activity Consistency": how much the employee
 // actually submitted on each day of the current week.
@@ -16,7 +17,7 @@ import { useMemo } from "react";
 // Each bar is a gradient with a brighter cap and a real coloured
 // box-shadow, so the bars are genuinely luminous rather than just
 // saturated — matching the reference's glowing columns.
-const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+const DAYS = ["emp.mon", "emp.tue", "emp.wed", "emp.thu", "emp.fri", "emp.sat", "emp.sun"];
 
 function startOfWeek(date) {
   // Monday-start, matching the backend's own startOfWeek in
@@ -34,6 +35,7 @@ const TONES = {
 };
 
 export default function ConsistencyChart({ activities }) {
+  const { t } = useTranslation();
   const { days, max, activeDays } = useMemo(() => {
     const weekStart = startOfWeek(new Date());
     const buckets = DAYS.map(() => ({ count: 0, rejected: 0, pending: 0, approved: 0 }));
@@ -65,9 +67,9 @@ export default function ConsistencyChart({ activities }) {
   return (
     <section className="rounded-[22px] p-4 bg-[#0D1223]/80 border border-white/[0.07] shadow-[0_10px_40px_-14px_rgba(0,0,0,0.8)]">
       <div className="flex items-center justify-between gap-3">
-        <h2 className="text-[15px] font-bold text-white">Activity Consistency</h2>
+        <h2 className="text-[15px] font-bold text-white">{t("emp.activityConsistency")}</h2>
         <span className="text-[12px] text-[#8B93A8]">
-          <span className="text-white font-semibold">{activeDays}</span>/7 days
+          <span className="text-white font-semibold">{activeDays}</span>{t("emp.daysSuffix", { count: 7 })}
         </span>
       </div>
 
@@ -79,7 +81,7 @@ export default function ConsistencyChart({ activities }) {
           {[100, 50, 0].map((v) => (
             <span
               key={v}
-              className="absolute right-0 -translate-y-1/2 text-[8.5px] text-[#5C6479]"
+              className="absolute end-0 -translate-y-1/2 text-[8.5px] text-[#5C6479]"
               style={{ top: `${100 - v}%` }}
             >
               {v}%
@@ -105,7 +107,7 @@ export default function ConsistencyChart({ activities }) {
               const heightPct = b.count === 0 ? 0 : Math.max(16, (b.count / max) * 100);
 
               return (
-                <div key={DAYS[i]} className="relative flex-1 min-w-0 h-full flex items-end justify-center">
+                <div key={t(DAYS[i])} className="relative flex-1 min-w-0 h-full flex items-end justify-center">
                   {b.count === 0 ? (
                     <div className="w-full max-w-[30px] h-1 rounded-full bg-white/[0.07]" />
                   ) : (
@@ -117,7 +119,7 @@ export default function ConsistencyChart({ activities }) {
                         boxShadow: `0 0 16px 1px ${tone.glow}, 0 0 34px 6px ${tone.glow.replace("0.55", "0.18")}`,
                         animationDelay: `${i * 70}ms`,
                       }}
-                      title={`${DAYS[i]}: ${b.count} ${b.count === 1 ? "activity" : "activities"}`}
+                      title={`${t(DAYS[i])}: ${b.count} ${b.count === 1 ? "activity" : "activities"}`}
                     >
                       {/* Bright cap — the hot top edge in the reference. */}
                       <span
@@ -139,7 +141,7 @@ export default function ConsistencyChart({ activities }) {
                   i === todayIndex ? "text-white" : "text-[#5C6479]"
                 }`}
               >
-                {d}
+                {t(d)}
               </span>
             ))}
           </div>
@@ -147,7 +149,7 @@ export default function ConsistencyChart({ activities }) {
       </div>
 
       {activeDays === 0 && (
-        <p className="mt-3 text-center text-xs text-[#4C5266]">No activity submitted yet this week.</p>
+        <p className="mt-3 text-center text-xs text-[#4C5266]">{t("emp.noActivitySubmittedYetThisWeek")}</p>
       )}
     </section>
   );

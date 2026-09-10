@@ -1344,3 +1344,25 @@ export const createCommunicationSchema = communicationTargetingSchema.extend({
 export const submitCommunicationResponseSchema = z.object({
   response: z.record(z.string(), z.unknown()).optional(),
 });
+
+// ---------------------------------------------------------------------
+// Koch Operation — see schema.prisma's own comment on why Worker and
+// Cashier submissions share one endpoint/table with two shapes. Which
+// shape is actually required is enforced in the controller (it depends
+// on the AUTHENTICATED employee's real role, not anything the client
+// declares) — this schema only validates that whichever fields ARE sent
+// are individually well-formed.
+// ---------------------------------------------------------------------
+export const createKochOperationSchema = z.object({
+  operationType: z.enum(["CUSTOMIZATION", "DISCOUNT_CUSTOMIZATION"]).optional(),
+  evidenceUrl: z.string().url(),
+  products: z
+    .array(
+      z.object({
+        kochProductId: z.string().min(1),
+        quantity: z.coerce.number().int().positive().max(9999).default(1),
+      })
+    )
+    .max(50)
+    .optional(),
+});

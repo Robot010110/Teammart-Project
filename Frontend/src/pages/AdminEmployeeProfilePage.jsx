@@ -1,4 +1,5 @@
 import { useAsync } from "../hooks/useAsync";
+import { useTranslation } from "react-i18next";
 import ErrorBanner from "../components/common/ErrorBanner";
 import { SkeletonCard } from "../components/common/SkeletonCard";
 import { getEmployee } from "../services/staffEmployeeService";
@@ -19,13 +20,14 @@ import AdminEmployeeActionsPanel from "./AdminEmployeeActionsPanel";
 // the Message button simply doesn't render (RmEmployeeProfile treats it
 // as optional).
 export default function AdminEmployeeProfilePage({ employeeId, onBack }) {
+  const { t } = useTranslation();
   const { data: employee, error, loading, reload } = useAsync(() => getEmployee(employeeId), { deps: [employeeId] });
 
   if (loading) return <div className="px-4 sm:px-6 py-6 max-w-4xl mx-auto"><SkeletonCard className="h-64" /></div>;
   if (error || !employee) {
     return (
       <div className="px-4 sm:px-6 py-6 max-w-4xl mx-auto">
-        <ErrorBanner message={error ?? "Employee not found."} onRetry={onBack} />
+        <ErrorBanner message={error ?? t("admin.employeeNotFound")} onRetry={onBack} />
       </div>
     );
   }

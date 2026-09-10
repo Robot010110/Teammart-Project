@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { ArrowLeft, Zap, Gauge, CalendarCheck, CalendarOff, Clock3, XCircle, Coffee, Home } from "lucide-react";
 import AttendanceMonthGrid from "../employee/attendance/AttendanceMonthGrid";
 import ErrorBanner from "../common/ErrorBanner";
@@ -57,6 +58,7 @@ function KpiTile({ icon: Icon, label, value, tone }) {
 // Attendance Rate gets its own ring tile (matching the reference's
 // circular gauge) rather than the plain icon tile the others use.
 function RateTile({ rate }) {
+  const { t } = useTranslation();
   const pct = rate == null ? 0 : Math.max(0, Math.min(100, rate));
   const color = rate == null ? "#8B93A8" : rate >= 95 ? "#34D399" : rate >= 85 ? "#F9A03C" : "#FF5C5C";
   const r = 15, circ = 2 * Math.PI * r;
@@ -75,7 +77,7 @@ function RateTile({ rate }) {
       </svg>
       <div className="min-w-0">
         <p className="font-display text-[17px] font-bold leading-none text-white tabular-nums">{rate == null ? "—" : `${rate.toFixed(0)}%`}</p>
-        <p className="mt-1 text-[10.5px] leading-tight text-[#8B93A8]">Attendance Rate</p>
+        <p className="mt-1 text-[10.5px] leading-tight text-[#8B93A8]">{t("emp.attendanceRate")}</p>
       </div>
     </div>
   );
@@ -97,21 +99,22 @@ function RateTile({ rate }) {
 // loads it for the Info screen) so this page doesn't re-fetch identity
 // that's already in hand.
 export default function EmployeeAttendanceScreen({ employeeId, employee, marketName, onBack }) {
+  const { t } = useTranslation();
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
 
   const { data, error, loading, reload } = useAsync(
     () => getEmployeeAttendanceMonth(employeeId, { year, month }),
-    { deps: [employeeId, year, month], fallbackError: "Could not load attendance." }
+    { deps: [employeeId, year, month], fallbackError: t("sup.couldNotLoadAttendance") }
   );
 
   const counts = useMemo(() => monthlyCounts(data?.days), [data]);
 
   return (
     <div className="px-4 sm:px-6 py-6 max-w-5xl mx-auto animate-fade-up">
-      <button type="button" onClick={onBack} className="flex items-center gap-1.5 text-sm text-[#9AA1B4] hover:text-white mb-4 -ml-1 py-1.5 px-1">
-        <ArrowLeft size={16} /> Back
+      <button type="button" onClick={onBack} className="flex items-center gap-1.5 text-sm text-[#9AA1B4] hover:text-white mb-4 -ms-1 py-1.5 px-1">
+        <ArrowLeft size={16} className="rtl-flip" /> {t("common.back")}
       </button>
 
       <EmployeeIdentityStrip employee={employee} marketName={marketName} />
@@ -126,11 +129,11 @@ export default function EmployeeAttendanceScreen({ employeeId, employee, marketN
               counts the calendar's own legend uses. */}
           <div className="grid grid-cols-3 sm:grid-cols-6 gap-2.5">
             <RateTile rate={data.summary.attendanceRate} />
-            <KpiTile icon={CalendarCheck} label="Present" value={counts.present} tone="emerald" />
-            <KpiTile icon={Clock3} label="Late" value={counts.late} tone="amber" />
-            <KpiTile icon={XCircle} label="Absent" value={counts.absent} tone="red" />
-            <KpiTile icon={Coffee} label="Weekly Off" value={counts.weeklyOff} tone="violet" />
-            <KpiTile icon={Home} label="Monthly Off" value={counts.monthlyOff} tone="sky" />
+            <KpiTile icon={CalendarCheck} label={t("emp.present")} value={counts.present} tone="emerald" />
+            <KpiTile icon={Clock3} label={t("emp.late")} value={counts.late} tone="amber" />
+            <KpiTile icon={XCircle} label={t("emp.absent")} value={counts.absent} tone="red" />
+            <KpiTile icon={Coffee} label={t("emp.weeklyOff")} value={counts.weeklyOff} tone="violet" />
+            <KpiTile icon={Home} label={t("emp.monthlyOff")} value={counts.monthlyOff} tone="sky" />
           </div>
 
           <div className="rounded-2xl p-4 sm:p-5 bg-gradient-to-b from-[#131D33]/90 to-[#0C1424]/90 border border-white/[0.07] backdrop-blur-xl shadow-[0_10px_30px_-18px_rgba(0,0,0,0.9)]">
@@ -146,15 +149,15 @@ export default function EmployeeAttendanceScreen({ employeeId, employee, marketN
           {/* Monthly Breakdown — the fuller category rollup below the
               calendar, per the same real per-status counts above. */}
           <div className="rounded-2xl p-4 bg-gradient-to-b from-[#131D33]/90 to-[#0C1424]/90 border border-white/[0.07] backdrop-blur-xl shadow-[0_10px_30px_-18px_rgba(0,0,0,0.9)]">
-            <h2 className="mb-3 text-[12px] font-semibold uppercase tracking-wide text-[#8B93A8]">Monthly Breakdown</h2>
+            <h2 className="mb-3 text-[12px] font-semibold uppercase tracking-wide text-[#8B93A8]">{t("sup.monthlyBreakdown")}</h2>
             <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2.5">
-              <BreakdownTile icon={CalendarOff} label="Work Days" value={data.summary.totalWorkingDays} tone="text-[#F47A20] bg-[#F47A20]/12 ring-[#F47A20]/25" />
-              <BreakdownTile icon={CalendarCheck} label="Present" value={counts.present} tone="text-emerald-400 bg-emerald-500/12 ring-emerald-500/25" />
-              <BreakdownTile icon={Clock3} label="Late" value={counts.late} tone="text-amber-400 bg-amber-500/12 ring-amber-500/25" />
-              <BreakdownTile icon={XCircle} label="Absent" value={counts.absent} tone="text-red-400 bg-red-500/12 ring-red-500/25" />
-              <BreakdownTile icon={Coffee} label="Weekly Off" value={counts.weeklyOff} tone="text-violet-400 bg-violet-500/12 ring-violet-500/25" />
-              <BreakdownTile icon={Home} label="Monthly Off" value={counts.monthlyOff} tone="text-sky-400 bg-sky-500/12 ring-sky-500/25" />
-              <BreakdownTile icon={Zap} label="Extra Hours" value={`${Number(data.summary.extraHours ?? 0).toFixed(1)}h`} tone="text-emerald-400 bg-emerald-500/12 ring-emerald-500/25" />
+              <BreakdownTile icon={CalendarOff} label={t("sup.workDays")} value={data.summary.totalWorkingDays} tone="text-[#F47A20] bg-[#F47A20]/12 ring-[#F47A20]/25" />
+              <BreakdownTile icon={CalendarCheck} label={t("emp.present")} value={counts.present} tone="text-emerald-400 bg-emerald-500/12 ring-emerald-500/25" />
+              <BreakdownTile icon={Clock3} label={t("emp.late")} value={counts.late} tone="text-amber-400 bg-amber-500/12 ring-amber-500/25" />
+              <BreakdownTile icon={XCircle} label={t("emp.absent")} value={counts.absent} tone="text-red-400 bg-red-500/12 ring-red-500/25" />
+              <BreakdownTile icon={Coffee} label={t("emp.weeklyOff")} value={counts.weeklyOff} tone="text-violet-400 bg-violet-500/12 ring-violet-500/25" />
+              <BreakdownTile icon={Home} label={t("emp.monthlyOff")} value={counts.monthlyOff} tone="text-sky-400 bg-sky-500/12 ring-sky-500/25" />
+              <BreakdownTile icon={Zap} label={t("emp.extraHours")} value={`${Number(data.summary.extraHours ?? 0).toFixed(1)}h`} tone="text-emerald-400 bg-emerald-500/12 ring-emerald-500/25" />
             </div>
           </div>
         </div>

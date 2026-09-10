@@ -1,4 +1,5 @@
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import SupervisorPageHeader from "./SupervisorPageHeader";
 import ReportsProblemsSection from "../ReportsProblemsSection";
 
@@ -9,10 +10,11 @@ import ReportsProblemsSection from "../ReportsProblemsSection";
 // MarketProblem model; this file only gives it its own route and a
 // consistent header rather than rebuilding any of that.
 export default function SupervisorAlertsPage({ session, basePath }) {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   return (
     <div className="px-4 sm:px-6 py-6 max-w-4xl mx-auto animate-fade-up">
-      <SupervisorPageHeader title="Alerts" subtitle="Operational issues in your market" onBack={() => navigate(`${basePath}/home`)} />
+      <SupervisorPageHeader title={t("sup.alerts")} subtitle={t("sup.operationalIssuesInYourMarket")} onBack={() => navigate(`${basePath}/home`)} />
       <ReportsProblemsSection marketId={session.marketId} />
     </div>
   );

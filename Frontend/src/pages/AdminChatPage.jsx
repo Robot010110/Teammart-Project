@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useNavigate, useParams } from "react-router-dom";
 import { UsersRound, ArrowLeft } from "lucide-react";
 import ErrorBanner from "../components/common/ErrorBanner";
@@ -24,6 +25,7 @@ const LIST_POLL_MS = 15000;
 // only (STAFF_DIRECT via Important People) — an accurate reflection of
 // what the backend actually supports, not an invented capability.
 export default function AdminChatPage({ session }) {
+  const { t } = useTranslation();
   const { data: conversations, setData: setConversations, error, loading, reload } = useAsync(listMyAdminConversations, { deps: [] });
   const { conversationId } = useParams();
   const navigate = useNavigate();
@@ -73,14 +75,14 @@ export default function AdminChatPage({ session }) {
     if (!openConversation) {
       return (
         <div className="px-4 sm:px-6 py-6 max-w-4xl mx-auto">
-          <ErrorBanner message="This conversation could not be found." onRetry={() => navigate("/admin/chat")} />
+          <ErrorBanner message={t("emp.thisConversationCouldNotBeFound")} onRetry={() => navigate("/admin/chat")} />
         </div>
       );
     }
     return (
       <div className="max-w-4xl mx-auto px-4 sm:px-6">
         <button type="button" onClick={() => navigate("/admin/chat")} className="mt-4 flex items-center gap-1.5 text-xs text-[#9AA1B4] hover:text-white">
-          <ArrowLeft size={13} /> Back to Chat
+          <ArrowLeft size={13} className="rtl-flip" /> {t("rm.backToChat")}
         </button>
         <div className="h-[calc(100vh-140px)]">
           <ConversationScreen
@@ -116,8 +118,8 @@ export default function AdminChatPage({ session }) {
   return (
     <div className="px-4 sm:px-6 py-6 max-w-4xl mx-auto animate-fade-up">
       <div className="mb-4">
-        <h1 className="text-xl font-bold text-white">Chat</h1>
-        <p className="text-sm text-[#8B93A8] mt-0.5">Company-wide communication hub</p>
+        <h1 className="text-xl font-bold text-white">{t("emp.chat")}</h1>
+        <p className="text-sm text-[#8B93A8] mt-0.5">{t("admin.companyWideCommunicationHub")}</p>
       </div>
 
       {loading ? (
@@ -137,7 +139,7 @@ export default function AdminChatPage({ session }) {
               onClick={() => setCreatingGroup(true)}
               className="w-full flex items-center justify-center gap-1.5 rounded-xl px-3 py-2.5 mb-1 text-xs font-semibold text-white bg-[#F47A20] hover:bg-[#ff8b36] transition-colors duration-150"
             >
-              <UsersRound size={14} /> Create Group
+              <UsersRound size={14} /> {t("sup.createGroup")}
             </button>
           }
         />

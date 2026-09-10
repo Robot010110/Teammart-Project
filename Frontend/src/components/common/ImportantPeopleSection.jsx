@@ -69,7 +69,7 @@ export default function ImportantPeopleSection({ onOpenConversation }) {
               key={contact.id}
               className="w-full flex items-center gap-3 rounded-xl p-3 bg-[#1A1F33]/70 border border-white/[0.06] hover:border-[#F47A20]/25 transition-colors"
             >
-              <button type="button" onClick={() => open(contact)} className="flex items-center gap-3 flex-1 min-w-0 text-left">
+              <button type="button" onClick={() => open(contact)} className="flex items-center gap-3 flex-1 min-w-0 text-start">
                 <span className="w-9 h-9 rounded-full bg-white/[0.06] flex items-center justify-center text-xs font-semibold text-white shrink-0">
                   {initialsOf(contact.name)}
                 </span>

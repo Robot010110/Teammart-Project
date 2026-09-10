@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Bell, AtSign, Briefcase, BellOff, Check, Loader2, Info } from "lucide-react";
 import { updateMyPreferences } from "../../../services/profileService";
 import { ApiError } from "../../../services/apiClient";
@@ -22,7 +23,8 @@ const ICONS = {
 // product has no push infrastructure (no service worker, no web-push,
 // no device tokens), and a switch that silently did nothing would be
 // worse than not offering it.
-export default function NotificationSettings({ profile, loading, onChanged, t }) {
+export default function NotificationSettings({ profile, loading, onChanged }) {
+  const { t } = useTranslation();
   // Derived, not snapshotted: `profile` is null on first render while it
   // loads, so useState(profile?.…) would freeze on the fallback and the
   // saved preference would never appear selected. `override` holds the
@@ -34,10 +36,10 @@ export default function NotificationSettings({ profile, loading, onChanged, t })
   const [error, setError] = useState(null);
 
   const OPTIONS = [
-    { key: "ALL", label: t.modeAll, sub: t.modeAllSub },
-    { key: "MENTIONS_ONLY", label: t.modeMentions, sub: t.modeMentionsSub },
-    { key: "WORK_ACTIVITY_ONLY", label: t.modeWork, sub: t.modeWorkSub },
-    { key: "MUTE_ALL", label: t.modeMute, sub: t.modeMuteSub },
+    { key: "ALL", label: t("settings.modeAll"), sub: t("settings.modeAllSub") },
+    { key: "MENTIONS_ONLY", label: t("settings.modeMentions"), sub: t("settings.modeMentionsSub") },
+    { key: "WORK_ACTIVITY_ONLY", label: t("settings.modeWork"), sub: t("settings.modeWorkSub") },
+    { key: "MUTE_ALL", label: t("settings.modeMute"), sub: t("settings.modeMuteSub") },
   ];
 
   async function choose(next) {
@@ -51,7 +53,7 @@ export default function NotificationSettings({ profile, loading, onChanged, t })
       onChanged?.({ notificationMode: next });
     } catch (err) {
       setOverride(previous);
-      setError(err instanceof ApiError ? err.message : "Could not save your preference.");
+      setError(err instanceof ApiError ? err.message : t("emp.couldNotSaveYourPreference"));
     } finally {
       setSaving(null);
     }
@@ -72,7 +74,7 @@ export default function NotificationSettings({ profile, loading, onChanged, t })
               type="button"
               onClick={() => choose(o.key)}
               aria-pressed={active}
-              className={`flex w-full items-start gap-3 rounded-2xl border p-3.5 text-left transition-all duration-200 active:scale-[0.99] ${
+              className={`flex w-full items-start gap-3 rounded-2xl border p-3.5 text-start transition-all duration-200 active:scale-[0.99] ${
                 active
                   ? "border-[#F47A20]/55 bg-[#F47A20]/[0.09] shadow-[0_0_20px_-8px_rgba(244,122,32,0.9)]"
                   : "border-white/[0.07] bg-[#111A2D]/80 hover:border-white/[0.16]"
@@ -107,7 +109,7 @@ export default function NotificationSettings({ profile, loading, onChanged, t })
 
       <div className="flex items-start gap-2.5 rounded-2xl border border-white/[0.07] bg-white/[0.03] px-3.5 py-3">
         <Info size={15} className="mt-0.5 shrink-0 text-[#8B93A8]" />
-        <p className="text-[11.5px] leading-relaxed text-[#8B93A8]">{t.notificationsFootnote}</p>
+        <p className="text-[11.5px] leading-relaxed text-[#8B93A8]">{t("settings.notificationsFootnote")}</p>
       </div>
     </div>
   );

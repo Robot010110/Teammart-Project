@@ -1,4 +1,5 @@
 import { useEffect, useId, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { ChevronRight } from "lucide-react";
 import { useAsync } from "../../../hooks/useAsync";
@@ -19,10 +20,10 @@ import { getMarketAttendanceToday } from "../../../services/attendanceService";
 // retrospectively via the Excel import), so claiming it in real time
 // would be presenting a guess as a fact.
 const BUCKETS = [
-  { key: "present", label: "Present", color: "#34D399", glow: "rgba(52,211,153,0.8)" },
-  { key: "late", label: "Late", color: "#F9A03C", glow: "rgba(249,160,60,0.8)" },
-  { key: "notCheckedIn", label: "Not Checked In", color: "#FF5C5C", glow: "rgba(255,92,92,0.8)" },
-  { key: "offLeave", label: "Off / Leave", color: "#8B93A8", glow: "rgba(139,147,168,0.6)" },
+  { key: "present", label: "emp.present", color: "#34D399", glow: "rgba(52,211,153,0.8)" },
+  { key: "late", label: "emp.late", color: "#F9A03C", glow: "rgba(249,160,60,0.8)" },
+  { key: "notCheckedIn", label: "emp.notCheckedIn", color: "#FF5C5C", glow: "rgba(255,92,92,0.8)" },
+  { key: "offLeave", label: "sup.offLeave", color: "#8B93A8", glow: "rgba(139,147,168,0.6)" },
 ];
 
 const SIZE = 108;
@@ -31,11 +32,12 @@ const RADIUS = (SIZE - STROKE) / 2;
 const CIRC = 2 * Math.PI * RADIUS;
 
 export default function TeamStatusChart({ session, basePath }) {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const uid = useId();
   const { data, error, loading, reload } = useAsync(() => getMarketAttendanceToday(session.marketId), {
     deps: [session.marketId],
-    fallbackError: "Could not load team status.",
+    fallbackError: t("sup.couldNotLoadTeamStatus"),
   });
 
   const [filled, setFilled] = useState(false);
@@ -68,13 +70,13 @@ export default function TeamStatusChart({ session, basePath }) {
   return (
     <section className="rounded-2xl p-4 bg-gradient-to-b from-[#171C2E]/90 to-[#12172A]/90 border border-white/[0.07] backdrop-blur-xl shadow-[0_10px_30px_-18px_rgba(0,0,0,0.9)]">
       <div className="flex items-center justify-between mb-1">
-        <h2 className="text-sm font-semibold text-white">Team Status</h2>
+        <h2 className="text-sm font-semibold text-white">{t("sup.teamStatus")}</h2>
         <button
           type="button"
           onClick={() => navigate(`${basePath}/team-attendance`)}
           className="flex items-center gap-0.5 text-[11.5px] font-semibold text-[#F47A20] hover:text-[#ff8b36]"
         >
-          View Team Attendance <ChevronRight size={13} />
+          View Team Attendance <ChevronRight size={13} className="rtl-flip" />
         </button>
       </div>
 
@@ -114,7 +116,7 @@ export default function TeamStatusChart({ session, basePath }) {
             <div key={s.key} className="flex items-center justify-between gap-2 text-[12px]">
               <span className="flex items-center gap-1.5 text-[#9AA1B4] truncate">
                 <span className="w-2 h-2 rounded-full shrink-0" style={{ background: s.color, boxShadow: `0 0 5px 0.5px ${s.glow}` }} />
-                {s.label}
+                {t(s.label)}
               </span>
               <span className="font-semibold text-white tabular-nums">{s.count}</span>
             </div>

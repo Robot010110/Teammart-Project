@@ -12,24 +12,24 @@ import {
 // the market overview teaser, the full Market Activity page and the
 // employee profile can never label the same activity differently.
 export const ACTIVITY_META = {
-  REFILLING: { icon: ShoppingCart, label: "Refilled a section", tone: "text-emerald-400 bg-emerald-500/10 ring-emerald-500/20" },
-  LABEL_CHECKING: { icon: Tag, label: "Checked a label", tone: "text-sky-400 bg-sky-500/10 ring-sky-500/20" },
-  EXPIRED_ITEMS: { icon: PackageX, label: "Removed expired products", tone: "text-amber-400 bg-amber-500/10 ring-amber-500/20" },
-  DAILY_CLEANING: { icon: Sparkles, label: "Completed cleaning", tone: "text-violet-400 bg-violet-500/10 ring-violet-500/20" },
-  SHELF_CLEANING: { icon: Sparkles, label: "Completed shelf cleaning", tone: "text-violet-400 bg-violet-500/10 ring-violet-500/20" },
-  PRODUCT_CUSTOMIZATION: { icon: Wrench, label: "Customized a product", tone: "text-[#F47A20] bg-[#F47A20]/10 ring-[#F47A20]/20" },
-  ITEM_COUNTING: { icon: Barcode, label: "Counted inventory items", tone: "text-sky-400 bg-sky-500/10 ring-sky-500/20" },
-  FACING: { icon: LayoutGrid, label: "Adjusted facing", tone: "text-emerald-400 bg-emerald-500/10 ring-emerald-500/20" },
+  REFILLING: { icon: ShoppingCart, label: "rm.refilledASection", tone: "text-emerald-400 bg-emerald-500/10 ring-emerald-500/20" },
+  LABEL_CHECKING: { icon: Tag, label: "rm.checkedALabel", tone: "text-sky-400 bg-sky-500/10 ring-sky-500/20" },
+  EXPIRED_ITEMS: { icon: PackageX, label: "rm.removedExpiredProducts", tone: "text-amber-400 bg-amber-500/10 ring-amber-500/20" },
+  DAILY_CLEANING: { icon: Sparkles, label: "rm.completedCleaning", tone: "text-violet-400 bg-violet-500/10 ring-violet-500/20" },
+  SHELF_CLEANING: { icon: Sparkles, label: "rm.completedShelfCleaning", tone: "text-violet-400 bg-violet-500/10 ring-violet-500/20" },
+  PRODUCT_CUSTOMIZATION: { icon: Wrench, label: "rm.customizedAProduct", tone: "text-[#F47A20] bg-[#F47A20]/10 ring-[#F47A20]/20" },
+  ITEM_COUNTING: { icon: Barcode, label: "rm.countedInventoryItems", tone: "text-sky-400 bg-sky-500/10 ring-sky-500/20" },
+  FACING: { icon: LayoutGrid, label: "rm.adjustedFacing", tone: "text-emerald-400 bg-emerald-500/10 ring-emerald-500/20" },
 };
 
-const FALLBACK = { icon: ActivityIcon, label: "Logged an activity", tone: "text-[#9AA1B4] bg-white/[0.06] ring-white/10" };
+const FALLBACK = { icon: ActivityIcon, label: "rm.loggedAnActivity", tone: "text-[#9AA1B4] bg-white/[0.06] ring-white/10" };
 
 export function activityMeta(activity) {
   const base = ACTIVITY_META[activity?.category] ?? FALLBACK;
   // An activity that carries photos reads as "uploaded photos" only when
   // its own category doesn't already say something more specific.
   if (!ACTIVITY_META[activity?.category] && activity?.images?.length) {
-    return { icon: Camera, label: "Uploaded photos", tone: "text-violet-400 bg-violet-500/10 ring-violet-500/20" };
+    return { icon: Camera, label: "rm.uploadedPhotos", tone: "text-violet-400 bg-violet-500/10 ring-violet-500/20" };
   }
   return base;
 }

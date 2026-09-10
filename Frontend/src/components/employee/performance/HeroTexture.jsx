@@ -39,9 +39,9 @@ export default function HeroTexture() {
   return (
     <div className="absolute inset-0 pointer-events-none overflow-hidden rounded-[22px]" aria-hidden="true">
       {/* Corner colour wash — light spilling into the card. */}
-      <div className="absolute -top-20 -left-16 w-64 h-64 rounded-full bg-[#F47A20]/[0.10] blur-3xl animate-ambient-drift" />
+      <div className="absolute -top-20 -start-16 w-64 h-64 rounded-full bg-[#F47A20]/[0.10] blur-3xl animate-ambient-drift" />
       <div
-        className="absolute -bottom-24 -right-12 w-64 h-64 rounded-full bg-violet-600/[0.09] blur-3xl animate-ambient-drift"
+        className="absolute -bottom-24 -end-12 w-64 h-64 rounded-full bg-violet-600/[0.09] blur-3xl animate-ambient-drift"
         style={{ animationDelay: "-4s" }}
       />
 

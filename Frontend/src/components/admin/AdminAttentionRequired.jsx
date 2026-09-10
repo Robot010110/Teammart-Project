@@ -1,4 +1,5 @@
 import { AlertTriangle, TrendingDown, PackageX, ShieldCheck, ChevronRight } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 const SEVERITY = {
   critical: { icon: AlertTriangle, chip: "bg-red-500/10 text-red-400 ring-red-500/20", border: "border-red-500/15 bg-red-500/[0.04]" },
@@ -12,12 +13,13 @@ const SEVERITY = {
 // today's expired-item reports); severity is assigned by what the item
 // actually is, so critical stays meaningful.
 export default function AdminAttentionRequired({ items, loading, onOpen }) {
+  const { t } = useTranslation();
   return (
     <section className="rounded-2xl border border-white/[0.07] bg-gradient-to-b from-[#111A2D]/90 to-[#0C1424]/90 p-4 backdrop-blur-xl shadow-[0_10px_36px_-18px_rgba(0,0,0,0.9)]">
       <div className="mb-3 flex items-center justify-between gap-3">
         <h2 className="flex items-center gap-2 text-[14px] font-semibold text-white">
           <span className="h-3.5 w-[3px] rounded-full bg-[#F47A20] shadow-[0_0_8px_rgba(244,122,32,0.8)]" />
-          Attention Required
+          {t("admin.attentionRequired")}
         </h2>
         {items.length > 0 && (
           <span className="shrink-0 rounded-full bg-white/[0.06] px-2 py-0.5 text-[11px] font-semibold text-[#C4C9D6]">{items.length}</span>
@@ -34,8 +36,8 @@ export default function AdminAttentionRequired({ items, loading, onOpen }) {
             <ShieldCheck size={15} />
           </span>
           <div className="min-w-0">
-            <p className="text-[13px] font-semibold text-white">Nothing needs attention</p>
-            <p className="text-[11.5px] text-[#8B93A8]">No open issues across the organization.</p>
+            <p className="text-[13px] font-semibold text-white">{t("rm.nothingNeedsAttention")}</p>
+            <p className="text-[11.5px] text-[#8B93A8]">{t("admin.noOpenIssuesAcrossTheOrganization")}</p>
           </div>
         </div>
       ) : (
@@ -48,7 +50,7 @@ export default function AdminAttentionRequired({ items, loading, onOpen }) {
                 key={item.id}
                 type="button"
                 onClick={() => onOpen(item)}
-                className={`flex w-full items-center gap-2.5 rounded-xl border px-3.5 py-3 text-left transition-colors hover:border-white/20 ${cfg.border}`}
+                className={`flex w-full items-center gap-2.5 rounded-xl border px-3.5 py-3 text-start transition-colors hover:border-white/20 ${cfg.border}`}
               >
                 <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-xl ring-1 ring-inset ${cfg.chip}`}>
                   <Icon size={15} />
@@ -58,7 +60,7 @@ export default function AdminAttentionRequired({ items, loading, onOpen }) {
                   <p className="truncate text-[11.5px] text-[#9AA1B4]">{item.context}</p>
                 </div>
                 {item.meta && <span className="shrink-0 text-[10.5px] text-[#5C6479]">{item.meta}</span>}
-                <ChevronRight size={14} className="shrink-0 text-[#4C5266]" />
+                <ChevronRight size={14} className="shrink-0 text-[#4C5266] rtl-flip" />
               </button>
             );
           })}

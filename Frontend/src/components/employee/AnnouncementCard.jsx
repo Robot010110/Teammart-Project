@@ -1,4 +1,5 @@
 import { Megaphone, ChevronRight } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 // AnnouncementCard.jsx — Home tab's "Team Announcement" card. Renders
 // the single most recent real Communication of type ANNOUNCEMENT this
@@ -8,6 +9,7 @@ import { Megaphone, ChevronRight } from "lucide-react";
 // CommunicationDetailScreen every notification/chat announcement link
 // already opens — never a dead card.
 export default function AnnouncementCard({ announcement, onClick }) {
+  const { t } = useTranslation();
   if (!announcement) {
     return (
       <div className="rounded-2xl p-4 bg-[#171C2E]/80 border border-white/[0.06] backdrop-blur-xl flex items-center gap-3">
@@ -15,8 +17,8 @@ export default function AnnouncementCard({ announcement, onClick }) {
           <Megaphone size={18} />
         </span>
         <div className="min-w-0">
-          <p className="text-sm font-semibold text-white">No new announcements</p>
-          <p className="text-xs text-[#8B93A8] mt-0.5">You're up to date.</p>
+          <p className="text-sm font-semibold text-white">{t("emp.noNewAnnouncements")}</p>
+          <p className="text-xs text-[#8B93A8] mt-0.5">{t("emp.youreUpToDate")}</p>
         </div>
       </div>
     );
@@ -32,10 +34,10 @@ export default function AnnouncementCard({ announcement, onClick }) {
         <Megaphone size={18} />
       </span>
       <div className="min-w-0 flex-1">
-        <p className="text-sm font-semibold text-white truncate">Team Announcement</p>
+        <p className="text-sm font-semibold text-white truncate">{t("emp.teamAnnouncement")}</p>
         <p className="text-xs text-[#9AA1B4] mt-0.5 line-clamp-2">{announcement.message}</p>
       </div>
-      <ChevronRight size={16} className="text-[#4C5266] shrink-0" />
+      <ChevronRight size={16} className="text-[#4C5266] shrink-0 rtl-flip" />
     </button>
   );
 }

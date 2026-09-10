@@ -1,12 +1,13 @@
+import { useTranslation } from "react-i18next";
 import { Users2, ShieldAlert, MessageCircle, ChevronRight, Pin, BellOff, MoreVertical } from "lucide-react";
 import AuthenticatedImage from "./AuthenticatedImage";
-import { ANNOUNCEMENT_TYPES } from "../../utils/chatCategories";
+import { ANNOUNCEMENT_TYPES, conversationTitle } from "../../utils/chatCategories";
 
 // This card's own "is it group-shaped" check is deliberately narrower
 // than chatCategories.GROUP_TYPES (which includes WARNINGS/
 // ZONE_ANNOUNCEMENTS) — those two get the ANNOUNCEMENT_TYPES amber
 // treatment below instead of the default Users2/orange one.
-const GROUP_TYPES = new Set(["MARKET_GROUP", "ZONE_GROUP", "CUSTOM_GROUP"]);
+const GROUP_TYPES = new Set(["MARKET_GROUP", "KOCH_OPERATION", "ZONE_GROUP", "CUSTOM_GROUP"]);
 
 function timeLabel(iso) {
   const d = new Date(iso);
@@ -26,17 +27,18 @@ function timeLabel(iso) {
 // same shape, see chatController.js), so this card never needs to know
 // which role is looking at it.
 export default function ChatConversationCard({ conversation, onOpen, onMore }) {
+  const { t } = useTranslation();
   const isAnnouncement = ANNOUNCEMENT_TYPES.has(conversation.type);
   const isGroup = GROUP_TYPES.has(conversation.type);
   const Icon = isAnnouncement ? ShieldAlert : isGroup ? Users2 : MessageCircle;
 
   const preview = conversation.lastMessage
     ? conversation.lastMessage.deleted
-      ? "Message deleted"
-      : conversation.lastMessage.body || "Sent an attachment"
+      ? t("emp.messageDeleted")
+      : conversation.lastMessage.body || t("emp.sentAnAttachment")
     : isAnnouncement
-      ? "No announcements yet"
-      : "No messages yet";
+      ? t("emp.noAnnouncementsYet")
+      : t("emp.noMessagesYetShort");
 
   return (
     <div
@@ -44,7 +46,7 @@ export default function ChatConversationCard({ conversation, onOpen, onMore }) {
         isAnnouncement ? "bg-amber-500/[0.06] border-amber-500/20 hover:border-amber-500/35" : "bg-[#171C2E]/80 border-white/[0.06] hover:border-[#F47A20]/25"
       }`}
     >
-      <button type="button" onClick={() => onOpen(conversation)} className="flex-1 min-w-0 flex items-center gap-3 text-left">
+      <button type="button" onClick={() => onOpen(conversation)} className="flex-1 min-w-0 flex items-center gap-3 text-start">
         <span
           className={`relative w-11 h-11 rounded-full flex items-center justify-center shrink-0 overflow-hidden ${
             isAnnouncement ? "bg-amber-500/15 text-amber-400" : "bg-[#F47A20]/10 text-[#F47A20]"
@@ -56,7 +58,7 @@ export default function ChatConversationCard({ conversation, onOpen, onMore }) {
             <Icon size={19} />
           )}
           {conversation.pinned && (
-            <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-[#1A1A1A] flex items-center justify-center">
+            <span className="absolute -top-1 -end-1 w-4 h-4 rounded-full bg-[#1A1A1A] flex items-center justify-center">
               <Pin size={9} className="text-[#F47A20]" fill="currentColor" />
             </span>
           )}
@@ -65,11 +67,11 @@ export default function ChatConversationCard({ conversation, onOpen, onMore }) {
         <div className="min-w-0 flex-1">
           <div className="flex items-center justify-between gap-2">
             <p className={`text-sm font-semibold truncate flex items-center gap-1.5 ${isAnnouncement ? "text-amber-300" : "text-white"}`}>
-              {conversation.title}
+              {conversationTitle(conversation, t)}
               {conversation.muted && <BellOff size={11} className="text-[#4C5266] shrink-0" />}
               {conversation.groupType === "WARNING" && (
                 <span className="shrink-0 flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide bg-amber-500/15 text-amber-400">
-                  <ShieldAlert size={9} /> Announce
+                  <ShieldAlert size={9} /> {t("emp.announceBadge")}
                 </span>
               )}
             </p>
@@ -87,11 +89,11 @@ export default function ChatConversationCard({ conversation, onOpen, onMore }) {
       </button>
 
       {onMore && (
-        <button type="button" onClick={() => onMore(conversation)} className="p-1.5 text-[#4C5266] hover:text-white shrink-0" aria-label="More options">
+        <button type="button" onClick={() => onMore(conversation)} className="p-1.5 text-[#4C5266] hover:text-white shrink-0" aria-label={t("emp.moreOptions")}>
           <MoreVertical size={16} />
         </button>
       )}
-      <ChevronRight size={16} className="text-[#4C5266] shrink-0" />
+      <ChevronRight size={16} className="text-[#4C5266] shrink-0 rtl-flip" />
     </div>
   );
 }

@@ -1,4 +1,5 @@
 import { Clock3, PackageX } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import ErrorBanner from "../common/ErrorBanner";
 import { SkeletonCard } from "../common/SkeletonCard";
 import Toast from "../common/Toast";
@@ -22,13 +23,16 @@ import { useAsync } from "../../hooks/useAsync";
 import { useToast } from "../../hooks/useToast";
 import { useRef, useState } from "react";
 
-const WASTED_ITEM_LABEL = { EGGS: "Eggs", TOMATO: "Tomato", POTATO: "Potato", CUCUMBER: "Cucumber", ONION: "Onion", OTHER: "Other" };
-function wastedItemLabel(report) {
+const WASTED_ITEM_LABEL = { EGGS: "emp.eggs", TOMATO: "emp.tomato", POTATO: "emp.potato", CUCUMBER: "emp.cucumber", ONION: "emp.onion", OTHER: "emp.other" };
+// Takes `t`: this sits at module scope, where the hook's `t` does not exist.
+function wastedItemLabel(report, t) {
   if (report.item === "OTHER" && report.otherItemName) return report.otherItemName;
-  return WASTED_ITEM_LABEL[report.item] || report.item;
+  return WASTED_ITEM_LABEL[report.item] ? t(WASTED_ITEM_LABEL[report.item]) : report.item;
 }
-function wastedQuantityLabel(report) {
-  return report.item === "EGGS" ? `${report.quantityCount} egg${report.quantityCount === 1 ? "" : "s"}` : `${report.quantityKg}kg`;
+function wastedQuantityLabel(report, t) {
+  return report.item === "EGGS"
+    ? t("emp.eggCountEmp", { count: report.quantityCount })
+    : t("emp.kgAmountEmp", { count: report.quantityKg });
 }
 function shortDateLabel(iso) {
   return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" });
@@ -64,6 +68,7 @@ function shortDateLabel(iso) {
 // an error, and nothing ever substitutes placeholder numbers for data
 // that failed to load.
 export default function PerformanceHistoryScreen({ onBack }) {
+  const { t } = useTranslation();
   const { data: summary, error: summaryError, loading: summaryLoading, reload: reloadSummary } = useAsync(
     getPerformanceSummary,
     { deps: [] }
@@ -134,7 +139,7 @@ export default function PerformanceHistoryScreen({ onBack }) {
     try {
       await deleteActivity(activity.id);
       setActivities((prev) => prev.filter((a) => a.id !== activity.id));
-      setToast("Draft deleted.");
+      setToast(t("emp.draftDeleted"));
     } catch (err) {
       setToast(err instanceof ApiError ? err.message : "Could not delete this activity.");
     } finally {
@@ -191,17 +196,17 @@ export default function PerformanceHistoryScreen({ onBack }) {
             weekly={history.weekly}
             attendanceHistory={attendanceHistory}
             attendanceError={attendanceError}
-            onViewAll={() => handleStatusSelect("Approved")}
+            onViewAll={() => handleStatusSelect(t("emp.approved"))}
           />
 
           {!activitiesLoading && !activitiesError && activities && (
-            <RecentReviews activities={activities} onSeeAll={() => handleStatusSelect("Approved")} />
+            <RecentReviews activities={activities} onSeeAll={() => handleStatusSelect(t("emp.approved"))} />
           )}
 
           <HighlightsCard weekly={history.weekly} activities={activities} />
 
           <section ref={activitiesRef} className="scroll-mt-4">
-            <h2 className="mb-3 text-sm font-semibold text-white">My Activities</h2>
+            <h2 className="mb-3 text-sm font-semibold text-white">{t("emp.myActivities")}</h2>
             {activitiesLoading && <SkeletonCard className="h-[220px]" />}
             {!activitiesLoading && activitiesError && <ErrorBanner message={activitiesError} onRetry={loadActivities} />}
             {!activitiesLoading && !activitiesError && activities && (
@@ -216,13 +221,13 @@ export default function PerformanceHistoryScreen({ onBack }) {
           </section>
 
           <section>
-            <h2 className="mb-3 text-sm font-semibold text-white">Extra Hours</h2>
+            <h2 className="mb-3 text-sm font-semibold text-white">{t("emp.extraHours")}</h2>
             {extraHoursLoading ? (
               <SkeletonCard className="h-[100px]" />
             ) : extraHoursError ? (
               <ErrorBanner message={extraHoursError} onRetry={loadExtraHours} />
             ) : decidedExtraHours.length === 0 ? (
-              <p className="text-sm text-[#4C5266] text-center py-6">No decided Extra Hours requests yet.</p>
+              <p className="text-sm text-[#4C5266] text-center py-6">{t("emp.noDecidedExtraHoursRequestsYet")}</p>
             ) : (
               <div className="space-y-2">
                 {decidedExtraHours.map((r) => (
@@ -249,13 +254,13 @@ export default function PerformanceHistoryScreen({ onBack }) {
           </section>
 
           <section>
-            <h2 className="mb-3 text-sm font-semibold text-white">Wasted Overall</h2>
+            <h2 className="mb-3 text-sm font-semibold text-white">{t("emp.wastedOverall")}</h2>
             {wastedOverallLoading ? (
               <SkeletonCard className="h-[100px]" />
             ) : wastedOverallError ? (
               <ErrorBanner message={wastedOverallError} onRetry={loadWastedOverall} />
             ) : decidedWastedOverall.length === 0 ? (
-              <p className="text-sm text-[#4C5266] text-center py-6">No decided Wasted Overall reports yet.</p>
+              <p className="text-sm text-[#4C5266] text-center py-6">{t("emp.noDecidedWastedOverallReportsYet")}</p>
             ) : (
               <div className="space-y-2">
                 {decidedWastedOverall.map((r) => (
@@ -265,7 +270,7 @@ export default function PerformanceHistoryScreen({ onBack }) {
                     </span>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center justify-between gap-2">
-                        <p className="text-sm text-white">{wastedItemLabel(r)} — {wastedQuantityLabel(r)}</p>
+                        <p className="text-sm text-white">{wastedItemLabel(r, t)} — {wastedQuantityLabel(r, t)}</p>
                         <ActivityStatusPill status={r.status} />
                       </div>
                       <p className="mt-0.5 text-[11px] text-[#8B93A8]">{shortDateLabel(r.reportedAt)}</p>

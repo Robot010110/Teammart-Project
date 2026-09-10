@@ -1,4 +1,5 @@
 import { useNavigate, useParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { ArrowLeft, ShieldAlert, Sparkles, Clock3, Store, User, CalendarCheck } from "lucide-react";
 import { useAsync } from "../../hooks/useAsync";
 import ErrorBanner from "../common/ErrorBanner";
@@ -28,6 +29,7 @@ function timeLabel(iso) {
 // chatService/communicationsService — MarketFeedback stays its own
 // formal record, this screen is purely a read-only view of it.
 export default function MarketFeedbackDetailScreen({ basePath }) {
+  const { t } = useTranslation();
   const { id } = useParams();
   const navigate = useNavigate();
   const { data: feedback, error, loading, reload } = useAsync(() => getMarketFeedback(id), { deps: [id] });
@@ -44,8 +46,8 @@ export default function MarketFeedbackDetailScreen({ basePath }) {
 
   return (
     <div className="px-4 sm:px-6 py-6 max-w-4xl mx-auto animate-fade-up">
-      <button type="button" onClick={() => navigate(-1)} className="flex items-center gap-1.5 text-sm text-[#9AA1B4] hover:text-white mb-4 -ml-1 py-1.5 px-1">
-        <ArrowLeft size={16} /> Back
+      <button type="button" onClick={() => navigate(-1)} className="flex items-center gap-1.5 text-sm text-[#9AA1B4] hover:text-white mb-4 -ms-1 py-1.5 px-1">
+        <ArrowLeft size={16} className="rtl-flip" /> {t("common.back")}
       </button>
 
       <div className="rounded-2xl bg-[#171C2E]/80 border border-white/[0.06] backdrop-blur-xl overflow-hidden">
@@ -56,7 +58,7 @@ export default function MarketFeedbackDetailScreen({ basePath }) {
               isWarning ? "bg-red-500/10 text-red-400" : "bg-emerald-500/10 text-emerald-400"
             }`}>
               {isWarning ? <ShieldAlert size={13} /> : <Sparkles size={13} />}
-              {isWarning ? "Warning" : "Recognition"}
+              {isWarning ? t("emp.warning") : t("sup.recognition")}
             </span>
             {feedback.priority && (
               <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-inset ${PRIORITY_STYLE[feedback.priority] || PRIORITY_STYLE.NORMAL}`}>
@@ -74,9 +76,9 @@ export default function MarketFeedbackDetailScreen({ basePath }) {
           <div className="mt-3 space-y-1.5 text-xs text-[#8B93A8]">
             <p className="flex items-center gap-1.5"><Clock3 size={13} /> {timeLabel(feedback.createdAt)}</p>
             <p className="flex items-center gap-1.5"><Store size={13} /> {feedback.market?.name}</p>
-            <p className="flex items-center gap-1.5"><User size={13} /> {feedback.regionalManager?.name} &middot; Regional Manager</p>
+            <p className="flex items-center gap-1.5"><User size={13} /> {feedback.regionalManager?.name} &middot; {t("roles.regionalManager")}</p>
             {feedback.visit && (
-              <p className="flex items-center gap-1.5"><CalendarCheck size={13} /> From a visit on {new Date(feedback.visit.visitDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</p>
+              <p className="flex items-center gap-1.5"><CalendarCheck size={13} /> {t("sup.fromAVisitOn")} {new Date(feedback.visit.visitDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</p>
             )}
           </div>
 

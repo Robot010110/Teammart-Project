@@ -58,12 +58,12 @@ export function computeZoneMetrics({ markets, problems, activities }) {
   return {
     overall,
     metrics: [
-      { key: "attendance", label: "Attendance", value: attendance },
-      { key: "tasks", label: "Task Completion", value: taskCompletion },
-      { key: "readiness", label: "Store Readiness", value: storeReadiness },
+      { key: "attendance", label: "emp.attendance", value: attendance },
+      { key: "tasks", label: "rm.taskCompletion", value: taskCompletion },
+      { key: "readiness", label: "rm.storeReadiness", value: storeReadiness },
       // "Market Health" rather than "Operational Health" purely so the
       // label survives a 360px screen without truncating.
-      { key: "health", label: "Market Health", value: operationalHealth },
+      { key: "health", label: "rm.marketHealth", value: operationalHealth },
     ],
     totalEmployees,
     activeNow,

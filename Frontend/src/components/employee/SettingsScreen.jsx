@@ -1,8 +1,8 @@
 import { useSearchParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { ArrowLeft, User, Bell, Globe, LogOut, ChevronRight } from "lucide-react";
 import { useAsync } from "../../hooks/useAsync";
 import { getProfile } from "../../services/profileService";
-import { stringsFor } from "../../i18n/settingsStrings";
 import AccountSettings from "./settings/AccountSettings";
 import NotificationSettings from "./settings/NotificationSettings";
 import LanguageSettings from "./settings/LanguageSettings";
@@ -22,18 +22,24 @@ import LanguageSettings from "./settings/LanguageSettings";
 // be linked to directly — without needing nested <Route>s added at each
 // of the three places this screen is mounted (Employee profile,
 // Supervisor, Admin).
+//
+// Localization note: this screen used to take a `t` string-map prop and
+// set dir="..." on its own wrappers. Both are gone — direction now lives
+// on <html> (see i18n/index.js), so RTL is inherited rather than
+// re-declared here, and useTranslation() means the sub-sections no
+// longer need strings passed down to them.
 const ENTRIES = [
-  { key: "account", icon: User, title: "account", sub: "accountSub" },
-  { key: "notifications", icon: Bell, title: "notifications", sub: "notificationsSub" },
-  { key: "language", icon: Globe, title: "language", sub: "languageSub" },
+  { key: "account", icon: User, title: "settings.account", sub: "settings.accountSub", lead: "settings.accountLead" },
+  { key: "notifications", icon: Bell, title: "settings.notifications", sub: "settings.notificationsSub", lead: "settings.notificationsLead" },
+  { key: "language", icon: Globe, title: "settings.language", sub: "settings.languageSub", lead: "settings.languageLead" },
 ];
 
 export default function SettingsScreen({ onBack, onLogout }) {
+  const { t } = useTranslation();
   const [params, setParams] = useSearchParams();
   const section = params.get("section");
 
   const { data: profile, loading, setData } = useAsync(getProfile, { deps: [] });
-  const t = stringsFor(profile?.language);
 
   function openSection(key) {
     const next = new URLSearchParams(params);
@@ -47,8 +53,8 @@ export default function SettingsScreen({ onBack, onLogout }) {
     setParams(next);
   }
 
-  // Applying a saved preference locally keeps the UI (including this
-  // screen's own language) in step without a second network round trip.
+  // Applying a saved preference locally keeps the UI in step without a
+  // second network round trip.
   function handleChanged(patch) {
     setData((prev) => (prev ? { ...prev, ...patch } : prev));
   }
@@ -58,13 +64,13 @@ export default function SettingsScreen({ onBack, onLogout }) {
   if (active) {
     const Icon = active.icon;
     return (
-      <div dir={t.dir} className="mx-auto max-w-2xl animate-fade-up px-4 pb-6 pt-5 sm:px-6">
+      <div className="mx-auto max-w-2xl animate-fade-up px-4 pb-6 pt-5 sm:px-6">
         <button
           type="button"
           onClick={closeSection}
-          className="-ml-1 mb-4 flex items-center gap-1.5 px-1 py-1.5 text-[13px] text-[#9AA1B4] transition-colors hover:text-white"
+          className="-ms-1 mb-4 flex items-center gap-1.5 px-1 py-1.5 text-[13px] text-[#9AA1B4] transition-colors hover:text-white"
         >
-          <ArrowLeft size={16} className={t.dir === "rtl" ? "rotate-180" : ""} /> {t.backToSettings}
+          <ArrowLeft size={16} className="rtl-flip" /> {t("settings.backToSettings")}
         </button>
 
         <div className="mb-4 flex items-center gap-2.5">
@@ -72,35 +78,35 @@ export default function SettingsScreen({ onBack, onLogout }) {
             <Icon size={17} />
           </span>
           <div>
-            <h1 className="font-display text-[20px] font-bold leading-tight text-white">{t[`${active.key}Title`] ?? t[active.title]}</h1>
-            <p className="text-[12px] text-[#8B93A8]">{t[`${active.key}Lead`] ?? ""}</p>
+            <h1 className="font-display text-[20px] font-bold leading-tight text-white">{t(active.title)}</h1>
+            <p className="text-[12px] text-[#8B93A8]">{t(active.lead)}</p>
           </div>
         </div>
 
-        {active.key === "account" && <AccountSettings profile={profile} loading={loading} t={t} />}
+        {active.key === "account" && <AccountSettings profile={profile} loading={loading} />}
         {active.key === "notifications" && (
-          <NotificationSettings profile={profile} loading={loading} onChanged={handleChanged} t={t} />
+          <NotificationSettings profile={profile} loading={loading} onChanged={handleChanged} />
         )}
         {active.key === "language" && (
-          <LanguageSettings profile={profile} loading={loading} onChanged={handleChanged} t={t} />
+          <LanguageSettings profile={profile} loading={loading} onChanged={handleChanged} />
         )}
       </div>
     );
   }
 
   return (
-    <div dir={t.dir} className="mx-auto max-w-2xl animate-fade-up px-4 pb-6 pt-5 sm:px-6">
+    <div className="mx-auto max-w-2xl animate-fade-up px-4 pb-6 pt-5 sm:px-6">
       {onBack && (
         <button
           type="button"
           onClick={onBack}
-          className="-ml-1 mb-4 flex items-center gap-1.5 px-1 py-1.5 text-[13px] text-[#9AA1B4] transition-colors hover:text-white"
+          className="-ms-1 mb-4 flex items-center gap-1.5 px-1 py-1.5 text-[13px] text-[#9AA1B4] transition-colors hover:text-white"
         >
-          <ArrowLeft size={16} className={t.dir === "rtl" ? "rotate-180" : ""} /> {t.backToProfile}
+          <ArrowLeft size={16} className="rtl-flip" /> {t("settings.backToProfile")}
         </button>
       )}
 
-      <h1 className="mb-4 font-display text-[22px] font-bold text-white">{t.settings}</h1>
+      <h1 className="mb-4 font-display text-[22px] font-bold text-white">{t("settings.title")}</h1>
 
       <div className="space-y-2.5">
         {ENTRIES.map(({ key, icon: Icon, title, sub }) => (
@@ -108,16 +114,16 @@ export default function SettingsScreen({ onBack, onLogout }) {
             key={key}
             type="button"
             onClick={() => openSection(key)}
-            className="flex w-full items-center gap-3 rounded-2xl border border-white/[0.07] bg-[#111A2D]/80 p-3.5 text-left backdrop-blur-xl transition-all duration-200 hover:border-[#F47A20]/30 hover:bg-[#131E33]/90 active:scale-[0.99]"
+            className="flex w-full items-center gap-3 rounded-2xl border border-white/[0.07] bg-[#111A2D]/80 p-3.5 text-start backdrop-blur-xl transition-all duration-200 hover:border-[#F47A20]/30 hover:bg-[#131E33]/90 active:scale-[0.99]"
           >
             <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#F47A20]/10 text-[#F47A20] ring-1 ring-inset ring-[#F47A20]/20">
               <Icon size={17} />
             </span>
             <span className="min-w-0 flex-1">
-              <span className="block text-[14px] font-semibold text-white">{t[title]}</span>
-              <span className="mt-0.5 block truncate text-[11.5px] text-[#8B93A8]">{t[sub]}</span>
+              <span className="block text-[14px] font-semibold text-white">{t(title)}</span>
+              <span className="mt-0.5 block truncate text-[11.5px] text-[#8B93A8]">{t(sub)}</span>
             </span>
-            <ChevronRight size={17} className={`shrink-0 text-[#4C5266] ${t.dir === "rtl" ? "rotate-180" : ""}`} />
+            <ChevronRight size={17} className="shrink-0 text-[#4C5266] rtl-flip" />
           </button>
         ))}
       </div>
@@ -127,7 +133,7 @@ export default function SettingsScreen({ onBack, onLogout }) {
         onClick={onLogout}
         className="mt-5 flex w-full items-center justify-center gap-2 rounded-2xl border border-red-500/20 bg-red-500/[0.07] py-3.5 text-[14px] font-semibold text-red-400 transition-colors duration-200 hover:bg-red-500/[0.12]"
       >
-        <LogOut size={16} /> {t.logOut}
+        <LogOut size={16} /> {t("settings.logOut")}
       </button>
     </div>
   );

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 const DAY_LABEL = ["S", "M", "T", "W", "T", "F", "S"];
 
@@ -12,6 +13,7 @@ const DAY_LABEL = ["S", "M", "T", "W", "T", "F", "S"];
 // in on mount (height 0 -> real value); disabled under
 // prefers-reduced-motion via the same check AnimatedNumber.jsx uses.
 export default function WeeklyHoursChart({ days }) {
+  const { t } = useTranslation();
   const [grown, setGrown] = useState(false);
   useEffect(() => {
     const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
@@ -39,7 +41,7 @@ export default function WeeklyHoursChart({ days }) {
 
   return (
     <div className="rounded-2xl p-4 bg-[#171C2E]/80 border border-white/[0.06] backdrop-blur-xl">
-      <p className="text-xs font-semibold text-white mb-4">Hours Worked — Last 7 Days</p>
+      <p className="text-xs font-semibold text-white mb-4">{t("emp.hoursWorkedLast7Days")}</p>
       <div className="flex items-end justify-between gap-2 h-28">
         {last7.map((d, i) => {
           const pct = d.hours > 0 ? Math.max((d.hours / maxHours) * 100, 6) : 0;

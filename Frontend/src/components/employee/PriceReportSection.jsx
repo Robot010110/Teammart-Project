@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Tag, DollarSign, TrendingUp, FileText } from "lucide-react";
 import PriceReportFlow from "./PriceReportFlow";
 import ErrorBanner from "../common/ErrorBanner";
@@ -32,11 +33,12 @@ function isToday(iso) {
 // entirely about today's work — full history isn't hidden anywhere else,
 // there was simply no other place showing it.
 export default function PriceReportSection() {
+  const { t } = useTranslation();
   const [flowOpen, setFlowOpen] = useState(false);
   const [toast, setToast] = useToast();
 
   const { data: reports, setData: setReports, error, loading, reload } = useAsync(listPriceReports, {
-    fallbackError: "Could not load your price reports.",
+    fallbackError: t("emp.couldNotLoadYourPriceReports"),
   });
 
   const handleSaved = (report, message) => {
@@ -54,17 +56,17 @@ export default function PriceReportSection() {
             <TrendingUp size={18} />
           </span>
           <div className="min-w-0">
-            <p className="text-sm font-semibold text-white">Price Report</p>
-            <p className="text-xs text-[#8B93A8]">Report price difference</p>
+            <p className="text-sm font-semibold text-white">{t("emp.priceReport")}</p>
+            <p className="text-xs text-[#8B93A8]">{t("emp.reportPriceDifference2")}</p>
           </div>
         </div>
         <button
           type="button"
           onClick={() => setFlowOpen(true)}
-          aria-label="Report Price Difference"
+          aria-label={t("emp.reportPriceDifference")}
           className="shrink-0 flex items-center gap-1.5 rounded-xl px-3 sm:px-3.5 py-2.5 text-xs font-semibold text-white bg-[#F47A20] hover:bg-[#ff8b36] active:bg-[#e06f18] transition-colors duration-150"
         >
-          <DollarSign size={14} /> Report Price Difference
+          <DollarSign size={14} /> {t("emp.reportPriceDifference")}
         </button>
       </div>
 
@@ -75,7 +77,7 @@ export default function PriceReportSection() {
           {todayReports.length === 0 ? (
             <div className="flex items-center gap-2.5 rounded-xl px-3.5 py-3 bg-white/[0.03] border border-white/[0.05]">
               <FileText size={15} className="text-[#4C5266] shrink-0" />
-              <p className="text-sm text-[#8B93A8]">No price reports yet today.</p>
+              <p className="text-sm text-[#8B93A8]">{t("emp.noPriceReportsYetToday")}</p>
             </div>
           ) : (
             todayReports.map((report) => (

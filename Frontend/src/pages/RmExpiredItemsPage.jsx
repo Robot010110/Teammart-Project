@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { ArrowLeft, PackageX, RotateCw, ChevronRight } from "lucide-react";
 import { useAsync } from "../hooks/useAsync";
 import ItemReportRow from "../components/regionalManager/expired/ItemReportRow";
@@ -6,10 +7,10 @@ import ItemReportDetailModal from "../components/regionalManager/expired/ItemRep
 import { listZoneItemReports } from "../services/itemReportService";
 
 const PERIODS = [
-  { key: "today", label: "Today", empty: "No expired items reported today" },
-  { key: "week", label: "This Week", empty: "No expired items reported this week" },
-  { key: "month", label: "This Month", empty: "No expired items reported this month" },
-  { key: "all", label: "All Time", empty: "No expired item reports yet" },
+  { key: "today", label: "common.today", empty: "rm.noExpiredItemsReportedToday" },
+  { key: "week", label: "emp.thisWeek", empty: "rm.noExpiredItemsReportedThisWeek" },
+  { key: "month", label: "emp.thisMonth", empty: "rm.noExpiredItemsReportedThisMonth" },
+  { key: "all", label: "rm.allTime", empty: "rm.noExpiredItemReportsYet" },
 ];
 
 const PAGE_SIZE = 25;
@@ -30,14 +31,15 @@ const PAGE_SIZE = 25;
 // button, sees their own markets), while Admin mounts it as a sidebar
 // destination (no back button, sees the whole organization). The data
 // scope itself is decided server-side by the caller's role, never here.
-export default function RmExpiredItemsPage({ onBack, scopeLabel = "across your markets" }) {
+export default function RmExpiredItemsPage({ onBack, scopeLabelKey = "admin.scopeAcrossYourMarkets" }) {
+  const { t } = useTranslation();
   const [period, setPeriod] = useState("today");
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState(null);
 
   const { data, error, loading, reload } = useAsync(
     () => listZoneItemReports({ period, page, pageSize: PAGE_SIZE }),
-    { deps: [period, page], fallbackError: "Could not load expired item reports." }
+    { deps: [period, page], fallbackError: t("rm.couldNotLoadExpiredItemReports") }
   );
 
   const reports = data?.reports ?? [];
@@ -57,16 +59,16 @@ export default function RmExpiredItemsPage({ onBack, scopeLabel = "across your m
           <button
             type="button"
             onClick={onBack}
-            aria-label="Back to home"
+            aria-label={t("emp.backToHome")}
             className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-white/10 bg-white/[0.06] text-white transition-all hover:bg-white/10 active:scale-95"
           >
-            <ArrowLeft size={16} />
+            <ArrowLeft size={16} className="rtl-flip" />
           </button>
         )}
         <div className="min-w-0">
-          <h1 className="truncate font-display text-[22px] font-bold leading-tight text-white">Expired Items</h1>
+          <h1 className="truncate font-display text-[22px] font-bold leading-tight text-white">{t("emp.catExpiredItems")}</h1>
           <p className="text-[12px] text-[#8B93A8]">
-            {loading ? "Loading reports…" : `${total} report${total === 1 ? "" : "s"} · ${active.label.toLowerCase()}`}
+            {loading ? t("rm.loadingReports") : `${total === 1 ? t("rm.reportCount", { count: total }) : t("rm.reportsCount", { count: total })} · ${t(active.label).toLowerCase()}`}
           </p>
         </div>
       </div>
@@ -89,7 +91,7 @@ export default function RmExpiredItemsPage({ onBack, scopeLabel = "across your m
                     : "border-white/[0.07] bg-[#111A2D]/70 text-[#8B93A8] hover:border-white/[0.16] hover:text-white"
                 }`}
               >
-                {p.label}
+                {t(p.label)}
               </button>
             );
           })}
@@ -103,14 +105,14 @@ export default function RmExpiredItemsPage({ onBack, scopeLabel = "across your m
           ))
         ) : error ? (
           <div className="rounded-2xl border border-red-500/20 bg-red-500/[0.06] p-6 text-center">
-            <p className="text-[13.5px] font-semibold text-white">Couldn't load expired items</p>
+            <p className="text-[13.5px] font-semibold text-white">{t("rm.couldnTLoadExpiredItems")}</p>
             <p className="mt-1 text-[12px] text-[#9AA1B4]">{error}</p>
             <button
               type="button"
               onClick={reload}
               className="mt-3 inline-flex items-center gap-1.5 rounded-xl bg-white/[0.06] px-4 py-2 text-[12.5px] font-semibold text-white transition-colors hover:bg-white/[0.1]"
             >
-              <RotateCw size={13} /> Try again
+              <RotateCw size={13} /> {t("rm.tryAgain")}
             </button>
           </div>
         ) : reports.length === 0 ? (
@@ -118,9 +120,9 @@ export default function RmExpiredItemsPage({ onBack, scopeLabel = "across your m
             <span className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-[#F47A20]/10 text-[#F47A20]">
               <PackageX size={20} />
             </span>
-            <p className="mt-3 text-[14px] font-semibold text-white">{active.empty}</p>
+            <p className="mt-3 text-[14px] font-semibold text-white">{t(active.empty)}</p>
             <p className="mt-1 text-[12.5px] text-[#8B93A8]">
-              Reports filed by employees {scopeLabel} appear here.
+              {t("admin.reportsFiledByEmployeesScope", { scope: t(scopeLabelKey) })}
             </p>
           </div>
         ) : (
@@ -138,16 +140,16 @@ export default function RmExpiredItemsPage({ onBack, scopeLabel = "across your m
             disabled={page <= 1}
             className="flex items-center gap-1 rounded-xl border border-white/[0.07] bg-[#111A2D]/80 px-3 py-2 text-[12.5px] font-medium text-white transition-colors hover:border-white/[0.16] disabled:opacity-40"
           >
-            <ChevronRight size={14} className="rotate-180" /> Previous
+            <ChevronRight size={14} className="rotate-180 rtl-flip" /> {t("rm.previous")}
           </button>
-          <span className="text-[12px] text-[#8B93A8]">Page {page} of {totalPages}</span>
+          <span className="text-[12px] text-[#8B93A8]">{t("rm.pageOfTotal", { page, total: totalPages })}</span>
           <button
             type="button"
             onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
             disabled={page >= totalPages}
             className="flex items-center gap-1 rounded-xl border border-white/[0.07] bg-[#111A2D]/80 px-3 py-2 text-[12.5px] font-medium text-white transition-colors hover:border-white/[0.16] disabled:opacity-40"
           >
-            Next <ChevronRight size={14} />
+            {t("common.next")} <ChevronRight size={14} className="rtl-flip" />
           </button>
         </div>
       )}

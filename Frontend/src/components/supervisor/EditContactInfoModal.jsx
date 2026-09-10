@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Check, Loader2, Phone, MessageCircle } from "lucide-react";
 import Modal from "../common/Modal";
 import { updateMyPhoneNumber, updateMyWhatsApp } from "../../services/profileService";
@@ -12,6 +13,7 @@ import { ApiError } from "../../services/apiClient";
 // enforced server-side from the auth token; this modal has no way to
 // target anyone else's profile even in principle.
 export default function EditContactInfoModal({ open, onClose, initialPhone, initialWhatsapp, onSaved }) {
+  const { t } = useTranslation();
   const [phone, setPhone] = useState(initialPhone ?? "");
   const [whatsapp, setWhatsapp] = useState(initialWhatsapp ?? "");
   const [saving, setSaving] = useState(false);
@@ -33,7 +35,7 @@ export default function EditContactInfoModal({ open, onClose, initialPhone, init
       });
       onClose();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Could not save your contact info.");
+      setError(err instanceof ApiError ? err.message : t("sup.couldNotSaveYourContactInfo"));
     } finally {
       setSaving(false);
     }
@@ -43,28 +45,28 @@ export default function EditContactInfoModal({ open, onClose, initialPhone, init
     "w-full rounded-lg bg-white/[0.04] border border-white/[0.06] px-3 py-3 text-base sm:text-sm text-white placeholder:text-[#4C5266] outline-none focus:border-[#F47A20]/50";
 
   return (
-    <Modal open={open} onClose={onClose} title="Edit Contact Info">
+    <Modal open={open} onClose={onClose} title={t("sup.editContactInfo")}>
       <div className="space-y-4">
         <div>
           <label className="flex items-center gap-1.5 text-xs font-medium text-[#8B93A8] mb-1.5">
-            <Phone size={13} /> Phone number
+            <Phone size={13} /> {t("sup.phoneNumber")}
           </label>
           <input
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
-            placeholder="e.g. 9647501234567"
+            placeholder={t("sup.eG9647501234567")}
             inputMode="tel"
             className={inputClass}
           />
         </div>
         <div>
           <label className="flex items-center gap-1.5 text-xs font-medium text-[#8B93A8] mb-1.5">
-            <MessageCircle size={13} /> WhatsApp number
+            <MessageCircle size={13} /> {t("sup.whatsappNumber")}
           </label>
           <input
             value={whatsapp}
             onChange={(e) => setWhatsapp(e.target.value)}
-            placeholder="e.g. 9647501234567"
+            placeholder={t("sup.eG9647501234567")}
             inputMode="tel"
             className={inputClass}
           />
@@ -77,7 +79,7 @@ export default function EditContactInfoModal({ open, onClose, initialPhone, init
           className="w-full flex items-center justify-center gap-1.5 rounded-xl py-3 text-sm font-semibold text-white bg-[#F47A20] hover:bg-[#ff8b36] disabled:opacity-50 transition-colors duration-150"
         >
           {saving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
-          Save
+          {t("common.save")}
         </button>
       </div>
     </Modal>

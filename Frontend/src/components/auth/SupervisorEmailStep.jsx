@@ -21,7 +21,7 @@ export default function SupervisorEmailStep({ onSelect }) {
     <form onSubmit={handleSubmit} className="max-w-sm mx-auto animate-fade-up">
       <label className="block text-xs uppercase tracking-wide text-[#8B93A8] mb-2">Email</label>
       <div className="relative">
-        <Mail size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#4C5266]" />
+        <Mail size={14} className="absolute start-3 top-1/2 -translate-y-1/2 text-[#4C5266]" />
         <input
           type="email"
           value={email}
@@ -29,7 +29,7 @@ export default function SupervisorEmailStep({ onSelect }) {
           placeholder="you@teammart.com"
           autoFocus
           autoCapitalize="none"
-          className="w-full rounded-lg bg-white/[0.04] border border-white/[0.06] pl-9 pr-3 py-3 text-base sm:text-sm text-white placeholder:text-[#4C5266] outline-none focus:border-[#F47A20]/50 transition-colors duration-200"
+          className="w-full rounded-lg bg-white/[0.04] border border-white/[0.06] ps-9 pe-3 py-3 text-base sm:text-sm text-white placeholder:text-[#4C5266] outline-none focus:border-[#F47A20]/50 transition-colors duration-200"
         />
       </div>
 

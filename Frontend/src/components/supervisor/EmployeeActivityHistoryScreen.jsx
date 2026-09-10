@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { ArrowLeft, ChevronRight, ChevronDown, History } from "lucide-react";
 import { SkeletonCard } from "../common/SkeletonCard";
 import ErrorBanner from "../common/ErrorBanner";
@@ -6,12 +7,12 @@ import EmployeeIdentityStrip from "./EmployeeIdentityStrip";
 import { useEmployeeActivityFeed, ACTIVITY_FILTERS } from "../../hooks/useEmployeeActivityFeed";
 
 const STATUS_META = {
-  APPROVED: { label: "Approved", tone: "text-emerald-400 bg-emerald-500/10 ring-emerald-500/25" },
-  COMPLETED: { label: "Approved", tone: "text-emerald-400 bg-emerald-500/10 ring-emerald-500/25" },
-  REJECTED: { label: "Rejected", tone: "text-red-400 bg-red-500/10 ring-red-500/25" },
-  PENDING: { label: "Pending", tone: "text-amber-400 bg-amber-500/10 ring-amber-500/25" },
-  DRAFT: { label: "Draft", tone: "text-amber-400 bg-amber-500/10 ring-amber-500/25" },
-  SYSTEM: { label: "System", tone: "text-[#9AA1B4] bg-white/[0.06] ring-white/10" },
+  APPROVED: { label: "status.approved", tone: "text-emerald-400 bg-emerald-500/10 ring-emerald-500/25" },
+  COMPLETED: { label: "status.approved", tone: "text-emerald-400 bg-emerald-500/10 ring-emerald-500/25" },
+  REJECTED: { label: "status.rejected", tone: "text-red-400 bg-red-500/10 ring-red-500/25" },
+  PENDING: { label: "status.pending", tone: "text-amber-400 bg-amber-500/10 ring-amber-500/25" },
+  DRAFT: { label: "status.draft", tone: "text-amber-400 bg-amber-500/10 ring-amber-500/25" },
+  SYSTEM: { label: "sup.system", tone: "text-[#9AA1B4] bg-white/[0.06] ring-white/10" },
 };
 
 function dateTimeLabel(iso) {
@@ -37,6 +38,7 @@ function dateTimeLabel(iso) {
 // already-reviewed items; this page is deliberately the plain
 // historical record, always in one chronological order.
 export default function EmployeeActivityHistoryScreen({ employeeId, employee, marketName, onBack }) {
+  const { t } = useTranslation();
   const { data, error, loading, reload } = useEmployeeActivityFeed({ employeeId, marketId: employee?.marketId, todayOnly: false });
   const [filter, setFilter] = useState("ALL");
   const [filterOpen, setFilterOpen] = useState(false);
@@ -46,20 +48,21 @@ export default function EmployeeActivityHistoryScreen({ employeeId, employee, ma
     return filter === "ALL" ? data : data.filter((i) => i.filterKey === filter);
   }, [data, filter]);
 
-  const filterLabel = ACTIVITY_FILTERS.find((f) => f.key === filter)?.label ?? "All Activities";
+  const filterLabelKey = ACTIVITY_FILTERS.find((f) => f.key === filter)?.label ?? "sup.allActivities";
+  const filterLabel = t(filterLabelKey);
 
   return (
     <div className="px-4 sm:px-6 py-6 max-w-4xl mx-auto animate-fade-up">
-      <button type="button" onClick={onBack} className="flex items-center gap-1.5 text-sm text-[#9AA1B4] hover:text-white mb-1 -ml-1 py-1.5 px-1">
-        <ArrowLeft size={16} /> Back to Employee
+      <button type="button" onClick={onBack} className="flex items-center gap-1.5 text-sm text-[#9AA1B4] hover:text-white mb-1 -ms-1 py-1.5 px-1">
+        <ArrowLeft size={16} className="rtl-flip" /> {t("sup.backToEmployee")}
       </button>
 
       <EmployeeIdentityStrip employee={employee} marketName={marketName} />
 
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-4">
         <div>
-          <h1 className="font-display text-[18px] font-bold text-white">Activity History</h1>
-          <p className="mt-0.5 text-[12.5px] text-[#8B93A8]">View all activities performed by this employee</p>
+          <h1 className="font-display text-[18px] font-bold text-white">{t("sup.activityHistory")}</h1>
+          <p className="mt-0.5 text-[12.5px] text-[#8B93A8]">{t("sup.viewAllActivitiesPerformedByThis")}</p>
         </div>
 
         <div className="relative shrink-0">
@@ -72,18 +75,18 @@ export default function EmployeeActivityHistoryScreen({ employeeId, employee, ma
           </button>
           {filterOpen && (
             <>
-              <button type="button" aria-label="Close filter" onClick={() => setFilterOpen(false)} className="fixed inset-0 z-10 cursor-default" />
-              <div className="absolute right-0 z-20 mt-1.5 w-52 rounded-xl border border-white/[0.08] bg-[#151B2E] p-1.5 shadow-[0_16px_40px_-12px_rgba(0,0,0,0.7)]">
+              <button type="button" aria-label={t("sup.closeFilter")} onClick={() => setFilterOpen(false)} className="fixed inset-0 z-10 cursor-default" />
+              <div className="absolute end-0 z-20 mt-1.5 w-52 rounded-xl border border-white/[0.08] bg-[#151B2E] p-1.5 shadow-[0_16px_40px_-12px_rgba(0,0,0,0.7)]">
                 {ACTIVITY_FILTERS.map((f) => (
                   <button
                     key={f.key}
                     type="button"
                     onClick={() => { setFilter(f.key); setFilterOpen(false); }}
-                    className={`flex w-full items-center rounded-lg px-3 py-2 text-left text-[12.5px] transition-colors ${
+                    className={`flex w-full items-center rounded-lg px-3 py-2 text-start text-[12.5px] transition-colors ${
                       filter === f.key ? "text-[#F47A20] bg-[#F47A20]/10" : "text-[#C4C9D6] hover:bg-white/[0.06]"
                     }`}
                   >
-                    {f.label}
+                    {t(f.label)}
                   </button>
                 ))}
               </div>
@@ -97,9 +100,9 @@ export default function EmployeeActivityHistoryScreen({ employeeId, employee, ma
       ) : error ? (
         <ErrorBanner message={error} onRetry={reload} />
       ) : data.length === 0 ? (
-        <EmptyState message="No activity history yet" />
+        <EmptyState message={t("sup.noActivityHistoryYet")} />
       ) : filtered.length === 0 ? (
-        <EmptyState message="No matching activities found" />
+        <EmptyState message={t("sup.noMatchingActivitiesFound")} />
       ) : (
         <div className="rounded-2xl border border-white/[0.07] bg-gradient-to-b from-[#131D33]/90 to-[#0C1424]/90 backdrop-blur-xl shadow-[0_10px_30px_-18px_rgba(0,0,0,0.9)] divide-y divide-white/[0.05] overflow-hidden">
           {filtered.map((item, i) => {
@@ -119,7 +122,7 @@ export default function EmployeeActivityHistoryScreen({ employeeId, employee, ma
                   <div className="flex items-start justify-between gap-2">
                     <p className="text-[13.5px] font-semibold text-white">{item.title}</p>
                     <span className={`shrink-0 inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold ring-1 ring-inset ${status.tone}`}>
-                      {status.label}
+                      {t(status.label)}
                     </span>
                   </div>
                   {(item.subtitle || marketName) && (
@@ -129,7 +132,7 @@ export default function EmployeeActivityHistoryScreen({ employeeId, employee, ma
                   )}
                   <p className="mt-1 text-[11px] tabular-nums text-[#5C6479]">{date} · {time}</p>
                 </div>
-                <ChevronRight size={15} className="mt-2 shrink-0 text-[#4C5266]" />
+                <ChevronRight size={15} className="mt-2 shrink-0 text-[#4C5266] rtl-flip" />
               </div>
             );
           })}

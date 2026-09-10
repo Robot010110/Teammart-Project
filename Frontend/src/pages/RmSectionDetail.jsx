@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Sparkles, PackageX, ClipboardList, ChevronRight, Image as ImageIcon } from "lucide-react";
 import Breadcrumb from "../components/layout/Breadcrumb";
 import Modal from "../components/common/Modal";
@@ -19,7 +20,7 @@ function EventRow({ icon: Icon, title, subtitle, time, status, onOpen }) {
     <button
       type="button"
       onClick={onOpen}
-      className="w-full flex items-start gap-3 rounded-xl p-3.5 bg-[#1A1F33]/70 border border-white/[0.06] hover:border-[#F47A20]/25 transition-colors text-left"
+      className="w-full flex items-start gap-3 rounded-xl p-3.5 bg-[#1A1F33]/70 border border-white/[0.06] hover:border-[#F47A20]/25 transition-colors text-start"
     >
       <span className="w-8 h-8 shrink-0 rounded-lg bg-[#F47A20]/10 flex items-center justify-center text-[#F47A20]">
         <Icon size={15} />
@@ -30,7 +31,7 @@ function EventRow({ icon: Icon, title, subtitle, time, status, onOpen }) {
         <p className="text-[11px] text-[#4C5266] mt-1">{time}</p>
       </div>
       {status && <ActivityStatusPill status={status} />}
-      {onOpen && <ChevronRight size={15} className="text-[#4C5266] shrink-0 mt-1" />}
+      {onOpen && <ChevronRight size={15} className="text-[#4C5266] shrink-0 mt-1 rtl-flip" />}
     </button>
   );
 }
@@ -42,6 +43,7 @@ function EventRow({ icon: Icon, title, subtitle, time, status, onOpen }) {
 // evidence viewable. No write actions anywhere on this screen — the
 // Regional Manager inspects, doesn't operate the department.
 export default function RmSectionDetail({ marketId, department, onOpenEmployee, onBack }) {
+  const { t } = useTranslation();
   const { data, error, loading, reload } = useAsync(() => getMarketSectionDetail(marketId, department), { deps: [marketId, department] });
   const [evidence, setEvidence] = useState(null);
 
@@ -52,7 +54,7 @@ export default function RmSectionDetail({ marketId, department, onOpenEmployee, 
     ...data.recentActivities.map((a) => ({
       id: `activity-${a.id}`,
       icon: Sparkles,
-      title: `${a.employee?.name ?? "Employee"} logged an activity`,
+      title: `${a.employee?.name ?? t("roles.employee")} logged an activity`,
       subtitle: a.notes || (a.images?.length ? `${a.images.length} photo(s) attached` : a.category.replace(/_/g, " ").toLowerCase()),
       rawTime: a.updatedAt ?? a.createdAt,
       status: a.status,
@@ -61,8 +63,8 @@ export default function RmSectionDetail({ marketId, department, onOpenEmployee, 
     ...data.recentItemReports.map((r) => ({
       id: `item-${r.id}`,
       icon: PackageX,
-      title: `${r.employee?.name ?? "Employee"} reported ${r.condition === "EXPIRED" ? "expired" : "wasted"} items`,
-      subtitle: `${r.product?.name ?? "Item"} × ${r.quantity}`,
+      title: `${r.employee?.name ?? t("roles.employee")} reported ${r.condition === "EXPIRED" ? "expired" : "wasted"} items`,
+      subtitle: `${r.product?.name ?? t("sup.item")} × ${r.quantity}`,
       rawTime: r.reportedAt,
       status: r.status,
       images: r.imageUrl ? [r.imageUrl] : [],
@@ -70,7 +72,7 @@ export default function RmSectionDetail({ marketId, department, onOpenEmployee, 
     ...data.recentWastedReports.map((r) => ({
       id: `wasted-${r.id}`,
       icon: PackageX,
-      title: `${r.employee?.name ?? "Employee"} submitted a waste report`,
+      title: `${r.employee?.name ?? t("roles.employee")} submitted a waste report`,
       subtitle: r.item,
       rawTime: r.reportedAt,
       status: r.status,
@@ -80,16 +82,16 @@ export default function RmSectionDetail({ marketId, department, onOpenEmployee, 
 
   return (
     <div className="px-6 md:px-10 py-8 max-w-5xl mx-auto animate-fade-up">
-      <Breadcrumb items={[{ label: "Market", onClick: onBack }, { label: department }]} />
+      <Breadcrumb items={[{ label: t("sup.market"), onClick: onBack }, { label: department }]} />
 
       <h1 className="mt-4 font-display text-2xl font-bold text-white">{department}</h1>
-      <p className="mt-1 text-sm text-[#9AA1B4]">Recent condition and activity — last 14 days, observation only.</p>
+      <p className="mt-1 text-sm text-[#9AA1B4]">{t("rm.recentConditionAndActivityLast14")}</p>
 
       <div className="mt-6 grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-6 items-start">
         <section>
-          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-[#8B93A8]">Assigned Employees</h2>
+          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-[#8B93A8]">{t("rm.assignedEmployees")}</h2>
           {data.employees.length === 0 ? (
-            <p className="text-sm text-[#4C5266]">No employees in this department.</p>
+            <p className="text-sm text-[#4C5266]">{t("rm.noEmployeesInThisDepartment")}</p>
           ) : (
             <div className="space-y-2">
               {data.employees.map((e) => {
@@ -99,12 +101,12 @@ export default function RmSectionDetail({ marketId, department, onOpenEmployee, 
                     key={e.id}
                     type="button"
                     onClick={() => onOpenEmployee(e.id)}
-                    className="w-full flex items-center gap-2.5 rounded-xl p-3 bg-[#1A1F33]/70 border border-white/[0.06] hover:border-[#F47A20]/25 transition-colors text-left"
+                    className="w-full flex items-center gap-2.5 rounded-xl p-3 bg-[#1A1F33]/70 border border-white/[0.06] hover:border-[#F47A20]/25 transition-colors text-start"
                   >
                     <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${active ? "bg-emerald-400" : "bg-[#4C5266]"}`} />
                     <span className="min-w-0 flex-1">
                       <p className="text-sm text-white truncate">{e.name}</p>
-                      <p className="text-[11px] text-[#8B93A8]">{active ? "Active" : "Off Shift"}</p>
+                      <p className="text-[11px] text-[#8B93A8]">{active ? t("status.active") : t("rm.offShift")}</p>
                     </span>
                   </button>
                 );
@@ -114,10 +116,10 @@ export default function RmSectionDetail({ marketId, department, onOpenEmployee, 
         </section>
 
         <section>
-          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-[#8B93A8]">Recent Activity</h2>
+          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-[#8B93A8]">{t("sup.recentActivity")}</h2>
           {events.length === 0 ? (
             <div className="rounded-xl p-8 bg-[#171C2E]/80 border border-white/[0.06] text-center text-sm text-[#8B93A8]">
-              No recorded activity in this department recently.
+              {t("rm.noRecordedActivityInThisDepartment")}
             </div>
           ) : (
             <div className="space-y-2">
@@ -137,14 +139,14 @@ export default function RmSectionDetail({ marketId, department, onOpenEmployee, 
         </section>
       </div>
 
-      <Modal open={!!evidence} onClose={() => setEvidence(null)} title="Evidence">
+      <Modal open={!!evidence} onClose={() => setEvidence(null)} title={t("emp.evidence")}>
         <div className="grid grid-cols-2 gap-2">
           {evidence?.map((url, i) => (
             <AuthenticatedImage key={i} src={url} alt="" className="rounded-lg w-full aspect-square object-cover" />
           ))}
         </div>
         {evidence?.length === 0 && (
-          <p className="flex items-center gap-2 text-sm text-[#8B93A8]"><ImageIcon size={14} /> No photos attached.</p>
+          <p className="flex items-center gap-2 text-sm text-[#8B93A8]"><ImageIcon size={14} /> {t("sup.noPhotosAttached")}</p>
         )}
       </Modal>
     </div>

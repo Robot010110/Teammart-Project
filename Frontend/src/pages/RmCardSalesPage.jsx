@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { CreditCard, CheckCircle2, Clock, Image as ImageIcon, Trash2, Loader2 } from "lucide-react";
 import Breadcrumb from "../components/layout/Breadcrumb";
 import ErrorBanner from "../components/common/ErrorBanner";
@@ -17,7 +18,7 @@ function timeLabel(iso) {
   return new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
 }
 
-const SHIFT_LABEL = { MORNING: "Morning", AFTERNOON: "Afternoon", NIGHT: "Night" };
+const SHIFT_LABEL = { MORNING: "emp.morning", AFTERNOON: "sup.afternoon", NIGHT: "emp.night" };
 
 // RmCardSalesPage.jsx — spec §8: Markets -> Select Market -> Card Sales.
 // The three reporting periods for the selected day (default today),
@@ -26,6 +27,7 @@ const SHIFT_LABEL = { MORNING: "Morning", AFTERNOON: "Afternoon", NIGHT: "Night"
 // historical reports by date" requirement — no separate history list
 // needed since a day IS the natural unit here.
 export default function RmCardSalesPage({ marketId, marketName, onBack }) {
+  const { t } = useTranslation();
   const [date, setDate] = useState(todayIso());
   const { data, error, loading, reload } = useAsync(() => getCardSalesDay(marketId, date), { deps: [marketId, date] });
   const [deletingId, setDeletingId] = useState(null);
@@ -42,7 +44,7 @@ export default function RmCardSalesPage({ marketId, marketName, onBack }) {
 
   return (
     <div className="px-6 md:px-10 py-8 max-w-4xl mx-auto animate-fade-up">
-      <Breadcrumb items={[{ label: "Markets", onClick: onBack }, { label: marketName ?? "Market", onClick: onBack }, { label: "Card Sales" }]} />
+      <Breadcrumb items={[{ label: t("rm.markets"), onClick: onBack }, { label: marketName ?? t("sup.market"), onClick: onBack }, { label: t("rm.cardSales") }]} />
 
       <div className="mt-4 flex items-center justify-between gap-4">
         <h1 className="font-display text-2xl font-bold text-white">Card Sales — {dateLabel(date)}</h1>
@@ -72,37 +74,37 @@ export default function RmCardSalesPage({ marketId, marketName, onBack }) {
                 <div key={shift} className="rounded-2xl p-4 bg-[#171C2E]/80 border border-white/[0.06]">
                   <div className="flex items-center justify-between">
                     <span className="flex items-center gap-1.5 text-sm font-semibold text-white">
-                      <CreditCard size={14} className="text-[#F47A20]" /> {SHIFT_LABEL[shift]}
+                      <CreditCard size={14} className="text-[#F47A20]" /> {SHIFT_LABEL[shift] ? t(SHIFT_LABEL[shift]) : shift}
                     </span>
                     {submitted ? (
                       <div className="flex items-center gap-2">
-                        <span className="flex items-center gap-1 text-xs font-medium text-emerald-400"><CheckCircle2 size={12} /> Submitted</span>
+                        <span className="flex items-center gap-1 text-xs font-medium text-emerald-400"><CheckCircle2 size={12} /> {t("emp.submitted")}</span>
                         <button
                           type="button"
                           onClick={() => handleDelete(report.id)}
                           disabled={deletingId === report.id}
-                          aria-label="Delete report"
+                          aria-label={t("sup.deleteReport")}
                           className="p-1 rounded-lg text-[#4C5266] hover:text-red-400 hover:bg-red-500/10 disabled:opacity-50 transition-colors"
                         >
                           {deletingId === report.id ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
                         </button>
                       </div>
                     ) : (
-                      <span className="text-xs font-medium text-[#4C5266]">Pending</span>
+                      <span className="text-xs font-medium text-[#4C5266]">{t("status.pending")}</span>
                     )}
                   </div>
 
                   {submitted && (
                     <>
-                      <p className="mt-2 text-xs text-[#8B93A8]">{report.submittedBy?.name} ({report.submittedBy?.role === "OVERLOOKING_SUPERVISOR" ? "Overlooking" : "Supervisor"})</p>
+                      <p className="mt-2 text-xs text-[#8B93A8]">{report.submittedBy?.name} ({report.submittedBy?.role === "OVERLOOKING_SUPERVISOR" ? t("roles.overlooking") : t("roles.supervisor")})</p>
                       <p className="flex items-center gap-1 text-xs text-[#4C5266] mt-0.5"><Clock size={11} /> {timeLabel(report.submittedAt)}</p>
                       <div className="mt-3 flex gap-2">
                         <a href={report.photoUrl} target="_blank" rel="noreferrer">
-                          <AuthenticatedImage src={report.photoUrl} alt="Card count" className="h-16 w-16 rounded-lg object-cover ring-1 ring-white/10" />
+                          <AuthenticatedImage src={report.photoUrl} alt={t("rm.cardCount")} className="h-16 w-16 rounded-lg object-cover ring-1 ring-white/10" />
                         </a>
                         {report.photoUrl2 && (
                           <a href={report.photoUrl2} target="_blank" rel="noreferrer">
-                            <AuthenticatedImage src={report.photoUrl2} alt="Card count 2" className="h-16 w-16 rounded-lg object-cover ring-1 ring-white/10" />
+                            <AuthenticatedImage src={report.photoUrl2} alt={t("rm.cardCount2")} className="h-16 w-16 rounded-lg object-cover ring-1 ring-white/10" />
                           </a>
                         )}
                       </div>
@@ -111,7 +113,7 @@ export default function RmCardSalesPage({ marketId, marketName, onBack }) {
                   {!submitted && (
                     <div className="mt-4 flex flex-col items-center justify-center gap-1.5 py-4 text-[#4C5266]">
                       <ImageIcon size={20} />
-                      <p className="text-[11px]">Not submitted yet</p>
+                      <p className="text-[11px]">{t("rm.notSubmittedYet")}</p>
                     </div>
                   )}
                 </div>

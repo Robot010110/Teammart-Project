@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { Search, SlidersHorizontal, Plus, Store, X, RotateCw } from "lucide-react";
 import { useAsync } from "../hooks/useAsync";
@@ -10,10 +11,10 @@ import { listMarkets } from "../services/marketService";
 // "Inactive" is the UI wording for CLOSED — the enum itself is never
 // renamed, only how it reads on screen.
 const STATUS_TABS = [
-  { key: "ALL", label: "All", dot: null },
-  { key: "ACTIVE", label: "Active", dot: "bg-emerald-400" },
-  { key: "MAINTENANCE", label: "Maintenance", dot: "bg-amber-400" },
-  { key: "CLOSED", label: "Inactive", dot: "bg-red-400" },
+  { key: "ALL", label: "common.all", dot: null },
+  { key: "ACTIVE", label: "status.active", dot: "bg-emerald-400" },
+  { key: "MAINTENANCE", label: "rm.maintenance", dot: "bg-amber-400" },
+  { key: "CLOSED", label: "status.inactive", dot: "bg-red-400" },
 ];
 
 function MarketCardSkeleton() {
@@ -48,6 +49,7 @@ function MarketCardSkeleton() {
 // round-tripping every keystroke to the server would be slower and no
 // more correct.
 export default function MarketsPage() {
+  const { t } = useTranslation();
   const { data: markets, error, loading, reload, setData } = useAsync(listMarkets, { deps: [] });
   const navigate = useNavigate();
 
@@ -64,6 +66,8 @@ export default function MarketsPage() {
   // they can never offer a value that filters to nothing.
   const zoneOptions = useMemo(() => [...new Set(all.map((m) => m.zoneNumber))].sort((a, b) => a - b), [all]);
   const supervisorOptions = useMemo(
+    // "Unassigned" is the sentinel the API itself sends for a market with no
+    // supervisor, so it stays the literal stored value, not a translation.
     () => [...new Set(all.map((m) => m.supervisor).filter((s) => s && s !== "Unassigned"))].sort(),
     [all]
   );
@@ -108,9 +112,9 @@ export default function MarketsPage() {
     <div className="mx-auto max-w-lg animate-fade-up px-4 pb-4 pt-5 sm:max-w-3xl sm:px-6">
       <header className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <h1 className="font-display text-[26px] font-bold leading-tight text-white">Markets</h1>
+          <h1 className="font-display text-[26px] font-bold leading-tight text-white">{t("rm.markets")}</h1>
           <p className="mt-0.5 text-[12.5px] text-[#8B93A8]">
-            {loading ? "Loading markets…" : `${all.length} market${all.length === 1 ? "" : "s"} in ${zoneSummary}`}
+            {loading ? t("rm.loadingMarkets") : t("rm.marketsInZones", { count: all.length, zones: zoneSummary })}
           </p>
         </div>
         <button
@@ -118,27 +122,27 @@ export default function MarketsPage() {
           onClick={() => setAddOpen(true)}
           className="flex shrink-0 items-center gap-1.5 rounded-xl bg-gradient-to-r from-[#F47A20] to-[#E0561A] px-3.5 py-2.5 text-[13px] font-semibold text-white shadow-[0_0_20px_-6px_rgba(244,122,32,0.85)] transition-all duration-200 hover:from-[#ff8b36] hover:to-[#F47A20] active:scale-[0.97]"
         >
-          <Plus size={15} /> Add Market
+          <Plus size={15} /> {t("rm.addMarket")}
         </button>
       </header>
 
       <div className="mt-4 flex items-center gap-2">
         <div className="relative min-w-0 flex-1">
-          <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#5C6479]" />
+          <Search size={15} className="absolute start-3.5 top-1/2 -translate-y-1/2 text-[#5C6479]" />
           <input
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search markets, supervisors…"
-            aria-label="Search markets"
-            className="w-full rounded-xl border border-white/[0.07] bg-[#111A2D]/80 py-2.5 pl-10 pr-9 text-[13.5px] text-white outline-none backdrop-blur-xl transition-colors placeholder:text-[#4C5266] focus:border-[#F47A20]/50"
+            placeholder={t("rm.searchMarketsSupervisors")}
+            aria-label={t("rm.searchMarkets")}
+            className="w-full rounded-xl border border-white/[0.07] bg-[#111A2D]/80 py-2.5 ps-10 pe-9 text-[13.5px] text-white outline-none backdrop-blur-xl transition-colors placeholder:text-[#4C5266] focus:border-[#F47A20]/50"
           />
           {query && (
             <button
               type="button"
               onClick={() => setQuery("")}
-              aria-label="Clear search"
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-full p-1 text-[#5C6479] transition-colors hover:text-white"
+              aria-label={t("rm.clearSearch")}
+              className="absolute end-2.5 top-1/2 -translate-y-1/2 rounded-full p-1 text-[#5C6479] transition-colors hover:text-white"
             >
               <X size={13} />
             </button>
@@ -148,7 +152,7 @@ export default function MarketsPage() {
           type="button"
           onClick={() => setShowFilters((v) => !v)}
           aria-expanded={showFilters}
-          aria-label="Filters"
+          aria-label={t("rm.filters")}
           className={`relative grid h-[42px] w-[42px] shrink-0 place-items-center rounded-xl border backdrop-blur-xl transition-all duration-200 ${
             showFilters || activeFilterCount > 0
               ? "border-[#F47A20]/45 bg-[#F47A20]/[0.12] text-[#F47A20]"
@@ -157,7 +161,7 @@ export default function MarketsPage() {
         >
           <SlidersHorizontal size={16} />
           {activeFilterCount > 0 && (
-            <span className="absolute -right-1 -top-1 grid h-[17px] min-w-[17px] place-items-center rounded-full bg-[#F47A20] px-1 text-[10px] font-bold text-white">
+            <span className="absolute -end-1 -top-1 grid h-[17px] min-w-[17px] place-items-center rounded-full bg-[#F47A20] px-1 text-[10px] font-bold text-white">
               {activeFilterCount}
             </span>
           )}
@@ -168,13 +172,13 @@ export default function MarketsPage() {
           or shrink on a 360px screen. */}
       <div className="-mx-4 mt-3 overflow-x-auto px-4 pb-1 sm:mx-0 sm:px-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         <div className="flex w-max gap-2">
-          {STATUS_TABS.map((t) => {
-            const isActive = status === t.key;
+          {STATUS_TABS.map((tab_) => {
+            const isActive = status === tab_.key;
             return (
               <button
-                key={t.key}
+                key={tab_.key}
                 type="button"
-                onClick={() => setStatus(t.key)}
+                onClick={() => setStatus(tab_.key)}
                 aria-pressed={isActive}
                 className={`flex shrink-0 items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-[12.5px] font-medium transition-all duration-200 ${
                   isActive
@@ -182,9 +186,9 @@ export default function MarketsPage() {
                     : "border-white/[0.07] bg-[#111A2D]/70 text-[#8B93A8] hover:border-white/[0.16] hover:text-white"
                 }`}
               >
-                {t.dot && <span className={`h-1.5 w-1.5 rounded-full ${t.dot}`} />}
-                {t.label}
-                <span className={isActive ? "text-[#F9A03C]" : "text-[#5C6479]"}>({counts[t.key]})</span>
+                {tab_.dot && <span className={`h-1.5 w-1.5 rounded-full ${tab_.dot}`} />}
+                {t(tab_.label)}
+                <span className={isActive ? "text-[#F9A03C]" : "text-[#5C6479]"}>({counts[tab_.key]})</span>
               </button>
             );
           })}
@@ -197,24 +201,24 @@ export default function MarketsPage() {
         <div className="mt-3 animate-fade-up rounded-2xl border border-white/[0.07] bg-[#111A2D]/80 p-3 backdrop-blur-xl">
           <div className="grid grid-cols-2 gap-2.5">
             <label className="block">
-              <span className="mb-1 block text-[10.5px] font-semibold uppercase tracking-wide text-[#8B93A8]">Zone</span>
+              <span className="mb-1 block text-[10.5px] font-semibold uppercase tracking-wide text-[#8B93A8]">{t("emp.catZone")}</span>
               <select
                 value={zone}
                 onChange={(e) => setZone(e.target.value)}
                 className="w-full rounded-lg border border-white/[0.08] bg-white/[0.04] px-2.5 py-2 text-[12.5px] text-white outline-none focus:border-[#F47A20]/50"
               >
-                <option value="ALL" className="bg-[#1F2436]">All zones</option>
-                {zoneOptions.map((z) => <option key={z} value={z} className="bg-[#1F2436]">Zone {z}</option>)}
+                <option value="ALL" className="bg-[#1F2436]">{t("rm.allZones")}</option>
+                {zoneOptions.map((z) => <option key={z} value={z} className="bg-[#1F2436]">{t("rm.zoneNumbered", { number: z })}</option>)}
               </select>
             </label>
             <label className="block">
-              <span className="mb-1 block text-[10.5px] font-semibold uppercase tracking-wide text-[#8B93A8]">Supervisor</span>
+              <span className="mb-1 block text-[10.5px] font-semibold uppercase tracking-wide text-[#8B93A8]">{t("roles.supervisor")}</span>
               <select
                 value={supervisor}
                 onChange={(e) => setSupervisor(e.target.value)}
                 className="w-full rounded-lg border border-white/[0.08] bg-white/[0.04] px-2.5 py-2 text-[12.5px] text-white outline-none focus:border-[#F47A20]/50"
               >
-                <option value="ALL" className="bg-[#1F2436]">All supervisors</option>
+                <option value="ALL" className="bg-[#1F2436]">{t("rm.allSupervisors")}</option>
                 {supervisorOptions.map((s) => <option key={s} value={s} className="bg-[#1F2436]">{s}</option>)}
               </select>
             </label>
@@ -225,7 +229,7 @@ export default function MarketsPage() {
               onClick={clearFilters}
               className="mt-2.5 flex items-center gap-1.5 text-[12px] font-medium text-[#F47A20] transition-colors hover:text-[#ff9a4d]"
             >
-              <RotateCw size={12} /> Reset filters
+              <RotateCw size={12} /> {t("rm.resetFilters")}
             </button>
           )}
         </div>
@@ -236,14 +240,14 @@ export default function MarketsPage() {
           Array.from({ length: 6 }).map((_, i) => <MarketCardSkeleton key={i} />)
         ) : error ? (
           <div className="rounded-2xl border border-red-500/20 bg-red-500/[0.06] p-6 text-center sm:col-span-2">
-            <p className="text-[13.5px] font-semibold text-white">Couldn't load your markets</p>
+            <p className="text-[13.5px] font-semibold text-white">{t("rm.couldnTLoadYourMarkets")}</p>
             <p className="mt-1 text-[12px] text-[#9AA1B4]">{error}</p>
             <button
               type="button"
               onClick={reload}
               className="mt-3 inline-flex items-center gap-1.5 rounded-xl bg-white/[0.06] px-4 py-2 text-[12.5px] font-semibold text-white transition-colors hover:bg-white/[0.1]"
             >
-              <RotateCw size={13} /> Try again
+              <RotateCw size={13} /> {t("rm.tryAgain")}
             </button>
           </div>
         ) : filtered.length === 0 ? (
@@ -252,12 +256,12 @@ export default function MarketsPage() {
               <Store size={20} />
             </span>
             <p className="mt-3 text-[14px] font-semibold text-white">
-              {all.length === 0 ? "No markets yet" : "No markets match"}
+              {all.length === 0 ? t("rm.noMarketsYet") : t("rm.noMarketsMatch")}
             </p>
             <p className="mt-1 text-[12.5px] text-[#8B93A8]">
               {all.length === 0
-                ? "Markets you add to your zones will appear here."
-                : "Try a different search or clear your filters."}
+                ? t("rm.marketsYouAddToYourZones")
+                : t("rm.tryADifferentSearchOrClear")}
             </p>
             {all.length === 0 ? (
               <button
@@ -265,7 +269,7 @@ export default function MarketsPage() {
                 onClick={() => setAddOpen(true)}
                 className="mt-4 inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-[#F47A20] to-[#E0561A] px-4 py-2.5 text-[13px] font-semibold text-white shadow-[0_0_20px_-6px_rgba(244,122,32,0.85)]"
               >
-                <Plus size={14} /> Add your first market
+                <Plus size={14} /> {t("rm.addYourFirstMarket")}
               </button>
             ) : (
               <button
@@ -273,7 +277,7 @@ export default function MarketsPage() {
                 onClick={clearFilters}
                 className="mt-4 inline-flex items-center gap-1.5 rounded-xl bg-white/[0.06] px-4 py-2.5 text-[12.5px] font-semibold text-white transition-colors hover:bg-white/[0.1]"
               >
-                <RotateCw size={13} /> Clear filters
+                <RotateCw size={13} /> {t("rm.clearFilters")}
               </button>
             )}
           </div>
@@ -298,6 +302,8 @@ export default function MarketsPage() {
               ? [...prev, {
                   ...created,
                   zoneNumber: created.zoneNumber ?? zoneOptions[0] ?? 0,
+                  // Mirrors the API's own sentinel for "no supervisor" — this
+                  // is data the filters compare against, not display text.
                   supervisor: "Unassigned",
                   overlookingSupervisor: "Unassigned",
                   employeesCount: 0,

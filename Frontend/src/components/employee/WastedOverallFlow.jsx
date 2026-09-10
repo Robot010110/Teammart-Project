@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Loader2, CheckCircle2 } from "lucide-react";
 import Modal from "../common/Modal";
 import EvidenceCapture from "./EvidenceCapture";
@@ -8,12 +9,12 @@ import { ApiError } from "../../services/apiClient";
 // Matches the backend WastedItem enum exactly — the five fixed produce
 // items plus Other, for anything not on the list.
 const ITEMS = [
-  { value: "EGGS", label: "Eggs" },
-  { value: "TOMATO", label: "Tomato" },
-  { value: "POTATO", label: "Potato" },
-  { value: "CUCUMBER", label: "Cucumber" },
-  { value: "ONION", label: "Onion" },
-  { value: "OTHER", label: "Other" },
+  { value: "EGGS", label: "emp.eggs" },
+  { value: "TOMATO", label: "emp.tomato" },
+  { value: "POTATO", label: "emp.potato" },
+  { value: "CUCUMBER", label: "emp.cucumber" },
+  { value: "ONION", label: "emp.onion" },
+  { value: "OTHER", label: "emp.other" },
 ];
 
 // WastedOverallFlow.jsx — item -> photo -> quantity -> submit. employeeId
@@ -28,6 +29,7 @@ const ITEMS = [
 // (quantityKg). Selecting Other also requires a short "Specify item" name
 // so the report is useful, not just the literal word "Other".
 export default function WastedOverallFlow({ open, onClose, onSaved }) {
+  const { t } = useTranslation();
   const [step, setStep] = useState("item");
   const [item, setItem] = useState(null);
   const [otherItemName, setOtherItemName] = useState("");
@@ -65,7 +67,7 @@ export default function WastedOverallFlow({ open, onClose, onSaved }) {
   async function handleSubmit() {
     if (isOther && !otherItemName.trim()) {
       setOtherNameInvalid(true);
-      setError("Specify what this item is.");
+      setError(t("emp.specifyWhatThisItemIs"));
       return;
     }
     setOtherNameInvalid(false);
@@ -73,17 +75,17 @@ export default function WastedOverallFlow({ open, onClose, onSaved }) {
     const qty = Number(quantity);
     if (!quantity || Number.isNaN(qty) || qty <= 0) {
       setQuantityInvalid(true);
-      setError(isEggs ? "Enter a number of eggs greater than 0." : "Enter a quantity greater than 0.");
+      setError(isEggs ? t("emp.enterANumberOfEggsGreater") : t("emp.enterAQuantityGreaterThan0"));
       return;
     }
     if (isEggs && !Number.isInteger(qty)) {
       setQuantityInvalid(true);
-      setError("Enter a whole number of eggs.");
+      setError(t("emp.enterAWholeNumberOfEggs"));
       return;
     }
     if (qty > 1000) {
       setQuantityInvalid(true);
-      setError(isEggs ? "That count looks too large." : "That quantity looks too large — enter kilograms, not grams.");
+      setError(isEggs ? t("emp.thatCountLooksTooLarge") : t("emp.thatQuantityLooksTooLargeEnter"));
       return;
     }
     setQuantityInvalid(false);
@@ -96,17 +98,18 @@ export default function WastedOverallFlow({ open, onClose, onSaved }) {
         ...(isOther ? { otherItemName: otherItemName.trim() } : {}),
         photoUrl: photo || undefined,
       });
-      onSaved(report, "Wasted Overall report submitted.");
+      onSaved(report, t("emp.wastedOverallReportSubmitted"));
       handleClose();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Could not submit this report. Please try again.");
+      setError(err instanceof ApiError ? err.message : t("emp.couldNotSubmitThisReportPlease"));
     } finally {
       setSubmitting(false);
     }
   }
 
-  const itemLabel = ITEMS.find((i) => i.value === item)?.label;
-  const stepTitle = step === "item" ? "Wasted Overall" : itemLabel;
+  const itemLabelKey = ITEMS.find((i) => i.value === item)?.label;
+  const itemLabel = itemLabelKey ? t(itemLabelKey) : undefined;
+  const stepTitle = step === "item" ? t("emp.wastedOverall") : itemLabel;
 
   return (
     <Modal open={open} onClose={handleClose} title={stepTitle}>
@@ -118,7 +121,7 @@ export default function WastedOverallFlow({ open, onClose, onSaved }) {
               onClick={() => handleSelectItem(i.value)}
               className="rounded-xl p-4 text-sm font-medium text-white bg-[#1A1F33]/70 border border-white/[0.05] hover:border-[#F47A20]/35 hover:bg-[#1F2436] transition-all duration-200"
             >
-              {i.label}
+              {t(i.label)}
             </button>
           ))}
         </div>
@@ -127,18 +130,18 @@ export default function WastedOverallFlow({ open, onClose, onSaved }) {
       {step === "details" && (
         <div className="space-y-4">
           <div>
-            <p className="text-xs font-medium text-[#8B93A8] mb-2">Take Picture</p>
+            <p className="text-xs font-medium text-[#8B93A8] mb-2">{t("emp.takePicture")}</p>
             <EvidenceCapture photo={photo} onPhotoChange={setPhoto} />
           </div>
 
           {isOther && (
             <div>
-              <label className="block text-xs uppercase tracking-wide text-[#8B93A8] mb-1.5">Specify Item</label>
+              <label className="block text-xs uppercase tracking-wide text-[#8B93A8] mb-1.5">{t("emp.specifyItem")}</label>
               <input
                 type="text"
                 value={otherItemName}
                 onChange={(e) => { setOtherItemName(e.target.value); setOtherNameInvalid(false); }}
-                placeholder="e.g. Bread, Milk"
+                placeholder={t("emp.eGBreadMilk")}
                 maxLength={100}
                 aria-invalid={otherNameInvalid}
                 className={`w-full rounded-lg bg-white/[0.04] border px-3 py-3 text-base sm:text-sm text-white placeholder:text-[#4C5266] outline-none transition-colors duration-200 ${
@@ -150,7 +153,7 @@ export default function WastedOverallFlow({ open, onClose, onSaved }) {
 
           <div>
             <label className="block text-xs uppercase tracking-wide text-[#8B93A8] mb-1.5">
-              {isEggs ? "Quantity Wasted (eggs)" : "Quantity Wasted (kg)"}
+              {isEggs ? t("emp.quantityWastedEggs") : t("emp.quantityWastedKg")}
             </label>
             <input
               type="number"
@@ -175,7 +178,7 @@ export default function WastedOverallFlow({ open, onClose, onSaved }) {
             className="w-full flex items-center justify-center gap-2 rounded-xl py-3 text-sm font-semibold text-white bg-[#F47A20] hover:bg-[#ff8b36] active:bg-[#e06f18] disabled:bg-white/10 disabled:text-[#4C5266] transition-colors duration-200"
           >
             {submitting ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
-            {submitting ? "Submitting..." : "Submit Waste Report"}
+            {submitting ? t("emp.submitting") : t("emp.submitWasteReport")}
           </button>
         </div>
       )}

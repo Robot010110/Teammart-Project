@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useNavigate, useParams } from "react-router-dom";
 import ErrorBanner from "../common/ErrorBanner";
 import { SkeletonCard } from "../common/SkeletonCard";
@@ -14,6 +15,7 @@ import { useAsync } from "../../hooks/useAsync";
 // just re-fetched here since a direct/refreshed route load starts with
 // nothing in memory. ConversationScreen itself is unchanged.
 export default function ConversationRoute({ currentEmployeeId, basePath }) {
+  const { t } = useTranslation();
   const { conversationId } = useParams();
   const navigate = useNavigate();
   const { data: conversations, error, loading, reload } = useAsync(listMyConversations, { deps: [] });
@@ -30,7 +32,7 @@ export default function ConversationRoute({ currentEmployeeId, basePath }) {
   if (!conversation) {
     return (
       <div className="px-4 sm:px-6 py-6 max-w-4xl mx-auto">
-        <ErrorBanner message="This conversation could not be found." onRetry={() => navigate(`${basePath}/chat`)} />
+        <ErrorBanner message={t("emp.thisConversationCouldNotBeFound")} onRetry={() => navigate(`${basePath}/chat`)} />
       </div>
     );
   }

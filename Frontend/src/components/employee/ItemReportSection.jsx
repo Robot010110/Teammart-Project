@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { PackageX } from "lucide-react";
 import ItemReportFlow from "./ItemReportFlow";
 import ItemReportHistory from "./ItemReportHistory";
@@ -18,6 +19,7 @@ import { useToast } from "../../hooks/useToast";
 // single-form modal.
 
 export default function ItemReportSection() {
+  const { t } = useTranslation();
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
@@ -26,7 +28,7 @@ export default function ItemReportSection() {
 
   const { data: reports, setData: setReports, error, loading, reload: load } = useAsync(
     () => listItemReports({ year, month }),
-    { deps: [year, month], fallbackError: "Could not load your reports." }
+    { deps: [year, month], fallbackError: t("emp.couldNotLoadYourReports") }
   );
 
   const handleSaved = (report, message) => {
@@ -43,7 +45,7 @@ export default function ItemReportSection() {
           onClick={() => setFlowOpen(true)}
           className="flex items-center gap-2 rounded-lg px-3.5 py-2.5 text-xs font-semibold text-white bg-[#F47A20] hover:bg-[#ff8b36] active:bg-[#e06f18] transition-colors duration-150"
         >
-          <PackageX size={14} /> Report Expired / Wasted Item
+          <PackageX size={14} /> {t("emp.reportExpiredWastedItem")}
         </button>
         <MonthPager year={year} month={month} onChange={(y, m) => { setYear(y); setMonth(m); }} />
       </div>

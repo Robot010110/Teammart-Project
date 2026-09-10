@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { MessageCircle, Pencil, Loader2, Check } from "lucide-react";
 import { updateMyWhatsApp } from "../../services/profileService";
 import { ApiError } from "../../services/apiClient";
@@ -17,6 +18,7 @@ function digitsOnly(value) {
 // editor that saves via PATCH /api/profile. No fake in-app chat is ever
 // created — this only ever opens the real WhatsApp app/web link.
 export default function WhatsAppField({ number, onSaved }) {
+  const { t } = useTranslation();
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState(number || "");
   const [saving, setSaving] = useState(false);
@@ -30,7 +32,7 @@ export default function WhatsAppField({ number, onSaved }) {
       onSaved(res.whatsappNumber);
       setEditing(false);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Could not save this number.");
+      setError(err instanceof ApiError ? err.message : t("emp.couldNotSaveThisNumber"));
     } finally {
       setSaving(false);
     }
@@ -40,7 +42,7 @@ export default function WhatsAppField({ number, onSaved }) {
     return (
       <div className="rounded-xl p-3 bg-white/[0.03] border border-[#F47A20]/30 col-span-2 sm:col-span-1">
         <p className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-[#8B93A8] mb-1.5">
-          <MessageCircle size={11} /> WhatsApp
+          <MessageCircle size={11} /> {t("emp.whatsapp")}
         </p>
         <input
           autoFocus
@@ -67,7 +69,7 @@ export default function WhatsAppField({ number, onSaved }) {
             disabled={saving}
             className="flex-1 rounded-lg py-1.5 text-xs font-medium text-[#9AA1B4] bg-white/[0.06] hover:bg-white/[0.1]"
           >
-            Cancel
+            {t("emp.cancel")}
           </button>
         </div>
       </div>
@@ -79,12 +81,12 @@ export default function WhatsAppField({ number, onSaved }) {
       <button
         type="button"
         onClick={() => setEditing(true)}
-        className="rounded-xl p-3 bg-white/[0.03] border border-dashed border-white/[0.12] hover:border-[#F47A20]/30 text-left transition-colors"
+        className="rounded-xl p-3 bg-white/[0.03] border border-dashed border-white/[0.12] hover:border-[#F47A20]/30 text-start transition-colors"
       >
         <p className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-[#8B93A8]">
-          <MessageCircle size={11} /> WhatsApp
+          <MessageCircle size={11} /> {t("emp.whatsapp")}
         </p>
-        <p className="mt-1 text-sm font-medium text-[#F47A20]">+ Add number</p>
+        <p className="mt-1 text-sm font-medium text-[#F47A20]">{t("emp.addNumber")}</p>
       </button>
     );
   }
@@ -93,7 +95,7 @@ export default function WhatsAppField({ number, onSaved }) {
     <div className="rounded-xl p-3 bg-white/[0.03] border border-white/[0.06] flex items-start justify-between gap-2">
       <a href={`https://wa.me/${digitsOnly(number)}`} target="_blank" rel="noreferrer" className="min-w-0 flex-1">
         <p className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-[#8B93A8]">
-          <MessageCircle size={11} className="text-emerald-400" /> WhatsApp
+          <MessageCircle size={11} className="text-emerald-400" /> {t("emp.whatsapp")}
         </p>
         <p className="mt-1 text-sm font-medium text-emerald-400 truncate">+{digitsOnly(number)}</p>
       </a>
@@ -101,7 +103,7 @@ export default function WhatsAppField({ number, onSaved }) {
         type="button"
         onClick={() => setEditing(true)}
         className="shrink-0 p-1 text-[#4C5266] hover:text-white"
-        aria-label="Edit WhatsApp number"
+        aria-label={t("emp.editWhatsappNumber")}
       >
         <Pencil size={13} />
       </button>

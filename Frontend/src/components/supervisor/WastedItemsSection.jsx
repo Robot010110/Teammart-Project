@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { PackageX } from "lucide-react";
 import { useAsync } from "../../hooks/useAsync";
 import ErrorBanner from "../common/ErrorBanner";
@@ -8,11 +9,11 @@ import AuthenticatedImage from "../common/AuthenticatedImage";
 import ActivityStatusPill from "../common/ActivityStatusPill";
 import { listWastedOverallReportsForMarket } from "../../services/wastedOverallService";
 
-const ITEM_LABEL = { EGGS: "Eggs", TOMATO: "Tomato", POTATO: "Potato", CUCUMBER: "Cucumber", ONION: "Onion", OTHER: "Other" };
+const ITEM_LABEL = { EGGS: "emp.eggs", TOMATO: "emp.tomato", POTATO: "emp.potato", CUCUMBER: "emp.cucumber", ONION: "emp.onion", OTHER: "emp.other" };
 
-function itemLabel(report) {
+function itemLabel(report, t) {
   if (report.item === "OTHER" && report.otherItemName) return report.otherItemName;
-  return ITEM_LABEL[report.item] || report.item;
+  return ITEM_LABEL[report.item] ? t(ITEM_LABEL[report.item]) : report.item;
 }
 function quantityLabel(report) {
   return report.item === "EGGS" ? `${report.quantityCount} egg${report.quantityCount === 1 ? "" : "s"}` : `${report.quantityKg}kg`;
@@ -33,9 +34,10 @@ function timeLabel(iso) {
 // endpoint. Nothing re-entered by the Supervisor — pure review, per spec
 // §21 ("do not invent unnecessary approval workflows").
 export default function WastedItemsSection({ marketId }) {
+  const { t } = useTranslation();
   const { data: reports, error, loading, reload } = useAsync(
     () => listWastedOverallReportsForMarket({ marketId }),
-    { deps: [marketId], fallbackError: "Could not load waste reports." }
+    { deps: [marketId], fallbackError: t("sup.couldNotLoadWasteReports") }
   );
   const [selected, setSelected] = useState(null);
 
@@ -48,7 +50,7 @@ export default function WastedItemsSection({ marketId }) {
     return (
       <div className="h-full min-h-[52px] flex items-center gap-2.5 rounded-2xl px-4 py-3.5 bg-[#171C2E]/80 border border-white/[0.06]">
         <PackageX size={16} className="text-[#4C5266] shrink-0" />
-        <p className="text-sm text-[#8B93A8]">No waste reported today.</p>
+        <p className="text-sm text-[#8B93A8]">{t("sup.noWasteReportedToday")}</p>
       </div>
     );
   }
@@ -61,29 +63,29 @@ export default function WastedItemsSection({ marketId }) {
             key={r.id}
             type="button"
             onClick={() => setSelected(r)}
-            className="w-full text-left flex items-start gap-3 rounded-xl p-3.5 bg-[#1A1F33]/70 border border-white/[0.06] hover:border-[#F47A20]/25 transition-colors"
+            className="w-full text-start flex items-start gap-3 rounded-xl p-3.5 bg-[#1A1F33]/70 border border-white/[0.06] hover:border-[#F47A20]/25 transition-colors"
           >
             <span className="w-8 h-8 shrink-0 rounded-lg bg-[#F47A20]/10 flex items-center justify-center text-[#F47A20]">
               <PackageX size={15} />
             </span>
             <div className="min-w-0 flex-1">
               <div className="flex items-center justify-between gap-2">
-                <p className="text-sm font-medium text-white">{itemLabel(r)} — {quantityLabel(r)}</p>
+                <p className="text-sm font-medium text-white">{itemLabel(r, t)} — {quantityLabel(r)}</p>
                 <ActivityStatusPill status={r.status} />
               </div>
-              <p className="text-xs text-[#8B93A8] mt-0.5">Reported by {r.employee?.name}{r.photoUrl ? " · Photo attached" : ""}</p>
+              <p className="text-xs text-[#8B93A8] mt-0.5">{t("sup.reportedBy")} {r.employee?.name}{r.photoUrl ? ` · ${t("emp.photoAttached")}` : ""}</p>
               <p className="text-[11px] text-[#4C5266] mt-1">{timeLabel(r.reportedAt)}</p>
             </div>
           </button>
         ))}
       </div>
 
-      <Modal open={!!selected} onClose={() => setSelected(null)} title={selected ? itemLabel(selected) : ""}>
+      <Modal open={!!selected} onClose={() => setSelected(null)} title={selected ? itemLabel(selected, t) : ""}>
         {selected && (
           <div className="space-y-1.5 text-sm">
-            <div className="flex justify-between py-1.5 border-b border-white/[0.05]"><span className="text-[#8B93A8]">Employee</span><span className="text-white">{selected.employee?.name}</span></div>
-            <div className="flex justify-between py-1.5 border-b border-white/[0.05]"><span className="text-[#8B93A8]">Amount</span><span className="text-white">{quantityLabel(selected)}</span></div>
-            <div className="flex justify-between py-1.5 border-b border-white/[0.05]"><span className="text-[#8B93A8]">Time</span><span className="text-white">{timeLabel(selected.reportedAt)}</span></div>
+            <div className="flex justify-between py-1.5 border-b border-white/[0.05]"><span className="text-[#8B93A8]">{t("roles.employee")}</span><span className="text-white">{selected.employee?.name}</span></div>
+            <div className="flex justify-between py-1.5 border-b border-white/[0.05]"><span className="text-[#8B93A8]">{t("sup.amount")}</span><span className="text-white">{quantityLabel(selected)}</span></div>
+            <div className="flex justify-between py-1.5 border-b border-white/[0.05]"><span className="text-[#8B93A8]">{t("sup.time")}</span><span className="text-white">{timeLabel(selected.reportedAt)}</span></div>
             {selected.notes && <p className="pt-2 text-[#9AA1B4]">{selected.notes}</p>}
             {selected.photoUrl && <AuthenticatedImage src={selected.photoUrl} alt="" className="mt-3 rounded-lg w-full max-h-64 object-cover" />}
           </div>

@@ -122,7 +122,9 @@ export async function conversationAccessFor(user, conversationId) {
     if (conversation.type === "ZONE_GROUP" || conversation.type === "ZONE_ANNOUNCEMENTS") {
       return (await isZoneMember(user, conversation.zoneId)) ? conversation : null;
     }
-    // MARKET_GROUP / WARNINGS — any employee of that market can read.
+    // MARKET_GROUP / WARNINGS / KOCH_OPERATION — any employee of that
+    // market can read (and, for KOCH_OPERATION, post — see sendMessage;
+    // unlike WARNINGS this one has no broadcast-only restriction).
     return user.marketId === conversation.marketId ? conversation : null;
   }
 
@@ -145,7 +147,7 @@ export async function conversationAccessFor(user, conversationId) {
       });
       return membership ? conversation : null;
     }
-    if (conversation.type === "MARKET_GROUP" || conversation.type === "WARNINGS") {
+    if (conversation.type === "MARKET_GROUP" || conversation.type === "WARNINGS" || conversation.type === "KOCH_OPERATION") {
       const allowed = await staffCanAccessMarket(user, conversation.marketId);
       return allowed === true ? conversation : null;
     }
@@ -170,7 +172,7 @@ async function isValidMentionTarget(conversation, { employeeId, userId }) {
   if (employeeId) {
     const employee = await prisma.employee.findUnique({ where: { id: employeeId }, select: { id: true, marketId: true } });
     if (!employee) return false;
-    if (conversation.type === "MARKET_GROUP" || conversation.type === "WARNINGS") {
+    if (conversation.type === "MARKET_GROUP" || conversation.type === "WARNINGS" || conversation.type === "KOCH_OPERATION") {
       return employee.marketId === conversation.marketId;
     }
     if (conversation.type === "ZONE_GROUP" || conversation.type === "ZONE_ANNOUNCEMENTS") {
@@ -203,7 +205,7 @@ async function isValidMentionTarget(conversation, { employeeId, userId }) {
       const membership = await prisma.conversationMember.findFirst({ where: { conversationId: conversation.id, userId } });
       return !!membership;
     }
-    if (conversation.type === "MARKET_GROUP" || conversation.type === "WARNINGS") {
+    if (conversation.type === "MARKET_GROUP" || conversation.type === "WARNINGS" || conversation.type === "KOCH_OPERATION") {
       return staffMentionEligible(userId, { marketId: conversation.marketId });
     }
     if (conversation.type === "ZONE_GROUP" || conversation.type === "ZONE_ANNOUNCEMENTS") {
@@ -323,7 +325,7 @@ export async function listMentionCandidates(req, res, next) {
     const employees = [];
     const staff = [];
 
-    if (conversation.type === "MARKET_GROUP" || conversation.type === "WARNINGS") {
+    if (conversation.type === "MARKET_GROUP" || conversation.type === "WARNINGS" || conversation.type === "KOCH_OPERATION") {
       employees.push(
         ...(await prisma.employee.findMany({
           where: { marketId: conversation.marketId, ...(nameFilter ? { name: nameFilter } : {}) },
@@ -509,9 +511,10 @@ async function buildEmployeeConversationList(req) {
     const marketId = req.user.marketId;
     const market = await prisma.market.findUnique({ where: { id: marketId }, select: { zoneId: true } });
 
-    const [marketGroup, warnings, zoneGroup, zoneAnnouncements, supervisorConvo, rmConvos, groupMemberships, directs] = await Promise.all([
+    const [marketGroup, warnings, kochOperation, zoneGroup, zoneAnnouncements, supervisorConvo, rmConvos, groupMemberships, directs] = await Promise.all([
       findOrCreateChannel(marketId, "MARKET_GROUP"),
       findOrCreateChannel(marketId, "WARNINGS"),
+      findOrCreateChannel(marketId, "KOCH_OPERATION"),
       market?.zoneId ? findOrCreateZoneChannel(market.zoneId, "ZONE_GROUP") : null,
       market?.zoneId ? findOrCreateZoneChannel(market.zoneId, "ZONE_ANNOUNCEMENTS") : null,
       findOrCreateSupervisorConversation(marketId, employeeId),
@@ -530,6 +533,7 @@ async function buildEmployeeConversationList(req) {
     const conversations = [
       marketGroup,
       warnings,
+      kochOperation,
       ...(zoneGroup ? [zoneGroup] : []),
       ...(zoneAnnouncements ? [zoneAnnouncements] : []),
       ...(supervisorConvo ? [supervisorConvo] : []),
@@ -589,6 +593,7 @@ async function buildEmployeeConversationList(req) {
         title:
           c.type === "MARKET_GROUP" ? "Market Group" :
           c.type === "WARNINGS" ? "Warnings" :
+          c.type === "KOCH_OPERATION" ? "Koch Operation" :
           c.type === "ZONE_GROUP" ? "Zone Group" :
           c.type === "ZONE_ANNOUNCEMENTS" ? "Zone Announcements" :
           c.type === "SUPERVISOR_DIRECT" ? (supervisorName ?? "Supervisor") :
@@ -819,9 +824,10 @@ async function buildStaffConversationList(req) {
     const marketId = req.user.marketId;
     const market = await prisma.market.findUnique({ where: { id: marketId }, select: { zoneId: true } });
 
-    const [marketGroup, warnings, zoneGroup, zoneAnnouncements, directs, staffDirects, groupMemberships] = await Promise.all([
+    const [marketGroup, warnings, kochOperation, zoneGroup, zoneAnnouncements, directs, staffDirects, groupMemberships] = await Promise.all([
       findOrCreateChannel(marketId, "MARKET_GROUP"),
       findOrCreateChannel(marketId, "WARNINGS"),
+      findOrCreateChannel(marketId, "KOCH_OPERATION"),
       market?.zoneId ? findOrCreateZoneChannel(market.zoneId, "ZONE_GROUP") : null,
       market?.zoneId ? findOrCreateZoneChannel(market.zoneId, "ZONE_ANNOUNCEMENTS") : null,
       prisma.conversation.findMany({
@@ -841,6 +847,7 @@ async function buildStaffConversationList(req) {
     const conversations = [
       marketGroup,
       warnings,
+      kochOperation,
       ...(zoneGroup ? [zoneGroup] : []),
       ...(zoneAnnouncements ? [zoneAnnouncements] : []),
       ...directs,
@@ -881,6 +888,7 @@ async function buildStaffConversationList(req) {
         title:
           c.type === "MARKET_GROUP" ? "Market Group" :
           c.type === "WARNINGS" ? "Warnings" :
+          c.type === "KOCH_OPERATION" ? "Koch Operation" :
           c.type === "ZONE_GROUP" ? "Zone Group" :
           c.type === "ZONE_ANNOUNCEMENTS" ? "Zone Announcements" :
           c.type === "CUSTOM_GROUP" ? (c.name ?? "Group") :
@@ -1636,7 +1644,7 @@ export async function listGroupMembers(req, res, next) {
 // actually see the channel. Returns null for any other type — there is
 // no "members" concept for a 1:1 thread.
 async function implicitGroupPresence(conversation) {
-  if (conversation.type === "MARKET_GROUP" || conversation.type === "WARNINGS") {
+  if (conversation.type === "MARKET_GROUP" || conversation.type === "WARNINGS" || conversation.type === "KOCH_OPERATION") {
     const [employees, market] = await Promise.all([
       prisma.employee.findMany({ where: { marketId: conversation.marketId }, select: { lastActiveAt: true } }),
       prisma.market.findUnique({ where: { id: conversation.marketId }, select: { supervisorId: true, overlookingSupervisorId: true } }),
@@ -2133,7 +2141,8 @@ export async function searchConversations(req, res, next) {
     ]);
     const marketGroup = await findOrCreateChannel(marketId, "MARKET_GROUP");
     const warnings = await findOrCreateChannel(marketId, "WARNINGS");
-    const conversationIds = [marketGroup.id, warnings.id, ...(supervisorConvo ? [supervisorConvo.id] : []), ...directs.map((c) => c.id)];
+    const kochOperation = await findOrCreateChannel(marketId, "KOCH_OPERATION");
+    const conversationIds = [marketGroup.id, warnings.id, kochOperation.id, ...(supervisorConvo ? [supervisorConvo.id] : []), ...directs.map((c) => c.id)];
 
     const matchingMessages = await prisma.message.findMany({
       where: { conversationId: { in: conversationIds }, body: { contains: q, mode: "insensitive" }, deletedAt: null },
@@ -2716,7 +2725,7 @@ export async function postWarningBroadcast(req, res, next) {
 // Important People (ImportantContact.ownerUserId is always a staff
 // account, per the spec's own framing — this is a Supervisor/Regional
 // Manager/Admin feature).
-const GROUP_TYPES = new Set(["MARKET_GROUP", "WARNINGS", "ZONE_GROUP", "ZONE_ANNOUNCEMENTS", "CUSTOM_GROUP"]);
+const GROUP_TYPES = new Set(["MARKET_GROUP", "WARNINGS", "KOCH_OPERATION", "ZONE_GROUP", "ZONE_ANNOUNCEMENTS", "CUSTOM_GROUP"]);
 const INDIVIDUAL_TYPES = new Set(["DIRECT", "SUPERVISOR_DIRECT", "RM_DIRECT", "STAFF_DIRECT"]);
 
 export async function organizedConversations(req, res, next) {

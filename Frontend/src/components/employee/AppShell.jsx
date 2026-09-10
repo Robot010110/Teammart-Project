@@ -1,4 +1,5 @@
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import BottomNav from "./BottomNav";
 import NotificationBell from "./NotificationBell";
 import Logo from "../common/Logo";
@@ -36,6 +37,7 @@ import Logo from "../common/Logo";
 // anymore; each tab's screen is a nested <Route path={key}> the caller
 // defines, matching the URL instead of being picked by local state.
 export default function AppShell({ tabs, basePath, showNotificationBell = false, selfHeaderedRoutes = [] }) {
+  const { t } = useTranslation();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -61,8 +63,8 @@ export default function AppShell({ tabs, basePath, showNotificationBell = false,
   return (
     <div className="relative min-h-screen flex flex-col bg-[#050A18] overflow-hidden">
       <div className="fixed inset-0 pointer-events-none overflow-hidden" aria-hidden="true">
-        <div className="absolute -top-24 -right-20 w-80 h-80 rounded-full bg-[#F47A20]/[0.07] blur-3xl animate-ambient-drift" />
-        <div className="absolute top-1/2 -left-24 w-80 h-80 rounded-full bg-[#1D2D5C]/50 blur-3xl animate-ambient-drift" style={{ animationDelay: "-4.5s" }} />
+        <div className="absolute -top-24 -end-20 w-80 h-80 rounded-full bg-[#F47A20]/[0.07] blur-3xl animate-ambient-drift" />
+        <div className="absolute top-1/2 -start-24 w-80 h-80 rounded-full bg-[#1D2D5C]/50 blur-3xl animate-ambient-drift" style={{ animationDelay: "-4.5s" }} />
       </div>
 
       {showNotificationBell && !isSelfHeadered && (
@@ -71,7 +73,7 @@ export default function AppShell({ tabs, basePath, showNotificationBell = false,
               same routing this shell already does for a bottom-nav tab
               switch (navigate to `${basePath}/<tab>`), not a second
               navigation mechanism. */}
-          <button type="button" onClick={() => navigate(`${basePath}/${tabs[0]?.key ?? "home"}`)} className="rounded-lg -m-1 p-1 hover:opacity-80 transition-opacity" aria-label="Go to homepage">
+          <button type="button" onClick={() => navigate(`${basePath}/${tabs[0]?.key ?? "home"}`)} className="rounded-lg -m-1 p-1 hover:opacity-80 transition-opacity" aria-label={t("emp.goToHomepage")}>
             <Logo withSubtitle={false} />
           </button>
           <NotificationBell basePath={basePath} />

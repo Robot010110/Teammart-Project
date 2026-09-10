@@ -1,4 +1,5 @@
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { Users, ClipboardPlus, MessageSquareWarning, FileBarChart } from "lucide-react";
 
 // SupervisorQuickActions.jsx — compact shortcuts into real, already-
@@ -20,21 +21,22 @@ import { Users, ClipboardPlus, MessageSquareWarning, FileBarChart } from "lucide
 // Employees tab itself (spec: Employees isn't part of that role's
 // permission set) — no button that would just 403.
 export default function SupervisorQuickActions({ session, basePath }) {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const isOverlooking = session.staffRole === "OVERLOOKING_SUPERVISOR";
 
   const actions = [
-    { key: "team-attendance", label: "Team Attendance", icon: Users, tone: "blue", onClick: () => navigate(`${basePath}/team-attendance`) },
+    { key: "team-attendance", label: t("sup.teamAttendance"), icon: Users, tone: "blue", onClick: () => navigate(`${basePath}/team-attendance`) },
     ...(!isOverlooking
-      ? [{ key: "create-task", label: "Create Task", icon: ClipboardPlus, tone: "orange", onClick: () => navigate(`${basePath}/employees`) }]
+      ? [{ key: "create-task", label: t("sup.createTask"), icon: ClipboardPlus, tone: "orange", onClick: () => navigate(`${basePath}/employees`) }]
       : []),
-    { key: "broadcast", label: "Broadcast", icon: MessageSquareWarning, tone: "red", onClick: () => navigate(`${basePath}/chat`) },
-    { key: "reports", label: "Reports", icon: FileBarChart, tone: "violet", onClick: () => navigate(`${basePath}/market`) },
+    { key: "broadcast", label: t("sup.broadcast"), icon: MessageSquareWarning, tone: "red", onClick: () => navigate(`${basePath}/chat`) },
+    { key: "reports", label: t("emp.tabReports"), icon: FileBarChart, tone: "violet", onClick: () => navigate(`${basePath}/market`) },
   ];
 
   return (
     <section>
-      <h2 className="mb-3 text-sm font-semibold text-white">Quick Actions</h2>
+      <h2 className="mb-3 text-sm font-semibold text-white">{t("emp.quickActions")}</h2>
       <div className="flex gap-3 overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0" style={{ scrollbarWidth: "none" }}>
         {actions.map((a) => (
           <QuickActionButton key={a.key} {...a} />

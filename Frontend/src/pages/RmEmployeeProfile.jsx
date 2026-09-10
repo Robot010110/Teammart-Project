@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   MessageCircle, ChevronLeft, ChevronRight, Sparkles, PackageX, ClipboardList,
   CalendarCheck, Phone, Image as ImageIcon, Clock3, MapPin, Star, Store, LayoutGrid,
@@ -38,9 +39,9 @@ function timeLabel(iso) {
 }
 
 const LIVE_STATE = {
-  ACTIVE: { label: "Active", chip: "bg-emerald-500/15 text-emerald-400 ring-emerald-500/30", dot: "bg-emerald-400" },
-  ON_BREAK: { label: "On Break", chip: "bg-amber-500/15 text-amber-400 ring-amber-500/30", dot: "bg-amber-400" },
-  OFF_SHIFT: { label: "Off Shift", chip: "bg-[#0D1424]/90 text-[#8B93A8] ring-white/10", dot: "bg-[#4C5266]" },
+  ACTIVE: { label: "status.active", chip: "bg-emerald-500/15 text-emerald-400 ring-emerald-500/30", dot: "bg-emerald-400" },
+  ON_BREAK: { label: "emp.onBreak", chip: "bg-amber-500/15 text-amber-400 ring-amber-500/30", dot: "bg-amber-400" },
+  OFF_SHIFT: { label: "rm.offShift", chip: "bg-[#0D1424]/90 text-[#8B93A8] ring-white/10", dot: "bg-[#4C5266]" },
 };
 
 function InfoRow({ icon: Icon, label, value, tone }) {
@@ -50,7 +51,7 @@ function InfoRow({ icon: Icon, label, value, tone }) {
         <Icon size={14} />
       </span>
       <span className="text-[12px] text-[#8B93A8]">{label}</span>
-      <span className="ml-auto min-w-0 truncate text-right text-[12.5px] font-medium text-white">{value}</span>
+      <span className="ms-auto min-w-0 truncate text-end text-[12.5px] font-medium text-white">{value}</span>
     </div>
   );
 }
@@ -66,6 +67,7 @@ function InfoRow({ icon: Icon, label, value, tone }) {
 // timeline with evidence. Read-only throughout — no employee-level
 // operational controls here (spec §12).
 export default function RmEmployeeProfile({ marketId, employeeId, onBack, onOpenChat }) {
+  const { t } = useTranslation();
   const [monthOffset, setMonthOffset] = useState(0);
   const [selectedDay, setSelectedDay] = useState(null);
 
@@ -128,7 +130,7 @@ export default function RmEmployeeProfile({ marketId, employeeId, onBack, onOpen
           id: `item-${r.id}`,
           icon: PackageX,
           title: `Reported ${r.condition === "EXPIRED" ? "expired" : "wasted"} items`,
-          subtitle: `${r.product?.name ?? "Item"} × ${r.quantity}`,
+          subtitle: `${r.product?.name ?? t("sup.item")} × ${r.quantity}`,
           status: r.status,
           timestamp: r.reportedAt,
           images: r.imageUrl ? [r.imageUrl] : [],
@@ -136,7 +138,7 @@ export default function RmEmployeeProfile({ marketId, employeeId, onBack, onOpen
         ...wasted.map((r) => ({
           id: `wasted-${r.id}`,
           icon: PackageX,
-          title: "Submitted a waste report",
+          title: t("sup.submittedAWasteReport"),
           subtitle: r.item,
           status: r.status,
           timestamp: r.reportedAt,
@@ -157,7 +159,7 @@ export default function RmEmployeeProfile({ marketId, employeeId, onBack, onOpen
         ...extraHours.map((r) => ({
           id: `extra-hours-${r.id}`,
           icon: Clock3,
-          title: `Declared ${r.hours} extra hour${r.hours === 1 ? "" : "s"}`,
+          title: t("rm.declaredExtraHours", { count: r.hours }),
           subtitle:
             (r.reason ? `${r.reason} — ` : "") +
             (r.hasAttendanceRecord ? `attendance shows ${r.attendanceExtraHours?.toFixed(2)}h` : "no attendance record for that date"),
@@ -173,9 +175,9 @@ export default function RmEmployeeProfile({ marketId, employeeId, onBack, onOpen
           title: `Assigned to count ${a.assignedDepartment}${a.countingArea ? ` — ${a.countingArea}` : ""}`,
           subtitle: a.needsVerification
             ? a.verifiedAt
-              ? `Verified by ${a.verifiedBy?.name ?? "Regional/Zone Manager"}`
-              : "Awaiting Regional/Zone Manager verification"
-            : `Assigned by ${a.assignedBy?.name ?? "Supervisor"}`,
+              ? `Verified by ${a.verifiedBy?.name ?? t("rm.regionalZoneManager")}`
+              : t("rm.awaitingRegionalZoneManagerVerification")
+            : `Assigned by ${a.assignedBy?.name ?? t("roles.supervisor")}`,
           status: a.needsVerification ? (a.verifiedAt ? "APPROVED" : "PENDING") : "APPROVED",
           timestamp: a.createdAt,
           images: [],
@@ -215,10 +217,10 @@ export default function RmEmployeeProfile({ marketId, employeeId, onBack, onOpen
         <button
           type="button"
           onClick={onBack}
-          aria-label="Back to employees"
+          aria-label={t("sup.backToEmployees")}
           className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-white/10 bg-white/[0.06] text-white transition-all hover:bg-white/10 active:scale-95"
         >
-          <ChevronLeft size={17} />
+          <ChevronLeft size={17} className="rtl-flip" />
         </button>
         {employee.whatsappNumber && (
           <a
@@ -247,7 +249,7 @@ export default function RmEmployeeProfile({ marketId, employeeId, onBack, onOpen
               className={`absolute -bottom-1 left-1/2 -translate-x-1/2 inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-[10.5px] font-semibold ring-1 ring-inset backdrop-blur-md ${stateCfg.chip}`}
             >
               <span className={`h-1.5 w-1.5 rounded-full ${stateCfg.dot}`} />
-              {stateCfg.label}
+              {t(stateCfg.label)}
             </span>
           )}
         </div>
@@ -267,12 +269,12 @@ export default function RmEmployeeProfile({ marketId, employeeId, onBack, onOpen
             className="flex flex-col items-center gap-1.5 rounded-2xl border border-white/[0.07] bg-[#111A2D]/80 py-3 backdrop-blur-xl transition-all duration-200 hover:border-[#F47A20]/30 active:scale-[0.97]"
           >
             <Phone size={17} className="text-emerald-400" />
-            <span className="text-[11px] font-medium text-[#C4C9D6]">WhatsApp</span>
+            <span className="text-[11px] font-medium text-[#C4C9D6]">{t("emp.whatsapp")}</span>
           </a>
         ) : (
           <div className="flex flex-col items-center gap-1.5 rounded-2xl border border-white/[0.05] bg-[#111A2D]/40 py-3 opacity-50">
             <Phone size={17} className="text-[#5C6479]" />
-            <span className="text-[11px] font-medium text-[#5C6479]">No number</span>
+            <span className="text-[11px] font-medium text-[#5C6479]">{t("rm.noNumber")}</span>
           </div>
         )}
         <button
@@ -282,19 +284,19 @@ export default function RmEmployeeProfile({ marketId, employeeId, onBack, onOpen
           className="flex flex-col items-center gap-1.5 rounded-2xl border border-white/[0.07] bg-[#111A2D]/80 py-3 backdrop-blur-xl transition-all duration-200 hover:border-[#F47A20]/30 active:scale-[0.97] disabled:opacity-50"
         >
           <MessageCircle size={17} className="text-[#F47A20]" />
-          <span className="text-[11px] font-medium text-[#C4C9D6]">Message</span>
+          <span className="text-[11px] font-medium text-[#C4C9D6]">{t("rm.message")}</span>
         </button>
       </div>
 
       {/* Assignment details — every row a real stored field. */}
       <div className="mt-2.5 divide-y divide-white/[0.05] rounded-2xl border border-white/[0.07] bg-[#111A2D]/80 px-3.5 backdrop-blur-xl">
-        <InfoRow icon={Store} label="Market" value={marketName ?? "—"} tone="text-[#F47A20] bg-[#F47A20]/10" />
-        <InfoRow icon={LayoutGrid} label="Department" value={employee.department || "Unassigned"} tone="text-sky-400 bg-sky-500/10" />
-        <InfoRow icon={Clock3} label="Shift" value={employee.shift || employee.operationalShift || employee.cashierShift || "—"} tone="text-violet-400 bg-violet-500/10" />
+        <InfoRow icon={Store} label={t("sup.market")} value={marketName ?? "—"} tone="text-[#F47A20] bg-[#F47A20]/10" />
+        <InfoRow icon={LayoutGrid} label={t("emp.department")} value={employee.department || t("rm.unassigned")} tone="text-sky-400 bg-sky-500/10" />
+        <InfoRow icon={Clock3} label={t("emp.shift")} value={employee.shift || employee.operationalShift || employee.cashierShift || "—"} tone="text-violet-400 bg-violet-500/10" />
         <InfoRow
           icon={CalendarCheck}
-          label="Employment Date"
-          value={employee.startDate ? new Date(employee.startDate).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }) : "Not recorded"}
+          label={t("rm.employmentDate")}
+          value={employee.startDate ? new Date(employee.startDate).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }) : t("rm.notRecorded")}
           tone="text-emerald-400 bg-emerald-500/10"
         />
       </div>
@@ -310,12 +312,12 @@ export default function RmEmployeeProfile({ marketId, employeeId, onBack, onOpen
             <Star size={16} />
           </span>
           <div className="min-w-0 flex-1">
-            <p className="text-[12px] text-[#8B93A8]">Performance Rate</p>
+            <p className="text-[12px] text-[#8B93A8]">{t("rm.performanceRate")}</p>
             <p className="font-display text-[22px] font-bold leading-none text-white">
               {performance.rate == null ? "—" : `${Math.round(performance.rate)}%`}
             </p>
           </div>
-          <span className="shrink-0 text-right text-[10.5px] leading-tight text-[#5C6479]">
+          <span className="shrink-0 text-end text-[10.5px] leading-tight text-[#5C6479]">
             {performance.totalReviewed} reviewed
             <br />
             {performance.approved} approved
@@ -331,31 +333,31 @@ export default function RmEmployeeProfile({ marketId, employeeId, onBack, onOpen
           />
         </div>
         {performance.rate == null && (
-          <p className="mt-2 text-[11px] text-[#5C6479]">No reviewed activity yet — a rate appears once work is approved or rejected.</p>
+          <p className="mt-2 text-[11px] text-[#5C6479]">{t("rm.noReviewedActivityYetARate")}</p>
         )}
       </div>
 
       {attendance && (
         <div className="mt-2.5 grid grid-cols-2 gap-2.5 sm:grid-cols-4">
-          <StatChip icon={CalendarCheck} label="Attendance Rate" value={attendance.summary.attendanceRate != null ? `${Math.round(attendance.summary.attendanceRate)}%` : "—"} />
-          <StatChip icon={ClipboardList} label="Hours Worked" value={`${attendance.summary.totalHoursWorked.toFixed(1)}h`} />
-          <StatChip icon={Clock3} label="Extra Hours (attendance)" value={`${attendance.summary.extraHours.toFixed(1)}h`} />
-          <StatChip icon={ClipboardList} label="Days Off" value={attendance.summary.daysOff} />
+          <StatChip icon={CalendarCheck} label={t("emp.attendanceRate")} value={attendance.summary.attendanceRate != null ? `${Math.round(attendance.summary.attendanceRate)}%` : "—"} />
+          <StatChip icon={ClipboardList} label={t("rm.hoursWorked")} value={`${attendance.summary.totalHoursWorked.toFixed(1)}h`} />
+          <StatChip icon={Clock3} label={t("rm.extraHoursAttendance")} value={`${attendance.summary.extraHours.toFixed(1)}h`} />
+          <StatChip icon={ClipboardList} label={t("emp.daysOff")} value={attendance.summary.daysOff} />
         </div>
       )}
 
       <section className="mt-6">
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-sm font-semibold uppercase tracking-wider text-[#8B93A8]">History</h2>
+          <h2 className="text-sm font-semibold uppercase tracking-wider text-[#8B93A8]">{t("emp.history")}</h2>
           <div className="flex items-center gap-2">
             <button type="button" onClick={() => setMonthOffset((o) => o - 1)} className="p-1.5 rounded-lg text-[#9AA1B4] hover:bg-white/[0.06] hover:text-white">
-              <ChevronLeft size={16} />
+              <ChevronLeft size={16} className="rtl-flip" />
             </button>
             <span className="text-sm text-white font-medium min-w-[120px] text-center">
               {viewDate.toLocaleDateString("en-US", { month: "long", year: "numeric" })}
             </span>
             <button type="button" onClick={() => setMonthOffset((o) => Math.min(o + 1, 0))} disabled={monthOffset >= 0} className="p-1.5 rounded-lg text-[#9AA1B4] hover:bg-white/[0.06] hover:text-white disabled:opacity-30 disabled:hover:bg-transparent">
-              <ChevronRight size={16} />
+              <ChevronRight size={16} className="rtl-flip" />
             </button>
           </div>
         </div>
@@ -392,7 +394,7 @@ export default function RmEmployeeProfile({ marketId, employeeId, onBack, onOpen
               })}
             </div>
             <p className="mt-3 text-[11px] text-[#4C5266]">
-              <span className="inline-block w-2 h-2 rounded-sm bg-emerald-500/40 mr-1.5" /> At least one recorded activity — a neutral day just means nothing was recorded, not poor performance.
+              <span className="inline-block w-2 h-2 rounded-sm bg-emerald-500/40 me-1.5" /> {t("rm.atLeastOneRecordedActivityA")}
             </p>
           </div>
         )}
@@ -400,7 +402,7 @@ export default function RmEmployeeProfile({ marketId, employeeId, onBack, onOpen
 
       <Modal open={!!selectedDay} onClose={() => setSelectedDay(null)} title={selectedDay ? selectedDay.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }) : ""}>
         {selectedEvents.length === 0 ? (
-          <p className="text-sm text-[#8B93A8] text-center py-6">Nothing recorded for this employee on this day.</p>
+          <p className="text-sm text-[#8B93A8] text-center py-6">{t("rm.nothingRecordedForThisEmployeeOn")}</p>
         ) : (
           <div className="space-y-2">
             {selectedEvents.map((ev) => {
@@ -410,7 +412,7 @@ export default function RmEmployeeProfile({ marketId, employeeId, onBack, onOpen
                   key={ev.id}
                   type="button"
                   onClick={() => ev.images.length && setEvidence(ev.images)}
-                  className="w-full flex items-start gap-3 rounded-xl p-3 bg-[#1A1F33]/70 border border-white/[0.06] text-left hover:border-[#F47A20]/25 transition-colors"
+                  className="w-full flex items-start gap-3 rounded-xl p-3 bg-[#1A1F33]/70 border border-white/[0.06] text-start hover:border-[#F47A20]/25 transition-colors"
                 >
                   <span className="w-8 h-8 shrink-0 rounded-lg bg-[#F47A20]/10 flex items-center justify-center text-[#F47A20]">
                     <Icon size={14} />
@@ -431,7 +433,7 @@ export default function RmEmployeeProfile({ marketId, employeeId, onBack, onOpen
         )}
       </Modal>
 
-      <Modal open={!!evidence} onClose={() => setEvidence(null)} title="Evidence">
+      <Modal open={!!evidence} onClose={() => setEvidence(null)} title={t("emp.evidence")}>
         <div className="grid grid-cols-2 gap-2">
           {evidence?.map((url, i) => (
             <AuthenticatedImage key={i} src={url} alt="" className="rounded-lg w-full aspect-square object-cover" />

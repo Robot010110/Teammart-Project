@@ -12,14 +12,14 @@ import { PackageX, Trash2 } from "lucide-react";
 // everywhere.
 export const CONDITION_META = {
   EXPIRED: {
-    label: "Expired",
+    label: "emp.expired",
     icon: PackageX,
     tone: "text-amber-400 bg-amber-500/10 ring-amber-500/25",
     chip: "bg-amber-500/12 text-amber-400 ring-amber-500/25",
     dot: "bg-amber-400",
   },
   WASTED: {
-    label: "Wasted",
+    label: "emp.wasted",
     icon: Trash2,
     tone: "text-red-400 bg-red-500/10 ring-red-500/25",
     chip: "bg-red-500/12 text-red-400 ring-red-500/25",
@@ -33,10 +33,10 @@ export function conditionMeta(condition) {
 
 // The review state the Supervisor sets on the report (ActivityStatus).
 export const STATUS_META = {
-  PENDING: { label: "Pending review", chip: "bg-white/[0.06] text-[#9AA1B4] ring-white/10" },
-  APPROVED: { label: "Approved", chip: "bg-emerald-500/12 text-emerald-400 ring-emerald-500/25" },
-  REJECTED: { label: "Rejected", chip: "bg-red-500/12 text-red-400 ring-red-500/25" },
-  DRAFT: { label: "Draft", chip: "bg-white/[0.06] text-[#8B93A8] ring-white/10" },
+  PENDING: { label: "emp.pendingReview", chip: "bg-white/[0.06] text-[#9AA1B4] ring-white/10" },
+  APPROVED: { label: "status.approved", chip: "bg-emerald-500/12 text-emerald-400 ring-emerald-500/25" },
+  REJECTED: { label: "status.rejected", chip: "bg-red-500/12 text-red-400 ring-red-500/25" },
+  DRAFT: { label: "status.draft", chip: "bg-white/[0.06] text-[#8B93A8] ring-white/10" },
 };
 
 export function initialsOfName(name = "") {

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Camera, Loader2, CheckCircle2, X, DollarSign } from "lucide-react";
 import Modal from "../common/Modal";
 import AuthenticatedImage from "../common/AuthenticatedImage";
@@ -19,6 +20,7 @@ function todayIso() {
 // (Toast, from the caller) is the only feedback the Supervisor ever gets
 // about a submission after the fact.
 export default function SubmitTotalSalesModal({ open, onClose, onSaved }) {
+  const { t } = useTranslation();
   const [date, setDate] = useState(todayIso());
   const [amount, setAmount] = useState("");
   const [photo, setPhoto] = useState(null); // { url, progress } | null
@@ -49,7 +51,7 @@ export default function SubmitTotalSalesModal({ open, onClose, onSaved }) {
       const url = await prepareImageForUpload(file, { onProgress: (progress) => setPhoto({ url: null, progress }) });
       setPhoto({ url, progress: 100 });
     } catch {
-      setError("Could not process that photo. Please try again.");
+      setError(t("emp.couldNotProcessThatPhotoPlease"));
       setPhoto(null);
     } finally {
       setPhotoBusy(false);
@@ -62,7 +64,7 @@ export default function SubmitTotalSalesModal({ open, onClose, onSaved }) {
     if (!photo?.url) errors.photo = true;
     if (Object.keys(errors).length > 0) {
       setFieldErrors(errors);
-      setError("Enter the total amount and attach the evidence photo.");
+      setError(t("sup.enterTheTotalAmountAndAttach"));
       return;
     }
 
@@ -73,17 +75,17 @@ export default function SubmitTotalSalesModal({ open, onClose, onSaved }) {
       onSaved(report);
       handleClose();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Could not submit this report. Please try again.");
+      setError(err instanceof ApiError ? err.message : t("emp.couldNotSubmitThisReportPlease"));
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <Modal open={open} onClose={handleClose} title="Submit Total Sales">
+    <Modal open={open} onClose={handleClose} title={t("sup.submitTotalSales")}>
       <div className="space-y-4">
         <div>
-          <label className="block text-xs uppercase tracking-wide text-[#8B93A8] mb-1.5">Date</label>
+          <label className="block text-xs uppercase tracking-wide text-[#8B93A8] mb-1.5">{t("emp.date")}</label>
           <input
             type="date"
             value={date}
@@ -94,9 +96,9 @@ export default function SubmitTotalSalesModal({ open, onClose, onSaved }) {
         </div>
 
         <div>
-          <label className="block text-xs uppercase tracking-wide text-[#8B93A8] mb-1.5">Total Amount Sold</label>
+          <label className="block text-xs uppercase tracking-wide text-[#8B93A8] mb-1.5">{t("sup.totalAmountSold")}</label>
           <div className="relative">
-            <DollarSign size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#4C5266]" />
+            <DollarSign size={14} className="absolute start-3 top-1/2 -translate-y-1/2 text-[#4C5266]" />
             {/* Cleanup Phase §11 — a comma-formatted display ("1,000,000")
                 while the value this component ever hands back via
                 onChange stays a plain digits-only string; Number(amount)
@@ -106,7 +108,7 @@ export default function SubmitTotalSalesModal({ open, onClose, onSaved }) {
               onChange={(v) => { setAmount(v); setFieldErrors((f) => ({ ...f, amount: false })); }}
               placeholder="0"
               aria-invalid={fieldErrors.amount}
-              className={`w-full rounded-lg bg-white/[0.04] border pl-8 pr-3 py-3 text-base sm:text-sm text-white placeholder:text-[#4C5266] outline-none transition-colors duration-200 ${
+              className={`w-full rounded-lg bg-white/[0.04] border ps-8 pe-3 py-3 text-base sm:text-sm text-white placeholder:text-[#4C5266] outline-none transition-colors duration-200 ${
                 fieldErrors.amount ? "border-red-500/60" : "border-white/[0.06] focus:border-[#F47A20]/50"
               }`}
             />
@@ -114,15 +116,15 @@ export default function SubmitTotalSalesModal({ open, onClose, onSaved }) {
         </div>
 
         <div>
-          <label className="block text-xs uppercase tracking-wide text-[#8B93A8] mb-1.5">Evidence Photo</label>
+          <label className="block text-xs uppercase tracking-wide text-[#8B93A8] mb-1.5">{t("sup.evidencePhoto")}</label>
           {photo?.url ? (
             <div className="relative h-28 w-28 rounded-lg overflow-hidden ring-1 ring-white/10">
               <AuthenticatedImage src={photo.url} alt="" className="h-full w-full object-cover" />
               <button
                 type="button"
                 onClick={() => setPhoto(null)}
-                aria-label="Remove photo"
-                className="absolute -top-1 -right-1 h-6 w-6 rounded-full bg-black/80 grid place-items-center"
+                aria-label={t("emp.removePhoto")}
+                className="absolute -top-1 -end-1 h-6 w-6 rounded-full bg-black/80 grid place-items-center"
               >
                 <X size={12} className="text-white" />
               </button>
@@ -147,7 +149,7 @@ export default function SubmitTotalSalesModal({ open, onClose, onSaved }) {
                 capture="environment"
                 className="hidden"
                 onChange={(e) => handlePhoto(e.target.files[0])}
-                aria-label="Add evidence photo"
+                aria-label={t("sup.addEvidencePhoto")}
               />
             </label>
           )}
@@ -169,7 +171,7 @@ export default function SubmitTotalSalesModal({ open, onClose, onSaved }) {
             className="flex-1 flex items-center justify-center gap-2 rounded-xl py-3 text-sm font-semibold text-white bg-[#F47A20] hover:bg-[#ff8b36] active:bg-[#e06f18] disabled:bg-white/10 disabled:text-[#4C5266] transition-colors duration-200"
           >
             {submitting ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
-            {submitting ? "Submitting..." : "Submit"}
+            {submitting ? t("emp.submitting") : t("common.submit")}
           </button>
         </div>
       </div>

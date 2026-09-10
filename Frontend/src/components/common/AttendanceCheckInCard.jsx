@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { LogIn, LogOut, Loader2, Coffee, Check } from "lucide-react";
 import {
   checkIn,
@@ -62,6 +63,7 @@ function formatElapsed(ms) {
 // Manager's break-start (see startBreak's own role check), so this is a
 // UI convenience, not the only enforcement.
 export default function AttendanceCheckInCard({ showBreak = true }) {
+  const { t } = useTranslation();
   const [record, setRecord] = useState(null);
   const [loaded, setLoaded] = useState(false);
   // Distinct from `record === null`, which is the legitimate "checked
@@ -113,7 +115,7 @@ export default function AttendanceCheckInCard({ showBreak = true }) {
       setError(
         err instanceof ApiError
           ? err.message
-          : "Something went wrong. Please try again.",
+          : t("emp.somethingWentWrongPleaseTryAgain"),
       );
     } finally {
       setBusy(false);
@@ -145,7 +147,7 @@ export default function AttendanceCheckInCard({ showBreak = true }) {
   if (!loaded) {
     return (
       <div className="rounded-2xl p-4 bg-[#171C2E]/80 border border-white/[0.06] backdrop-blur-xl">
-        <p className="text-xs text-[#8B93A8]">Loading attendance...</p>
+        <p className="text-xs text-[#8B93A8]">{t("emp.loadingAttendance")}</p>
       </div>
     );
   }
@@ -158,7 +160,7 @@ export default function AttendanceCheckInCard({ showBreak = true }) {
   if (loadFailed) {
     return (
       <ErrorBanner
-        message="Couldn't load today's attendance."
+        message={t("emp.couldNotLoadTodaysAttendance")}
         onRetry={() => setReloadKey((k) => k + 1)}
       />
     );
@@ -168,13 +170,13 @@ export default function AttendanceCheckInCard({ showBreak = true }) {
     <div className="rounded-2xl p-4 bg-[#171C2E]/80 border border-white/[0.06] backdrop-blur-xl">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <p className="text-sm font-semibold text-white">Attendance</p>
+          <p className="text-sm font-semibold text-white">{t("emp.attendance")}</p>
           <p className="text-xs text-[#8B93A8] mt-0.5">
             {isCheckedIn
-              ? `Checked in at ${formatClockTime(record.checkIn)}`
+              ? t("emp.checkedInAt", { time: formatClockTime(record.checkIn) })
               : isCheckedOut
-                ? "Checked out for today"
-                : "Not checked in yet"}
+                ? t("emp.checkedOutForToday")
+                : t("emp.notCheckedInYet")}
           </p>
         </div>
         {!isCheckedOut && (
@@ -184,7 +186,7 @@ export default function AttendanceCheckInCard({ showBreak = true }) {
             disabled={busy || (isCheckedIn && !checkoutAvailable)}
             title={
               isCheckedIn && !checkoutAvailable
-                ? `Check-out available at ${formatClockTime(checkoutAvailableAt)}`
+                ? t("emp.checkoutAvailableAt", { time: formatClockTime(checkoutAvailableAt) })
                 : undefined
             }
             className={`flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-xs font-semibold transition-colors duration-150 disabled:opacity-50 ${
@@ -200,7 +202,7 @@ export default function AttendanceCheckInCard({ showBreak = true }) {
             ) : (
               <LogIn size={13} />
             )}
-            {isCheckedIn ? "Check Out" : "Check In"}
+            {isCheckedIn ? t("emp.checkOut") : t("emp.checkIn")}
           </button>
         )}
       </div>
@@ -209,7 +211,7 @@ export default function AttendanceCheckInCard({ showBreak = true }) {
 
       {isCheckedIn && !checkoutAvailable && (
         <p className="mt-2 text-[11px] text-[#8B93A8]">
-          Check-out available at {formatClockTime(checkoutAvailableAt)}
+          {t("emp.checkoutAvailableAt", { time: formatClockTime(checkoutAvailableAt) })}
         </p>
       )}
 
@@ -221,7 +223,7 @@ export default function AttendanceCheckInCard({ showBreak = true }) {
           <div className="mt-3 flex items-center gap-2 rounded-xl p-3 bg-white/[0.04] border border-white/[0.06]">
             <Coffee size={14} className="text-[#4C5266] shrink-0" />
             <p className="text-xs text-[#8B93A8]">
-              Break available at {formatClockTime(breakAvailableAt)}
+              {t("emp.breakAvailableAt", { time: formatClockTime(breakAvailableAt) })}
             </p>
           </div>
         )}
@@ -229,7 +231,7 @@ export default function AttendanceCheckInCard({ showBreak = true }) {
       {showBreak && breakAvailable && (
         <div className="mt-3 flex items-center justify-between gap-3 rounded-xl p-3 bg-[#F47A20]/10 border border-[#F47A20]/25">
           <p className="flex items-center gap-1.5 text-xs text-white">
-            <Coffee size={14} className="text-[#F47A20]" /> Break is available
+            <Coffee size={14} className="text-[#F47A20]" /> {t("emp.breakIsAvailable")}
           </p>
           <button
             type="button"
@@ -242,7 +244,7 @@ export default function AttendanceCheckInCard({ showBreak = true }) {
             ) : (
               <Coffee size={12} />
             )}{" "}
-            Start Break
+            {t("emp.startBreak")}
           </button>
         </div>
       )}
@@ -250,8 +252,8 @@ export default function AttendanceCheckInCard({ showBreak = true }) {
       {showBreak && onBreak && (
         <div className="mt-3 flex items-center justify-between gap-3 rounded-xl p-3 bg-sky-500/10 border border-sky-500/25">
           <p className="flex items-center gap-1.5 text-xs text-white">
-            <Coffee size={14} className="text-sky-400" /> On break —{" "}
-            {formatElapsed(now - new Date(record.breakStart).getTime())}
+            <Coffee size={14} className="text-sky-400" />{" "}
+            {t("emp.onBreakFor", { elapsed: formatElapsed(now - new Date(record.breakStart).getTime()) })}
           </p>
           <button
             type="button"
@@ -264,7 +266,7 @@ export default function AttendanceCheckInCard({ showBreak = true }) {
             ) : (
               <Check size={12} />
             )}{" "}
-            End Break
+            {t("emp.endBreak")}
           </button>
         </div>
       )}
@@ -273,8 +275,10 @@ export default function AttendanceCheckInCard({ showBreak = true }) {
         <div className="mt-3 flex items-center gap-2 rounded-xl p-3 bg-emerald-500/10 border border-emerald-500/25">
           <Coffee size={14} className="text-emerald-400 shrink-0" />
           <p className="text-xs text-white">
-            Break completed ({formatClockTime(record.breakStart)} -{" "}
-            {formatClockTime(record.breakEnd)})
+            {t("emp.breakCompletedRange", {
+              start: formatClockTime(record.breakStart),
+              end: formatClockTime(record.breakEnd),
+            })}
           </p>
         </div>
       )}

@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { CupSoda, Snowflake, Leaf, UtensilsCrossed, Package, PackageOpen, ShoppingBasket, Nut, Check, Clock3, X } from "lucide-react";
 import { MARKET_SECTIONS } from "../../data/supervisorMockData";
 
@@ -25,9 +26,9 @@ const SECTION_STYLE = {
 // small corner badge icon, never color alone, so the state reads clearly
 // even for a colorblind supervisor glancing at the grid.
 const STATUS_STYLE = {
-  YELLOW: { border: "border-amber-500/40 hover:border-amber-500/60", bg: "bg-amber-500/[0.07]", badge: "bg-amber-500/20 text-amber-400", icon: Clock3, label: "Pending" },
-  GREEN: { border: "border-emerald-500/30 hover:border-emerald-500/50", bg: "bg-emerald-500/[0.06]", badge: "bg-emerald-500/20 text-emerald-400", icon: Check, label: "Approved" },
-  RED: { border: "border-red-500/40 hover:border-red-500/60", bg: "bg-red-500/[0.07]", badge: "bg-red-500/20 text-red-400", icon: X, label: "Declined" },
+  YELLOW: { border: "border-amber-500/40 hover:border-amber-500/60", bg: "bg-amber-500/[0.07]", badge: "bg-amber-500/20 text-amber-400", icon: Clock3, label: "status.pending" },
+  GREEN: { border: "border-emerald-500/30 hover:border-emerald-500/50", bg: "bg-emerald-500/[0.06]", badge: "bg-emerald-500/20 text-emerald-400", icon: Check, label: "status.approved" },
+  RED: { border: "border-red-500/40 hover:border-red-500/60", bg: "bg-red-500/[0.07]", badge: "bg-red-500/20 text-red-400", icon: X, label: "sup.declined" },
 };
 
 // MarketStructureGrid.jsx — the market's eight physical department tiles.
@@ -39,6 +40,7 @@ const STATUS_STYLE = {
 // layout (2 cols mobile / 4 from tablet up, icon-tile shape) is
 // unchanged from before this redesign.
 export default function MarketStructureGrid({ sectionStatus, onSelect }) {
+  const { t } = useTranslation();
   return (
     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
       {MARKET_SECTIONS.map((section) => {
@@ -57,15 +59,15 @@ export default function MarketStructureGrid({ sectionStatus, onSelect }) {
             }`}
           >
             {statusStyle && (
-              <span className={`absolute top-2 right-2 grid place-items-center h-4 w-4 rounded-full ${statusStyle.badge}`}>
+              <span className={`absolute top-2 end-2 grid place-items-center h-4 w-4 rounded-full ${statusStyle.badge}`}>
                 <BadgeIcon size={11} strokeWidth={3} />
               </span>
             )}
             <span className={`grid place-items-center h-10 w-10 rounded-xl ${style.tone}`}>
               <Icon size={18} />
             </span>
-            <span className="text-xs font-semibold text-white">{section.label}</span>
-            {statusStyle && <span className={`text-[10px] font-medium ${status === "YELLOW" ? "text-amber-400" : status === "GREEN" ? "text-emerald-400" : "text-red-400"}`}>{statusStyle.label}</span>}
+            <span className="text-xs font-semibold text-white">{t(section.labelKey)}</span>
+            {statusStyle && <span className={`text-[10px] font-medium ${status === "YELLOW" ? "text-amber-400" : status === "GREEN" ? "text-emerald-400" : "text-red-400"}`}>{t(statusStyle.label)}</span>}
           </button>
         );
       })}

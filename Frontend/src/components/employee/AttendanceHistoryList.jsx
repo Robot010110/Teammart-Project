@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Trash2, Loader2, CalendarClock } from "lucide-react";
 import ErrorBanner from "../common/ErrorBanner";
 import { SkeletonCard } from "../common/SkeletonCard";
@@ -19,11 +20,11 @@ function daysSince(iso) {
 
 function rowLabel(entry) {
   if (entry.type === "PUNISHMENT") {
-    return { dot: DOT.PUNISHMENT, title: "Punishment", suffix: "" };
+    return { dot: DOT.PUNISHMENT, title: "emp.punishment", suffix: "" };
   }
   const dot = entry.status === "APPROVED" ? DOT.EXTRA_WORK_APPROVED : entry.status === "REJECTED" ? DOT.EXTRA_WORK_REJECTED : DOT.EXTRA_WORK_PENDING;
   const suffix = entry.status === "PENDING" ? " — Pending Approval" : entry.status === "REJECTED" ? " — Rejected" : "";
-  return { dot, title: "Extra Work", suffix };
+  return { dot, title: "emp.extraWork", suffix };
 }
 
 // AttendanceHistoryList.jsx — Profile → Attendance → History: real
@@ -38,8 +39,9 @@ function rowLabel(entry) {
 // section instead. Nothing here is hardcoded — an empty list just means
 // nothing pending/undismissed exists.
 export default function AttendanceHistoryList() {
+  const { t } = useTranslation();
   const { data: rawEntries, error, loading, reload } = useAsync(() => getAttendanceHistory({ months: 6 }), {
-    fallbackError: "Could not load your attendance history.",
+    fallbackError: t("emp.couldNotLoadYourAttendanceHistory"),
   });
   const entries = rawEntries?.filter((entry) => entry.type !== "EXTRA_WORK" || entry.status === "PENDING");
   const [busyId, setBusyId] = useState(null);
@@ -56,7 +58,7 @@ export default function AttendanceHistoryList() {
       }
       reload();
     } catch (err) {
-      setActionError(err instanceof ApiError ? err.message : "Could not delete this.");
+      setActionError(err instanceof ApiError ? err.message : t("emp.couldNotDeleteThis"));
     } finally {
       setBusyId(null);
     }
@@ -74,9 +76,9 @@ export default function AttendanceHistoryList() {
         <span className="relative mx-auto mb-3 grid h-11 w-11 place-items-center rounded-full bg-white/[0.04] text-[#4C5266]">
           <CalendarClock size={19} />
         </span>
-        <p className="relative text-sm text-[#8B93A8]">No attendance history yet.</p>
+        <p className="relative text-sm text-[#8B93A8]">{t("emp.noAttendanceHistoryYet")}</p>
         <p className="relative mt-1 text-xs text-[#4C5266]">
-          Extra-hours decisions and penalties will appear here.
+          {t("emp.extraHoursDecisionsAndPenaltiesWill")}
         </p>
       </div>
     );
@@ -108,7 +110,7 @@ export default function AttendanceHistoryList() {
                 type="button"
                 onClick={() => handleDelete(entry)}
                 disabled={busyId === entry.id}
-                aria-label="Delete"
+                aria-label={t("emp.delete")}
                 className="shrink-0 p-1.5 rounded-lg text-[#4C5266] hover:text-red-400 hover:bg-red-500/10 disabled:opacity-50 transition-colors"
               >
                 {busyId === entry.id ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}

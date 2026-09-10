@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   ArrowLeft, BadgeCheck, Briefcase, Clock, Copy, Check as CheckIcon, Pencil, Check, Loader2,
   CalendarDays, History, ClipboardList, Layers, Store, ChevronRight, TrendingUp,
@@ -17,6 +18,7 @@ import { initialsOf } from "../../utils/initials";
 import { DEPARTMENTS } from "../../utils/departments";
 
 function DepartmentField({ employeeId, department, onSaved }) {
+  const { t } = useTranslation();
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState(department && DEPARTMENTS.includes(department) ? department : "");
   const [saving, setSaving] = useState(false);
@@ -31,7 +33,7 @@ function DepartmentField({ employeeId, department, onSaved }) {
       onSaved(value);
       setEditing(false);
     } catch {
-      setError("Could not save this department.");
+      setError(t("sup.couldNotSaveThisDepartment"));
     } finally {
       setSaving(false);
     }
@@ -40,23 +42,23 @@ function DepartmentField({ employeeId, department, onSaved }) {
   if (editing) {
     return (
       <div className="rounded-xl p-3 bg-white/[0.03] border border-[#F47A20]/30">
-        <p className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-[#8B93A8] mb-1.5"><Briefcase size={11} /> Department</p>
+        <p className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-[#8B93A8] mb-1.5"><Briefcase size={11} /> {t("emp.department")}</p>
         <select
           autoFocus
           value={value}
           onChange={(e) => setValue(e.target.value)}
           className="w-full rounded-lg bg-white/[0.05] border border-white/[0.1] px-2.5 py-2 text-sm text-white outline-none focus:border-[#F47A20]/50"
         >
-          <option value="">Select a department...</option>
+          <option value="">{t("sup.selectADepartment")}</option>
           {DEPARTMENTS.map((d) => <option key={d} value={d}>{d}</option>)}
         </select>
         {error && <p className="mt-1.5 text-[11px] text-red-400">{error}</p>}
         <div className="mt-2 flex gap-2">
           <button type="button" onClick={handleSave} disabled={saving || !value} className="flex-1 flex items-center justify-center gap-1 rounded-lg py-1.5 text-xs font-semibold text-white bg-[#F47A20] hover:bg-[#ff8b36] disabled:opacity-50">
-            {saving ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />} Save
+            {saving ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />} {t("common.save")}
           </button>
           <button type="button" onClick={() => { setEditing(false); setValue(department && DEPARTMENTS.includes(department) ? department : ""); }} disabled={saving} className="flex-1 rounded-lg py-1.5 text-xs font-medium text-[#9AA1B4] bg-white/[0.06] hover:bg-white/[0.1]">
-            Cancel
+            {t("common.cancel")}
           </button>
         </div>
       </div>
@@ -67,16 +69,16 @@ function DepartmentField({ employeeId, department, onSaved }) {
     <button
       type="button"
       onClick={() => setEditing(true)}
-      className="rounded-2xl p-3.5 bg-gradient-to-b from-[#131D33]/90 to-[#0C1424]/90 border border-sky-500/[0.18] text-left backdrop-blur-xl shadow-[0_10px_24px_-16px_rgba(0,0,0,0.9),0_0_24px_-14px_rgba(56,189,248,0.4)] transition-all duration-150 hover:border-sky-500/35"
+      className="rounded-2xl p-3.5 bg-gradient-to-b from-[#131D33]/90 to-[#0C1424]/90 border border-sky-500/[0.18] text-start backdrop-blur-xl shadow-[0_10px_24px_-16px_rgba(0,0,0,0.9),0_0_24px_-14px_rgba(56,189,248,0.4)] transition-all duration-150 hover:border-sky-500/35"
     >
       <div className="flex items-center gap-2">
         <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-sky-500/15 text-sky-400 ring-1 ring-inset ring-sky-500/30">
           <Briefcase size={14} />
         </span>
-        <p className="flex-1 text-[11px] uppercase tracking-wide text-[#8B93A8]">Department</p>
+        <p className="flex-1 text-[11px] uppercase tracking-wide text-[#8B93A8]">{t("emp.department")}</p>
         <Pencil size={12} className="text-[#4C5266]" />
       </div>
-      <p className="mt-2 text-[14px] font-semibold text-white">{department || "Not assigned"}</p>
+      <p className="mt-2 text-[14px] font-semibold text-white">{department || t("emp.notAssigned")}</p>
     </button>
   );
 }
@@ -101,6 +103,7 @@ function DepartmentField({ employeeId, department, onSaved }) {
 // only exists as a SELF-service endpoint (no staff/employeeId variant),
 // and this pass explicitly rules out a backend rebuild to add one.
 export default function EmployeeInfoScreen({ employee, setEmployee, loading, error, reload, marketName, onBack, onOpenAttendance, onOpenTasks, onOpenHistory }) {
+  const { t } = useTranslation();
   const [toast, setToast] = useToast();
   const [copied, setCopied] = useState(false);
   const [perfOpen, setPerfOpen] = useState(false);
@@ -115,10 +118,10 @@ export default function EmployeeInfoScreen({ employee, setEmployee, loading, err
 
   return (
     <div className="px-4 sm:px-6 py-6 max-w-4xl mx-auto animate-fade-up">
-      <button type="button" onClick={onBack} className="flex items-center gap-1.5 text-sm text-[#9AA1B4] hover:text-white mb-1 -ml-1 py-1.5 px-1">
-        <ArrowLeft size={16} /> Back to Employees
+      <button type="button" onClick={onBack} className="flex items-center gap-1.5 text-sm text-[#9AA1B4] hover:text-white mb-1 -ms-1 py-1.5 px-1">
+        <ArrowLeft size={16} className="rtl-flip" /> {t("sup.backToEmployees")}
       </button>
-      <h1 className="mb-4 font-display text-[20px] font-bold text-white">Employee Profile</h1>
+      <h1 className="mb-4 font-display text-[20px] font-bold text-white">{t("sup.employeeProfile")}</h1>
 
       {loading ? (
         <SkeletonCard className="h-[190px]" />
@@ -146,7 +149,7 @@ export default function EmployeeInfoScreen({ employee, setEmployee, loading, err
                     }`}
                   >
                     <span className={`h-1.5 w-1.5 rounded-full ${employee.employmentStatus === "ACTIVE" ? "bg-emerald-400 shadow-[0_0_6px_1px_rgba(52,211,153,0.8)]" : "bg-[#4C5266]"}`} />
-                    {employee.employmentStatus === "ACTIVE" ? "Active" : employee.employmentStatus === "ON_LEAVE" ? "On Leave" : "Inactive"}
+                    {employee.employmentStatus === "ACTIVE" ? t("status.active") : employee.employmentStatus === "ON_LEAVE" ? t("emp.onLeave") : t("status.inactive")}
                   </span>
                 </div>
               </div>
@@ -168,7 +171,7 @@ export default function EmployeeInfoScreen({ employee, setEmployee, loading, err
               {employee.username && <span className="flex items-center gap-1.5"><BadgeCheck size={13} /> {employee.username}</span>}
               {employee.startDate && (
                 <span className="flex items-center gap-1.5">
-                  <CalendarDays size={13} /> Joined {new Date(employee.startDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                  <CalendarDays size={13} /> {t("sup.joined")} {new Date(employee.startDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
                 </span>
               )}
             </div>
@@ -188,7 +191,7 @@ export default function EmployeeInfoScreen({ employee, setEmployee, loading, err
                 <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-emerald-500/15 text-emerald-400 ring-1 ring-inset ring-emerald-500/30">
                   <Store size={14} />
                 </span>
-                <p className="flex-1 text-[11px] uppercase tracking-wide text-[#8B93A8]">Market</p>
+                <p className="flex-1 text-[11px] uppercase tracking-wide text-[#8B93A8]">{t("sup.market")}</p>
               </div>
               <p className="mt-2 truncate text-[14px] font-semibold text-white">{marketName || "—"}</p>
             </div>
@@ -204,7 +207,7 @@ export default function EmployeeInfoScreen({ employee, setEmployee, loading, err
             {employee.additionalDepartments?.length > 0 && (
               <div className="rounded-xl p-3 bg-white/[0.03] border border-white/[0.06]">
                 <p className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-[#8B93A8] mb-1.5">
-                  <Layers size={11} /> Additional Responsibilities
+                  <Layers size={11} /> {t("emp.additionalResponsibilities")}
                 </p>
                 <div className="flex flex-wrap gap-1.5">
                   {employee.additionalDepartments.map((d) => (
@@ -218,8 +221,8 @@ export default function EmployeeInfoScreen({ employee, setEmployee, loading, err
               onAssigned={(assignment) =>
                 setToast(
                   assignment.needsVerification
-                    ? "Counting assignment saved — sent to the Regional/Zone Manager for verification."
-                    : "Counting assignment saved."
+                    ? t("sup.countingAssignmentSavedSentToThe")
+                    : t("sup.countingAssignmentSaved")
                 )
               }
             />
@@ -230,25 +233,25 @@ export default function EmployeeInfoScreen({ employee, setEmployee, loading, err
               container, border, glow), matching Attendance/Tasks/
               Activity History/Performance's tones from the reference. */}
           <div className="mt-4 grid grid-cols-2 gap-3">
-            <QuickAccessCard icon={CalendarDays} label="Attendance" sub="View attendance & hours" tone="sky" onClick={onOpenAttendance} />
-            <QuickAccessCard icon={ClipboardList} label="Tasks" sub="View and manage tasks" tone="violet" onClick={onOpenTasks} />
-            <QuickAccessCard icon={History} label="Activity History" sub="View full history" tone="emerald" onClick={onOpenHistory} />
-            <QuickAccessCard icon={TrendingUp} label="Performance" sub="Stats and progress" tone="amber" onClick={() => setPerfOpen(true)} />
+            <QuickAccessCard icon={CalendarDays} label={t("emp.attendance")} sub={t("sup.viewAttendanceHours")} tone="sky" onClick={onOpenAttendance} />
+            <QuickAccessCard icon={ClipboardList} label={t("emp.navTasks")} sub={t("sup.viewAndManageTasks")} tone="violet" onClick={onOpenTasks} />
+            <QuickAccessCard icon={History} label={t("sup.activityHistory")} sub={t("sup.viewFullHistory")} tone="emerald" onClick={onOpenHistory} />
+            <QuickAccessCard icon={TrendingUp} label={t("emp.performance")} sub={t("sup.statsAndProgress")} tone="amber" onClick={() => setPerfOpen(true)} />
           </div>
 
           <div className="mt-4">
             <EmployeeTodayActivity employeeId={employee.id} marketId={employee.marketId} />
           </div>
 
-          <Modal open={perfOpen} onClose={() => setPerfOpen(false)} title="Performance">
+          <Modal open={perfOpen} onClose={() => setPerfOpen(false)} title={t("emp.performance")}>
             <div className="p-1 text-center">
               <p className="font-display text-[40px] font-bold text-white tabular-nums">
                 {employee.performanceRate == null ? "—" : `${employee.performanceRate}%`}
               </p>
               <p className="mt-1 text-[12.5px] text-[#8B93A8]">
                 {employee.performanceRate == null
-                  ? "No performance figure has been recorded for this employee yet."
-                  : "Overall performance rating"}
+                  ? t("sup.noPerformanceFigureHasBeenRecorded")
+                  : t("sup.overallPerformanceRating")}
               </p>
             </div>
           </Modal>
@@ -283,13 +286,13 @@ function QuickAccessCard({ icon: Icon, label, sub, tone, onClick }) {
     <button
       type="button"
       onClick={onClick}
-      className={`text-left rounded-2xl p-3.5 bg-gradient-to-b from-[#131D33]/90 to-[#0C1424]/90 border backdrop-blur-xl transition-all duration-200 active:scale-[0.98] ${t.card}`}
+      className={`text-start rounded-2xl p-3.5 bg-gradient-to-b from-[#131D33]/90 to-[#0C1424]/90 border backdrop-blur-xl transition-all duration-200 active:scale-[0.98] ${t.card}`}
     >
       <div className="flex items-start justify-between">
         <span className={`grid h-9 w-9 place-items-center rounded-xl ring-1 ring-inset ${t.icon}`}>
           <Icon size={16} />
         </span>
-        <ChevronRight size={14} className="mt-2 text-[#4C5266]" />
+        <ChevronRight size={14} className="mt-2 text-[#4C5266] rtl-flip" />
       </div>
       <p className="mt-2.5 text-[13.5px] font-semibold text-white">{label}</p>
       <p className="text-[11px] text-[#8B93A8]">{sub}</p>

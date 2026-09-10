@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Check, Loader2, Camera, Users2 } from "lucide-react";
 import Modal from "../components/common/Modal";
 import AuthenticatedImage from "../components/common/AuthenticatedImage";
@@ -15,6 +16,7 @@ import { ApiError } from "../services/apiClient";
 // exact same createGroup endpoint/architecture as the Supervisor's own
 // group creation (CreateGroupModal.jsx).
 export default function RmCreateGroupModal({ session, onClose, onCreated }) {
+  const { t } = useTranslation();
   const [name, setName] = useState("");
   const [selected, setSelected] = useState({ employeeIds: new Set(), staffUserIds: new Set() });
   // Phase 3.5: NORMAL (default, everyone can post) vs WARNING (an
@@ -37,15 +39,15 @@ export default function RmCreateGroupModal({ session, onClose, onCreated }) {
       const url = await prepareImageForUpload(file);
       setPhotoUrl(url);
     } catch {
-      setError("Could not upload that photo. Please try again.");
+      setError(t("rm.couldNotUploadThatPhotoPlease"));
     } finally {
       setUploadingPhoto(false);
     }
   }
 
   async function handleCreate() {
-    if (!name.trim()) return setError("Enter a group name.");
-    if (selected.employeeIds.size === 0 && selected.staffUserIds.size === 0) return setError("Select at least one member.");
+    if (!name.trim()) return setError(t("sup.enterAGroupName"));
+    if (selected.employeeIds.size === 0 && selected.staffUserIds.size === 0) return setError(t("sup.selectAtLeastOneMember"));
 
     setCreating(true);
     setError(null);
@@ -61,14 +63,14 @@ export default function RmCreateGroupModal({ session, onClose, onCreated }) {
       });
       onCreated(conversation);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Could not create this group.");
+      setError(err instanceof ApiError ? err.message : t("sup.couldNotCreateThisGroup"));
     } finally {
       setCreating(false);
     }
   }
 
   return (
-    <Modal open onClose={onClose} title="Create Group">
+    <Modal open onClose={onClose} title={t("sup.createGroup")}>
       <div className="space-y-4">
         <div className="flex justify-center">
           <div className="relative">
@@ -76,7 +78,7 @@ export default function RmCreateGroupModal({ session, onClose, onCreated }) {
               type="button"
               onClick={() => photoInputRef.current?.click()}
               disabled={uploadingPhoto}
-              aria-label="Add group photo"
+              aria-label={t("rm.addGroupPhoto")}
               className="h-16 w-16 rounded-2xl bg-white/[0.04] border border-white/[0.08] grid place-items-center overflow-hidden text-[#4C5266] hover:border-[#F47A20]/40 transition-colors"
             >
               {uploadingPhoto ? (
@@ -87,7 +89,7 @@ export default function RmCreateGroupModal({ session, onClose, onCreated }) {
                 <Users2 size={20} />
               )}
             </button>
-            <span className="absolute -bottom-1.5 -right-1.5 h-6 w-6 rounded-full bg-[#F47A20] ring-2 ring-[#1F2436] grid place-items-center text-white">
+            <span className="absolute -bottom-1.5 -end-1.5 h-6 w-6 rounded-full bg-[#F47A20] ring-2 ring-[#1F2436] grid place-items-center text-white">
               <Camera size={11} />
             </span>
             <input
@@ -101,19 +103,19 @@ export default function RmCreateGroupModal({ session, onClose, onCreated }) {
         </div>
 
         <div>
-          <label className="block text-xs uppercase tracking-wide text-[#8B93A8] mb-1.5">Group Name</label>
+          <label className="block text-xs uppercase tracking-wide text-[#8B93A8] mb-1.5">{t("sup.groupName")}</label>
           <input
             autoFocus
             value={name}
             onChange={(e) => setName(e.target.value)}
             maxLength={100}
-            placeholder="e.g. Supervisors — Zone 1"
+            placeholder={t("rm.eGSupervisorsZone1")}
             className="w-full rounded-lg bg-white/[0.04] border border-white/[0.06] px-3 py-3 text-sm text-white placeholder:text-[#4C5266] outline-none focus:border-[#F47A20]/50"
           />
         </div>
 
         <div>
-          <label className="block text-xs uppercase tracking-wide text-[#8B93A8] mb-1.5">Group Type</label>
+          <label className="block text-xs uppercase tracking-wide text-[#8B93A8] mb-1.5">{t("sup.groupType")}</label>
           <div className="grid grid-cols-2 gap-2">
             <button
               type="button"
@@ -122,7 +124,7 @@ export default function RmCreateGroupModal({ session, onClose, onCreated }) {
                 groupType === "NORMAL" ? "text-white bg-[#F47A20]" : "text-[#9AA1B4] bg-white/[0.04] hover:bg-white/[0.08]"
               }`}
             >
-              Normal
+              {t("sup.normal")}
             </button>
             <button
               type="button"
@@ -131,17 +133,17 @@ export default function RmCreateGroupModal({ session, onClose, onCreated }) {
                 groupType === "WARNING" ? "text-white bg-amber-500" : "text-[#9AA1B4] bg-white/[0.04] hover:bg-white/[0.08]"
               }`}
             >
-              Announcement
+              {t("emp.announcement")}
             </button>
           </div>
           {groupType === "WARNING" && (
-            <p className="mt-1.5 text-[11px] text-amber-400/90">Only group admins can post — everyone else is read-only.</p>
+            <p className="mt-1.5 text-[11px] text-amber-400/90">{t("sup.onlyGroupAdminsCanPostEveryone")}</p>
           )}
         </div>
 
         {groupType === "NORMAL" && (
           <div>
-            <label className="block text-xs uppercase tracking-wide text-[#8B93A8] mb-1.5">Category</label>
+            <label className="block text-xs uppercase tracking-wide text-[#8B93A8] mb-1.5">{t("sup.category")}</label>
             <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
@@ -150,7 +152,7 @@ export default function RmCreateGroupModal({ session, onClose, onCreated }) {
                   category === "GENERAL" ? "text-white bg-[#F47A20]" : "text-[#9AA1B4] bg-white/[0.04] hover:bg-white/[0.08]"
                 }`}
               >
-                General
+                {t("emp.catGeneral")}
               </button>
               <button
                 type="button"
@@ -159,7 +161,7 @@ export default function RmCreateGroupModal({ session, onClose, onCreated }) {
                   category === "TASK_OPERATIONS" ? "text-white bg-[#F47A20]" : "text-[#9AA1B4] bg-white/[0.04] hover:bg-white/[0.08]"
                 }`}
               >
-                Task & Operations
+                {t("emp.catTaskOperations")}
               </button>
             </div>
           </div>
@@ -170,14 +172,14 @@ export default function RmCreateGroupModal({ session, onClose, onCreated }) {
           onClick={() => setOpenJoin((v) => !v)}
           className="w-full flex items-center justify-between rounded-lg px-3 py-2.5 bg-white/[0.03] border border-white/[0.06]"
         >
-          <span className="text-xs text-[#9AA1B4]">Let anyone in without approval</span>
+          <span className="text-xs text-[#9AA1B4]">{t("emp.letAnyoneInWithoutApproval")}</span>
           <span className={`shrink-0 w-9 h-5 rounded-full p-0.5 transition-colors ${openJoin ? "bg-[#F47A20]" : "bg-white/10"}`}>
             <span className={`block w-4 h-4 rounded-full bg-white transition-transform ${openJoin ? "translate-x-4" : ""}`} />
           </span>
         </button>
 
         <div>
-          <label className="block text-xs uppercase tracking-wide text-[#8B93A8] mb-1.5">Members</label>
+          <label className="block text-xs uppercase tracking-wide text-[#8B93A8] mb-1.5">{t("emp.members")}</label>
           <GroupMemberPicker selected={selected} onChange={setSelected} excludeStaffUserIds={[session.staffId]} />
         </div>
 
@@ -190,7 +192,7 @@ export default function RmCreateGroupModal({ session, onClose, onCreated }) {
             disabled={creating}
             className="flex-1 rounded-xl py-3 text-sm font-semibold text-[#9AA1B4] bg-white/[0.06] hover:bg-white/[0.1] disabled:opacity-50 transition-colors duration-200"
           >
-            Cancel
+            {t("common.cancel")}
           </button>
           <button
             type="button"
@@ -199,7 +201,7 @@ export default function RmCreateGroupModal({ session, onClose, onCreated }) {
             className="flex-1 flex items-center justify-center gap-2 rounded-xl py-3 text-sm font-semibold text-white bg-[#F47A20] hover:bg-[#ff8b36] disabled:bg-white/10 disabled:text-[#4C5266] transition-colors duration-200"
           >
             {creating ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
-            {creating ? "Creating..." : "Create Group"}
+            {creating ? t("sup.creating") : t("sup.createGroup")}
           </button>
         </div>
       </div>

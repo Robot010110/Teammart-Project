@@ -1,4 +1,5 @@
 import { Clock3, CheckCircle2, Loader2 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import PriorityPill from "../common/PriorityPill";
 
 // SuddenTaskCard.jsx — one urgent task pushed by a Supervisor. Same card
@@ -16,6 +17,7 @@ const assignedTimeLabel = (isoString) =>
   });
 
 export default function SuddenTaskCard({ task, onComplete, completingId }) {
+  const { t } = useTranslation();
   const isCompleting = completingId === task.id;
 
   return (
@@ -26,7 +28,7 @@ export default function SuddenTaskCard({ task, onComplete, completingId }) {
       </div>
       {task.description && <p className="mt-1.5 text-xs text-[#8B93A8]">{task.description}</p>}
       <div className="mt-1.5 flex items-center gap-1 text-xs text-[#9AA1B4]">
-        <Clock3 size={12} /> Assigned {assignedTimeLabel(task.assignedAt)}
+        <Clock3 size={12} /> {t("emp.assignedAtTime", { time: assignedTimeLabel(task.assignedAt) })}
       </div>
 
       {task.status === "ASSIGNED" && (
@@ -37,13 +39,13 @@ export default function SuddenTaskCard({ task, onComplete, completingId }) {
             className="flex items-center gap-1.5 text-[11px] font-medium text-[#F47A20] hover:text-[#ff8b36] disabled:opacity-40 transition-colors duration-150"
           >
             {isCompleting ? <Loader2 size={12} className="animate-spin" /> : <CheckCircle2 size={12} />}
-            {isCompleting ? "Marking complete..." : "Mark Complete"}
+            {isCompleting ? t("emp.markingComplete") : t("emp.markComplete")}
           </button>
         </div>
       )}
       {task.status === "COMPLETED" && task.completedAt && (
         <p className="mt-2.5 flex items-center gap-1 text-[11px] text-emerald-400">
-          <CheckCircle2 size={12} /> Completed {assignedTimeLabel(task.completedAt)}
+          <CheckCircle2 size={12} /> {t("emp.completedAtTime", { time: assignedTimeLabel(task.completedAt) })}
         </p>
       )}
     </div>

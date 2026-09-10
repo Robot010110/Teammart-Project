@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import ImportantPeopleSection from "./ImportantPeopleSection";
 import { GROUP_TYPES, INDIVIDUAL_TYPES, GROUP_CATEGORIES, categoryOf } from "../../utils/chatCategories";
 
@@ -21,11 +22,13 @@ import { GROUP_TYPES, INDIVIDUAL_TYPES, GROUP_CATEGORIES, categoryOf } from "../
 // filter over the same array via chatCategories.categoryOf — a section
 // with nothing in it is simply omitted, never shown empty.
 
+// Labels are translation keys — this array is module scope (no `t`
+// available), so it is resolved where it's rendered, below.
 const VIEWS = [
-  { key: "important", label: "Important" },
-  { key: "groups", label: "Groups" },
-  { key: "individuals", label: "Individuals" },
-  { key: "unread", label: "Unread" },
+  { key: "important", label: "emp.tabImportant" },
+  { key: "groups", label: "emp.tabGroups" },
+  { key: "individuals", label: "emp.tabIndividuals" },
+  { key: "unread", label: "emp.tabUnread" },
 ];
 
 function EmptyText({ children }) {
@@ -54,12 +57,13 @@ export default function ChatViewTabs({
   // entirely (no tab shown) when the caller has nothing real to put there.
   reportsContent = null,
 }) {
+  const { t } = useTranslation();
   const [view, setView] = useState(defaultView);
 
   const groups = conversations.filter((c) => GROUP_TYPES.has(c.type));
   const individuals = conversations.filter((c) => INDIVIDUAL_TYPES.has(c.type));
   const unread = conversations.filter((c) => c.unreadCount > 0);
-  const views = reportsContent ? [...VIEWS, { key: "reports", label: "Reports" }] : VIEWS;
+  const views = reportsContent ? [...VIEWS, { key: "reports", label: "emp.tabReports" }] : VIEWS;
 
   return (
     <div>
@@ -73,7 +77,7 @@ export default function ChatViewTabs({
               view === v.key ? "bg-[#F47A20] text-white" : "bg-white/[0.05] text-[#9AA1B4] hover:bg-white/[0.09]"
             }`}
           >
-            {v.label}
+            {t(v.label)}
             {v.key === "unread" && unread.length > 0 ? ` (${unread.length})` : ""}
           </button>
         ))}
@@ -82,21 +86,21 @@ export default function ChatViewTabs({
       {view === "important" && (
         showImportantPeople
           ? <ImportantPeopleSection onOpenConversation={onOpenImportantContact} />
-          : <EmptyText>No important contacts yet.</EmptyText>
+          : <EmptyText>{t("emp.noImportantContactsYet")}</EmptyText>
       )}
 
       {view === "groups" && (
         <div className="space-y-5">
           {groupsHeaderAction}
           {groups.length === 0 ? (
-            <EmptyText>No groups available.</EmptyText>
+            <EmptyText>{t("emp.noGroupsAvailable")}</EmptyText>
           ) : (
             GROUP_CATEGORIES.map(({ key, label }) => {
               const sectionGroups = groups.filter((c) => categoryOf(c) === key);
               if (sectionGroups.length === 0) return null;
               return (
                 <section key={key}>
-                  <h2 className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-[#8B93A8]">{label}</h2>
+                  <h2 className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-[#8B93A8]">{t(label)}</h2>
                   <div className="space-y-2">{sectionGroups.map((c) => renderRow(c))}</div>
                 </section>
               );
@@ -109,13 +113,13 @@ export default function ChatViewTabs({
         <div className="space-y-3">
           {individuals.length > 0 && <div className="space-y-2">{individuals.map((c) => renderRow(c))}</div>}
           {individualsExtra}
-          {individuals.length === 0 && !individualsExtra && <EmptyText>No authorized contacts found.</EmptyText>}
+          {individuals.length === 0 && !individualsExtra && <EmptyText>{t("emp.noAuthorizedContactsFound")}</EmptyText>}
         </div>
       )}
 
       {view === "unread" && (
         <div className="space-y-2">
-          {unread.length === 0 ? <EmptyText>You're all caught up.</EmptyText> : unread.map((c) => renderRow(c))}
+          {unread.length === 0 ? <EmptyText>{t("emp.youAreAllCaughtUpChat")}</EmptyText> : unread.map((c) => renderRow(c))}
         </div>
       )}
 

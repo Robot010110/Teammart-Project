@@ -7,9 +7,9 @@
 // back to the backend, never used to convert what a Supervisor typed.
 
 export const CURRENCIES = [
-  { code: "USD", symbol: "$", label: "US Dollar", rate: 1 },
-  { code: "IQD", symbol: "IQD", label: "Iraqi Dinar", rate: 1310 },
-  { code: "TRY", symbol: "₺", label: "Turkish Lira", rate: 34 },
+  { code: "USD", symbol: "$", label: "rm.currencyUSD", rate: 1 },
+  { code: "IQD", symbol: "IQD", label: "rm.currencyIQD", rate: 1310 },
+  { code: "TRY", symbol: "₺", label: "rm.currencyTRY", rate: 34 },
 ];
 
 export function convertFromUsd(amountUsd, currencyCode) {

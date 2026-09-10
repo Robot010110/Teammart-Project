@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, ArrowRight, Loader2, Send, CheckCircle2 } from "lucide-react";
 import { useAsync } from "../../../hooks/useAsync";
@@ -29,37 +30,37 @@ import { DEPARTMENTS } from "../../../utils/departments";
 // re-validated server-side on preview AND send (communicationTargeting.js).
 
 const TYPES = [
-  { value: "ANNOUNCEMENT", label: "Announcement" },
-  { value: "WARNING", label: "Warning" },
-  { value: "TASK", label: "Task" },
-  { value: "INFORMATION", label: "Information" },
+  { value: "ANNOUNCEMENT", label: "emp.announcement" },
+  { value: "WARNING", label: "emp.warning" },
+  { value: "TASK", label: "emp.task" },
+  { value: "INFORMATION", label: "emp.information" },
 ];
 const CATEGORIES = [
-  { value: "STOCK_CHECK", label: "Stock Check" },
-  { value: "COUNTING", label: "Counting" },
-  { value: "CLEANING", label: "Cleaning" },
-  { value: "PRICE", label: "Price" },
-  { value: "LABEL", label: "Label" },
-  { value: "EXPIRY", label: "Expiry" },
-  { value: "INVENTORY", label: "Inventory" },
-  { value: "GENERAL", label: "General" },
+  { value: "STOCK_CHECK", label: "rm.stockCheck" },
+  { value: "COUNTING", label: "emp.counting" },
+  { value: "CLEANING", label: "emp.catCleaningTask" },
+  { value: "PRICE", label: "rm.price" },
+  { value: "LABEL", label: "rm.label" },
+  { value: "EXPIRY", label: "rm.expiry" },
+  { value: "INVENTORY", label: "emp.catInventoryTask" },
+  { value: "GENERAL", label: "emp.catGeneral" },
 ];
 const ROLES = [
-  { value: "WORKER", label: "Worker" },
-  { value: "CASHIER", label: "Cashier" },
-  { value: "BUTCHER", label: "Butcher" },
-  { value: "EVERYONE", label: "Everyone" },
+  { value: "WORKER", label: "roles.worker" },
+  { value: "CASHIER", label: "roles.cashier" },
+  { value: "BUTCHER", label: "sup.butcher" },
+  { value: "EVERYONE", label: "rm.everyone" },
 ];
 const PRIORITIES = [
-  { value: "NORMAL", label: "Normal" },
-  { value: "IMPORTANT", label: "Important" },
-  { value: "HIGH", label: "High" },
-  { value: "URGENT", label: "Urgent" },
+  { value: "NORMAL", label: "sup.normal" },
+  { value: "IMPORTANT", label: "emp.tabImportant" },
+  { value: "HIGH", label: "sup.high" },
+  { value: "URGENT", label: "emp.urgent" },
 ];
 const ACTIONS = [
-  { value: "INFORMATIONAL", label: "Informational", hint: "No action required" },
-  { value: "ACKNOWLEDGEMENT", label: "Acknowledge", hint: "Employee must confirm they saw it" },
-  { value: "COMPLETION", label: "Complete", hint: "Employee must start and submit a result" },
+  { value: "INFORMATIONAL", label: "rm.informational", hint: "rm.noActionRequired" },
+  { value: "ACKNOWLEDGEMENT", label: "rm.acknowledge", hint: "rm.employeeMustConfirmTheySawIt" },
+  { value: "COMPLETION", label: "admin.complete", hint: "rm.employeeMustStartAndSubmitA" },
 ];
 
 const STEPS = ["type", "target", "scope", "content", "review"];
@@ -81,6 +82,7 @@ const emptyForm = {
 };
 
 export default function CommunicationComposer({ session, basePath }) {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [stepIndex, setStepIndex] = useState(0);
   const [form, setForm] = useState(emptyForm);
@@ -141,7 +143,7 @@ export default function CommunicationComposer({ session, basePath }) {
       const result = await previewCommunication(targetingPayload());
       setPreview(result.recipientCount);
     } catch (err) {
-      setPreviewError(err instanceof ApiError ? err.message : "Could not calculate the recipient count.");
+      setPreviewError(err instanceof ApiError ? err.message : t("rm.couldNotCalculateTheRecipientCount"));
     } finally {
       setPreviewing(false);
     }
@@ -164,7 +166,7 @@ export default function CommunicationComposer({ session, basePath }) {
       });
       setSent(result);
     } catch (err) {
-      setSendError(err instanceof ApiError ? err.message : "Could not send this communication. Please try again.");
+      setSendError(err instanceof ApiError ? err.message : t("rm.couldNotSendThisCommunicationPlease"));
     } finally {
       setSending(false);
     }
@@ -194,14 +196,14 @@ export default function CommunicationComposer({ session, basePath }) {
     return (
       <div className="px-4 sm:px-6 py-10 max-w-2xl mx-auto text-center animate-fade-up">
         <CheckCircle2 size={40} className="mx-auto text-emerald-400 mb-4" />
-        <h1 className="text-lg font-semibold text-white mb-1">Communication Sent</h1>
-        <p className="text-sm text-[#9AA1B4] mb-6">Delivered to {sent.recipientCount} employee{sent.recipientCount === 1 ? "" : "s"}.</p>
+        <h1 className="text-lg font-semibold text-white mb-1">{t("rm.communicationSent")}</h1>
+        <p className="text-sm text-[#9AA1B4] mb-6">{sent.recipientCount === 1 ? t("rm.deliveredToEmployee", { count: sent.recipientCount }) : t("rm.deliveredToEmployees", { count: sent.recipientCount })}</p>
         <button
           type="button"
           onClick={() => navigate(`${basePath}/communications`)}
           className="rounded-xl px-5 py-3 text-sm font-semibold text-white bg-[#F47A20] hover:bg-[#ff8b36] transition-colors"
         >
-          View Sent History
+          {t("rm.viewSentHistory")}
         </button>
       </div>
     );
@@ -210,18 +212,18 @@ export default function CommunicationComposer({ session, basePath }) {
   return (
     <div className="px-4 sm:px-6 py-6 max-w-2xl mx-auto animate-fade-up">
       <div className="flex items-center justify-between mb-1">
-        <h1 className="text-lg font-semibold text-white">New Communication</h1>
-        <SenderIdentityBadge senderRole={session.staffRole} senderZone={senderZoneNumber} size="sm" />
+        <h1 className="text-lg font-semibold text-white">{t("rm.newCommunication")}</h1>
+        <SenderIdentityBadge senderRole={session.role === "admin" ? "ADMIN" : session.staffRole} senderZone={senderZoneNumber} size="sm" />
       </div>
-      <p className="text-xs text-[#6B7284] mb-5">Step {stepIndex + 1} of {STEPS.length}</p>
+      <p className="text-xs text-[#6B7284] mb-5">{t("rm.stepOfTotal", { step: stepIndex + 1, total: STEPS.length })}</p>
 
       <div className="rounded-2xl p-5 bg-[#171C2E]/80 border border-white/[0.06] backdrop-blur-xl min-h-[320px]">
         {step === "type" && (
           <div className="space-y-5">
-            <Field label="Type">
+            <Field label={t("rm.type")}>
               <ChipGroup options={TYPES} value={form.type} onChange={(v) => update({ type: v })} />
             </Field>
-            <Field label="Category">
+            <Field label={t("sup.category")}>
               <ChipGroup options={CATEGORIES} value={form.category} onChange={(v) => update({ category: v })} />
             </Field>
           </div>
@@ -229,13 +231,13 @@ export default function CommunicationComposer({ session, basePath }) {
 
         {step === "target" && (
           <div className="space-y-5">
-            <Field label="Target Role">
+            <Field label={t("rm.targetRole")}>
               <ChipGroup options={ROLES} value={form.targetRole} onChange={(v) => update({ targetRole: v, targetDepartment: "" })} />
             </Field>
             {!departmentIrrelevant && (
-              <Field label="Department / Responsibility" hint="Matches an employee's Main OR any Additional department.">
+              <Field label={t("rm.departmentResponsibility")} hint={t("rm.matchesAnEmployeeSMainOr")}>
                 <select value={form.targetDepartment} onChange={(e) => update({ targetDepartment: e.target.value })} className={selectClass}>
-                  <option value="">All Departments</option>
+                  <option value="">{t("rm.allDepartments")}</option>
                   {DEPARTMENTS.map((d) => <option key={d} value={d}>{d}</option>)}
                 </select>
               </Field>
@@ -245,41 +247,41 @@ export default function CommunicationComposer({ session, basePath }) {
 
         {step === "scope" && (
           <div className="space-y-5">
-            <Field label="Scope">
+            <Field label={t("rm.scope")}>
               <ChipGroup
                 options={[
-                  { value: "MARKET", label: "Specific Market" },
-                  { value: "ZONE", label: "Entire Zone" },
-                  ...(isAdmin ? [{ value: "ALL_MARKETS", label: "All Markets" }] : []),
-                  { value: "SPECIFIC_SUPERVISOR", label: "Specific Supervisor" },
+                  { value: "MARKET", label: t("rm.specificMarket") },
+                  { value: "ZONE", label: t("rm.entireZone") },
+                  ...(isAdmin ? [{ value: "ALL_MARKETS", label: t("rm.allMarkets") }] : []),
+                  { value: "SPECIFIC_SUPERVISOR", label: t("rm.specificSupervisor") },
                 ]}
                 value={form.scopeType}
                 onChange={(v) => update({ scopeType: v, zoneId: "", marketId: "", targetSupervisorId: "" })}
               />
             </Field>
             {form.scopeType === "SPECIFIC_SUPERVISOR" && (
-              <Field label="Supervisor" hint="Only Supervisors/Overlooking accounts inside your own authorized scope are selectable — the same list the Chat tab's Important People already uses.">
+              <Field label={t("roles.supervisor")} hint={t("rm.onlySupervisorsOverlookingAccountsInsideYour")}>
                 <select value={form.targetSupervisorId} onChange={(e) => update({ targetSupervisorId: e.target.value })} className={selectClass}>
-                  <option value="">Select a Supervisor...</option>
-                  {supervisorContacts.map((s) => <option key={s.id} value={s.id}>{s.name} ({s.role === "OVERLOOKING_SUPERVISOR" ? "Overlooking" : "Supervisor"})</option>)}
+                  <option value="">{t("rm.selectASupervisor")}</option>
+                  {supervisorContacts.map((s) => <option key={s.id} value={s.id}>{s.name} ({s.role === "OVERLOOKING_SUPERVISOR" ? t("roles.overlooking") : t("roles.supervisor")})</option>)}
                 </select>
                 {supervisorContacts.length === 0 && (
-                  <p className="mt-1.5 text-[11px] text-amber-400">No Supervisors are currently in your authorized scope.</p>
+                  <p className="mt-1.5 text-[11px] text-amber-400">{t("rm.noSupervisorsAreCurrentlyInYour")}</p>
                 )}
               </Field>
             )}
             {form.scopeType === "ZONE" && (
-              <Field label="Zone">
+              <Field label={t("emp.catZone")}>
                 <select value={form.zoneId} onChange={(e) => update({ zoneId: e.target.value })} className={selectClass}>
-                  <option value="">Select a zone...</option>
+                  <option value="">{t("rm.selectAZone2")}</option>
                   {(zones || []).map((z) => <option key={z.id} value={z.id}>Zone {z.number}</option>)}
                 </select>
               </Field>
             )}
             {form.scopeType === "MARKET" && (
-              <Field label="Market">
+              <Field label={t("sup.market")}>
                 <select value={form.marketId} onChange={(e) => update({ marketId: e.target.value })} className={selectClass}>
-                  <option value="">Select a market...</option>
+                  <option value="">{t("rm.selectAMarket")}</option>
                   {marketsInZone.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
                 </select>
               </Field>
@@ -289,27 +291,27 @@ export default function CommunicationComposer({ session, basePath }) {
 
         {step === "content" && (
           <div className="space-y-5">
-            <Field label="Title">
-              <input value={form.title} onChange={(e) => update({ title: e.target.value })} maxLength={150} className={selectClass} placeholder="e.g. Drinks Department Stock Check" />
+            <Field label={t("sup.title")}>
+              <input value={form.title} onChange={(e) => update({ title: e.target.value })} maxLength={150} className={selectClass} placeholder={t("rm.eGDrinksDepartmentStockCheck")} />
             </Field>
-            <Field label="Message">
-              <textarea value={form.message} onChange={(e) => update({ message: e.target.value })} rows={4} maxLength={4000} className={`${selectClass} resize-none`} placeholder="What do you need to communicate?" />
+            <Field label={t("rm.message")}>
+              <textarea value={form.message} onChange={(e) => update({ message: e.target.value })} rows={4} maxLength={4000} className={`${selectClass} resize-none`} placeholder={t("rm.whatDoYouNeedToCommunicate")} />
             </Field>
-            <Field label="Priority">
+            <Field label={t("emp.priority")}>
               <ChipGroup options={PRIORITIES} value={form.priority} onChange={(v) => update({ priority: v })} />
             </Field>
-            <Field label="Deadline (optional)">
+            <Field label={t("rm.deadlineOptional")}>
               <input type="datetime-local" value={form.deadline} onChange={(e) => update({ deadline: e.target.value })} className={selectClass} />
             </Field>
-            <Field label="Action Required">
+            <Field label={t("rm.actionRequired")}>
               <div className="space-y-2">
                 {ACTIONS.map((a) => (
                   <button
                     key={a.value} type="button" onClick={() => update({ actionType: a.value })}
-                    className={`w-full text-left rounded-lg px-3 py-2.5 border transition-colors ${form.actionType === a.value ? "border-[#F47A20]/50 bg-[#F47A20]/10" : "border-white/[0.06] bg-white/[0.02] hover:border-white/[0.12]"}`}
+                    className={`w-full text-start rounded-lg px-3 py-2.5 border transition-colors ${form.actionType === a.value ? "border-[#F47A20]/50 bg-[#F47A20]/10" : "border-white/[0.06] bg-white/[0.02] hover:border-white/[0.12]"}`}
                   >
-                    <p className="text-sm font-medium text-white">{a.label}</p>
-                    <p className="text-[11px] text-[#8B93A8]">{a.hint}</p>
+                    <p className="text-sm font-medium text-white">{t(a.label)}</p>
+                    <p className="text-[11px] text-[#8B93A8]">{t(a.hint)}</p>
                   </button>
                 ))}
               </div>
@@ -319,23 +321,23 @@ export default function CommunicationComposer({ session, basePath }) {
 
         {step === "review" && (
           <div className="space-y-4">
-            <h2 className="text-sm font-semibold text-white">Review Notification</h2>
+            <h2 className="text-sm font-semibold text-white">{t("rm.reviewNotification")}</h2>
             <div className="rounded-xl p-4 bg-white/[0.03] border border-white/[0.06] space-y-1.5 text-xs text-[#9AA1B4]">
-              <ReviewRow label="Sender" value={<SenderIdentityBadge senderRole={session.staffRole} senderZone={senderZoneNumber} size="sm" />} />
-              <ReviewRow label="Type" value={TYPES.find((t) => t.value === form.type)?.label} />
-              <ReviewRow label="Category" value={CATEGORIES.find((c) => c.value === form.category)?.label} />
+              <ReviewRow label={t("rm.sender")} value={<SenderIdentityBadge senderRole={session.role === "admin" ? "ADMIN" : session.staffRole} senderZone={senderZoneNumber} size="sm" />} />
+              <ReviewRow label={t("rm.type")} value={(() => { const found = TYPES.find((x) => x.value === form.type); return found ? t(found.label) : ""; })()} />
+              <ReviewRow label={t("sup.category")} value={(() => { const found = CATEGORIES.find((c) => c.value === form.category); return found ? t(found.label) : ""; })()} />
               {form.scopeType === "SPECIFIC_SUPERVISOR" ? (
-                <ReviewRow label="Target" value={supervisorContacts.find((s) => String(s.id) === String(form.targetSupervisorId))?.name} />
+                <ReviewRow label={t("rm.target")} value={supervisorContacts.find((s) => String(s.id) === String(form.targetSupervisorId))?.name} />
               ) : (
                 <>
-                  <ReviewRow label="Role" value={ROLES.find((r) => r.value === form.targetRole)?.label} />
-                  <ReviewRow label="Department" value={departmentIrrelevant ? "N/A" : (form.targetDepartment || "All Departments")} />
-                  <ReviewRow label="Scope" value={form.scopeType === "MARKET" ? marketsInZone.find((m) => m.id === form.marketId)?.name : form.scopeType === "ZONE" ? `Zone ${(zones || []).find((z) => String(z.id) === String(form.zoneId))?.number ?? ""}` : "All Markets"} />
+                  <ReviewRow label={t("admin.csvRole")} value={(() => { const found = ROLES.find((r) => r.value === form.targetRole); return found ? t(found.label) : ""; })()} />
+                  <ReviewRow label={t("emp.department")} value={departmentIrrelevant ? t("rm.notApplicable") : (form.targetDepartment || t("rm.allDepartments"))} />
+                  <ReviewRow label={t("rm.scope")} value={form.scopeType === "MARKET" ? marketsInZone.find((m) => m.id === form.marketId)?.name : form.scopeType === "ZONE" ? t("rm.zoneNumbered", { number: (zones || []).find((z) => String(z.id) === String(form.zoneId))?.number ?? "" }) : t("rm.allMarkets")} />
                 </>
               )}
-              <ReviewRow label="Priority" value={PRIORITIES.find((p) => p.value === form.priority)?.label} />
-              {form.deadline && <ReviewRow label="Deadline" value={new Date(form.deadline).toLocaleString()} />}
-              <ReviewRow label="Action" value={ACTIONS.find((a) => a.value === form.actionType)?.label} />
+              <ReviewRow label={t("emp.priority")} value={(() => { const found = PRIORITIES.find((p) => p.value === form.priority); return found ? t(found.label) : ""; })()} />
+              {form.deadline && <ReviewRow label={t("rm.deadline")} value={new Date(form.deadline).toLocaleString()} />}
+              <ReviewRow label={t("rm.action")} value={(() => { const found = ACTIONS.find((a) => a.value === form.actionType); return found ? t(found.label) : ""; })()} />
             </div>
             <div className="rounded-xl p-4 bg-white/[0.03] border border-white/[0.06]">
               <p className="text-sm font-semibold text-white">{form.title}</p>
@@ -344,13 +346,13 @@ export default function CommunicationComposer({ session, basePath }) {
 
             <div className="rounded-xl p-4 bg-[#F47A20]/5 border border-[#F47A20]/20">
               {previewing ? (
-                <p className="flex items-center gap-2 text-sm text-[#9AA1B4]"><Loader2 size={14} className="animate-spin" /> Calculating recipients...</p>
+                <p className="flex items-center gap-2 text-sm text-[#9AA1B4]"><Loader2 size={14} className="animate-spin" /> {t("rm.calculatingRecipients")}</p>
               ) : previewError ? (
                 <ErrorBanner message={previewError} onRetry={runPreview} />
               ) : preview === 0 ? (
-                <p className="text-sm text-amber-400">No employees match the selected criteria. Go back and adjust your targeting.</p>
+                <p className="text-sm text-amber-400">{t("rm.noEmployeesMatchTheSelectedCriteria")}</p>
               ) : preview != null ? (
-                <p className="text-sm text-white">Target audience: <span className="font-semibold">{preview} employee{preview === 1 ? "" : "s"}</span></p>
+                <p className="text-sm text-white">{t("rm.targetAudience")} <span className="font-semibold">{preview} employee{preview === 1 ? "" : "s"}</span></p>
               ) : null}
             </div>
 
@@ -362,7 +364,7 @@ export default function CommunicationComposer({ session, basePath }) {
       <div className="mt-5 flex gap-3">
         {stepIndex > 0 && (
           <button type="button" onClick={goBack} className="flex items-center gap-1.5 rounded-xl px-4 py-3 text-sm font-medium text-[#9AA1B4] bg-white/[0.05] hover:bg-white/[0.1] transition-colors">
-            <ArrowLeft size={14} /> Back
+            <ArrowLeft size={14} /> {t("common.back")}
           </button>
         )}
         {step !== "review" ? (
@@ -370,7 +372,7 @@ export default function CommunicationComposer({ session, basePath }) {
             type="button" onClick={goNext} disabled={!canGoNext}
             className="flex-1 flex items-center justify-center gap-1.5 rounded-xl px-4 py-3 text-sm font-semibold text-white bg-[#F47A20] hover:bg-[#ff8b36] disabled:bg-white/10 disabled:text-[#4C5266] transition-colors"
           >
-            Next <ArrowRight size={14} />
+            {t("common.next")} <ArrowRight size={14} />
           </button>
         ) : (
           <button
@@ -378,7 +380,7 @@ export default function CommunicationComposer({ session, basePath }) {
             className="flex-1 flex items-center justify-center gap-1.5 rounded-xl px-4 py-3 text-sm font-semibold text-white bg-[#F47A20] hover:bg-[#ff8b36] disabled:bg-white/10 disabled:text-[#4C5266] transition-colors"
           >
             {sending ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
-            {sending ? "Sending..." : "Send Notification"}
+            {sending ? t("emp.sending") : t("rm.sendNotification")}
           </button>
         )}
       </div>
@@ -399,6 +401,7 @@ function Field({ label, hint, children }) {
 }
 
 function ChipGroup({ options, value, onChange }) {
+  const { t } = useTranslation();
   return (
     <div className="flex flex-wrap gap-2">
       {options.map((o) => (
@@ -406,7 +409,7 @@ function ChipGroup({ options, value, onChange }) {
           key={o.value} type="button" onClick={() => onChange(o.value)}
           className={`rounded-lg px-3 py-2 text-xs font-semibold transition-colors ${value === o.value ? "text-white bg-[#F47A20]" : "text-[#9AA1B4] bg-white/[0.04] hover:bg-white/[0.08]"}`}
         >
-          {o.label}
+          {t(o.label)}
         </button>
       ))}
     </div>
@@ -417,7 +420,7 @@ function ReviewRow({ label, value }) {
   return (
     <div className="flex items-center justify-between gap-3">
       <span>{label}</span>
-      <span className="text-white text-right">{value ?? "—"}</span>
+      <span className="text-white text-end">{value ?? "—"}</span>
     </div>
   );
 }

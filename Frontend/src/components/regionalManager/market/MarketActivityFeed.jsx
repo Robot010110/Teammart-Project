@@ -1,4 +1,5 @@
 import { CalendarClock } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import MarketActivityItem from "./MarketActivityItem";
 
 // MarketActivityFeed.jsx — the shared list body for "Market Activity
@@ -9,6 +10,7 @@ import MarketActivityItem from "./MarketActivityItem";
 // The caller passes already-filtered activities; filtering lives in the
 // pages so the market/today scoping is explicit and testable there.
 export default function MarketActivityFeed({ activities, loading, limit, emptyHint }) {
+  const { t } = useTranslation();
   const rows = limit ? (activities ?? []).slice(0, limit) : activities ?? [];
 
   if (loading) {
@@ -27,8 +29,8 @@ export default function MarketActivityFeed({ activities, loading, limit, emptyHi
         <span className="mx-auto grid h-10 w-10 place-items-center rounded-2xl bg-white/[0.05] text-[#5C6479]">
           <CalendarClock size={17} />
         </span>
-        <p className="mt-2.5 text-[13px] font-semibold text-white">No activity yet today</p>
-        <p className="mt-0.5 text-[11.5px] text-[#8B93A8]">{emptyHint ?? "Work logged in this market today will appear here."}</p>
+        <p className="mt-2.5 text-[13px] font-semibold text-white">{t("rm.noActivityYetToday")}</p>
+        <p className="mt-0.5 text-[11.5px] text-[#8B93A8]">{emptyHint ?? t("rm.workLoggedInThisMarketToday")}</p>
       </div>
     );
   }

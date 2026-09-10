@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { ClipboardCheck, ShieldAlert, CheckCircle2, XCircle } from "lucide-react";
 import RmMarketOverview from "./RmMarketOverview";
@@ -56,6 +57,7 @@ export default function AdminMarketDetailPage({ marketId }) {
 }
 
 function VisitBar({ marketId, openVisit, onChanged, starting, setStarting }) {
+  const { t } = useTranslation();
   const [completing, setCompleting] = useState(false);
   const [error, setError] = useState(null);
 
@@ -66,7 +68,7 @@ function VisitBar({ marketId, openVisit, onChanged, starting, setStarting }) {
       await startMarketVisit(marketId, { visitType });
       onChanged();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Could not start this visit.");
+      setError(err instanceof ApiError ? err.message : t("admin.couldNotStartThisVisit"));
     } finally {
       setStarting(false);
     }
@@ -78,14 +80,14 @@ function VisitBar({ marketId, openVisit, onChanged, starting, setStarting }) {
         <div className="rounded-xl p-3.5 mb-4 bg-amber-500/10 border border-amber-500/25 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2 text-sm text-amber-300">
             <ShieldAlert size={15} />
-            {openVisit.visitType === "INSPECTION" ? "Administrative Inspection" : "Market Visit"} in progress
+            {openVisit.visitType === "INSPECTION" ? t("admin.administrativeInspection") : t("admin.marketVisit")} in progress
           </div>
           <button
             type="button"
             onClick={() => setCompleting(true)}
             className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold text-white bg-[#F47A20] hover:bg-[#ff8b36] transition-colors"
           >
-            <CheckCircle2 size={13} /> Complete
+            <CheckCircle2 size={13} /> {t("admin.complete")}
           </button>
         </div>
         {completing && (
@@ -107,7 +109,7 @@ function VisitBar({ marketId, openVisit, onChanged, starting, setStarting }) {
         disabled={starting}
         className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold text-white bg-white/[0.06] hover:bg-white/[0.1] disabled:opacity-50 transition-colors"
       >
-        <ClipboardCheck size={13} /> Start Market Visit
+        <ClipboardCheck size={13} /> {t("admin.startMarketVisit")}
       </button>
       <button
         type="button"
@@ -115,7 +117,7 @@ function VisitBar({ marketId, openVisit, onChanged, starting, setStarting }) {
         disabled={starting}
         className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold text-white bg-[#F47A20] hover:bg-[#ff8b36] disabled:opacity-50 transition-colors"
       >
-        <ShieldAlert size={13} /> Start Administrative Inspection
+        <ShieldAlert size={13} /> {t("admin.startAdministrativeInspection")}
       </button>
       {error && <p className="text-xs text-red-400 w-full">{error}</p>}
     </div>
@@ -123,6 +125,7 @@ function VisitBar({ marketId, openVisit, onChanged, starting, setStarting }) {
 }
 
 function CompleteCancelModal({ visit, onClose, onDone }) {
+  const { t } = useTranslation();
   const [notes, setNotes] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
@@ -134,7 +137,7 @@ function CompleteCancelModal({ visit, onClose, onDone }) {
       await completeMarketVisit(visit.id, notes.trim() || undefined);
       onDone();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Could not complete this visit.");
+      setError(err instanceof ApiError ? err.message : t("admin.couldNotCompleteThisVisit"));
     } finally {
       setBusy(false);
     }
@@ -147,26 +150,26 @@ function CompleteCancelModal({ visit, onClose, onDone }) {
       await cancelMarketVisit(visit.id, notes.trim() || undefined);
       onDone();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Could not cancel this visit.");
+      setError(err instanceof ApiError ? err.message : t("admin.couldNotCancelThisVisit"));
     } finally {
       setBusy(false);
     }
   }
 
   return (
-    <Modal open onClose={onClose} title={visit.visitType === "INSPECTION" ? "Complete Inspection" : "Complete Visit"}>
+    <Modal open onClose={onClose} title={visit.visitType === "INSPECTION" ? t("admin.completeInspection") : t("admin.completeVisit")}>
       <div className="space-y-4">
         <div>
-          <label className="block text-xs uppercase tracking-wide text-[#8B93A8] mb-1.5">Notes / Findings (optional)</label>
+          <label className="block text-xs uppercase tracking-wide text-[#8B93A8] mb-1.5">{t("admin.notesFindingsOptional")}</label>
           <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={4} className="w-full rounded-lg bg-white/[0.04] border border-white/[0.06] px-3 py-2.5 text-sm text-white placeholder:text-[#4C5266] outline-none focus:border-[#F47A20]/50" />
         </div>
         {error && <p className="text-xs text-red-400">{error}</p>}
         <div className="flex gap-2">
           <button type="button" onClick={handleCancel} disabled={busy} className="flex-1 flex items-center justify-center gap-1.5 rounded-xl py-3 text-sm font-semibold text-red-400 bg-red-500/10 hover:bg-red-500/15 disabled:opacity-50 transition-colors">
-            <XCircle size={14} /> Cancel Visit
+            <XCircle size={14} /> {t("admin.cancelVisit")}
           </button>
           <button type="button" onClick={handleComplete} disabled={busy} className="flex-1 flex items-center justify-center gap-1.5 rounded-xl py-3 text-sm font-semibold text-white bg-[#F47A20] hover:bg-[#ff8b36] disabled:opacity-50 transition-colors">
-            <CheckCircle2 size={14} /> {busy ? "Saving..." : "Complete"}
+            <CheckCircle2 size={14} /> {busy ? t("emp.saving") : t("admin.complete")}
           </button>
         </div>
       </div>

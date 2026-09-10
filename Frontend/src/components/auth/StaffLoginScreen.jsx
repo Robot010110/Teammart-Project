@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { ArrowLeft, Crown, ShieldCheck, ClipboardList, CreditCard, Mail, AlertCircle, Sun, Moon } from "lucide-react";
 import CinematicBackground from "./CinematicBackground";
 import CredentialField from "./CredentialField";
@@ -8,11 +9,12 @@ import { staffLogin, staffIdLogin } from "../../services/authService";
 import { listMarkets } from "../../services/marketService";
 import { ApiError } from "../../services/apiClient";
 import { initialsOf } from "../../utils/initials";
+import LanguagePreLoginToggle from "./LanguagePreLoginToggle";
 
 const STAFF_ROLES = [
-  { key: "supervisor", label: "Supervisor", icon: ClipboardList },
-  { key: "regionalManager", label: "Regional Mgr", icon: ShieldCheck },
-  { key: "admin", label: "Admin", icon: Crown },
+  { key: "supervisor", labelKey: "roles.supervisor", icon: ClipboardList },
+  { key: "regionalManager", labelKey: "roles.regionalManagerShort", icon: ShieldCheck },
+  { key: "admin", labelKey: "roles.admin", icon: Crown },
 ];
 
 // StaffLoginScreen.jsx — one combined form for the three staff roles.
@@ -32,6 +34,7 @@ const STAFF_ROLES = [
 // against that pick, exactly as the previous wizard's separate shift
 // step did, just folded into this one screen instead of its own step.
 export default function StaffLoginScreen({ onBack, onLogin, initialRole = "supervisor" }) {
+  const { t } = useTranslation();
   const [staffRole, setStaffRole] = useState(initialRole);
   const [shift, setShift] = useState("MORNING"); // Supervisor only: MORNING -> Supervisor, EVENING -> Overlooking
   const [identifier, setIdentifier] = useState("");
@@ -50,7 +53,7 @@ export default function StaffLoginScreen({ onBack, onLogin, initialRole = "super
   async function handleSubmit(e) {
     e.preventDefault();
     if (!identifier.trim() || !password) {
-      setError(`Enter your ${usesEmail ? "email" : "User ID"} and password.`);
+      setError(t("auth.missingCredentials", { field: usesEmail ? t("auth.email") : t("auth.userId") }));
       return;
     }
     setSubmitting(true);
@@ -60,7 +63,7 @@ export default function StaffLoginScreen({ onBack, onLogin, initialRole = "super
       if (isSupervisor) {
         const user = await staffIdLogin(identifier.trim(), password);
         if (user.role !== "SUPERVISOR" && user.role !== "OVERLOOKING_SUPERVISOR") {
-          setError("This account isn't a Supervisor or Overlooking account.");
+          setError(t("auth.errNotSupervisorAccount"));
           setSubmitting(false);
           return;
         }
@@ -68,8 +71,8 @@ export default function StaffLoginScreen({ onBack, onLogin, initialRole = "super
         if (user.role !== expectedRole) {
           setError(
             user.role === "OVERLOOKING_SUPERVISOR"
-              ? 'This is an Overlooking account — switch the shift toggle to "Overlooking".'
-              : 'This is a Supervisor account — switch the shift toggle to "Supervisor".'
+              ? t("auth.errIsOverlooking")
+              : t("auth.errIsSupervisor")
           );
           setSubmitting(false);
           return;
@@ -90,7 +93,9 @@ export default function StaffLoginScreen({ onBack, onLogin, initialRole = "super
           zoneId: user.zoneId,
           marketName,
           shift,
-          title: user.role === "OVERLOOKING_SUPERVISOR" ? "Overlooking" : "Supervisor",
+          // A translation KEY, not display text — see App.jsx's matching
+          // session-restore branch for why.
+          titleKey: user.role === "OVERLOOKING_SUPERVISOR" ? "roles.overlooking" : "roles.supervisor",
           displayName: user.name,
           initials: initialsOf(user.name),
         });
@@ -101,7 +106,7 @@ export default function StaffLoginScreen({ onBack, onLogin, initialRole = "super
       const user = await staffLogin(identifier.trim(), password);
       const expectedBackendRole = staffRole === "admin" ? "ADMIN" : "REGIONAL_MANAGER";
       if (user.role !== expectedBackendRole) {
-        setError(`This account isn't a${staffRole === "admin" ? "n Admin" : " Regional Manager"} account.`);
+        setError(t(staffRole === "admin" ? "auth.errNotAdminAccount" : "auth.errNotRegionalManagerAccount"));
         setSubmitting(false);
         return;
       }
@@ -111,7 +116,7 @@ export default function StaffLoginScreen({ onBack, onLogin, initialRole = "super
           : { role: "regionalManager", staffId: user.id, zoneIds: user.zoneIds, displayName: user.name, initials: initialsOf(user.name) }
       );
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Unable to connect. Please try again.");
+      setError(err instanceof ApiError ? err.message : t("auth.errConnection"));
       setPassword("");
     } finally {
       setSubmitting(false);
@@ -127,10 +132,10 @@ export default function StaffLoginScreen({ onBack, onLogin, initialRole = "super
           <button
             type="button"
             onClick={onBack}
-            aria-label="Back to role selection"
+            aria-label={t("auth.backToRoleSelection")}
             className="w-10 h-10 grid place-items-center rounded-full bg-white/[0.06] border border-white/10 text-white hover:bg-white/10 active:scale-95 transition-all"
           >
-            <ArrowLeft size={17} />
+            <ArrowLeft size={17} className="rtl-flip" />
           </button>
           <div className="flex items-center gap-2">
             <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-[#F47A20] to-[#c95c10] grid place-items-center shadow-[0_0_12px_-2px_rgba(244,122,32,0.6)]">
@@ -140,7 +145,7 @@ export default function StaffLoginScreen({ onBack, onLogin, initialRole = "super
               TEAM<span className="text-[#F47A20]">MART</span>
             </p>
           </div>
-          <span className="w-10" aria-hidden="true" />
+          <LanguagePreLoginToggle />
         </div>
 
         <div className="flex-1 flex items-center w-full max-w-sm">
@@ -149,29 +154,29 @@ export default function StaffLoginScreen({ onBack, onLogin, initialRole = "super
               <span className="mx-auto mb-4 w-14 h-14 rounded-2xl bg-[#F47A20]/12 grid place-items-center shadow-[0_0_20px_-4px_rgba(244,122,32,0.6)]">
                 <ShieldCheck size={24} className="text-[#F47A20]" />
               </span>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#F9A03C]">Staff Access</p>
-              <h1 className="mt-1 font-display text-2xl font-extrabold text-white">Staff Login</h1>
-              <p className="mt-2 text-[13px] text-[#9AA1B4] leading-snug">Select your role and sign in to your dashboard.</p>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#F9A03C]">{t("auth.staffAccess")}</p>
+              <h1 className="mt-1 font-display text-2xl font-extrabold text-white">{t("auth.staffLogin")}</h1>
+              <p className="mt-2 text-[13px] text-[#9AA1B4] leading-snug">{t("auth.staffLoginLead")}</p>
             </div>
 
             <div className="card-premium rounded-[22px] p-5 sm:p-6 bg-[#0D1223]/85 border border-white/10 backdrop-blur-2xl shadow-[0_20px_60px_-15px_rgba(0,0,0,0.9)]">
               <div className="grid grid-cols-3 gap-2 mb-4">
                 {STAFF_ROLES.map((r) => (
-                  <TypeButton key={r.key} icon={r.icon} label={r.label} active={staffRole === r.key} onClick={() => handleRoleChange(r.key)} />
+                  <TypeButton key={r.key} icon={r.icon} label={t(r.labelKey)} active={staffRole === r.key} onClick={() => handleRoleChange(r.key)} />
                 ))}
               </div>
 
               {isSupervisor && (
                 <div className="grid grid-cols-2 gap-2 mb-5 animate-fade-up">
-                  <ShiftButton icon={Sun} label="Supervisor" active={shift === "MORNING"} onClick={() => setShift("MORNING")} />
-                  <ShiftButton icon={Moon} label="Overlooking" active={shift === "EVENING"} onClick={() => setShift("EVENING")} />
+                  <ShiftButton icon={Sun} label={t("roles.supervisor")} active={shift === "MORNING"} onClick={() => setShift("MORNING")} />
+                  <ShiftButton icon={Moon} label={t("roles.overlooking")} active={shift === "EVENING"} onClick={() => setShift("EVENING")} />
                 </div>
               )}
 
               <form onSubmit={handleSubmit} className="space-y-4">
                 <CredentialField
                   icon={usesEmail ? Mail : CreditCard}
-                  label={usesEmail ? "Email" : "User ID"}
+                  label={usesEmail ? t("auth.email") : t("auth.userId")}
                   value={identifier}
                   onChange={setIdentifier}
                   placeholder={usesEmail ? "you@teammart.com" : "e.g. SUP-014"}
@@ -195,7 +200,7 @@ export default function StaffLoginScreen({ onBack, onLogin, initialRole = "super
           </div>
         </div>
 
-        <p className="pb-2 text-[11.5px] text-[#5C6479] text-center">Leading operations, one market at a time.</p>
+        <p className="pb-2 text-[11.5px] text-[#5C6479] text-center">{t("auth.staffTagline")}</p>
       </div>
     </div>
   );

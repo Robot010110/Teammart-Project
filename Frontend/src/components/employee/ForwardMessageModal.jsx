@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { ShieldAlert, Users2, MessageCircle, Loader2, Check } from "lucide-react";
 import Modal from "../common/Modal";
 import { listMyConversations, listMyStaffConversations, forwardMessage } from "../../services/chatService";
@@ -18,6 +19,7 @@ import { ApiError } from "../../services/apiClient";
 // the dedicated broadcast/notification-fanout path, so it's simply not a
 // valid forward target for anyone.
 export default function ForwardMessageModal({ message, currentUserKind, onClose }) {
+  const { t } = useTranslation();
   const { data: conversations, loading } = useAsync(
     () => (currentUserKind === "staff" ? listMyStaffConversations() : listMyConversations()),
     { deps: [currentUserKind] }
@@ -35,24 +37,24 @@ export default function ForwardMessageModal({ message, currentUserKind, onClose 
       await forwardMessage(conversation.id, message.id);
       setSentTo((prev) => new Set(prev).add(conversation.id));
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Could not forward this message.");
+      setError(err instanceof ApiError ? err.message : t("emp.couldNotForwardThisMessage"));
     } finally {
       setSendingTo(null);
     }
   }
 
   return (
-    <Modal open onClose={onClose} title="Forward Message">
+    <Modal open onClose={onClose} title={t("emp.forwardMessage")}>
       <div className="mb-3 rounded-lg p-2.5 bg-white/[0.04] border border-white/[0.06]">
-        <p className="text-xs text-[#9AA1B4] truncate">{message.body || "Attachment"}</p>
+        <p className="text-xs text-[#9AA1B4] truncate">{message.body || t("emp.attachment")}</p>
       </div>
 
       {error && <p className="mb-2 text-xs text-red-400">{error}</p>}
 
       {loading ? (
-        <p className="text-center text-xs text-[#4C5266] py-6">Loading conversations...</p>
+        <p className="text-center text-xs text-[#4C5266] py-6">{t("emp.loadingConversations")}</p>
       ) : destinations.length === 0 ? (
-        <p className="text-center text-xs text-[#4C5266] py-6">No other conversations to forward to.</p>
+        <p className="text-center text-xs text-[#4C5266] py-6">{t("emp.noOtherConversationsToForwardTo")}</p>
       ) : (
         <div className="space-y-2 max-h-[360px] overflow-y-auto">
           {destinations.map((c) => {
@@ -70,7 +72,7 @@ export default function ForwardMessageModal({ message, currentUserKind, onClose 
                 <span className="w-9 h-9 rounded-full bg-[#F47A20]/10 text-[#F47A20] flex items-center justify-center shrink-0">
                   <Icon size={16} />
                 </span>
-                <span className="flex-1 min-w-0 text-left text-sm font-medium text-white truncate">{c.title}</span>
+                <span className="flex-1 min-w-0 text-start text-sm font-medium text-white truncate">{c.title}</span>
                 {isSending && <Loader2 size={16} className="animate-spin text-[#9AA1B4]" />}
                 {isSent && <Check size={16} className="text-emerald-400" />}
               </button>

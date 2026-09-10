@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Clock3, ImageIcon, Pencil, Trash2, Loader2 } from "lucide-react";
 import { CATEGORY_LABELS } from "../../data/workspaceData";
 import { canEditActivity, canDeleteActivity } from "../../data/activityRules";
@@ -24,7 +25,17 @@ import ActivityStatusPill from "../common/ActivityStatusPill";
 // live in data/activityRules.js so this file, EmployeeWorkspace.jsx, and
 // SubmitTaskModal.jsx can't drift apart on what "editable" means.
 
-const TABS = ["Draft", "Pending", "Approved", "Rejected"];
+// `key` is the internal tab identity — it is compared in matchesTab and
+// arrives from callers as `requestedTab`, so it must stay a stable English
+// identifier and NOT become a translated string. `labelKey` is the only
+// part that gets shown to a person.
+const TABS = [
+  { key: "Draft", labelKey: "status.draft" },
+  { key: "Pending", labelKey: "status.pending" },
+  { key: "Approved", labelKey: "status.approved" },
+  { key: "Rejected", labelKey: "status.rejected" },
+];
+const TAB_LABEL_KEY = Object.fromEntries(TABS.map((x) => [x.key, x.labelKey]));
 
 function matchesTab(activity, tab) {
   if (tab === "Draft") return activity.status === "DRAFT";
@@ -41,10 +52,11 @@ function matchesTab(activity, tab) {
 // that doesn't need it, which keeps the original "always opens on
 // Pending" behaviour exactly as it was.
 export default function TaskStatusTabs({ activities, onEdit, onDelete, deletingId, requestedTab }) {
+  const { t } = useTranslation();
   const [tab, setTab] = useState("Pending");
 
   useEffect(() => {
-    if (requestedTab && TABS.includes(requestedTab)) setTab(requestedTab);
+    if (requestedTab && TAB_LABEL_KEY[requestedTab]) setTab(requestedTab);
   }, [requestedTab]);
 
   const filtered = activities.filter((a) => matchesTab(a, tab));
@@ -52,25 +64,25 @@ export default function TaskStatusTabs({ activities, onEdit, onDelete, deletingI
   return (
     <section className="rounded-2xl p-5 bg-[#171C2E]/80 border border-white/[0.06] backdrop-blur-xl">
       <div className="flex items-center gap-2 mb-4 overflow-x-auto pb-1">
-        {TABS.map((t) => {
-          const count = activities.filter((a) => matchesTab(a, t)).length;
+        {TABS.map((item) => {
+          const count = activities.filter((a) => matchesTab(a, item.key)).length;
           return (
             <button
-              key={t}
-              onClick={() => setTab(t)}
+              key={item.key}
+              onClick={() => setTab(item.key)}
               className={`shrink-0 rounded-full px-3.5 py-1.5 text-xs font-medium transition-colors duration-150 ${
-                tab === t ? "bg-[#F47A20] text-white" : "bg-white/[0.05] text-[#9AA1B4] hover:bg-white/[0.09]"
+                tab === item.key ? "bg-[#F47A20] text-white" : "bg-white/[0.05] text-[#9AA1B4] hover:bg-white/[0.09]"
               }`}
             >
-              {t} <span className="opacity-70">({count})</span>
+              {t(item.labelKey)} <span className="opacity-70">({count})</span>
             </button>
           );
         })}
       </div>
 
-      <div className="space-y-2.5 max-h-[420px] overflow-y-auto pr-1">
+      <div className="space-y-2.5 max-h-[420px] overflow-y-auto pe-1">
         {filtered.length === 0 && (
-          <p className="text-sm text-[#4C5266] text-center py-8">No {tab.toLowerCase()} activities.</p>
+          <p className="text-sm text-[#4C5266] text-center py-8">{t("rm.noActivitiesForTab", { status: t(TAB_LABEL_KEY[tab]) })}</p>
         )}
         {filtered.map((activity) => {
           const canEdit = canEditActivity(activity);
@@ -81,7 +93,7 @@ export default function TaskStatusTabs({ activities, onEdit, onDelete, deletingI
           return (
             <div key={activity.id} className="rounded-xl p-3.5 bg-[#1A1F33]/70 border border-white/[0.06]">
               <div className="flex items-start justify-between gap-3">
-                <span className="text-sm font-medium text-white">{CATEGORY_LABELS[activity.category] || activity.category}</span>
+                <span className="text-sm font-medium text-white">{CATEGORY_LABELS[activity.category] ? t(CATEGORY_LABELS[activity.category]) : activity.category}</span>
                 <ActivityStatusPill status={activity.status} />
               </div>
               <div className="mt-1.5 flex items-center gap-4 text-xs text-[#9AA1B4]">
@@ -100,7 +112,7 @@ export default function TaskStatusTabs({ activities, onEdit, onDelete, deletingI
                       disabled={isDeleting}
                       className="flex items-center gap-1 text-[11px] text-[#9AA1B4] hover:text-[#F47A20] disabled:opacity-40 transition-colors duration-150"
                     >
-                      <Pencil size={11} /> Edit
+                      <Pencil size={11} /> {t("common.edit")}
                     </button>
                   )}
                   {canDelete && (
@@ -110,7 +122,7 @@ export default function TaskStatusTabs({ activities, onEdit, onDelete, deletingI
                       className="flex items-center gap-1 text-[11px] text-[#9AA1B4] hover:text-red-400 disabled:opacity-40 transition-colors duration-150"
                     >
                       {isDeleting ? <Loader2 size={11} className="animate-spin" /> : <Trash2 size={11} />}
-                      {isDeleting ? "Deleting..." : "Delete"}
+                      {isDeleting ? t("rm.deleting") : t("common.delete")}
                     </button>
                   )}
                 </div>

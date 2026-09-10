@@ -19,7 +19,7 @@ export default function QuickActionCard({ icon: Icon, label, tone = "orange", ba
       <span className={`relative w-11 h-11 rounded-xl flex items-center justify-center ${t.bg} ${t.text} ${t.glow}`}>
         <Icon size={19} />
         {badge > 0 && (
-          <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-500 ring-2 ring-[#171C2E] flex items-center justify-center text-[9px] font-bold text-white">
+          <span className="absolute -top-1 -end-1 w-4 h-4 rounded-full bg-red-500 ring-2 ring-[#171C2E] flex items-center justify-center text-[9px] font-bold text-white">
             {badge > 9 ? "9+" : badge}
           </span>
         )}

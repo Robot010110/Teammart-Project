@@ -1,4 +1,5 @@
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { Users, AlertTriangle, Sparkles, ClipboardList } from "lucide-react";
 import { useAsync } from "../../../hooks/useAsync";
 import { SkeletonCard } from "../../common/SkeletonCard";
@@ -37,6 +38,7 @@ function isToday(iso) {
 // Every count is fetched directly from the same real services the
 // dedicated pages use — not invented, not a second source of truth.
 export default function SupervisorTodayOverview({ session, basePath }) {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const marketId = session.marketId;
 
@@ -79,10 +81,10 @@ export default function SupervisorTodayOverview({ session, basePath }) {
   const loading = l1 || l2 || l3 || l4;
 
   const cards = [
-    { key: "employees", label: "Employees", sub: "Managed", value: employees?.length, icon: Users, tone: "blue", onClick: () => navigate(`${basePath}/employees`) },
-    { key: "alerts", label: "Alerts", sub: "Require attention", value: problems?.length, icon: AlertTriangle, tone: "red", onClick: () => navigate(`${basePath}/alerts`) },
-    { key: "activity", label: "Recent Activity", sub: "New updates", value: recentCount, icon: Sparkles, tone: "violet", onClick: () => navigate(`${basePath}/activity`) },
-    { key: "tasks", label: "Pending Tasks", sub: "Tasks waiting", value: pendingCounts, icon: ClipboardList, tone: "orange", onClick: () => navigate(`${basePath}/pending-tasks`) },
+    { key: "employees", label: t("sup.employees"), sub: t("sup.managed"), value: employees?.length, icon: Users, tone: "blue", onClick: () => navigate(`${basePath}/employees`) },
+    { key: "alerts", label: t("sup.alerts"), sub: t("sup.requireAttention"), value: problems?.length, icon: AlertTriangle, tone: "red", onClick: () => navigate(`${basePath}/alerts`) },
+    { key: "activity", label: t("sup.recentActivity"), sub: t("sup.newUpdates"), value: recentCount, icon: Sparkles, tone: "violet", onClick: () => navigate(`${basePath}/activity`) },
+    { key: "tasks", label: t("sup.pendingTasks"), sub: t("sup.tasksWaiting"), value: pendingCounts, icon: ClipboardList, tone: "orange", onClick: () => navigate(`${basePath}/pending-tasks`) },
   ];
 
   if (loading) {
@@ -119,7 +121,7 @@ function OverviewCard({ label, sub, value, icon: Icon, tone, onClick }) {
     <button
       type="button"
       onClick={onClick}
-      className={`text-left rounded-2xl p-4 bg-gradient-to-b from-[#171C2E]/90 to-[#12172A]/90 border backdrop-blur-xl active:scale-[0.98] transition-all duration-200 hover:-translate-y-0.5 ${t.border}`}
+      className={`text-start rounded-2xl p-4 bg-gradient-to-b from-[#171C2E]/90 to-[#12172A]/90 border backdrop-blur-xl active:scale-[0.98] transition-all duration-200 hover:-translate-y-0.5 ${t.border}`}
     >
       <span className={`w-9 h-9 rounded-xl grid place-items-center ring-1 ring-inset ring-white/5 ${t.bg} ${t.glow} ${t.text}`}>
         <Icon size={16} />

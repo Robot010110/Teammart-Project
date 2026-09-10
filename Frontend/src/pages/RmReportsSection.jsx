@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { AlertTriangle, History, Check, Trash2, Loader2, Store } from "lucide-react";
 import Modal from "../components/common/Modal";
 import AuthenticatedImage from "../components/common/AuthenticatedImage";
@@ -8,7 +9,7 @@ import ErrorBanner from "../components/common/ErrorBanner";
 import { listZoneMarketProblems, updateMarketProblemStatus, deleteMarketProblem } from "../services/marketProblemsService";
 
 const STATUS_TONE = { OPEN: "bg-red-500/10 text-red-400 ring-red-500/20", IN_PROGRESS: "bg-amber-500/10 text-amber-400 ring-amber-500/20", RESOLVED: "bg-emerald-500/10 text-emerald-400 ring-emerald-500/20" };
-const STATUS_LABEL = { OPEN: "Open", IN_PROGRESS: "In Progress", RESOLVED: "Resolved" };
+const STATUS_LABEL = { OPEN: "sup.open", IN_PROGRESS: "status.inProgress", RESOLVED: "sup.resolved" };
 const STATUS_ORDER = ["OPEN", "IN_PROGRESS", "RESOLVED"];
 
 function timeLabel(iso) {
@@ -26,10 +27,11 @@ function timeLabel(iso) {
 // (cycle its status) the same way a Supervisor can — assertMarketAccess
 // already allows it, since the market is in one of their own zones.
 export default function RmReportsSection({ zoneIds }) {
+  const { t } = useTranslation();
   const [tab, setTab] = useState("active");
   const { data: byZone, error, loading, reload } = useAsync(
     () => Promise.all(zoneIds.map((zoneId) => listZoneMarketProblems(zoneId, tab))),
-    { deps: [zoneIds.join(","), tab], fallbackError: "Could not load reports." }
+    { deps: [zoneIds.join(","), tab], fallbackError: t("sup.couldNotLoadReports") }
   );
   const [selected, setSelected] = useState(null);
   const [acting, setActing] = useState(false);
@@ -67,14 +69,14 @@ export default function RmReportsSection({ zoneIds }) {
           onClick={() => setTab("active")}
           className={`rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-colors ${tab === "active" ? "bg-[#F47A20] text-white" : "text-[#9AA1B4] hover:text-white"}`}
         >
-          Active
+          {t("status.active")}
         </button>
         <button
           type="button"
           onClick={() => setTab("history")}
           className={`flex items-center gap-1 rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-colors ${tab === "history" ? "bg-[#F47A20] text-white" : "text-[#9AA1B4] hover:text-white"}`}
         >
-          <History size={12} /> History
+          <History size={12} /> {t("emp.history")}
         </button>
       </div>
 
@@ -84,7 +86,7 @@ export default function RmReportsSection({ zoneIds }) {
         <ErrorBanner message={error} onRetry={reload} />
       ) : problems.length === 0 ? (
         <div className="rounded-2xl p-8 bg-[#171C2E]/80 border border-white/[0.06] text-center">
-          <p className="text-sm text-[#8B93A8]">{tab === "active" ? "No active reports across your zone." : "No resolved reports yet."}</p>
+          <p className="text-sm text-[#8B93A8]">{tab === "active" ? t("rm.noActiveReportsAcrossYourZone") : t("rm.noResolvedReportsYet")}</p>
         </div>
       ) : (
         <div className="space-y-2">
@@ -93,7 +95,7 @@ export default function RmReportsSection({ zoneIds }) {
               key={p.id}
               type="button"
               onClick={() => setSelected(p)}
-              className="w-full text-left flex items-start gap-3 rounded-xl p-3.5 bg-[#171C2E]/80 border border-white/[0.06] hover:border-[#F47A20]/25 transition-colors"
+              className="w-full text-start flex items-start gap-3 rounded-xl p-3.5 bg-[#171C2E]/80 border border-white/[0.06] hover:border-[#F47A20]/25 transition-colors"
             >
               <span className={`w-9 h-9 shrink-0 rounded-lg flex items-center justify-center ${p.status === "OPEN" ? "bg-red-500/10 text-red-400" : "bg-white/[0.06] text-[#9AA1B4]"}`}>
                 <AlertTriangle size={16} />
@@ -104,7 +106,7 @@ export default function RmReportsSection({ zoneIds }) {
                   <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium ring-1 ring-inset ${STATUS_TONE[p.status]}`}>{STATUS_LABEL[p.status]}</span>
                 </div>
                 <p className="flex items-center gap-1 text-xs text-[#8B93A8] mt-0.5">
-                  <Store size={11} /> {p.market?.name ?? "Market"} &middot; {p.location}
+                  <Store size={11} /> {p.market?.name ?? t("sup.market")} &middot; {p.location}
                 </p>
                 <p className="text-[11px] text-[#4C5266] mt-1">{p.reportedByUser?.name} &middot; {timeLabel(p.createdAt)}</p>
               </div>
@@ -116,10 +118,10 @@ export default function RmReportsSection({ zoneIds }) {
       <Modal open={!!selected} onClose={() => setSelected(null)} title={selected?.problemType}>
         {selected && (
           <div className="space-y-3">
-            <div className="flex justify-between text-sm py-1.5 border-b border-white/[0.05]"><span className="text-[#8B93A8]">Market</span><span className="text-white">{selected.market?.name}</span></div>
-            <div className="flex justify-between text-sm py-1.5 border-b border-white/[0.05]"><span className="text-[#8B93A8]">Location</span><span className="text-white">{selected.location}</span></div>
-            <div className="flex justify-between text-sm py-1.5 border-b border-white/[0.05]"><span className="text-[#8B93A8]">Reported by</span><span className="text-white">{selected.reportedByUser?.name}</span></div>
-            <div className="flex justify-between text-sm py-1.5 border-b border-white/[0.05]"><span className="text-[#8B93A8]">Reported</span><span className="text-white">{timeLabel(selected.createdAt)}</span></div>
+            <div className="flex justify-between text-sm py-1.5 border-b border-white/[0.05]"><span className="text-[#8B93A8]">{t("sup.market")}</span><span className="text-white">{selected.market?.name}</span></div>
+            <div className="flex justify-between text-sm py-1.5 border-b border-white/[0.05]"><span className="text-[#8B93A8]">{t("emp.location")}</span><span className="text-white">{selected.location}</span></div>
+            <div className="flex justify-between text-sm py-1.5 border-b border-white/[0.05]"><span className="text-[#8B93A8]">{t("sup.reportedBy")}</span><span className="text-white">{selected.reportedByUser?.name}</span></div>
+            <div className="flex justify-between text-sm py-1.5 border-b border-white/[0.05]"><span className="text-[#8B93A8]">{t("sup.reported")}</span><span className="text-white">{timeLabel(selected.createdAt)}</span></div>
             <p className="text-sm text-[#9AA1B4]">{selected.description}</p>
             {selected.photoUrl && <AuthenticatedImage src={selected.photoUrl} alt="" className="rounded-lg w-full max-h-56 object-cover" />}
             {selected.status !== "RESOLVED" && (

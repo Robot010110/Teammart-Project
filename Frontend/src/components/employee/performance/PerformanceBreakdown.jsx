@@ -1,4 +1,5 @@
 import { Users, ClipboardList, Award, ShieldCheck, ArrowUpRight, ArrowDownRight } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import AnimatedNumber from "../../common/AnimatedNumber";
 import Sparkline from "./Sparkline";
 
@@ -79,6 +80,7 @@ function MetricCard({ icon: Icon, label, value, suffix = "", tone, series, delta
 }
 
 export default function PerformanceBreakdown({ summary, weekly, attendanceHistory, attendanceError, onViewAll }) {
+  const { t } = useTranslation();
   // Attendance — API returns newest-first; a sparkline reads oldest-first.
   const attendanceSeries = [...(attendanceHistory ?? [])]
     .reverse()
@@ -107,14 +109,14 @@ export default function PerformanceBreakdown({ summary, weekly, attendanceHistor
   return (
     <section>
       <div className="mb-3 flex items-center justify-between gap-3">
-        <h2 className="text-[15px] font-bold text-white">Performance Breakdown</h2>
+        <h2 className="text-[15px] font-bold text-white">{t("emp.performanceBreakdown")}</h2>
         {onViewAll && (
           <button
             type="button"
             onClick={onViewAll}
             className="text-[12px] font-semibold text-[#F47A20] hover:text-[#ff8b36] transition-colors"
           >
-            View All
+            {t("emp.viewAll")}
           </button>
         )}
       </div>
@@ -123,17 +125,17 @@ export default function PerformanceBreakdown({ summary, weekly, attendanceHistor
         <div className="flex gap-2.5 overflow-x-auto snap-x pb-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden sm:grid sm:grid-cols-2 lg:grid-cols-4 sm:overflow-visible">
           <MetricCard
             icon={Users}
-            label="Attendance"
+            label={t("emp.attendance")}
             value={attendanceRate == null ? null : Math.round(attendanceRate)}
             suffix="%"
             tone="emerald"
             series={attendanceSeries}
             delta={attendanceDelta}
-            caption={attendanceError ? "Unavailable" : "No completed month yet"}
+            caption={attendanceError ? t("emp.unavailable") : t("emp.noCompletedMonthYet")}
           />
           <MetricCard
             icon={ClipboardList}
-            label="Reviewed Work"
+            label={t("emp.reviewedWork")}
             value={summary?.totalReviewed ?? null}
             tone="orange"
             series={reviewedSeries}
@@ -143,22 +145,22 @@ export default function PerformanceBreakdown({ summary, weekly, attendanceHistor
           />
           <MetricCard
             icon={Award}
-            label="Activity Quality"
+            label={t("emp.activityQuality")}
             value={summary?.rate == null ? null : Math.round(summary.rate)}
             suffix="%"
             tone="violet"
             series={qualitySeries}
             delta={qualityDelta}
-            caption="Approved share of reviewed work"
+            caption={t("emp.approvedShareOfReviewedWork")}
           />
           <MetricCard
             icon={ShieldCheck}
-            label="Consistency"
+            label={t("emp.consistency")}
             value={consistency == null ? null : Math.round(consistency)}
             suffix="%"
             tone="sky"
             series={(weekly ?? []).slice().reverse().map((w) => (w.totalReviewed > 0 ? 1 : 0))}
-            caption={totalWeeks > 0 ? `Active ${reviewedWeeks}/${totalWeeks} weeks` : "Not enough history"}
+            caption={totalWeeks > 0 ? t("emp.activeWeeksCaption", { reviewed: reviewedWeeks, total: totalWeeks }) : t("emp.notEnoughHistory")}
           />
         </div>
       </div>

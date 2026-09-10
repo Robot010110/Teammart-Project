@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import Modal from "../common/Modal";
 import ChooseMethodStep from "./itemReport/ChooseMethodStep";
 import BarcodeScanStep from "./itemReport/BarcodeScanStep";
@@ -25,6 +26,7 @@ import { ApiError } from "../../services/apiClient";
 // (e.g. the camera lifecycle lives entirely in BarcodeScanStep).
 
 export default function ItemReportFlow({ open, onClose, onSaved }) {
+  const { t } = useTranslation();
   const [step, setStep] = useState("choose");
   const [searchSeed, setSearchSeed] = useState(""); // seeds ProductSearchStep when a scanned barcode has no exact match
 
@@ -87,7 +89,7 @@ export default function ItemReportFlow({ open, onClose, onSaved }) {
       setSearchSeed("");
       setStep("search");
     } catch (err) {
-      setError("Could not process that photo. Please try again.");
+      setError(t("emp.couldNotProcessThatPhotoPlease"));
       setEvidencePhoto(null);
     } finally {
       setPhotoBusy(false);
@@ -104,7 +106,7 @@ export default function ItemReportFlow({ open, onClose, onSaved }) {
     const qty = Number(quantity);
     if (!qty || qty <= 0) {
       setQuantityInvalid(true);
-      setError("Enter a quantity greater than 0.");
+      setError(t("emp.enterAQuantityGreaterThan0"));
       return;
     }
     setQuantityInvalid(false);
@@ -118,20 +120,20 @@ export default function ItemReportFlow({ open, onClose, onSaved }) {
         notes: notes || undefined,
         imageUrl: evidencePhoto?.url || undefined,
       });
-      onSaved(report, `${condition === "EXPIRED" ? "Expired" : "Wasted"} item reported.`);
+      onSaved(report, `${condition === "EXPIRED" ? t("emp.expired") : t("emp.wasted")} item reported.`);
       handleClose();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Could not submit this report. Please try again.");
+      setError(err instanceof ApiError ? err.message : t("emp.couldNotSubmitThisReportPlease"));
     } finally {
       setSubmitting(false);
     }
   };
 
   const stepTitle = {
-    choose: "Report Expired / Wasted Item",
-    barcode: "Scan Barcode",
-    search: "Find Product",
-    details: "Item Details",
+    choose: t("emp.reportExpiredWastedItem"),
+    barcode: t("emp.scanBarcode"),
+    search: t("emp.findProduct"),
+    details: t("emp.itemDetails"),
   }[step];
 
   return (

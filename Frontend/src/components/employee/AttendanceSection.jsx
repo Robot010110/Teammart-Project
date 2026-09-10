@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Clock3 } from "lucide-react";
 import AttendanceHistoryList from "./AttendanceHistoryList";
 import SubmitExtraHoursModal from "./SubmitExtraHoursModal";
@@ -58,6 +59,7 @@ import { useToast } from "../../hooks/useToast";
 // UI entry point into them anymore. See ProfileTab.jsx's own comment on
 // the same route.
 export default function AttendanceSection({ onBack }) {
+  const { t } = useTranslation();
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
@@ -77,20 +79,20 @@ export default function AttendanceSection({ onBack }) {
 
   const { data, error, loading, reload } = useAsync(() => getAttendanceMonth({ year, month }), {
     deps: [year, month],
-    fallbackError: "Could not load your attendance.",
+    fallbackError: t("emp.couldNotLoadYourAttendance"),
   });
 
   // Today's record drives the timeline / work-time / shift rail. Loaded
   // separately from the month so a failure in one never blanks the other.
   const { data: today, reload: reloadToday } = useAsync(getTodayAttendance, {
     deps: [],
-    fallbackError: "Could not load today's attendance.",
+    fallbackError: t("emp.couldNotLoadTodaysAttendance"),
   });
 
   function handleSubmitted() {
     setSubmitOpen(false);
     setHistoryKey((k) => k + 1);
-    setToast("Extra hours sent to your Supervisor for review.");
+    setToast(t("emp.extraHoursSentToYourSupervisor"));
   }
 
   // A real check-in/out/break changes today's record AND the month
@@ -124,7 +126,7 @@ export default function AttendanceSection({ onBack }) {
       {!loading && !error && data && (
         <>
           <section>
-            <h2 className="mb-2.5 text-[15px] font-bold text-white">Today Overview</h2>
+            <h2 className="mb-2.5 text-[15px] font-bold text-white">{t("emp.todayOverview")}</h2>
             <TodayOverviewGrid summary={data.summary} />
           </section>
 
@@ -139,12 +141,12 @@ export default function AttendanceSection({ onBack }) {
                 taller calendar beside it creates, instead of sitting at
                 the top with dead space beneath. */}
             <section className="card-premium relative overflow-hidden lg:flex lg:flex-col lg:rounded-[20px] lg:p-4 lg:bg-[#0D1223]/80 lg:border lg:border-white/[0.06] lg:shadow-[0_10px_40px_-14px_rgba(0,0,0,0.85)]">
-              <div className="absolute -bottom-16 -left-10 w-52 h-52 rounded-full bg-[#F47A20]/[0.07] blur-3xl animate-ambient-drift pointer-events-none" aria-hidden="true" />
-              <h2 className="relative text-[15px] font-bold text-white">Attendance Rate</h2>
+              <div className="absolute -bottom-16 -start-10 w-52 h-52 rounded-full bg-[#F47A20]/[0.07] blur-3xl animate-ambient-drift pointer-events-none" aria-hidden="true" />
+              <h2 className="relative text-[15px] font-bold text-white">{t("emp.attendanceRate")}</h2>
               <div className="relative mt-2 flex justify-center lg:flex-1 lg:items-center">
                 <AttendanceRateRing
                   rate={data.summary.attendanceRate}
-                  label={isCurrentMonth ? "This Month" : "Selected Month"}
+                  label={isCurrentMonth ? t("emp.thisMonth") : t("emp.selectedMonth")}
                 />
               </div>
             </section>
@@ -171,12 +173,12 @@ export default function AttendanceSection({ onBack }) {
           {/* Timeline + work-time. Mobile stacks; desktop pairs them. */}
           <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,320px)]">
             <section className="rounded-[20px] p-4 bg-[#0D1223]/80 border border-white/[0.06] shadow-[0_10px_40px_-14px_rgba(0,0,0,0.85)]">
-              <h2 className="mb-3 text-[15px] font-bold text-white">Today's Timeline</h2>
+              <h2 className="mb-3 text-[15px] font-bold text-white">{t("emp.todaysTimeline")}</h2>
               <TodayTimeline record={today} />
             </section>
 
             <section className="rounded-[20px] p-4 bg-[#0D1223]/80 border border-white/[0.06] shadow-[0_10px_40px_-14px_rgba(0,0,0,0.85)]">
-              <h2 className="mb-3 text-[15px] font-bold text-white lg:block hidden">Work Time</h2>
+              <h2 className="mb-3 text-[15px] font-bold text-white lg:block hidden">{t("emp.workTime")}</h2>
               <WorkTimeSummary record={today} now={tick} />
             </section>
           </div>
@@ -185,13 +187,13 @@ export default function AttendanceSection({ onBack }) {
 
       <section ref={historyRef} className="scroll-mt-4 pt-1">
         <div className="flex items-center justify-between gap-3 mb-3">
-          <h2 className="text-[15px] font-bold text-white">History</h2>
+          <h2 className="text-[15px] font-bold text-white">{t("emp.history")}</h2>
           <button
             type="button"
             onClick={() => setSubmitOpen(true)}
             className="flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-[12.5px] font-semibold text-white bg-[#F47A20] hover:bg-[#ff8b36] active:scale-95 shadow-[0_0_18px_-3px_rgba(244,122,32,0.7)] transition-all duration-150"
           >
-            <Clock3 size={14} /> Submit Extra Hours
+            <Clock3 size={14} /> {t("emp.submitExtraHours")}
           </button>
         </div>
         <AttendanceHistoryList key={historyKey} />

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Tag, FileWarning, Trash2, Loader2 } from "lucide-react";
 import { useAsync } from "../../hooks/useAsync";
 import ErrorBanner from "../common/ErrorBanner";
@@ -18,9 +19,10 @@ function timeLabel(iso) {
 // new reporting architecture — this is TeamMart's existing PriceReport
 // model, just given its first Supervisor-side view.
 export default function ReportsSection({ marketId }) {
+  const { t } = useTranslation();
   const { data: reports, error, loading, reload } = useAsync(
     () => listPriceReportsForMarket({ marketId }),
-    { deps: [marketId], fallbackError: "Could not load reports." }
+    { deps: [marketId], fallbackError: t("sup.couldNotLoadReports") }
   );
   const [selected, setSelected] = useState(null);
   const [deleting, setDeleting] = useState(false);
@@ -43,7 +45,7 @@ export default function ReportsSection({ marketId }) {
     return (
       <div className="rounded-md p-6 bg-[#171C2E]/80 border border-white/[0.06] text-center">
         <FileWarning size={22} className="mx-auto text-[#4C5266] mb-2" />
-        <p className="text-sm text-[#8B93A8]">No reports yet.</p>
+        <p className="text-sm text-[#8B93A8]">{t("sup.noReportsYet")}</p>
       </div>
     );
   }
@@ -56,7 +58,7 @@ export default function ReportsSection({ marketId }) {
             key={r.id}
             type="button"
             onClick={() => setSelected(r)}
-            className="w-full text-left flex items-start gap-3 rounded-xl p-3.5 bg-[#1A1F33]/70 border border-white/[0.06] hover:border-[#F47A20]/25 transition-colors"
+            className="w-full text-start flex items-start gap-3 rounded-xl p-3.5 bg-[#1A1F33]/70 border border-white/[0.06] hover:border-[#F47A20]/25 transition-colors"
           >
             <span className="w-8 h-8 shrink-0 rounded-lg bg-[#F47A20]/10 flex items-center justify-center text-[#F47A20]">
               <Tag size={15} />
@@ -78,12 +80,12 @@ export default function ReportsSection({ marketId }) {
       <Modal open={!!selected} onClose={() => setSelected(null)} title={selected?.productName}>
         {selected && (
           <div className="space-y-1.5 text-sm">
-            <div className="flex justify-between py-1.5 border-b border-white/[0.05]"><span className="text-[#8B93A8]">Employee</span><span className="text-white">{selected.employee?.name}</span></div>
-            <div className="flex justify-between py-1.5 border-b border-white/[0.05]"><span className="text-[#8B93A8]">Barcode</span><span className="text-white">{selected.barcode || "—"}</span></div>
-            <div className="flex justify-between py-1.5 border-b border-white/[0.05]"><span className="text-[#8B93A8]">Shelf Price</span><span className="text-white">${selected.shelfPrice.toFixed(2)}</span></div>
-            <div className="flex justify-between py-1.5 border-b border-white/[0.05]"><span className="text-[#8B93A8]">System Price</span><span className="text-white">${selected.systemPrice.toFixed(2)}</span></div>
-            <div className="flex justify-between py-1.5 border-b border-white/[0.05]"><span className="text-[#8B93A8]">Reported</span><span className="text-white">{timeLabel(selected.reportedAt)}</span></div>
-            <div className="flex justify-between py-1.5 border-b border-white/[0.05]"><span className="text-[#8B93A8]">Status</span><ActivityStatusPill status={selected.status} /></div>
+            <div className="flex justify-between py-1.5 border-b border-white/[0.05]"><span className="text-[#8B93A8]">{t("roles.employee")}</span><span className="text-white">{selected.employee?.name}</span></div>
+            <div className="flex justify-between py-1.5 border-b border-white/[0.05]"><span className="text-[#8B93A8]">{t("emp.barcode")}</span><span className="text-white">{selected.barcode || "—"}</span></div>
+            <div className="flex justify-between py-1.5 border-b border-white/[0.05]"><span className="text-[#8B93A8]">{t("emp.shelfPrice")}</span><span className="text-white">${selected.shelfPrice.toFixed(2)}</span></div>
+            <div className="flex justify-between py-1.5 border-b border-white/[0.05]"><span className="text-[#8B93A8]">{t("emp.systemPrice")}</span><span className="text-white">${selected.systemPrice.toFixed(2)}</span></div>
+            <div className="flex justify-between py-1.5 border-b border-white/[0.05]"><span className="text-[#8B93A8]">{t("sup.reported")}</span><span className="text-white">{timeLabel(selected.reportedAt)}</span></div>
+            <div className="flex justify-between py-1.5 border-b border-white/[0.05]"><span className="text-[#8B93A8]">{t("sup.status")}</span><ActivityStatusPill status={selected.status} /></div>
             {selected.notes && <p className="pt-2 text-[#9AA1B4]">{selected.notes}</p>}
             {selected.photoUrl && <AuthenticatedImage src={selected.photoUrl} alt="" className="mt-3 rounded-lg w-full max-h-64 object-cover" />}
             <button

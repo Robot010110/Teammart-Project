@@ -1,4 +1,5 @@
 import { ArrowUpRight, ArrowDownRight } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import PerformanceScoreRing from "./PerformanceScoreRing";
 import PerformanceStatusCard from "./PerformanceStatusCard";
 import HeroTexture from "./HeroTexture";
@@ -15,6 +16,7 @@ import HeroTexture from "./HeroTexture";
 // rates are real numbers — a week with nothing reviewed has rate === null.
 // No comparison is fabricated when there is nothing to compare against.
 export default function PerformanceHero({ summary, weekly, onStatusSelect }) {
+  const { t } = useTranslation();
   const thisWeek = weekly?.[0]?.rate;
   const lastWeek = weekly?.[1]?.rate;
   const hasTrend = thisWeek != null && lastWeek != null;
@@ -54,12 +56,12 @@ export default function PerformanceHero({ summary, weekly, onStatusSelect }) {
             >
               {delta > 0 ? <ArrowUpRight size={11} /> : delta < 0 ? <ArrowDownRight size={11} /> : null}
               {delta > 0 ? "+" : ""}
-              {delta}% <span className="font-normal opacity-80">vs last week</span>
+              {delta}% <span className="font-normal opacity-80">{t("emp.vsLastWeek")}</span>
             </div>
           ) : (
             summary?.totalReviewed === 0 && (
               <p className="-mt-1 w-full text-center text-[10.5px] leading-snug text-[#5C6479]">
-                Not reviewed yet
+                {t("emp.notReviewedYet")}
               </p>
             )
           )}
@@ -70,17 +72,17 @@ export default function PerformanceHero({ summary, weekly, onStatusSelect }) {
           <PerformanceStatusCard
             tone="approved"
             count={summary?.approved ?? 0}
-            onClick={onStatusSelect ? () => onStatusSelect("Approved") : undefined}
+            onClick={onStatusSelect ? () => onStatusSelect(t("emp.approved")) : undefined}
           />
           <PerformanceStatusCard
             tone="pending"
             count={summary?.pending ?? 0}
-            onClick={onStatusSelect ? () => onStatusSelect("Pending") : undefined}
+            onClick={onStatusSelect ? () => onStatusSelect(t("emp.pending")) : undefined}
           />
           <PerformanceStatusCard
             tone="rejected"
             count={summary?.rejected ?? 0}
-            onClick={onStatusSelect ? () => onStatusSelect("Rejected") : undefined}
+            onClick={onStatusSelect ? () => onStatusSelect(t("emp.rejected")) : undefined}
           />
         </div>
       </div>

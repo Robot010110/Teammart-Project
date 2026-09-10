@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { AlertTriangle, Check, Loader2 } from "lucide-react";
 import { confirmStillWorking } from "../../services/attendanceService";
 import { listMyNotifications, markNotificationRead } from "../../services/notificationService";
@@ -13,6 +14,7 @@ import { useAsync } from "../../hooks/useAsync";
 // marks the notification read; it isn't itself a source of extra-hours
 // data.
 export default function MissingCheckoutBanner() {
+  const { t } = useTranslation();
   const { data, setData, loading } = useAsync(() => listMyNotifications({ limit: 20 }), { deps: [] });
   const [busyId, setBusyId] = useState(null);
 
@@ -42,8 +44,8 @@ export default function MissingCheckoutBanner() {
         <div key={n.id} className="rounded-xl p-3.5 bg-amber-500/[0.08] border border-amber-500/25 flex items-start gap-3">
           <AlertTriangle size={16} className="text-amber-400 shrink-0 mt-0.5" />
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-medium text-white">Check-out not detected</p>
-            <p className="text-xs text-[#9AA1B4] mt-0.5">Are you still working?</p>
+            <p className="text-sm font-medium text-white">{t("emp.checkOutNotDetected")}</p>
+            <p className="text-xs text-[#9AA1B4] mt-0.5">{t("emp.areYouStillWorking")}</p>
           </div>
           <button
             type="button"
@@ -52,7 +54,7 @@ export default function MissingCheckoutBanner() {
             className="shrink-0 flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold text-white bg-amber-500/80 hover:bg-amber-500 disabled:opacity-50 transition-colors duration-150"
           >
             {busyId === n.id ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
-            Yes, still working
+            {t("emp.yesStillWorking")}
           </button>
         </div>
       ))}

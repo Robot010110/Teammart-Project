@@ -1,4 +1,5 @@
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { Users } from "lucide-react";
 import SupervisorPageHeader from "./SupervisorPageHeader";
 import { useAsync } from "../../../hooks/useAsync";
@@ -7,10 +8,10 @@ import ErrorBanner from "../../common/ErrorBanner";
 import { getMarketAttendanceToday } from "../../../services/attendanceService";
 
 const BUCKET_STYLE = {
-  present: { label: "Present", text: "text-emerald-400", bg: "bg-emerald-500/10", ring: "ring-emerald-500/20" },
-  late: { label: "Late", text: "text-[#F9A03C]", bg: "bg-[#F47A20]/10", ring: "ring-[#F47A20]/20" },
-  notCheckedIn: { label: "Not Checked In", text: "text-[#FF5C5C]", bg: "bg-red-500/10", ring: "ring-red-500/20" },
-  offLeave: { label: "Off / Leave", text: "text-[#8B93A8]", bg: "bg-white/5", ring: "ring-white/10" },
+  present: { label: "emp.present", text: "text-emerald-400", bg: "bg-emerald-500/10", ring: "ring-emerald-500/20" },
+  late: { label: "emp.late", text: "text-[#F9A03C]", bg: "bg-[#F47A20]/10", ring: "ring-[#F47A20]/20" },
+  notCheckedIn: { label: "emp.notCheckedIn", text: "text-[#FF5C5C]", bg: "bg-red-500/10", ring: "ring-red-500/20" },
+  offLeave: { label: "sup.offLeave", text: "text-[#8B93A8]", bg: "bg-white/5", ring: "ring-white/10" },
 };
 
 const timeLabel = (iso) => (iso ? new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) : "—");
@@ -21,15 +22,16 @@ const timeLabel = (iso) => (iso ? new Date(iso).toLocaleTimeString("en-US", { ho
 // the per-employee row-level view — one real endpoint, two real
 // presentations, not two data sources.
 export default function SupervisorTeamAttendancePage({ session, basePath }) {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { data, error, loading, reload } = useAsync(() => getMarketAttendanceToday(session.marketId), {
     deps: [session.marketId],
-    fallbackError: "Could not load team attendance.",
+    fallbackError: t("sup.couldNotLoadTeamAttendance"),
   });
 
   return (
     <div className="px-4 sm:px-6 py-6 max-w-4xl mx-auto animate-fade-up">
-      <SupervisorPageHeader title="Team Attendance" subtitle="Today's real-time status" onBack={() => navigate(`${basePath}/home`)} />
+      <SupervisorPageHeader title={t("sup.teamAttendance")} subtitle={t("sup.todaysRealTimeStatus")} onBack={() => navigate(`${basePath}/home`)} />
 
       {loading && (
         <div className="space-y-2">
@@ -45,7 +47,7 @@ export default function SupervisorTeamAttendancePage({ session, basePath }) {
           {data.employees.length === 0 ? (
             <div className="rounded-2xl p-6 bg-[#171C2E]/80 border border-white/[0.06] text-center">
               <Users size={22} className="mx-auto text-[#4C5266] mb-2" />
-              <p className="text-sm text-[#8B93A8]">No employees in your market yet.</p>
+              <p className="text-sm text-[#8B93A8]">{t("sup.noEmployeesInYourMarketYet")}</p>
             </div>
           ) : (
             <div className="space-y-2">
@@ -63,7 +65,7 @@ export default function SupervisorTeamAttendancePage({ session, basePath }) {
                       </p>
                     </div>
                     <span className={`shrink-0 rounded-full px-2.5 py-1 text-[10.5px] font-medium ring-1 ring-inset ${style.bg} ${style.text} ${style.ring}`}>
-                      {style.label}
+                      {t(style.label)}
                     </span>
                   </div>
                 );

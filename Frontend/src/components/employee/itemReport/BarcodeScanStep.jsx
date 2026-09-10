@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { ArrowLeft } from "lucide-react";
 import { startScanning, stopScanning } from "../../../utils/barcodeScanner";
 
@@ -9,6 +10,7 @@ import { startScanning, stopScanning } from "../../../utils/barcodeScanner";
 // the manual-entry fallback is used).
 
 export default function BarcodeScanStep({ onDetected, onBack }) {
+  const { t } = useTranslation();
   const videoRef = useRef(null);
   const [scanError, setScanError] = useState(null);
   const [manualBarcode, setManualBarcode] = useState("");
@@ -19,7 +21,7 @@ export default function BarcodeScanStep({ onDetected, onBack }) {
       stopScanning();
       onDetected(text);
     }).catch(() => {
-      setScanError("Could not access the camera. Enter the barcode manually below instead.");
+      setScanError(t("emp.couldNotAccessTheCameraEnter"));
     });
     return () => stopScanning();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -45,7 +47,7 @@ export default function BarcodeScanStep({ onDetected, onBack }) {
             <input
               value={manualBarcode}
               onChange={(e) => setManualBarcode(e.target.value)}
-              placeholder="Enter barcode number"
+              placeholder={t("emp.enterBarcodeNumber")}
               inputMode="numeric"
               className="flex-1 min-w-0 rounded-lg bg-white/[0.04] border border-white/[0.06] px-3 py-3 text-base sm:text-sm text-white placeholder:text-[#4C5266] outline-none focus:border-[#F47A20]/50"
             />
@@ -53,7 +55,7 @@ export default function BarcodeScanStep({ onDetected, onBack }) {
               onClick={handleManualSubmit}
               className="shrink-0 rounded-lg px-4 py-3 text-xs font-semibold text-white bg-[#F47A20] hover:bg-[#ff8b36] active:bg-[#e06f18]"
             >
-              Search
+              {t("emp.search")}
             </button>
           </div>
         </div>
@@ -62,7 +64,7 @@ export default function BarcodeScanStep({ onDetected, onBack }) {
         onClick={onBack}
         className="flex items-center gap-1.5 py-2 text-xs text-[#9AA1B4] hover:text-white"
       >
-        <ArrowLeft size={12} /> Back
+        <ArrowLeft size={12} className="rtl-flip" /> {t("emp.back")}
       </button>
     </div>
   );

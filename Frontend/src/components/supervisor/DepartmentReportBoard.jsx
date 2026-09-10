@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useAsync } from "../../hooks/useAsync";
 import { SkeletonCard } from "../common/SkeletonCard";
 import ErrorBanner from "../common/ErrorBanner";
@@ -39,6 +40,7 @@ function statusFor(dept) {
 // (departmentClosingService.listMarketDepartments, which already reuses
 // GET /api/markets/:id/departments); the supervisor only reviews.
 export default function DepartmentReportBoard({ marketId }) {
+  const { t } = useTranslation();
   const { data: departments, loading, error, reload } = useAsync(() => listMarketDepartments(marketId), { deps: [marketId] });
   const [activeSection, setActiveSection] = useState(null); // { section, dept } | null
   const [declinedFlash, setDeclinedFlash] = useState(null); // department label currently flashing RED
@@ -78,9 +80,9 @@ export default function DepartmentReportBoard({ marketId }) {
       <MarketStructureGrid sectionStatus={statusBySection} onSelect={openSection} />
 
       <p className="mt-3 text-xs text-[#8B93A8]">
-        {counts.approved} of {MARKET_SECTIONS.length} approved
-        {counts.pending > 0 ? ` · ${counts.pending} pending review` : ""}
-        {counts.notReported > 0 ? ` · ${counts.notReported} not reported` : ""}
+        {t("sup.approvedOfTotal", { approved: counts.approved, total: MARKET_SECTIONS.length })}
+        {counts.pending > 0 ? ` · ${counts.pending} ${t("sup.pendingReviewLower")}` : ""}
+        {counts.notReported > 0 ? ` · ${counts.notReported} ${t("sup.notReported")}` : ""}
       </p>
 
       <DepartmentReportReviewModal

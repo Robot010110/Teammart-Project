@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { ArrowLeft, Loader2, CheckCircle2, Droplets } from "lucide-react";
 import { SkeletonCard } from "../common/SkeletonCard";
@@ -19,6 +20,7 @@ import { ApiError } from "../../services/apiClient";
 // (a stale count, a race with another tab), the server 400s and this
 // screen just shows that error; it never assumes success.
 export default function WashingMarketScreen({ basePath }) {
+  const { t } = useTranslation();
   const { activityId } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
@@ -42,12 +44,12 @@ export default function WashingMarketScreen({ basePath }) {
       const dashboard = await getMyNightShiftDashboard();
       const found = dashboard.tasks.find((t) => t.id === activityId);
       if (!found) {
-        setError("This task could not be found. It may belong to a previous shift.");
+        setError(t("emp.thisTaskCouldNotBeFound"));
       } else {
         setTask(found);
       }
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Could not load this task.");
+      setError(err instanceof ApiError ? err.message : t("emp.couldNotLoadThisTask"));
     } finally {
       setLoading(false);
     }
@@ -68,9 +70,9 @@ export default function WashingMarketScreen({ basePath }) {
     setSubmitError(null);
     try {
       const updated = await updateActivity(task.id, { status: "PENDING" });
-      setTask((prev) => ({ ...prev, status: "PENDING", label: "Completed", images: updated.images }));
+      setTask((prev) => ({ ...prev, status: "PENDING", label: t("emp.completed"), images: updated.images }));
     } catch (err) {
-      setSubmitError(err instanceof ApiError ? err.message : "Could not submit. Please try again.");
+      setSubmitError(err instanceof ApiError ? err.message : t("emp.couldNotSubmitPleaseTryAgain"));
     } finally {
       setSubmitting(false);
     }
@@ -98,8 +100,8 @@ export default function WashingMarketScreen({ basePath }) {
 
   return (
     <div className="px-4 sm:px-6 py-6 max-w-4xl mx-auto animate-fade-up">
-      <button type="button" onClick={goBack} className="flex items-center gap-1.5 text-sm text-[#9AA1B4] hover:text-white mb-4 -ml-1 py-1.5 px-1">
-        <ArrowLeft size={16} /> Back to Night Shift
+      <button type="button" onClick={goBack} className="flex items-center gap-1.5 text-sm text-[#9AA1B4] hover:text-white mb-4 -ms-1 py-1.5 px-1">
+        <ArrowLeft size={16} className="rtl-flip" /> {t("emp.backToNightShift")}
       </button>
 
       <div className="rounded-2xl p-5 bg-[#171C2E]/80 border border-white/[0.06] backdrop-blur-xl">
@@ -114,8 +116,8 @@ export default function WashingMarketScreen({ basePath }) {
         </div>
 
         <div className="mt-4 rounded-xl p-3.5 bg-white/[0.03] border border-white/[0.06] text-xs text-[#9AA1B4] space-y-1">
-          <p>Minimum required photos: <span className="text-white font-medium">{task.minPhotos}</span></p>
-          <p>Status: <span className="text-white font-medium">{task.label}</span></p>
+          <p>{t("emp.minimumRequiredPhotos")} <span className="text-white font-medium">{task.minPhotos}</span></p>
+          <p>{t("emp.status")} <span className="text-white font-medium">{task.label}</span></p>
         </div>
       </div>
 
@@ -123,10 +125,10 @@ export default function WashingMarketScreen({ basePath }) {
         <div className="mt-5 rounded-2xl p-5 bg-[#171C2E]/80 border border-white/[0.06] backdrop-blur-xl">
           <div className="flex items-center gap-2 text-emerald-400 mb-4">
             <CheckCircle2 size={18} />
-            <p className="text-sm font-semibold">Washing Market completed and submitted</p>
+            <p className="text-sm font-semibold">{t("emp.washingMarketCompletedAndSubmitted")}</p>
           </div>
           <p className="text-xs text-[#8B93A8] mb-3">
-            Posted automatically to your market's Night Shift group and sent to your Supervisor.
+            {t("emp.postedAutomaticallyToYourMarketsNight")}
           </p>
           <MultiPhotoEvidence activityId={task.id} images={task.images} minRequired={task.minPhotos} editable={false} onImagesChanged={() => {}} />
         </div>
@@ -149,7 +151,7 @@ export default function WashingMarketScreen({ basePath }) {
             className="mt-5 w-full flex items-center justify-center gap-2 rounded-xl py-3 text-sm font-semibold text-white bg-[#F47A20] hover:bg-[#ff8b36] active:bg-[#e06f18] disabled:bg-white/10 disabled:text-[#4C5266] transition-colors duration-200 shadow-lg shadow-orange-900/20"
           >
             {submitting ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle2 size={16} />}
-            {submitting ? "Submitting..." : met ? "Submit Washing Market" : `Add ${task.minPhotos - task.images.length} more photo(s) to submit`}
+            {submitting ? t("emp.submitting") : met ? t("emp.submitWashingMarket") : `Add ${task.minPhotos - task.images.length} more photo(s) to submit`}
           </button>
         </div>
       )}

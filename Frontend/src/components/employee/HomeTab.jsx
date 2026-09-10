@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import {
   ClipboardList, Megaphone, Users, Moon,
@@ -25,9 +26,9 @@ import { getTodayAttendance, getAttendanceMonth } from "../../services/attendanc
 
 function greeting() {
   const hour = new Date().getHours();
-  if (hour < 12) return "Good morning,";
-  if (hour < 18) return "Good afternoon,";
-  return "Good evening,";
+  if (hour < 12) return "emp.goodMorning";
+  if (hour < 18) return "emp.goodAfternoon";
+  return "emp.goodEvening";
 }
 
 function isToday(iso) {
@@ -87,6 +88,7 @@ function hoursLabel(hours) {
 // ProfileHeaderCard) remain fully available — ProfileHeaderCard.jsx is
 // still rendered at the top of the Profile tab, unchanged.
 export default function HomeTab({ onNavigate, basePath }) {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { chatUnread } = useUnreadBadges();
 
@@ -113,7 +115,7 @@ export default function HomeTab({ onNavigate, basePath }) {
 
   const isCheckedIn = !!(todayAttendance?.checkIn && !todayAttendance?.checkOut);
   const isCheckedOut = !!todayAttendance?.checkOut;
-  const attendanceLabel = isCheckedIn ? "Checked in" : isCheckedOut ? "Checked out" : "Not checked in";
+  const attendanceLabel = isCheckedIn ? t("emp.checkedIn2") : isCheckedOut ? t("emp.checkedOut2") : t("emp.notCheckedIn2");
   const goToAttendance = () => navigate(`${basePath}/profile/attendance`);
 
   // Hours worked today — real timestamps, computed client-side (no
@@ -186,7 +188,7 @@ export default function HomeTab({ onNavigate, basePath }) {
   return (
     <div className="min-h-full bg-[#050A18] px-4 sm:px-6 py-6 max-w-4xl mx-auto animate-fade-up">
       <div className="mb-5">
-        <p className="text-sm text-[#8B93A8]">{greeting()}</p>
+        <p className="text-sm text-[#8B93A8]">{t(greeting())}</p>
         <h1 className="font-display text-2xl font-bold text-white flex items-center gap-2 flex-wrap">
           {profile.name} <span aria-hidden="true">👋</span>
         </h1>
@@ -200,14 +202,14 @@ export default function HomeTab({ onNavigate, basePath }) {
         <button
           type="button"
           onClick={() => navigate(`${basePath}/night-shift`)}
-          className="mb-5 w-full flex items-center gap-3 rounded-2xl p-4 bg-gradient-to-br from-[#1D2D5C]/60 to-[#171C2E]/80 border border-[#F47A20]/20 hover:border-[#F47A20]/40 backdrop-blur-xl transition-colors text-left"
+          className="mb-5 w-full flex items-center gap-3 rounded-2xl p-4 bg-gradient-to-br from-[#1D2D5C]/60 to-[#171C2E]/80 border border-[#F47A20]/20 hover:border-[#F47A20]/40 backdrop-blur-xl transition-colors text-start"
         >
           <span className="grid place-items-center h-11 w-11 rounded-xl bg-[#F47A20]/15 text-[#F47A20] shrink-0">
             <Moon size={19} />
           </span>
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-semibold text-white">Night Shift</p>
-            <p className="text-xs text-[#9AA1B4]">Tonight's tasks, Washing Market, and your departments</p>
+            <p className="text-sm font-semibold text-white">{t("emp.nightShift")}</p>
+            <p className="text-xs text-[#9AA1B4]">{t("emp.tonightsTasksWashingMarketAndYour")}</p>
           </div>
         </button>
       )}
@@ -223,30 +225,30 @@ export default function HomeTab({ onNavigate, basePath }) {
           without tipping into heavy glassmorphism. */}
       <section className="card-premium relative mb-5 rounded-2xl p-5 bg-gradient-to-br from-[#0B1830]/85 to-[#050A18]/95 border border-white/[0.07] backdrop-blur-xl overflow-hidden shadow-[0_0_40px_-12px_rgba(244,122,32,0.15)]">
         <PerformanceAtmosphere />
-        <h2 className="relative mb-4 text-sm font-semibold text-white">Today's Performance</h2>
+        <h2 className="relative mb-4 text-sm font-semibold text-white">{t("emp.todaysPerformance")}</h2>
         <div className="relative flex items-center gap-5">
           <PerformanceCircle rate={performance?.rate} onClick={() => setShowPerformanceHistory(true)} bare size={112} />
           <div className="flex-1 min-w-0 divide-y divide-white/[0.06]">
             <div className="flex items-center justify-between py-2 first:pt-0">
-              <span className="flex items-center gap-1.5 text-xs text-[#9AA1B4]"><CheckCircle2 size={13} className="text-emerald-400" /> Tasks Today</span>
+              <span className="flex items-center gap-1.5 text-xs text-[#9AA1B4]"><CheckCircle2 size={13} className="text-emerald-400" /> {t("emp.tasksToday")}</span>
               <span className="text-xs font-semibold text-white">
                 <AnimatedNumber value={completedToday.length} /> / <AnimatedNumber value={completedToday.length + pendingCount} />
               </span>
             </div>
             <div className="flex items-center justify-between py-2">
-              <span className="flex items-center gap-1.5 text-xs text-[#9AA1B4]"><Users size={13} className="text-sky-400" /> Attendance</span>
+              <span className="flex items-center gap-1.5 text-xs text-[#9AA1B4]"><Users size={13} className="text-sky-400" /> {t("emp.attendance")}</span>
               <button type="button" onClick={goToAttendance} className="text-xs font-semibold text-sky-400 hover:text-sky-300">
                 {attendanceLabel}
               </button>
             </div>
             <div className="flex items-center justify-between py-2">
-              <span className="flex items-center gap-1.5 text-xs text-[#9AA1B4]"><Clock size={13} className="text-[#F47A20]" /> Hours Today</span>
+              <span className="flex items-center gap-1.5 text-xs text-[#9AA1B4]"><Clock size={13} className="text-[#F47A20]" /> {t("emp.hoursToday")}</span>
               <button type="button" onClick={() => setShowWorkLog(true)} className="text-xs font-semibold text-white hover:text-[#F47A20]">
                 {hoursLabel(hoursToday)}
               </button>
             </div>
             <div className="flex items-center justify-between py-2 last:pb-0">
-              <span className="flex items-center gap-1.5 text-xs text-[#9AA1B4]"><ClipboardList size={13} className="text-violet-400" /> Department</span>
+              <span className="flex items-center gap-1.5 text-xs text-[#9AA1B4]"><ClipboardList size={13} className="text-violet-400" /> {t("emp.department")}</span>
               <span className="text-xs font-semibold text-white truncate max-w-[120px]">{profile.department || "—"}</span>
             </div>
           </div>
@@ -259,28 +261,28 @@ export default function HomeTab({ onNavigate, basePath }) {
 
       <section className="mb-6">
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-sm font-semibold text-white">Quick Actions</h2>
+          <h2 className="text-sm font-semibold text-white">{t("emp.quickActions")}</h2>
           <button type="button" onClick={() => onNavigate?.("tasks")} className="text-xs font-semibold text-[#F47A20] hover:text-[#ff8b36]">
-            View All
+            {t("emp.viewAll")}
           </button>
         </div>
         <div className="flex gap-3 overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0" style={{ scrollbarWidth: "none" }}>
-          <QuickActionCard icon={ClipboardList} label="My Tasks" tone="orange" badge={pendingCount} onClick={() => onNavigate?.("tasks")} />
-          <QuickActionCard icon={Megaphone} label="Daily Activity" tone="orange" onClick={() => onNavigate?.("activity")} />
-          <QuickActionCard icon={Users} label="Attendance" tone="blue" onClick={goToAttendance} />
-          <QuickActionCard icon={MessageCircle} label="Chat" tone="violet" badge={chatUnread} onClick={() => onNavigate?.("chat")} />
+          <QuickActionCard icon={ClipboardList} label={t("emp.myTasks")} tone="orange" badge={pendingCount} onClick={() => onNavigate?.("tasks")} />
+          <QuickActionCard icon={Megaphone} label={t("emp.dailyActivity")} tone="orange" onClick={() => onNavigate?.("activity")} />
+          <QuickActionCard icon={Users} label={t("emp.attendance")} tone="blue" onClick={goToAttendance} />
+          <QuickActionCard icon={MessageCircle} label={t("emp.chat")} tone="violet" badge={chatUnread} onClick={() => onNavigate?.("chat")} />
         </div>
       </section>
 
       <section className="mb-6">
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-sm font-semibold text-white">Today's Tasks</h2>
+          <h2 className="text-sm font-semibold text-white">{t("emp.todaysTasks")}</h2>
           <button type="button" onClick={() => onNavigate?.("tasks")} className="text-xs font-semibold text-[#F47A20] hover:text-[#ff8b36]">
-            View All
+            {t("emp.viewAll")}
           </button>
         </div>
         {todaysTasks.length === 0 ? (
-          <p className="text-sm text-[#4C5266] text-center py-6">You're all caught up — no tasks are waiting for you.</p>
+          <p className="text-sm text-[#4C5266] text-center py-6">{t("emp.youreAllCaughtUpNoTasks")}</p>
         ) : (
           <div className="space-y-2">
             {todaysTasks.map((t, i) => (
@@ -294,29 +296,29 @@ export default function HomeTab({ onNavigate, basePath }) {
 
       <section className="mb-6">
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-sm font-semibold text-white">Activity Overview</h2>
+          <h2 className="text-sm font-semibold text-white">{t("emp.activityOverview")}</h2>
           <div className="flex items-center gap-1 rounded-lg bg-white/[0.04] p-1">
             <button
               type="button"
               onClick={() => setPeriod("week")}
               className={`rounded-md px-2.5 py-1 text-[11px] font-semibold transition-colors ${period === "week" ? "bg-[#F47A20] text-white" : "text-[#9AA1B4]"}`}
             >
-              This Week
+              {t("emp.thisWeek")}
             </button>
             <button
               type="button"
               onClick={() => setPeriod("month")}
               className={`rounded-md px-2.5 py-1 text-[11px] font-semibold transition-colors ${period === "month" ? "bg-[#F47A20] text-white" : "text-[#9AA1B4]"}`}
             >
-              This Month
+              {t("emp.thisMonth")}
             </button>
           </div>
         </div>
         <div className="flex gap-2 mb-3">
-          <ActivityMetricCard icon={CalendarCheck2} value={periodCompletedCount} label="Completed" tone="emerald" />
-          <ActivityMetricCard icon={Clock} value={hoursLabel(periodHours)} label="Hours" tone="orange" />
-          <ActivityMetricCard icon={CheckCircle2} value={complianceLabel} label="Compliance" tone="emerald" />
-          <ActivityMetricCard icon={BarChart3} value={performanceLabel} label="Performance" tone="violet" />
+          <ActivityMetricCard icon={CalendarCheck2} value={periodCompletedCount} label={t("emp.completed")} tone="emerald" />
+          <ActivityMetricCard icon={Clock} value={hoursLabel(periodHours)} label={t("emp.hours")} tone="orange" />
+          <ActivityMetricCard icon={CheckCircle2} value={complianceLabel} label={t("emp.compliance")} tone="emerald" />
+          <ActivityMetricCard icon={BarChart3} value={performanceLabel} label={t("emp.performance")} tone="violet" />
         </div>
         <WeeklyHoursChart days={monthAttendance?.days} />
       </section>

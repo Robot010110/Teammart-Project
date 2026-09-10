@@ -16,7 +16,7 @@ export default function QuickReportRow({ icon: Icon, title, subtitle, onClick, b
       <span className="w-10 h-10 rounded-lg bg-[#F47A20]/10 flex items-center justify-center text-[#F47A20] glow-orange shrink-0">
         <Icon size={18} />
       </span>
-      <span className="min-w-0 flex-1 text-left">
+      <span className="min-w-0 flex-1 text-start">
         <p className="text-sm font-semibold text-white truncate">{title}</p>
         <p className="text-xs text-[#8B93A8] truncate">{subtitle}</p>
       </span>
@@ -25,7 +25,7 @@ export default function QuickReportRow({ icon: Icon, title, subtitle, onClick, b
           {badge}
         </span>
       )}
-      <ChevronRight size={16} className="text-[#4C5266] shrink-0" />
+      <ChevronRight size={16} className="text-[#4C5266] shrink-0 rtl-flip" />
     </button>
   );
 }

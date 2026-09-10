@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 // SenderIdentityBadge.jsx — Warnings & Notifications §29-30: the one
 // place that renders "who sent this" consistently across the
 // notification card, detail screen, and management history. Admin gets
@@ -7,6 +8,7 @@
 // understands "this came from my zone's management," not "an anonymous
 // admin thing."
 export default function SenderIdentityBadge({ senderRole, senderZone, size = "md" }) {
+  const { t } = useTranslation();
   const isAdmin = senderRole === "ADMIN";
   const textSize = size === "sm" ? "text-[10px]" : "text-[11px]";
 
@@ -14,14 +16,14 @@ export default function SenderIdentityBadge({ senderRole, senderZone, size = "md
     return (
       <span className={`inline-flex items-center gap-1.5 ${textSize} font-semibold tracking-wide text-[#E8B85C]`}>
         <span aria-hidden="true">✦</span>
-        ADMIN <span className="text-[#8B7A4F]">•</span> OFFICIAL
+        {t("rm.badgeAdmin")} <span className="text-[#8B7A4F]">•</span> {t("rm.badgeOfficial")}
       </span>
     );
   }
 
   return (
     <span className={`inline-flex items-center gap-1.5 ${textSize} font-semibold tracking-wide text-[#9AA1B4]`}>
-      ZONE MANAGER{senderZone != null && <><span className="text-[#4C5266]">•</span> ZONE {senderZone}</>}
+      {t("rm.badgeZoneManager")}{senderZone != null && <><span className="text-[#4C5266]">•</span> {t("rm.badgeZoneNumber", { number: senderZone })}</>}
     </span>
   );
 }

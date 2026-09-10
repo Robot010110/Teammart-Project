@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { PackageOpen } from "lucide-react";
 
 const COLLECTION_PHONE = "9647502329961"; // 0750 232 9961, country code applied
@@ -8,7 +9,8 @@ const COLLECTION_PHONE = "9647502329961"; // 0750 232 9961, country code applied
 // prototype integration, easy to swap for a real collection workflow
 // later without this button's callers needing to change.
 export default function CartonFillingButton({ marketName }) {
-  const message = `Hello, the carton storage at ${marketName || "our market"} is full. Please come and collect/clear the cartons.`;
+  const { t } = useTranslation();
+  const message = t("sup.cartonCollectionMessage", { market: marketName || t("sup.ourMarket") });
   const href = `https://wa.me/${COLLECTION_PHONE}?text=${encodeURIComponent(message)}`;
 
   return (
@@ -18,7 +20,7 @@ export default function CartonFillingButton({ marketName }) {
       rel="noreferrer"
       className="w-full h-full min-h-[52px] flex items-center justify-center gap-2 rounded-2xl py-3.5 px-4 text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 transition-colors duration-200 shadow-lg shadow-emerald-900/20"
     >
-      <PackageOpen size={17} /> Request Carton Collection
+      <PackageOpen size={17} /> {t("sup.requestCartonCollection")}
     </a>
   );
 }

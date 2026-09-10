@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Loader2, CheckCircle2, Building2 } from "lucide-react";
 import Modal from "../common/Modal";
 import EvidenceCapture from "./EvidenceCapture";
@@ -23,6 +24,7 @@ function formatTimeNow() {
 // EvidenceCapture, the same take/preview/retake component every other
 // evidence photo in this app already uses) -> submit.
 export default function DepartmentClosingFlow({ open, onClose, onSaved }) {
+  const { t } = useTranslation();
   const [department, setDepartment] = useState(null);
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [photo, setPhoto] = useState(null);
@@ -35,7 +37,7 @@ export default function DepartmentClosingFlow({ open, onClose, onSaved }) {
     setLoadingProfile(true);
     getProfile()
       .then((profile) => setDepartment(profile.department ?? null))
-      .catch(() => setError("Could not load your department."))
+      .catch(() => setError(t("emp.couldNotLoadYourDepartment")))
       .finally(() => setLoadingProfile(false));
   }, [open]);
 
@@ -62,47 +64,47 @@ export default function DepartmentClosingFlow({ open, onClose, onSaved }) {
         imageUrls: photo ? [photo] : undefined,
       });
       setSubmitted({ time: formatTimeNow() });
-      onSaved?.(activity, "Department Closing submitted.");
+      onSaved?.(activity, t("emp.departmentClosingSubmitted"));
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Could not submit. Please try again.");
+      setError(err instanceof ApiError ? err.message : t("emp.couldNotSubmitPleaseTryAgain"));
     } finally {
       setSubmitting(false);
     }
   }
 
   return (
-    <Modal open={open} onClose={handleClose} title="Department Closing">
+    <Modal open={open} onClose={handleClose} title={t("emp.departmentClosing")}>
       {loadingProfile ? (
-        <p className="text-sm text-[#4C5266] text-center py-6">Loading...</p>
+        <p className="text-sm text-[#4C5266] text-center py-6">{t("emp.loading")}</p>
       ) : submitted ? (
         <div className="text-center py-6">
           <CheckCircle2 size={32} className="mx-auto text-emerald-400 mb-3" />
-          <p className="text-sm font-semibold text-white">Submitted</p>
+          <p className="text-sm font-semibold text-white">{t("emp.submitted")}</p>
           <p className="text-xs text-[#8B93A8] mt-1">{submitted.time}</p>
           <button
             type="button"
             onClick={handleClose}
             className="mt-5 w-full rounded-xl py-3 text-sm font-semibold text-white bg-[#F47A20] hover:bg-[#ff8b36] transition-colors duration-200"
           >
-            Done
+            {t("emp.done")}
           </button>
         </div>
       ) : !department ? (
         <div className="text-center py-6">
-          <p className="text-sm text-[#8B93A8]">You have no department assigned yet.</p>
-          <p className="text-xs text-[#6B7284] mt-1">Ask your Supervisor to assign one first.</p>
+          <p className="text-sm text-[#8B93A8]">{t("emp.youHaveNoDepartmentAssignedYet")}</p>
+          <p className="text-xs text-[#6B7284] mt-1">{t("emp.askYourSupervisorToAssignOne")}</p>
         </div>
       ) : (
         <div className="space-y-4">
           <div className="rounded-xl p-4 bg-[#1A1F33]/70 border border-white/[0.05]">
             <p className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-[#8B93A8]">
-              <Building2 size={12} /> Your Department
+              <Building2 size={12} /> {t("emp.yourDepartment")}
             </p>
             <p className="mt-1 text-lg font-display font-bold text-white">{department}</p>
           </div>
 
           <div>
-            <p className="text-xs font-medium text-[#8B93A8] mb-2">How did you leave it?</p>
+            <p className="text-xs font-medium text-[#8B93A8] mb-2">{t("emp.howDidYouLeaveIt")}</p>
             <EvidenceCapture photo={photo} onPhotoChange={setPhoto} />
           </div>
 
@@ -115,7 +117,7 @@ export default function DepartmentClosingFlow({ open, onClose, onSaved }) {
             className="w-full flex items-center justify-center gap-2 rounded-xl py-3 text-sm font-semibold text-white bg-[#F47A20] hover:bg-[#ff8b36] active:bg-[#e06f18] disabled:bg-white/10 disabled:text-[#4C5266] transition-colors duration-200"
           >
             {submitting ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
-            {submitting ? "Submitting..." : "Submit"}
+            {submitting ? t("emp.submitting") : t("emp.submit")}
           </button>
         </div>
       )}

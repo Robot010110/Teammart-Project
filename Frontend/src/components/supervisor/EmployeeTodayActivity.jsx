@@ -1,4 +1,5 @@
 import { CalendarDays, ClipboardList } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { SkeletonCard } from "../common/SkeletonCard";
 import ErrorBanner from "../common/ErrorBanner";
 import { useEmployeeActivityFeed } from "../../hooks/useEmployeeActivityFeed";
@@ -19,6 +20,7 @@ function timeLabel(iso) {
 // preview and that page can never show two different versions of the
 // same underlying data.
 export default function EmployeeTodayActivity({ employeeId, marketId }) {
+  const { t } = useTranslation();
   const { data, error, loading, reload } = useEmployeeActivityFeed({ employeeId, marketId, todayOnly: true });
   // The hook returns newest-first (what the full History page wants);
   // this card reads better in the order things actually happened.
@@ -46,7 +48,7 @@ export default function EmployeeTodayActivity({ employeeId, marketId }) {
         ) : error ? (
           <ErrorBanner message={error} onRetry={reload} />
         ) : ordered.length === 0 ? (
-          <p className="py-6 text-center text-[13px] text-[#8B93A8]">No activity today</p>
+          <p className="py-6 text-center text-[13px] text-[#8B93A8]">{t("sup.noActivityToday")}</p>
         ) : (
           <div className="space-y-1.5">
             {ordered.map((item, i) => {

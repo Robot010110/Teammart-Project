@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { ArrowLeft } from "lucide-react";
 import { useAsync } from "../hooks/useAsync";
 import ErrorBanner from "../components/common/ErrorBanner";
@@ -20,6 +21,7 @@ function todayLabel() {
 // viewer's own timezone. Nothing from another market, zone or day can
 // reach this list.
 export default function RmMarketActivityTodayPage({ marketId, onBack }) {
+  const { t } = useTranslation();
   const { data: overview } = useAsync(() => getMarketOverview(marketId), { deps: [marketId] });
   const { data: activities, error, loading, reload } = useAsync(
     () => listActivitiesForMarket({ marketId }),
@@ -40,13 +42,13 @@ export default function RmMarketActivityTodayPage({ marketId, onBack }) {
         <button
           type="button"
           onClick={onBack}
-          aria-label="Back to market"
+          aria-label={t("rm.backToMarket")}
           className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-white/10 bg-white/[0.06] text-white transition-all hover:bg-white/10 active:scale-95"
         >
-          <ArrowLeft size={16} />
+          <ArrowLeft size={16} className="rtl-flip" />
         </button>
         <div className="min-w-0">
-          <h1 className="truncate font-display text-[22px] font-bold leading-tight text-white">Market Activity Today</h1>
+          <h1 className="truncate font-display text-[22px] font-bold leading-tight text-white">{t("rm.marketActivityToday")}</h1>
           <p className="truncate text-[12px] text-[#8B93A8]">
             {overview?.name ? `${overview.name} · ` : ""}
             {todayLabel()}
@@ -56,7 +58,7 @@ export default function RmMarketActivityTodayPage({ marketId, onBack }) {
 
       <div className="mt-4 flex items-center justify-between px-1">
         <p className="text-[12px] text-[#8B93A8]">
-          {loading ? "Loading…" : `${todays.length} activit${todays.length === 1 ? "y" : "ies"} logged today`}
+          {loading ? t("common.loading") : t("rm.activitiesLoggedToday", { count: todays.length })}
         </p>
       </div>
 

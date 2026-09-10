@@ -15,7 +15,7 @@ export default function RoleCard({ role, onSelect, index = 0 }) {
     <button
       style={{ animationDelay: `${index * 90}ms` }}
       onClick={() => onSelect(role.key)}
-      className="animate-fade-up group relative text-left rounded-2xl p-6 bg-gradient-to-b from-[#1D2D5C]/60 to-[#171C2E]/80
+      className="animate-fade-up group relative text-start rounded-2xl p-6 bg-gradient-to-b from-[#1D2D5C]/60 to-[#171C2E]/80
                  border border-white/[0.06] backdrop-blur-xl shadow-[0_8px_30px_rgba(0,0,0,0.35)]
                  transition-all duration-300 ease-out hover:-translate-y-1.5 hover:border-[#F47A20]/40
                  hover:shadow-[0_20px_45px_rgba(244,122,32,0.15)] active:translate-y-0 active:scale-[0.99] cursor-pointer"

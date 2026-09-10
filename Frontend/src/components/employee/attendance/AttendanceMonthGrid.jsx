@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { ChevronLeft, ChevronRight, AlertTriangle, SlidersHorizontal, MinusCircle, Plus } from "lucide-react";
 import OffDaySheet from "./OffDaySheet";
 
@@ -26,16 +27,16 @@ import OffDaySheet from "./OffDaySheet";
 // PENDING_REVIEW share the sky "Needs review" bucket — there is no
 // "Half Day" anywhere in this data model, so none is shown.
 
-const WEEK_START_MON = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+const WEEK_START_MON = ["emp.mon", "emp.tue", "emp.wed", "emp.thu", "emp.fri", "emp.sat", "emp.sun"];
 
 const BUCKETS = {
-  PRESENT: { key: "present", label: "Present", dot: "#34D399", glow: "rgba(52,211,153,0.85)" },
-  LATE: { key: "late", label: "Late", dot: "#F9A03C", glow: "rgba(249,160,60,0.85)" },
-  ABSENT: { key: "absent", label: "Absent", dot: "#FF5C5C", glow: "rgba(255,92,92,0.85)" },
-  APPROVED_LEAVE: { key: "leave", label: "Personal Leave", dot: "#2DD4BF", glow: "rgba(45,212,191,0.85)" },
-  EARLY_LEAVE: { key: "review", label: "Needs review", dot: "#38BDF8", glow: "rgba(56,189,248,0.85)" },
-  INCOMPLETE: { key: "review", label: "Needs review", dot: "#38BDF8", glow: "rgba(56,189,248,0.85)" },
-  PENDING_REVIEW: { key: "review", label: "Needs review", dot: "#38BDF8", glow: "rgba(56,189,248,0.85)" },
+  PRESENT: { key: "present", label: "emp.present", dot: "#34D399", glow: "rgba(52,211,153,0.85)" },
+  LATE: { key: "late", label: "emp.late", dot: "#F9A03C", glow: "rgba(249,160,60,0.85)" },
+  ABSENT: { key: "absent", label: "emp.absent", dot: "#FF5C5C", glow: "rgba(255,92,92,0.85)" },
+  APPROVED_LEAVE: { key: "leave", label: "emp.personalLeave", dot: "#2DD4BF", glow: "rgba(45,212,191,0.85)" },
+  EARLY_LEAVE: { key: "review", label: "emp.needsReview", dot: "#38BDF8", glow: "rgba(56,189,248,0.85)" },
+  INCOMPLETE: { key: "review", label: "emp.needsReview", dot: "#38BDF8", glow: "rgba(56,189,248,0.85)" },
+  PENDING_REVIEW: { key: "review", label: "emp.needsReview", dot: "#38BDF8", glow: "rgba(56,189,248,0.85)" },
 };
 
 // DAY_OFF's real dayOffType decides its colour — Weekly/Monthly/
@@ -43,10 +44,10 @@ const BUCKETS = {
 // and OTHER (Earned Day Off) gets its own tone rather than being lumped
 // in with any of the three.
 const DAY_OFF_BUCKETS = {
-  WEEKLY: { key: "weekly", label: "Weekly Off", dot: "#F9A03C", glow: "rgba(249,160,60,0.85)" },
-  MONTHLY: { key: "monthly", label: "Monthly Off", dot: "#A78BFA", glow: "rgba(167,139,250,0.85)" },
-  EMERGENCY: { key: "emergency", label: "Emergency Off", dot: "#FF5C5C", glow: "rgba(255,92,92,0.85)" },
-  OTHER: { key: "earned", label: "Earned Day Off", dot: "#38BDF8", glow: "rgba(56,189,248,0.85)" },
+  WEEKLY: { key: "weekly", label: "emp.weeklyOff", dot: "#F9A03C", glow: "rgba(249,160,60,0.85)" },
+  MONTHLY: { key: "monthly", label: "emp.monthlyOff", dot: "#A78BFA", glow: "rgba(167,139,250,0.85)" },
+  EMERGENCY: { key: "emergency", label: "emp.emergencyOff", dot: "#FF5C5C", glow: "rgba(255,92,92,0.85)" },
+  OTHER: { key: "earned", label: "emp.earnedDayOff", dot: "#38BDF8", glow: "rgba(56,189,248,0.85)" },
 };
 
 function bucketFor(record) {
@@ -55,19 +56,19 @@ function bucketFor(record) {
 }
 
 const STATUS_LABEL = {
-  PRESENT: "Present",
-  LATE: "Late",
-  EARLY_LEAVE: "Early Leave",
-  ABSENT: "Absent",
-  DAY_OFF: "Day Off",
-  APPROVED_LEAVE: "Personal Leave",
-  INCOMPLETE: "Incomplete",
-  PENDING_REVIEW: "Pending Review",
+  PRESENT: "emp.present",
+  LATE: "emp.late",
+  EARLY_LEAVE: "emp.earlyLeave",
+  ABSENT: "emp.absent",
+  DAY_OFF: "emp.dayOff",
+  APPROVED_LEAVE: "emp.personalLeave",
+  INCOMPLETE: "emp.incomplete",
+  PENDING_REVIEW: "emp.pendingReview",
 };
 
 const MONTHS = [
-  "January", "February", "March", "April", "May", "June",
-  "July", "August", "September", "October", "November", "December",
+  "emp.january", "emp.february", "emp.march", "emp.april", "emp.may", "emp.june",
+  "emp.july", "emp.august", "emp.september", "emp.october", "emp.november", "emp.december",
 ];
 
 const timeLabel = (iso) =>
@@ -81,6 +82,7 @@ const timeLabel = (iso) =>
 // tap is unaffected either way — that's real data either account is
 // allowed to see.
 export default function AttendanceMonthGrid({ year, month, days, onChangeMonth, onOffDayCreated, readOnly = false }) {
+  const { t } = useTranslation();
   const [selectedDay, setSelectedDay] = useState(null);
   // The UTC-midnight Date of a tapped blank, valid date — opens
   // OffDaySheet when set. Distinct from selectedDay (which shows detail
@@ -147,29 +149,29 @@ export default function AttendanceMonthGrid({ year, month, days, onChangeMonth, 
         <button
           type="button"
           onClick={() => onChangeMonth(month === 1 ? year - 1 : year, month === 1 ? 12 : month - 1)}
-          aria-label="Previous month"
+          aria-label={t("emp.previousMonth")}
           className="w-9 h-9 grid place-items-center rounded-xl text-[#9AA1B4] hover:text-white hover:bg-white/[0.06] active:scale-95 transition-all"
         >
-          <ChevronLeft size={18} />
+          <ChevronLeft size={18} className="rtl-flip" />
         </button>
         <p className="font-display text-[15px] sm:text-[17px] font-bold text-white">
-          {MONTHS[month - 1]} {year}
+          {t(MONTHS[month - 1])} {year}
         </p>
         <button
           type="button"
           onClick={() => onChangeMonth(month === 12 ? year + 1 : year, month === 12 ? 1 : month + 1)}
-          aria-label="Next month"
+          aria-label={t("emp.nextMonth")}
           className="w-9 h-9 grid place-items-center rounded-xl text-[#9AA1B4] hover:text-white hover:bg-white/[0.06] active:scale-95 transition-all"
         >
-          <ChevronRight size={18} />
+          <ChevronRight size={18} className="rtl-flip" />
         </button>
       </div>
 
       <div className="grid grid-cols-7 gap-y-1">
         {WEEK_START_MON.map((w) => (
           <div key={w} className="text-center text-[10px] sm:text-[11px] font-medium text-[#5C6479] pb-1.5">
-            <span className="lg:hidden">{w[0]}</span>
-            <span className="hidden lg:inline">{w}</span>
+            <span className="lg:hidden">{t(w)[0]}</span>
+            <span className="hidden lg:inline">{t(w)}</span>
           </div>
         ))}
 
@@ -205,10 +207,10 @@ export default function AttendanceMonthGrid({ year, month, days, onChangeMonth, 
                   onClick={handleClick}
                   aria-label={
                     c.record
-                      ? `${MONTHS[month - 1]} ${c.day}: ${STATUS_LABEL[c.record.status] ?? c.record.status}`
+                      ? `${t(MONTHS[month - 1])} ${c.day}: ${STATUS_LABEL[c.record.status] ? t(STATUS_LABEL[c.record.status]) : c.record.status}`
                       : isPickable
-                        ? `${MONTHS[month - 1]} ${c.day}: add an off day`
-                        : `${MONTHS[month - 1]} ${c.day}: no record`
+                        ? `${t(MONTHS[month - 1])} ${c.day}: ${t("emp.addAnOffDay")}`
+                        : `${t(MONTHS[month - 1])} ${c.day}: ${t("emp.noRecord")}`
                   }
                   aria-pressed={isSelected}
                   className={`group relative mx-auto flex h-9 w-9 sm:h-10 sm:w-10 flex-col items-center justify-center rounded-xl transition-all duration-200 ${
@@ -238,7 +240,7 @@ export default function AttendanceMonthGrid({ year, month, days, onChangeMonth, 
                       on hover/focus so the grid doesn't look cluttered
                       with plus signs on every open day at rest. */}
                   {isPickable && (
-                    <span className="absolute -top-1 -right-1 opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 transition-opacity text-[#F47A20]">
+                    <span className="absolute -top-1 -end-1 opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 transition-opacity text-[#F47A20]">
                       <Plus size={9} strokeWidth={3} />
                     </span>
                   )}
@@ -257,7 +259,7 @@ export default function AttendanceMonthGrid({ year, month, days, onChangeMonth, 
                 className="h-2 w-2 rounded-full"
                 style={{ background: l.dot, boxShadow: `0 0 6px 1px ${l.glow}` }}
               />
-              {l.label}
+              {t(l.label)}
               <span className="text-white font-semibold tabular-nums">{l.count}</span>
             </span>
           ))}
@@ -266,7 +268,7 @@ export default function AttendanceMonthGrid({ year, month, days, onChangeMonth, 
 
       {/* Selected-day detail — real record fields only. */}
       {selectedDay != null && byDay.get(selectedDay) && (
-        <SelectedDay record={byDay.get(selectedDay)} monthLabel={MONTHS[month - 1]} day={selectedDay} />
+        <SelectedDay record={byDay.get(selectedDay)} monthLabel={t(MONTHS[month - 1])} day={selectedDay} />
       )}
 
       {pickerDate && (
@@ -300,6 +302,7 @@ export default function AttendanceMonthGrid({ year, month, days, onChangeMonth, 
 }
 
 function SelectedDay({ record, monthLabel, day }) {
+  const { t } = useTranslation();
   const isOff = record.status === "DAY_OFF" || record.status === "APPROVED_LEAVE";
   const bucket = bucketFor(record);
 
@@ -314,40 +317,40 @@ function SelectedDay({ record, monthLabel, day }) {
           style={{ color: bucket?.dot ?? "#9AA1B4", background: `${bucket?.dot ?? "#9AA1B4"}1A` }}
         >
           <span className="h-1.5 w-1.5 rounded-full" style={{ background: bucket?.dot ?? "#9AA1B4" }} />
-          {bucket?.label ?? STATUS_LABEL[record.status] ?? record.status}
+          {bucket?.label ? t(bucket.label) : STATUS_LABEL[record.status] ? t(STATUS_LABEL[record.status]) : record.status}
         </span>
       </div>
 
       {!isOff && (
         <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[11.5px] text-[#9AA1B4]">
-          <span>In {timeLabel(record.checkIn)}</span>
-          <span>Out {timeLabel(record.checkOut)}</span>
-          {record.workingHours != null && <span>{record.workingHours.toFixed(1)}h worked</span>}
-          <span>{record.requiredHours}h required</span>
-          {record.extraHours > 0 && <span className="text-emerald-400">+{record.extraHours.toFixed(1)}h extra</span>}
+          <span>{t("emp.checkedInAtTime", { time: timeLabel(record.checkIn) })}</span>
+          <span>{t("emp.checkedOutAtTime", { time: timeLabel(record.checkOut) })}</span>
+          {record.workingHours != null && <span>{t("emp.hoursWorkedSuffix", { hours: record.workingHours.toFixed(1) })}</span>}
+          <span>{t("emp.hoursRequiredSuffix", { hours: record.requiredHours })}</span>
+          {record.extraHours > 0 && <span className="text-emerald-400">+{t("emp.hoursExtraSuffix", { hours: record.extraHours.toFixed(1) })}</span>}
         </div>
       )}
 
       {record.status === "ABSENT" && (
         <p className="mt-2 flex items-center gap-1.5 text-[11.5px] text-[#FF5C5C]">
-          <AlertTriangle size={12} /> No check-in recorded
+          <AlertTriangle size={12} /> {t("emp.noCheckInRecorded")}
         </p>
       )}
       {(record.status === "INCOMPLETE" || record.status === "PENDING_REVIEW") && (
         <p className="mt-2 flex items-center gap-1.5 text-[11.5px] text-sky-400">
           <AlertTriangle size={12} />
-          {record.status === "INCOMPLETE" ? "Missing check-in or check-out" : "Awaiting supervisor review"}
+          {record.status === "INCOMPLETE" ? t("emp.missingCheckInOrCheckOut") : t("emp.awaitingSupervisorReview")}
         </p>
       )}
       {record.punishmentHours > 0 && (
         <p className="mt-2 flex items-center gap-1.5 text-[11.5px] text-[#FF5C5C]">
-          <MinusCircle size={12} /> Penalty −{record.punishmentHours.toFixed(1)}h
+          <MinusCircle size={12} /> {t("emp.penalty")} −{record.punishmentHours.toFixed(1)}h
           {record.punishmentReason ? ` · ${record.punishmentReason}` : ""}
         </p>
       )}
       {(record.adjustments ?? []).map((a) => (
         <p key={a.id} className="mt-2 flex items-center gap-1.5 text-[11.5px] text-[#F9A03C]">
-          <SlidersHorizontal size={12} /> Required {a.previousRequiredHours}h → {a.newRequiredHours}h · {a.reason}
+          <SlidersHorizontal size={12} /> {t("emp.requiredHoursAdjustedInline", { prev: a.previousRequiredHours, next: a.newRequiredHours })} · {a.reason}
         </p>
       ))}
     </div>

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { BadgeCheck, Store, Sun, Moon, Clock, Briefcase, CircleDot, Camera } from "lucide-react";
 import { initialsOf } from "../../utils/initials";
 import WhatsAppField from "./WhatsAppField";
@@ -18,17 +19,18 @@ import ChangePhotoModal from "./ChangePhotoModal";
 // left to live (and shouldn't — a placeholder that will never resolve
 // into anything useful in this exact spot).
 
-const CASHIER_SHIFT_LABEL = { MORNING: "Morning", EVENING: "Evening" };
+const CASHIER_SHIFT_LABEL = { MORNING: "emp.morning", EVENING: "emp.evening" };
 const CASHIER_SHIFT_ICON = { MORNING: Sun, EVENING: Moon };
-const EMPLOYMENT_STATUS_LABEL = { ACTIVE: "Active", INACTIVE: "Inactive", ON_LEAVE: "On Leave" };
+const EMPLOYMENT_STATUS_LABEL = { ACTIVE: "emp.active", INACTIVE: "emp.inactive", ON_LEAVE: "emp.onLeave" };
 
 function ShiftField({ profile }) {
+  const { t } = useTranslation();
   if (profile.role === "CASHIER") {
     if (!profile.cashierShift) return null;
     const Icon = CASHIER_SHIFT_ICON[profile.cashierShift];
     return (
       <span className="flex items-center gap-1.5">
-        <Icon size={13} /> {CASHIER_SHIFT_LABEL[profile.cashierShift]} Shift
+        <Icon size={13} /> {CASHIER_SHIFT_LABEL[profile.cashierShift] ? t(CASHIER_SHIFT_LABEL[profile.cashierShift]) : profile.cashierShift} {t("emp.shift")}
       </span>
     );
   }
@@ -41,6 +43,7 @@ function ShiftField({ profile }) {
 }
 
 export default function ProfileHeaderCard({ profile }) {
+  const { t } = useTranslation();
   const [whatsapp, setWhatsapp] = useState(profile.whatsappNumber);
   const [photo, setPhoto] = useState(profile.profilePictureUrl);
   const [changingPhoto, setChangingPhoto] = useState(false);
@@ -57,7 +60,7 @@ export default function ProfileHeaderCard({ profile }) {
         <button
           type="button"
           onClick={() => setChangingPhoto(true)}
-          aria-label="Change profile photo"
+          aria-label={t("emp.changeProfilePhoto")}
           className="group relative h-14 w-14 sm:h-16 sm:w-16 shrink-0 rounded-2xl bg-gradient-to-br from-[#F47A20] to-[#c95c10] grid place-items-center ring-4 ring-white/[0.06] overflow-hidden"
         >
           {photo ? (
@@ -84,7 +87,7 @@ export default function ProfileHeaderCard({ profile }) {
         <span className="flex items-center gap-1.5"><Store size={13} /> {profile.market?.name}</span>
         <span className="flex items-center gap-1.5">
           <CircleDot size={13} className={profile.employmentStatus === "ACTIVE" ? "text-emerald-400" : "text-[#9AA1B4]"} />
-          {EMPLOYMENT_STATUS_LABEL[profile.employmentStatus] || profile.employmentStatus}
+          {EMPLOYMENT_STATUS_LABEL[profile.employmentStatus] ? t(EMPLOYMENT_STATUS_LABEL[profile.employmentStatus]) : profile.employmentStatus}
         </span>
       </div>
 
@@ -92,9 +95,9 @@ export default function ProfileHeaderCard({ profile }) {
         {showDepartment && (
           <div className="rounded-xl p-3 bg-white/[0.03] border border-white/[0.06]">
             <p className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-[#8B93A8]">
-              <Briefcase size={11} /> Department
+              <Briefcase size={11} /> {t("emp.department")}
             </p>
-            <p className="mt-1 text-sm font-medium text-white truncate">{profile.department || "Not assigned"}</p>
+            <p className="mt-1 text-sm font-medium text-white truncate">{profile.department || t("emp.notAssigned")}</p>
           </div>
         )}
         <div className={showDepartment ? "" : "col-span-2"}>

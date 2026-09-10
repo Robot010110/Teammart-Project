@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { ChevronRight, Search, X } from "lucide-react";
 import ErrorBanner from "../common/ErrorBanner";
@@ -37,6 +38,7 @@ const LIST_POLL_MS = 12000;
 // ConversationRoute.jsx for the other half. Polling-based (12s) — no
 // WebSocket in this app.
 export default function ChatListScreen({ currentEmployeeId, basePath }) {
+  const { t } = useTranslation();
   const { data: conversations, setData: setConversations, error, loading, reload } = useAsync(listMyConversations, { deps: [] });
   const { data: coworkers } = useAsync(listCoworkers, { deps: [] });
   const [startingId, setStartingId] = useState(null);
@@ -99,21 +101,21 @@ export default function ChatListScreen({ currentEmployeeId, basePath }) {
   return (
     <div className="px-4 sm:px-6 py-6 max-w-4xl mx-auto animate-fade-up">
       <div className="mb-4">
-        <h1 className="text-xl font-bold text-white">Chat</h1>
-        <p className="text-sm text-[#8B93A8] mt-0.5">Your team's communication hub</p>
+        <h1 className="text-xl font-bold text-white">{t("emp.chat")}</h1>
+        <p className="text-sm text-[#8B93A8] mt-0.5">{t("emp.yourTeamsCommunicationHub")}</p>
       </div>
 
       <div className="relative mb-4">
-        <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#4C5266]" />
+        <Search size={15} className="absolute start-3.5 top-1/2 -translate-y-1/2 text-[#4C5266]" />
         <input
           type="text"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search conversations or messages..."
-          className="w-full rounded-xl bg-white/[0.04] border border-white/[0.06] pl-10 pr-9 py-2.5 text-sm text-white placeholder:text-[#4C5266] outline-none focus:border-[#F47A20]/50"
+          placeholder={t("emp.searchConversationsOrMessages")}
+          className="w-full rounded-xl bg-white/[0.04] border border-white/[0.06] ps-10 pe-9 py-2.5 text-sm text-white placeholder:text-[#4C5266] outline-none focus:border-[#F47A20]/50"
         />
         {query && (
-          <button type="button" onClick={() => setQuery("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-[#4C5266] hover:text-white">
+          <button type="button" onClick={() => setQuery("")} className="absolute end-3 top-1/2 -translate-y-1/2 text-[#4C5266] hover:text-white">
             <X size={14} />
           </button>
         )}
@@ -135,13 +137,13 @@ export default function ChatListScreen({ currentEmployeeId, basePath }) {
               />
             ))}
             {filteredConversations.length === 0 && (
-              <p className="text-center text-xs text-[#4C5266] py-6">No conversations found.</p>
+              <p className="text-center text-xs text-[#4C5266] py-6">{t("emp.noConversationsFound")}</p>
             )}
           </div>
 
           {q.length >= 2 && (
             <section className="mt-6">
-              <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-[#8B93A8]">Messages</h2>
+              <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-[#8B93A8]">{t("emp.messages")}</h2>
               {searching ? (
                 <SkeletonCard className="h-16" />
               ) : searchResults?.messages?.length ? (
@@ -151,7 +153,7 @@ export default function ChatListScreen({ currentEmployeeId, basePath }) {
                       key={m.id}
                       type="button"
                       onClick={() => navigate(`${basePath}/chat/${m.conversationId}`)}
-                      className="w-full text-left rounded-xl p-3 bg-[#1A1F33]/70 border border-white/[0.06] hover:border-[#F47A20]/25"
+                      className="w-full text-start rounded-xl p-3 bg-[#1A1F33]/70 border border-white/[0.06] hover:border-[#F47A20]/25"
                     >
                       <p className="text-xs font-medium text-[#F47A20]">{m.senderEmployee?.name || m.senderUser?.name}</p>
                       <p className="text-sm text-white truncate mt-0.5">{m.body}</p>
@@ -159,7 +161,7 @@ export default function ChatListScreen({ currentEmployeeId, basePath }) {
                   ))}
                 </div>
               ) : (
-                <p className="text-center text-xs text-[#4C5266] py-4">No messages found.</p>
+                <p className="text-center text-xs text-[#4C5266] py-4">{t("emp.noMessagesFound")}</p>
               )}
             </section>
           )}
@@ -179,14 +181,14 @@ export default function ChatListScreen({ currentEmployeeId, basePath }) {
           individualsExtra={
             coworkers?.filter((cw) => !directPartnerIds.has(cw.id)).length > 0 && (
               <section>
-                <h2 className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-[#8B93A8]">Start a new chat</h2>
+                <h2 className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-[#8B93A8]">{t("emp.startANewChat")}</h2>
                 <div className="relative mb-2.5">
-                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#4C5266]" />
+                  <Search size={14} className="absolute start-3 top-1/2 -translate-y-1/2 text-[#4C5266]" />
                   <input
                     value={coworkerSearch}
                     onChange={(e) => setCoworkerSearch(e.target.value)}
-                    placeholder="Search employees"
-                    className="w-full rounded-lg bg-white/[0.04] border border-white/[0.06] pl-9 pr-3 py-2.5 text-sm text-white placeholder:text-[#4C5266] outline-none focus:border-[#F47A20]/50"
+                    placeholder={t("emp.searchEmployees")}
+                    className="w-full rounded-lg bg-white/[0.04] border border-white/[0.06] ps-9 pe-3 py-2.5 text-sm text-white placeholder:text-[#4C5266] outline-none focus:border-[#F47A20]/50"
                   />
                 </div>
                 <div className="space-y-2">
@@ -204,11 +206,11 @@ export default function ChatListScreen({ currentEmployeeId, basePath }) {
                         <span className="w-9 h-9 rounded-full bg-white/[0.06] flex items-center justify-center text-xs font-semibold text-white shrink-0">
                           {cw.name.split(" ").map((p) => p[0]).slice(0, 2).join("")}
                         </span>
-                        <div className="min-w-0 flex-1 text-left">
+                        <div className="min-w-0 flex-1 text-start">
                           <p className="text-sm font-medium text-white truncate">{cw.name}</p>
                           <p className="text-xs text-[#8B93A8]">{cw.position || cw.role}</p>
                         </div>
-                        <ChevronRight size={16} className="text-[#4C5266] shrink-0" />
+                        <ChevronRight size={16} className="text-[#4C5266] shrink-0 rtl-flip" />
                       </button>
                     ))}
                 </div>

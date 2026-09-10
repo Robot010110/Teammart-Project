@@ -1,13 +1,14 @@
 import { ChevronRight } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { activityMeta, initialsOfName } from "../regionalManager/market/activityMeta";
 
-function timeAgo(iso) {
+function timeAgo(iso, t) {
   const minutes = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
-  if (minutes < 1) return "Just now";
-  if (minutes < 60) return `${minutes}m ago`;
+  if (minutes < 1) return t("sup.justNow");
+  if (minutes < 60) return t("common.minutesAgo", { count: minutes });
   const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  return `${Math.floor(hours / 24)}d ago`;
+  if (hours < 24) return t("common.hoursAgo", { count: hours });
+  return t("common.daysAgo", { count: Math.floor(hours / 24) });
 }
 
 // AdminRecentActivity.jsx — a short teaser of the company-wide feed
@@ -17,6 +18,7 @@ function timeAgo(iso) {
 // Capped here on purpose; the full history lives on the Activities page
 // behind "See All".
 export default function AdminRecentActivity({ activities, loading, onViewAll }) {
+  const { t } = useTranslation();
   const rows = (activities ?? []).slice(0, 5);
 
   return (
@@ -24,14 +26,14 @@ export default function AdminRecentActivity({ activities, loading, onViewAll }) 
       <div className="mb-2 flex items-center justify-between gap-3">
         <h2 className="flex items-center gap-2 text-[14px] font-semibold text-white">
           <span className="h-3.5 w-[3px] rounded-full bg-[#F47A20] shadow-[0_0_8px_rgba(244,122,32,0.8)]" />
-          Recent Activity
+          {t("sup.recentActivity")}
         </h2>
         <button
           type="button"
           onClick={onViewAll}
           className="flex shrink-0 items-center gap-0.5 text-[11.5px] font-medium text-[#F47A20] transition-colors hover:text-[#ff9a4d]"
         >
-          See All <ChevronRight size={13} />
+          {t("sup.seeAll")} <ChevronRight size={13} className="rtl-flip" />
         </button>
       </div>
 
@@ -40,13 +42,13 @@ export default function AdminRecentActivity({ activities, loading, onViewAll }) 
           {Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-11 animate-pulse rounded-lg bg-white/[0.05]" />)}
         </div>
       ) : rows.length === 0 ? (
-        <p className="py-8 text-center text-[12.5px] text-[#8B93A8]">No recent activity yet.</p>
+        <p className="py-8 text-center text-[12.5px] text-[#8B93A8]">{t("sup.noRecentActivityYet")}</p>
       ) : (
         <div>
           {rows.map((a, i) => {
             const meta = activityMeta(a);
             const Icon = meta.icon;
-            const who = a.employee?.name ?? a.submittedByStaff?.name ?? "Someone";
+            const who = a.employee?.name ?? a.submittedByStaff?.name ?? t("rm.someone");
             const market = a.employee?.market?.name ?? a.market?.name;
             return (
               <div key={a.id} className={`flex items-center gap-2.5 py-2.5 ${i > 0 ? "border-t border-white/[0.05]" : ""}`}>
@@ -58,11 +60,11 @@ export default function AdminRecentActivity({ activities, loading, onViewAll }) 
                 </span>
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-[12.5px] font-medium text-white">
-                    {who} <span className="font-normal text-[#9AA1B4]">— {meta.label.toLowerCase()}</span>
+                    {who} <span className="font-normal text-[#9AA1B4]">— {t(meta.label).toLowerCase()}</span>
                   </p>
                   {market && <p className="truncate text-[11px] text-[#5C6479]">{market}</p>}
                 </div>
-                <span className="shrink-0 text-[10.5px] text-[#5C6479]">{timeAgo(a.date)}</span>
+                <span className="shrink-0 text-[10.5px] text-[#5C6479]">{timeAgo(a.date, t)}</span>
               </div>
             );
           })}

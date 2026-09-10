@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import {
   DollarSign, Info, ChevronDown, ChevronRight, TrendingUp, TrendingDown, Crown,
@@ -32,20 +33,21 @@ const CATEGORY_STYLE = {
   FACING: { icon: LayoutGrid, tone: "text-emerald-400 bg-emerald-500/10" },
 };
 const CATEGORY_LABEL = {
-  REFILLING: "Refilled a section",
-  LABEL_CHECKING: "Checked a label",
-  EXPIRED_ITEMS: "Removed expired products",
-  DAILY_CLEANING: "Completed cleaning",
-  SHELF_CLEANING: "Completed shelf cleaning",
-  PRODUCT_CUSTOMIZATION: "Customized a product",
-  ITEM_COUNTING: "Counted items",
-  FACING: "Adjusted facing",
+  REFILLING: "rm.refilledASection",
+  LABEL_CHECKING: "rm.checkedALabel",
+  EXPIRED_ITEMS: "rm.removedExpiredProducts",
+  DAILY_CLEANING: "rm.completedCleaning",
+  SHELF_CLEANING: "rm.completedShelfCleaning",
+  PRODUCT_CUSTOMIZATION: "rm.customizedAProduct",
+  ITEM_COUNTING: "rm.countedItems",
+  FACING: "rm.adjustedFacing",
 };
 
 function ActivityRow({ activity }) {
+  const { t } = useTranslation();
   const style = CATEGORY_STYLE[activity.category] ?? { icon: ActivityIcon, tone: "text-[#9AA1B4] bg-white/[0.06]" };
   const Icon = style.icon;
-  const name = activity.employee?.name ?? activity.submittedByStaff?.name ?? "Someone";
+  const name = activity.employee?.name ?? activity.submittedByStaff?.name ?? t("rm.someone");
   const marketName = activity.employee?.market?.name ?? activity.market?.name;
 
   return (
@@ -56,7 +58,7 @@ function ActivityRow({ activity }) {
       <div className="min-w-0 flex-1">
         <p className="text-sm font-semibold text-white truncate">{name}</p>
         <p className="text-xs text-[#8B93A8] truncate">
-          {CATEGORY_LABEL[activity.category] ?? "Logged an activity"}
+          {CATEGORY_LABEL[activity.category] ? t(CATEGORY_LABEL[activity.category]) : t("rm.loggedAnActivity")}
           {marketName ? ` — ${marketName}` : ""}
         </p>
       </div>
@@ -81,6 +83,7 @@ function ActivityRow({ activity }) {
 // comments) — this page never guesses or receives a zone id from the
 // frontend.
 export default function RmMarketActivitiesPage() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [date] = useState(todayIso());
   const [currency, setCurrency] = useState("USD");
@@ -109,8 +112,8 @@ export default function RmMarketActivitiesPage() {
     <div className="px-4 sm:px-6 py-6 max-w-2xl mx-auto animate-fade-up pb-10">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h1 className="text-xl font-bold text-white">Market Activities</h1>
-          <p className="text-sm text-[#8B93A8] mt-0.5">Track performance across your zone</p>
+          <h1 className="text-xl font-bold text-white">{t("rm.marketActivities")}</h1>
+          <p className="text-sm text-[#8B93A8] mt-0.5">{t("rm.trackPerformanceAcrossYourZone")}</p>
         </div>
         <div className="shrink-0 flex items-center gap-1.5 rounded-xl px-3 py-2 bg-[#171C2E]/80 border border-white/[0.06] text-xs font-medium text-white">
           Today, {dateLabel(date)}
@@ -121,7 +124,7 @@ export default function RmMarketActivitiesPage() {
       <section className="mt-5 rounded-3xl p-5 bg-gradient-to-b from-[#241B4B] to-[#171C2E] border border-white/[0.08] relative overflow-hidden">
         <div className="flex items-center justify-between">
           <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-[#A9A6D9]">
-            Total Sales of the Day <Info size={12} className="opacity-60" />
+            {t("rm.totalSalesOfTheDay")} <Info size={12} className="opacity-60" />
           </p>
           <div className="relative">
             <button
@@ -133,18 +136,18 @@ export default function RmMarketActivitiesPage() {
             </button>
             {currencyOpen && (
               <>
-                <button type="button" aria-label="Close" className="fixed inset-0 z-10 cursor-default" onClick={() => setCurrencyOpen(false)} />
-                <div className="absolute right-0 top-full mt-1.5 z-20 rounded-xl overflow-hidden bg-[#1F2436] border border-white/[0.08] shadow-xl min-w-[130px]">
+                <button type="button" aria-label={t("common.close")} className="fixed inset-0 z-10 cursor-default" onClick={() => setCurrencyOpen(false)} />
+                <div className="absolute end-0 top-full mt-1.5 z-20 rounded-xl overflow-hidden bg-[#1F2436] border border-white/[0.08] shadow-xl min-w-[130px]">
                   {CURRENCIES.map((c) => (
                     <button
                       key={c.code}
                       type="button"
                       onClick={() => { setCurrency(c.code); setCurrencyOpen(false); }}
-                      className={`w-full text-left px-3 py-2.5 text-xs font-medium transition-colors ${
+                      className={`w-full text-start px-3 py-2.5 text-xs font-medium transition-colors ${
                         c.code === currency ? "text-[#F47A20] bg-white/[0.05]" : "text-[#D5D8E4] hover:bg-white/[0.05]"
                       }`}
                     >
-                      {c.code} — {c.label}
+                      {c.code} — {t(c.label)}
                     </button>
                   ))}
                 </div>
@@ -177,7 +180,7 @@ export default function RmMarketActivitiesPage() {
             {sales.topMarkets.length > 0 && (
               <div className="mt-2 rounded-2xl p-3.5 bg-black/20 border border-white/[0.06]">
                 <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-[#A9A6D9] mb-2.5">
-                  <Crown size={12} /> Top 3 Markets
+                  <Crown size={12} /> {t("rm.top3Markets")}
                 </p>
                 <div className="flex items-stretch gap-2">
                   {sales.topMarkets.map((m, i) => (
@@ -210,7 +213,7 @@ export default function RmMarketActivitiesPage() {
               onClick={() => navigate("markets")}
               className="mt-3 w-full flex items-center justify-center gap-1.5 rounded-xl py-3 text-sm font-semibold text-white bg-white/[0.08] hover:bg-white/[0.14] transition-colors"
             >
-              View All Markets <ChevronRight size={15} />
+              {t("rm.viewAllMarkets")} <ChevronRight size={15} className="rtl-flip" />
             </button>
           </>
         )}
@@ -224,7 +227,7 @@ export default function RmMarketActivitiesPage() {
           </span>
           <div className="min-w-0 flex-1">
             <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-emerald-300/80">
-              Card Sales of the Day <Info size={12} className="opacity-60" />
+              {t("rm.cardSalesOfTheDay")} <Info size={12} className="opacity-60" />
             </p>
             {cardSalesLoading ? (
               <div className="mt-2 h-14 rounded-lg bg-white/[0.03] animate-pulse" />
@@ -234,15 +237,15 @@ export default function RmMarketActivitiesPage() {
               <div className="mt-1.5 flex items-center gap-5">
                 <div>
                   <p className="text-2xl font-display font-extrabold text-emerald-400 leading-none">{cardSales.summary.completed}</p>
-                  <p className="text-[11px] text-[#8B93A8] mt-1">Completed</p>
+                  <p className="text-[11px] text-[#8B93A8] mt-1">{t("status.completed")}</p>
                 </div>
                 <div>
                   <p className="text-2xl font-display font-extrabold text-amber-400 leading-none">{cardSales.summary.pending}</p>
-                  <p className="text-[11px] text-[#8B93A8] mt-1">Pending</p>
+                  <p className="text-[11px] text-[#8B93A8] mt-1">{t("status.pending")}</p>
                 </div>
                 <div>
                   <p className="text-2xl font-display font-extrabold text-red-400 leading-none">{cardSales.summary.notCompleted}</p>
-                  <p className="text-[11px] text-[#8B93A8] mt-1">Not Completed</p>
+                  <p className="text-[11px] text-[#8B93A8] mt-1">{t("rm.notCompleted")}</p>
                 </div>
               </div>
             )}
@@ -263,19 +266,19 @@ export default function RmMarketActivitiesPage() {
               onClick={() => navigate("card-sales")}
               className="mt-3.5 w-full flex items-center justify-center gap-1.5 rounded-xl py-3 text-sm font-semibold text-white bg-emerald-600/90 hover:bg-emerald-500 transition-colors"
             >
-              <FileText size={15} /> View All Card Sales Records <ChevronRight size={15} />
+              <FileText size={15} /> {t("rm.viewAllCardSalesRecords")} <ChevronRight size={15} className="rtl-flip" />
             </button>
           </>
         )}
       </section>
 
-      {/* Reminder cadence — informational only; sending is always a manual "Send Reminder" tap on the Card Sales detail screen, not an auto-fired job (see cardSalesController.sendCardSalesReminder's own comment). */}
+      {/* Reminder cadence — informational only; sending is always a manual t("rm.sendReminder") tap on the Card Sales detail screen, not an auto-fired job (see cardSalesController.sendCardSalesReminder's own comment). */}
       <div className="mt-3 flex items-center gap-3 rounded-2xl px-4 py-3 bg-[#171C2E]/60 border border-white/[0.05]">
         <span className="grid place-items-center h-9 w-9 rounded-xl bg-violet-500/10 text-violet-400 shrink-0">
           <ClipboardList size={16} />
         </span>
         <div className="min-w-0 text-xs text-[#8B93A8]">
-          <span className="text-white font-medium">Check-in times:</span> 8:00 AM · 3:30 PM · 11:30 PM
+          <span className="text-white font-medium">{t("rm.checkInTimes")}</span> {t("rm.n800Am330Pm")}
         </div>
       </div>
 
@@ -283,11 +286,11 @@ export default function RmMarketActivitiesPage() {
       <section className="mt-6">
         <div className="flex items-center justify-between mb-1">
           <h2 className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-[#8B93A8]">
-            <ActivityIcon size={13} /> Today's Zone Activity
+            <ActivityIcon size={13} /> {t("rm.todaySZoneActivity")}
           </h2>
           {activities && activities.length > 4 && !showAllActivity && (
             <button type="button" onClick={() => setShowAllActivity(true)} className="text-xs font-medium text-[#F47A20] hover:text-[#ff8b36]">
-              View All
+              {t("common.viewAll")}
             </button>
           )}
         </div>
@@ -298,7 +301,7 @@ export default function RmMarketActivitiesPage() {
           <ErrorBanner message={activitiesError} onRetry={reloadActivities} />
         ) : (activities ?? []).length === 0 ? (
           <div className="rounded-2xl p-6 bg-[#171C2E]/80 border border-white/[0.06] text-center">
-            <p className="text-sm text-[#8B93A8]">No activity logged in your zone yet.</p>
+            <p className="text-sm text-[#8B93A8]">{t("rm.noActivityLoggedInYourZone")}</p>
           </div>
         ) : (
           <div className="rounded-2xl px-4 bg-[#171C2E]/80 border border-white/[0.06] divide-y divide-white/[0.05]">

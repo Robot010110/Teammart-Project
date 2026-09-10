@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import ErrorBanner from "../components/common/ErrorBanner";
 import { SkeletonCard } from "../components/common/SkeletonCard";
 import ConversationScreen from "../components/employee/ConversationScreen";
@@ -15,6 +16,7 @@ import { ApiError } from "../services/apiClient";
 // this creates the conversation (still locked until the RM's first
 // message — see chatService's own comment) and sends through it.
 export default function RmEmployeeChat({ employeeId, currentStaffUserId, onBack }) {
+  const { t } = useTranslation();
   const [conversation, setConversation] = useState(null);
   const [error, setError] = useState(null);
 
@@ -24,7 +26,7 @@ export default function RmEmployeeChat({ employeeId, currentStaffUserId, onBack 
     setError(null);
     getOrCreateEmployeeConversationForRegionalManager(employeeId)
       .then((conv) => { if (!cancelled) setConversation(conv); })
-      .catch((err) => { if (!cancelled) setError(err instanceof ApiError ? err.message : "Could not open this conversation."); });
+      .catch((err) => { if (!cancelled) setError(err instanceof ApiError ? err.message : t("sup.couldNotOpenThisConversation")); });
     return () => { cancelled = true; };
   }, [employeeId]);
 

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Sparkles, ScanLine, ShieldCheck, Monitor, Trash2, Receipt, CheckCircle2, Loader2 } from "lucide-react";
 import ErrorBanner from "../common/ErrorBanner";
 import { SkeletonCard } from "../common/SkeletonCard";
@@ -11,12 +12,12 @@ import { useAsync } from "../../hooks/useAsync";
 // label strings CLEANING_CHECKLIST_ITEMS/the backend already use, so
 // there's nothing to keep in sync beyond that shared list.
 const ITEM_ICON = {
-  "Wipe down the counter": Sparkles,
-  "Clean the barcode scanner": ScanLine,
-  "Sanitize the card reader / PIN pad": ShieldCheck,
-  "Clean the touchscreen / monitor": Monitor,
-  "Empty the trash bin": Trash2,
-  "Restock receipt paper": Receipt,
+  "emp.wipeDownTheCounter": Sparkles,
+  "emp.cleanTheBarcodeScanner": ScanLine,
+  "emp.sanitizeTheCardReaderPinPad": ShieldCheck,
+  "emp.cleanTheTouchscreenMonitor": Monitor,
+  "emp.emptyTheTrashBin": Trash2,
+  "emp.restockReceiptPaper": Receipt,
 };
 
 // CashierCleaningSection.jsx — the cashier station-cleaning checklist.
@@ -34,8 +35,9 @@ const timeLabel = (isoString) =>
   new Date(isoString).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
 
 export default function CashierCleaningSection() {
+  const { t } = useTranslation();
   const { data: log, setData: setLog, error, loading, reload } = useAsync(getTodayCleaningLog, {
-    fallbackError: "Could not load today's cleaning checklist.",
+    fallbackError: t("emp.couldNotLoadTodaysCleaningChecklist"),
   });
   const [checked, setChecked] = useState(() =>
     Object.fromEntries(CLEANING_CHECKLIST_ITEMS.map((label) => [label, false]))
@@ -62,7 +64,7 @@ export default function CashierCleaningSection() {
       const updated = await submitCleaningLog(items);
       setLog(updated);
     } catch (err) {
-      setSubmitError(err instanceof ApiError ? err.message : "Could not save the checklist. Please try again.");
+      setSubmitError(err instanceof ApiError ? err.message : t("emp.couldNotSaveTheChecklistPlease"));
     } finally {
       setSubmitting(false);
     }
@@ -77,13 +79,13 @@ export default function CashierCleaningSection() {
     return (
       <section className="rounded-2xl p-4 sm:p-5 bg-[#171C2E]/80 border border-white/[0.06] backdrop-blur-xl">
         <div className="flex items-center justify-between gap-3 mb-1">
-          <p className="text-sm font-semibold text-white">Cleaning Checklist</p>
+          <p className="text-sm font-semibold text-white">{t("emp.cleaningChecklist")}</p>
           <p className="text-sm font-semibold text-emerald-400">{CLEANING_CHECKLIST_ITEMS.length}/{CLEANING_CHECKLIST_ITEMS.length} completed</p>
         </div>
         <div className="flex flex-col items-center gap-2 py-6 text-center">
           <CheckCircle2 size={24} className="text-emerald-400" />
-          <p className="text-sm text-white font-medium">Station cleaning completed</p>
-          <p className="text-xs text-[#9AA1B4]">Completed today at {timeLabel(log.completedAt)}</p>
+          <p className="text-sm text-white font-medium">{t("emp.stationCleaningCompleted")}</p>
+          <p className="text-xs text-[#9AA1B4]">{t("emp.completedTodayAtTime", { time: timeLabel(log.completedAt) })}</p>
         </div>
       </section>
     );
@@ -92,7 +94,7 @@ export default function CashierCleaningSection() {
   return (
     <section className="rounded-2xl p-4 sm:p-5 bg-[#171C2E]/80 border border-white/[0.06] backdrop-blur-xl">
       <div className="flex items-center justify-between gap-3 mb-4">
-        <p className="text-sm font-semibold text-white">Cleaning Checklist</p>
+        <p className="text-sm font-semibold text-white">{t("emp.cleaningChecklist")}</p>
         <p className={`text-sm font-semibold ${allChecked ? "text-emerald-400" : "text-[#F47A20]"}`}>
           {checkedCount}/{CLEANING_CHECKLIST_ITEMS.length} completed
         </p>
@@ -130,7 +132,7 @@ export default function CashierCleaningSection() {
         className="mt-4 w-full flex items-center justify-center gap-2 rounded-xl py-3 text-sm font-semibold text-white bg-[#F47A20] hover:bg-[#ff8b36] active:bg-[#e06f18] disabled:bg-white/10 disabled:text-[#4C5266] transition-colors duration-200"
       >
         {submitting ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
-        {submitting ? "Saving..." : allChecked ? "Mark Complete" : "Check all items to complete"}
+        {submitting ? t("emp.saving") : allChecked ? t("emp.markComplete") : t("emp.checkAllItemsToComplete")}
       </button>
     </section>
   );

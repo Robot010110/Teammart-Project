@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { Search, ChevronRight, Store, Users2, X, SlidersHorizontal, RotateCw, ShieldCheck, Clock3 } from "lucide-react";
 import { useAsync } from "../hooks/useAsync";
@@ -14,14 +15,14 @@ import { initialsOf } from "../utils/initials";
 // structure — so it is deliberately not offered as a filter here. Nothing
 // is hidden by doing so: with no BUTCHER employees, "All" is still
 // genuinely everyone.
-const ROLE_LABEL = { WORKER: "Worker", CASHIER: "Cashier" };
+const ROLE_LABEL = { WORKER: "roles.worker", CASHIER: "roles.cashier" };
 const SHIFT_OPTIONS = ["MORNING", "EVENING", "NIGHT"];
 
 const TABS = [
-  { key: "ALL", label: "All" },
-  { key: "SUPERVISORS", label: "Supervisors" },
-  { key: "CASHIER", label: "Cashiers" },
-  { key: "WORKER", label: "Workers" },
+  { key: "ALL", label: "common.all" },
+  { key: "SUPERVISORS", label: "rm.supervisors" },
+  { key: "CASHIER", label: "rm.cashiers" },
+  { key: "WORKER", label: "rm.workers" },
 ];
 
 function useDebounced(value, delayMs) {
@@ -66,7 +67,7 @@ function PersonRow({ avatarUrl, name, roleLabel, marketName, shift, code, tone, 
       type="button"
       onClick={onOpen}
       style={{ animationDelay: `${Math.min(index, 8) * 40}ms` }}
-      className="animate-fade-up group flex w-full items-center gap-3 rounded-[18px] border border-white/[0.07] bg-[#111A2D]/80 p-3 text-left backdrop-blur-xl
+      className="animate-fade-up group flex w-full items-center gap-3 rounded-[18px] border border-white/[0.07] bg-[#111A2D]/80 p-3 text-start backdrop-blur-xl
                  transition-all duration-200 hover:border-[#F47A20]/30 hover:bg-[#131E33]/90 active:scale-[0.985]"
     >
       <Avatar src={avatarUrl} name={name} ring={accentRing} />
@@ -96,7 +97,7 @@ function PersonRow({ avatarUrl, name, roleLabel, marketName, shift, code, tone, 
         </p>
       </div>
 
-      <ChevronRight size={16} className="shrink-0 text-[#4C5266] transition-all duration-200 group-hover:translate-x-0.5 group-hover:text-[#F47A20]" />
+      <ChevronRight size={16} className="shrink-0 text-[#4C5266] transition-all duration-200 group-hover:translate-x-0.5 group-hover:text-[#F47A20] rtl-flip" />
     </button>
   );
 }
@@ -119,6 +120,7 @@ function PersonSkeleton() {
 // Both are scoped server-side; nothing here filters for permission, only
 // for what the user asked to look at.
 export default function RmEmployeesPage() {
+  const { t } = useTranslation();
   const [tab, setTab] = useState("ALL");
   const [marketId, setMarketId] = useState("");
   const [shift, setShift] = useState("");
@@ -184,31 +186,31 @@ export default function RmEmployeesPage() {
   return (
     <div className="mx-auto max-w-lg animate-fade-up px-4 pb-4 pt-5 sm:max-w-3xl sm:px-6">
       <header>
-        <h1 className="font-display text-[26px] font-bold leading-tight text-white">Employees</h1>
+        <h1 className="font-display text-[26px] font-bold leading-tight text-white">{t("sup.employees")}</h1>
         <p className="mt-0.5 text-[12.5px] text-[#8B93A8]">
           {anyLoading
-            ? "Loading your people…"
-            : `${totalShown} ${tab === "SUPERVISORS" ? (totalShown === 1 ? "supervisor" : "supervisors") : totalShown === 1 ? "person" : "people"} across your markets`}
+            ? t("rm.loadingYourPeople")
+            : (tab === "SUPERVISORS" ? t("rm.supervisorsAcrossMarkets", { count: totalShown }) : t("rm.peopleAcrossMarkets", { count: totalShown }))}
         </p>
       </header>
 
       <div className="mt-4 flex items-center gap-2">
         <div className="relative min-w-0 flex-1">
-          <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#5C6479]" />
+          <Search size={15} className="absolute start-3.5 top-1/2 -translate-y-1/2 text-[#5C6479]" />
           <input
             type="text"
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
-            placeholder="Search by name or employee code…"
-            aria-label="Search people"
-            className="w-full rounded-xl border border-white/[0.07] bg-[#111A2D]/80 py-2.5 pl-10 pr-9 text-[13.5px] text-white outline-none backdrop-blur-xl transition-colors placeholder:text-[#4C5266] focus:border-[#F47A20]/50"
+            placeholder={t("rm.searchByNameOrEmployeeCode")}
+            aria-label={t("rm.searchPeople")}
+            className="w-full rounded-xl border border-white/[0.07] bg-[#111A2D]/80 py-2.5 ps-10 pe-9 text-[13.5px] text-white outline-none backdrop-blur-xl transition-colors placeholder:text-[#4C5266] focus:border-[#F47A20]/50"
           />
           {searchInput && (
             <button
               type="button"
               onClick={() => setSearchInput("")}
-              aria-label="Clear search"
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-full p-1 text-[#5C6479] transition-colors hover:text-white"
+              aria-label={t("rm.clearSearch")}
+              className="absolute end-2.5 top-1/2 -translate-y-1/2 rounded-full p-1 text-[#5C6479] transition-colors hover:text-white"
             >
               <X size={13} />
             </button>
@@ -218,7 +220,7 @@ export default function RmEmployeesPage() {
           type="button"
           onClick={() => setShowFilters((v) => !v)}
           aria-expanded={showFilters}
-          aria-label="Filters"
+          aria-label={t("rm.filters")}
           className={`relative grid h-[42px] w-[42px] shrink-0 place-items-center rounded-xl border backdrop-blur-xl transition-all duration-200 ${
             showFilters || activeFilterCount > 0
               ? "border-[#F47A20]/45 bg-[#F47A20]/[0.12] text-[#F47A20]"
@@ -227,7 +229,7 @@ export default function RmEmployeesPage() {
         >
           <SlidersHorizontal size={16} />
           {activeFilterCount > 0 && (
-            <span className="absolute -right-1 -top-1 grid h-[17px] min-w-[17px] place-items-center rounded-full bg-[#F47A20] px-1 text-[10px] font-bold text-white">
+            <span className="absolute -end-1 -top-1 grid h-[17px] min-w-[17px] place-items-center rounded-full bg-[#F47A20] px-1 text-[10px] font-bold text-white">
               {activeFilterCount}
             </span>
           )}
@@ -236,13 +238,13 @@ export default function RmEmployeesPage() {
 
       <div className="-mx-4 mt-3 overflow-x-auto px-4 pb-1 sm:mx-0 sm:px-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         <div className="flex w-max gap-2">
-          {TABS.map((t) => {
-            const isActive = tab === t.key;
+          {TABS.map((tab_) => {
+            const isActive = tab === tab_.key;
             return (
               <button
-                key={t.key}
+                key={tab_.key}
                 type="button"
-                onClick={() => setTab(t.key)}
+                onClick={() => setTab(tab_.key)}
                 aria-pressed={isActive}
                 className={`shrink-0 rounded-full border px-3.5 py-1.5 text-[12.5px] font-medium transition-all duration-200 ${
                   isActive
@@ -250,7 +252,7 @@ export default function RmEmployeesPage() {
                     : "border-white/[0.07] bg-[#111A2D]/70 text-[#8B93A8] hover:border-white/[0.16] hover:text-white"
                 }`}
               >
-                {t.label}
+                {t(tab_.label)}
               </button>
             );
           })}
@@ -261,27 +263,27 @@ export default function RmEmployeesPage() {
         <div className="mt-3 animate-fade-up rounded-2xl border border-white/[0.07] bg-[#111A2D]/80 p-3 backdrop-blur-xl">
           <div className="grid grid-cols-2 gap-2.5">
             <label className="block">
-              <span className="mb-1 block text-[10.5px] font-semibold uppercase tracking-wide text-[#8B93A8]">Market</span>
+              <span className="mb-1 block text-[10.5px] font-semibold uppercase tracking-wide text-[#8B93A8]">{t("sup.market")}</span>
               <select
                 value={marketId}
                 onChange={(e) => setMarketId(e.target.value)}
                 className="w-full rounded-lg border border-white/[0.08] bg-white/[0.04] px-2.5 py-2 text-[12.5px] text-white outline-none focus:border-[#F47A20]/50"
               >
-                <option value="" className="bg-[#1F2436]">All markets</option>
+                <option value="" className="bg-[#1F2436]">{t("rm.allMarkets2")}</option>
                 {(markets ?? []).map((m) => (
                   <option key={m.id} value={m.id} className="bg-[#1F2436]">{m.name}</option>
                 ))}
               </select>
             </label>
             <label className="block">
-              <span className="mb-1 block text-[10.5px] font-semibold uppercase tracking-wide text-[#8B93A8]">Shift</span>
+              <span className="mb-1 block text-[10.5px] font-semibold uppercase tracking-wide text-[#8B93A8]">{t("emp.shift")}</span>
               <select
                 value={shift}
                 onChange={(e) => setShift(e.target.value)}
                 disabled={tab === "SUPERVISORS"}
                 className="w-full rounded-lg border border-white/[0.08] bg-white/[0.04] px-2.5 py-2 text-[12.5px] text-white outline-none focus:border-[#F47A20]/50 disabled:opacity-50"
               >
-                <option value="" className="bg-[#1F2436]">All shifts</option>
+                <option value="" className="bg-[#1F2436]">{t("rm.allShifts")}</option>
                 {SHIFT_OPTIONS.map((s) => (
                   <option key={s} value={s} className="bg-[#1F2436]">{s.charAt(0) + s.slice(1).toLowerCase()}</option>
                 ))}
@@ -294,7 +296,7 @@ export default function RmEmployeesPage() {
               onClick={clearFilters}
               className="mt-2.5 flex items-center gap-1.5 text-[12px] font-medium text-[#F47A20] transition-colors hover:text-[#ff9a4d]"
             >
-              <RotateCw size={12} /> Reset filters
+              <RotateCw size={12} /> {t("rm.resetFilters")}
             </button>
           )}
         </div>
@@ -316,8 +318,8 @@ export default function RmEmployeesPage() {
             <span className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-[#F47A20]/10 text-[#F47A20]">
               <Users2 size={20} />
             </span>
-            <p className="mt-3 text-[14px] font-semibold text-white">No one matches</p>
-            <p className="mt-1 text-[12.5px] text-[#8B93A8]">Try a different search, role or filter.</p>
+            <p className="mt-3 text-[14px] font-semibold text-white">{t("rm.noOneMatches")}</p>
+            <p className="mt-1 text-[12.5px] text-[#8B93A8]">{t("rm.tryADifferentSearchRoleOr")}</p>
           </div>
         ) : (
           <>
@@ -329,12 +331,12 @@ export default function RmEmployeesPage() {
                 index={i}
                 avatarUrl={s.profilePictureUrl}
                 name={s.name}
-                roleLabel={s.kind === "OVERLOOKING" ? "Overlooking Supervisor" : "Supervisor"}
+                roleLabel={s.kind === "OVERLOOKING" ? t("emp.overlookingSupervisor") : t("roles.supervisor")}
                 marketName={s.market?.name}
                 code={s.loginId}
                 accentRing="ring-[#F47A20]/40"
                 tone={s.onBreak ? LIVE.ON_BREAK : s.onShift ? LIVE.ACTIVE : LIVE.OFF}
-                statusLabel={s.onBreak ? "On Break" : s.onShift ? "Active" : "Off Shift"}
+                statusLabel={s.onBreak ? t("emp.onBreak") : s.onShift ? t("status.active") : t("rm.offShift")}
                 onOpen={() => navigate(`/rm/employees/supervisors/${s.id}`)}
               />
             ))}
@@ -345,7 +347,7 @@ export default function RmEmployeesPage() {
                 index={visibleSupervisors.length + i}
                 avatarUrl={e.profilePictureUrl}
                 name={e.name}
-                roleLabel={ROLE_LABEL[e.role] ?? e.position}
+                roleLabel={ROLE_LABEL[e.role] ? t(ROLE_LABEL[e.role]) : e.position}
                 marketName={marketNameById.get(e.marketId)}
                 shift={e.cashierShift ?? e.shift ?? null}
                 code={e.employeeCode}
@@ -358,7 +360,7 @@ export default function RmEmployeesPage() {
 
       {!anyLoading && tab === "SUPERVISORS" && visibleSupervisors.length > 0 && (
         <p className="mt-3 flex items-center justify-center gap-1.5 text-[11px] text-[#5C6479]">
-          <ShieldCheck size={11} /> Supervisors are shown for the markets you manage
+          <ShieldCheck size={11} /> {t("rm.supervisorsAreShownForTheMarkets")}
         </p>
       )}
     </div>

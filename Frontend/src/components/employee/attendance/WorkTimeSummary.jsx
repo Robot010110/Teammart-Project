@@ -1,4 +1,5 @@
 import { Clock, Coffee, Zap } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 // WorkTimeSummary.jsx — Total / Break / Net work time for today.
 //
@@ -32,6 +33,7 @@ const TONES = {
 };
 
 export default function WorkTimeSummary({ record, now }) {
+  const { t } = useTranslation();
   const checkIn = record?.checkIn ? new Date(record.checkIn).getTime() : null;
   const checkOut = record?.checkOut ? new Date(record.checkOut).getTime() : null;
   const bStart = record?.breakStart ? new Date(record.breakStart).getTime() : null;
@@ -43,16 +45,16 @@ export default function WorkTimeSummary({ record, now }) {
   const breakRunning = bStart != null && bEnd == null;
 
   const items = [
-    { key: "total", icon: Clock, label: "Total Work Time", value: hm(totalMs), tone: "blue" },
+    { key: "total", icon: Clock, label: t("emp.totalWorkTime"), value: hm(totalMs), tone: "blue" },
     {
       key: "break",
       icon: Coffee,
-      label: "Break Time",
+      label: t("emp.breakTime"),
       value: breakRunning ? hm(now - bStart) : hm(breakMs),
       tone: "violet",
       note: breakRunning ? "running" : null,
     },
-    { key: "net", icon: Zap, label: "Net Work Time", value: hm(netMs), tone: "emerald" },
+    { key: "net", icon: Zap, label: t("emp.netWorkTime"), value: hm(netMs), tone: "emerald" },
   ];
 
   return (
@@ -71,7 +73,7 @@ export default function WorkTimeSummary({ record, now }) {
             <div className="min-w-0">
               <p className="font-display text-[14px] lg:text-[17px] font-bold text-white leading-none tabular-nums">
                 {value}
-                {note && <span className={`ml-1.5 text-[10px] font-medium ${t.text}`}>{note}</span>}
+                {note && <span className={`ms-1.5 text-[10px] font-medium ${t.text}`}>{note}</span>}
               </p>
               <p className="mt-1 text-[10px] lg:text-[11px] leading-tight text-[#8B93A8]">{label}</p>
             </div>

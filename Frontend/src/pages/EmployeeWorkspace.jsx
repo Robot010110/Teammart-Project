@@ -1,4 +1,5 @@
 import { Routes, Route, Navigate, useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { Home, ClipboardList, LayoutGrid, MessageCircle, UserCircle2 } from "lucide-react";
 import AppShell from "../components/employee/AppShell";
 import HomeTab from "../components/employee/HomeTab";
@@ -23,15 +24,16 @@ const BASE_PATH = "/me";
 // instead of leaving the app, and a direct link/refresh to e.g.
 // /me/tasks/abc123 resolves correctly instead of losing state.
 export default function EmployeeWorkspace({ employeeId, onLogout }) {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { notifUnread, chatUnread } = useUnreadBadges();
 
   const tabs = [
-    { key: "home", label: "Home", icon: Home, badge: notifUnread > 0 ? notifUnread : undefined },
-    { key: "tasks", label: "Tasks", icon: ClipboardList },
-    { key: "activity", label: "Activity", icon: LayoutGrid },
-    { key: "chat", label: "Chat", icon: MessageCircle, badge: chatUnread > 0 ? chatUnread : undefined },
-    { key: "profile", label: "Profile", icon: UserCircle2 },
+    { key: "home", label: t("emp.navHome"), icon: Home, badge: notifUnread > 0 ? notifUnread : undefined },
+    { key: "tasks", label: t("emp.navTasks"), icon: ClipboardList },
+    { key: "activity", label: t("emp.activity"), icon: LayoutGrid },
+    { key: "chat", label: t("emp.chat"), icon: MessageCircle, badge: chatUnread > 0 ? chatUnread : undefined },
+    { key: "profile", label: t("emp.navProfile"), icon: UserCircle2 },
   ];
 
   return (

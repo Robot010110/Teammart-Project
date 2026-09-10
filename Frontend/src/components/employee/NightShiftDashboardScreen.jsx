@@ -1,4 +1,5 @@
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { Moon, Briefcase, Layers, ClipboardList, LayoutGrid, MessageCircle, ChevronRight, Droplets, History } from "lucide-react";
 import { useAsync } from "../../hooks/useAsync";
 import ErrorBanner from "../common/ErrorBanner";
@@ -7,18 +8,19 @@ import { getMyNightShiftDashboard } from "../../services/nightShiftService";
 import { listActivities } from "../../services/activityService";
 
 const LABEL_STYLE = {
-  "Not Started": "bg-white/5 text-[#9AA1B4]",
-  "In Progress": "bg-amber-500/10 text-amber-400",
+  "emp.notStarted": "bg-white/5 text-[#9AA1B4]",
+  "emp.inProgress": "bg-amber-500/10 text-amber-400",
   Completed: "bg-emerald-500/10 text-emerald-400",
   Overdue: "bg-red-500/10 text-red-400",
 };
 
 function TaskRow({ task, onOpen }) {
+  const { t } = useTranslation();
   return (
     <button
       type="button"
       onClick={() => onOpen(task)}
-      className="w-full flex items-center gap-3 rounded-xl p-3.5 bg-[#1A1F33]/70 border border-white/[0.06] hover:border-[#F47A20]/25 text-left transition-colors"
+      className="w-full flex items-center gap-3 rounded-xl p-3.5 bg-[#1A1F33]/70 border border-white/[0.06] hover:border-[#F47A20]/25 text-start transition-colors"
     >
       <span className="grid place-items-center h-9 w-9 rounded-lg bg-[#F47A20]/10 text-[#F47A20] shrink-0">
         <Droplets size={16} />
@@ -29,10 +31,10 @@ function TaskRow({ task, onOpen }) {
           <p className="text-[11px] text-[#8B93A8] mt-0.5">{task.photoCount}/{task.minPhotos} photos</p>
         )}
       </div>
-      <span className={`shrink-0 text-[10px] font-semibold rounded-full px-2 py-1 ${LABEL_STYLE[task.label] || LABEL_STYLE["Not Started"]}`}>
+      <span className={`shrink-0 text-[10px] font-semibold rounded-full px-2 py-1 ${LABEL_STYLE[task.label] || LABEL_STYLE[t("emp.notStarted")]}`}>
         {task.label}
       </span>
-      <ChevronRight size={15} className="text-[#4C5266] shrink-0" />
+      <ChevronRight size={15} className="text-[#4C5266] shrink-0 rtl-flip" />
     </button>
   );
 }
@@ -62,6 +64,7 @@ function timeLabel(iso) {
 // this screen only owns what's genuinely new: shift status, the Main/
 // Additional department breakdown, and tonight's Night Shift task list.
 export default function NightShiftDashboardScreen({ basePath }) {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { data: dashboard, error, loading, reload } = useAsync(getMyNightShiftDashboard, { deps: [] });
   const { data: history } = useAsync(() => listActivities({ category: "NIGHT_SHIFT_TASK" }), { deps: [] });
@@ -94,11 +97,11 @@ export default function NightShiftDashboardScreen({ basePath }) {
     <div className="px-4 sm:px-6 py-6 max-w-4xl mx-auto animate-fade-up">
       <div className="flex items-center gap-2 mb-4">
         <Moon size={18} className="text-[#F47A20]" />
-        <h1 className="text-lg font-semibold text-white">Night Shift</h1>
+        <h1 className="text-lg font-semibold text-white">{t("emp.nightShift")}</h1>
       </div>
 
       <div className="rounded-2xl p-5 bg-gradient-to-br from-[#1D2D5C]/50 to-[#171C2E]/80 border border-white/[0.06] backdrop-blur-xl">
-        <p className="text-xs text-[#8B93A8]">Tonight's operational shift</p>
+        <p className="text-xs text-[#8B93A8]">{t("emp.tonightsOperationalShift")}</p>
         <p className="mt-1 text-sm font-medium text-white">
           {new Date(dashboard.operationalDate).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
         </p>
@@ -106,15 +109,15 @@ export default function NightShiftDashboardScreen({ basePath }) {
         <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div className="rounded-xl p-3 bg-white/[0.03] border border-white/[0.06]">
             <p className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-[#8B93A8]">
-              <Briefcase size={11} /> Main Department
+              <Briefcase size={11} /> {t("emp.mainDepartment")}
             </p>
-            <p className="mt-1 text-sm font-medium text-white truncate">{dashboard.mainDepartment || "Not assigned"}</p>
+            <p className="mt-1 text-sm font-medium text-white truncate">{dashboard.mainDepartment || t("emp.notAssigned")}</p>
           </div>
 
           {dashboard.additionalDepartments?.length > 0 && (
             <div className="rounded-xl p-3 bg-white/[0.03] border border-white/[0.06]">
               <p className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-[#8B93A8]">
-                <Layers size={11} /> Additional Responsibilities
+                <Layers size={11} /> {t("emp.additionalResponsibilities")}
               </p>
               <div className="mt-1.5 flex flex-wrap gap-1.5">
                 {dashboard.additionalDepartments.map((d) => (
@@ -127,10 +130,10 @@ export default function NightShiftDashboardScreen({ basePath }) {
       </div>
 
       <section className="mt-5">
-        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-[#8B93A8]">Tonight's Night Shift Tasks</h2>
+        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-[#8B93A8]">{t("emp.tonightsNightShiftTasks")}</h2>
         {dashboard.tasks.length === 0 ? (
           <div className="rounded-2xl p-6 bg-[#171C2E]/80 border border-white/[0.06] text-center">
-            <p className="text-sm text-[#8B93A8]">No Night Shift tasks assigned yet tonight.</p>
+            <p className="text-sm text-[#8B93A8]">{t("emp.noNightShiftTasksAssignedYet")}</p>
           </div>
         ) : (
           <div className="space-y-2">
@@ -142,20 +145,20 @@ export default function NightShiftDashboardScreen({ basePath }) {
       </section>
 
       <section className="mt-5 grid grid-cols-3 gap-3">
-        <QuickLink icon={ClipboardList} label="Assigned Tasks" onClick={() => navigate(`${basePath}/tasks`)} />
-        <QuickLink icon={LayoutGrid} label="Daily Activity" onClick={() => navigate(`${basePath}/activity`)} />
-        <QuickLink icon={MessageCircle} label="Night Shift Group" onClick={() => navigate(`${basePath}/chat`)} />
+        <QuickLink icon={ClipboardList} label={t("emp.assignedTasks")} onClick={() => navigate(`${basePath}/tasks`)} />
+        <QuickLink icon={LayoutGrid} label={t("emp.dailyActivity")} onClick={() => navigate(`${basePath}/activity`)} />
+        <QuickLink icon={MessageCircle} label={t("emp.nightShiftGroup")} onClick={() => navigate(`${basePath}/chat`)} />
       </section>
 
       {recentCompletions.length > 0 && (
         <section className="mt-5">
           <h2 className="mb-3 flex items-center gap-1.5 text-sm font-semibold uppercase tracking-wider text-[#8B93A8]">
-            <History size={13} /> Completion History
+            <History size={13} /> {t("emp.completionHistory")}
           </h2>
           <div className="rounded-2xl bg-[#171C2E]/80 border border-white/[0.06] backdrop-blur-xl overflow-hidden divide-y divide-white/[0.06]">
             {recentCompletions.map((a) => (
               <div key={a.id} className="flex items-center justify-between px-4 py-3">
-                <span className="text-sm text-white">{a.nightShiftTaskDefinition?.name || "Night Shift Task"}</span>
+                <span className="text-sm text-white">{a.nightShiftTaskDefinition?.name || t("emp.nightShiftTask")}</span>
                 <span className="text-xs text-[#8B93A8]">{timeLabel(a.date)}</span>
               </div>
             ))}

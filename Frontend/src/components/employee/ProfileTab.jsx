@@ -1,4 +1,5 @@
 import { Routes, Route, Navigate, useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { CalendarDays, TrendingUp, Settings as SettingsIcon, ChevronRight } from "lucide-react";
 import ProfileHeaderCard from "./ProfileHeaderCard";
 import AttendanceSection from "./AttendanceSection";
@@ -18,12 +19,13 @@ import { useAsync } from "../../hooks/useAsync";
 // the Profile menu entry pointing at it was removed, not the route,
 // the screen, the backend, or any LeaveRequest functionality.
 const MENU = [
-  { key: "attendance", label: "Attendance", icon: CalendarDays, bg: "bg-sky-500/10", tone: "text-sky-400", glow: "glow-sky" },
-  { key: "performance", label: "Performance History", icon: TrendingUp, bg: "bg-violet-500/10", tone: "text-violet-400", glow: "glow-violet" },
-  { key: "settings", label: "Settings", icon: SettingsIcon, bg: "bg-[#F47A20]/10", tone: "text-[#F47A20]", glow: "glow-orange" },
+  { key: "attendance", label: "emp.attendance", icon: CalendarDays, bg: "bg-sky-500/10", tone: "text-sky-400", glow: "glow-sky" },
+  { key: "performance", label: "emp.performanceHistory", icon: TrendingUp, bg: "bg-violet-500/10", tone: "text-violet-400", glow: "glow-violet" },
+  { key: "settings", label: "emp.settings", icon: SettingsIcon, bg: "bg-[#F47A20]/10", tone: "text-[#F47A20]", glow: "glow-orange" },
 ];
 
 function ProfileMenu({ basePath }) {
+  const { t } = useTranslation();
   const { data: profile, error, loading, reload } = useAsync(getProfile, { deps: [] });
   const navigate = useNavigate();
 
@@ -43,13 +45,13 @@ function ProfileMenu({ basePath }) {
             key={key}
             type="button"
             onClick={() => navigate(`${basePath}/${key}`)}
-            className="w-full flex items-center gap-3 px-4 py-3.5 text-left hover:bg-white/[0.03] active:bg-white/[0.05] transition-colors duration-150"
+            className="w-full flex items-center gap-3 px-4 py-3.5 text-start hover:bg-white/[0.03] active:bg-white/[0.05] transition-colors duration-150"
           >
             <span className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${bg} ${tone} ${glow}`}>
               <Icon size={16} />
             </span>
-            <span className="flex-1 text-sm text-white">{label}</span>
-            <ChevronRight size={16} className="text-[#4C5266]" />
+            <span className="flex-1 text-sm text-white">{t(label)}</span>
+            <ChevronRight size={16} className="text-[#4C5266] rtl-flip" />
           </button>
         ))}
       </div>
@@ -58,10 +60,11 @@ function ProfileMenu({ basePath }) {
 }
 
 function ArrowLeftMenu({ label, onBack, children }) {
+  const { t } = useTranslation();
   return (
     <div className="px-4 sm:px-6 py-6 max-w-4xl mx-auto animate-fade-up">
-      <button type="button" onClick={onBack} className="text-sm text-[#9AA1B4] hover:text-white mb-4 -ml-1 py-1.5 px-1">
-        ← Back to Profile
+      <button type="button" onClick={onBack} className="text-sm text-[#9AA1B4] hover:text-white mb-4 -ms-1 py-1.5 px-1">
+        {t("emp.backToProfile2")}
       </button>
       <h1 className="text-lg font-semibold text-white mb-4">{label}</h1>
       {children}
@@ -82,6 +85,7 @@ function ArrowLeftMenu({ label, onBack, children }) {
 // Off moved to the Attendance calendar and Profile doesn't need two
 // off-day entry points. Nothing under /me/profile/leave was deleted.
 export default function ProfileTab({ onLogout, basePath }) {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const goToMenu = () => navigate(basePath);
 
@@ -103,7 +107,7 @@ export default function ProfileTab({ onLogout, basePath }) {
       <Route
         path="leave"
         element={
-          <ArrowLeftMenu label="Off Days / Leave" onBack={goToMenu}>
+          <ArrowLeftMenu label={t("emp.offDaysLeave")} onBack={goToMenu}>
             <LeaveRequestSection />
           </ArrowLeftMenu>
         }

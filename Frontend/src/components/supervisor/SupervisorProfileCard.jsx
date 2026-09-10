@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   Sun,
   Moon,
@@ -43,6 +44,7 @@ import { useAsync } from "../../hooks/useAsync";
 // behind everything via z-index/relative stacking — it never intercepts
 // a tap on the avatar or the WhatsApp field.
 export default function SupervisorProfileCard({ session, onDuty }) {
+  const { t } = useTranslation();
   const isEvening = session.shift === "EVENING";
   const ShiftIcon = isEvening ? Moon : Sun;
 
@@ -66,7 +68,7 @@ export default function SupervisorProfileCard({ session, onDuty }) {
         <button
           type="button"
           onClick={() => setPhotoOpen(true)}
-          aria-label="Change profile photo"
+          aria-label={t("emp.changeProfilePhoto")}
           className="relative h-14 w-14 sm:h-16 sm:w-16 shrink-0 rounded-2xl bg-gradient-to-br from-[#F47A20] to-[#c95c10] grid place-items-center ring-4 ring-[#F47A20]/20 shadow-[0_0_18px_-2px_rgba(244,122,32,0.6)] overflow-hidden group"
         >
           {profilePictureUrl ? (
@@ -88,7 +90,7 @@ export default function SupervisorProfileCard({ session, onDuty }) {
           <h1 className="font-display text-lg sm:text-xl font-bold text-white truncate">
             {session.displayName}
           </h1>
-          <p className="text-[#F47A20] text-sm font-medium">{session.title}</p>
+          <p className="text-[#F47A20] text-sm font-medium">{t(session.titleKey)}</p>
         </div>
         {/* On-duty indicator — real: derived from the same today-
             attendance state AttendanceCheckInCard reads, passed down by
@@ -100,7 +102,7 @@ export default function SupervisorProfileCard({ session, onDuty }) {
             }`}
           >
             <Circle size={7} className="fill-current" />
-            {onDuty ? "On Duty" : "Off Duty"}
+            {onDuty ? t("sup.onDuty") : t("sup.offDuty")}
           </span>
         )}
       </div>
@@ -108,17 +110,21 @@ export default function SupervisorProfileCard({ session, onDuty }) {
       <div className="relative mt-4 grid grid-cols-2 gap-x-4 gap-y-2.5 text-xs text-[#9AA1B4]">
         <span className="flex items-center gap-1.5">
           <ShiftIcon size={13} />{" "}
-          {isEvening ? "Evening Shift" : "Morning Shift"}
+          {isEvening ? t("emp.eveningShift") : t("emp.morningShift")}
         </span>
         <span className="flex items-center gap-1.5">
           <BadgeCheck size={13} />{" "}
-          {session.loginId || `Staff ID #${session.staffId}`}
+          {session.loginId || t("sup.staffIdNumber", { id: session.staffId })}
         </span>
         <span className="flex items-center gap-1.5">
-          <Store size={13} /> {session.marketName || "Your market"}
+          <Store size={13} /> {session.marketName || t("sup.yourMarket")}
         </span>
         <span className="flex items-center gap-1.5">
-          <Users size={13} /> {teamSize != null ? `${teamSize} team ${teamSize === 1 ? "member" : "members"}` : "Team"}
+          <Users size={13} /> {teamSize == null
+            ? t("sup.team")
+            : teamSize === 1
+              ? t("sup.teamMemberCount", { count: teamSize })
+              : t("sup.teamMembersCount", { count: teamSize })}
         </span>
 
         <WhatsAppField

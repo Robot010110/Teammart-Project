@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { CalendarPlus } from "lucide-react";
 import LeaveRequestFlow from "./LeaveRequestFlow";
 import ErrorBanner from "../common/ErrorBanner";
@@ -15,17 +16,18 @@ import { useToast } from "../../hooks/useToast";
 // (Worker) and CashierWorkspace.jsx (Cashier) — same component, no
 // duplication, since the feature is identical for both roles.
 
-const TYPE_LABEL = { MONTHLY_OFF: "Monthly Off Day", PERSONAL_LEAVE: "Personal Leave", EARNED_DAY_OFF: "Earned Day Off" };
+const TYPE_LABEL = { MONTHLY_OFF: "emp.monthlyOffDay", PERSONAL_LEAVE: "emp.personalLeave", EARNED_DAY_OFF: "emp.earnedDayOff" };
 
 const dateLabel = (isoString) =>
   new Date(isoString).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 
 export default function LeaveRequestSection() {
+  const { t } = useTranslation();
   const [flowOpen, setFlowOpen] = useState(false);
   const [toast, setToast] = useToast();
 
   const { data: requests, setData: setRequests, error, loading, reload } = useAsync(listMyLeaveRequests, {
-    fallbackError: "Could not load your leave requests.",
+    fallbackError: t("emp.couldNotLoadYourLeaveRequests"),
   });
 
   const handleSaved = (request, message) => {
@@ -39,15 +41,15 @@ export default function LeaveRequestSection() {
         onClick={() => setFlowOpen(true)}
         className="w-full flex items-center justify-center gap-2 rounded-lg px-3.5 py-2.5 text-xs font-semibold text-white bg-[#F47A20] hover:bg-[#ff8b36] active:bg-[#e06f18] transition-colors duration-150 mb-4"
       >
-        <CalendarPlus size={14} /> Request Off Day / Leave
+        <CalendarPlus size={14} /> {t("emp.requestOffDayLeave")}
       </button>
 
       {loading && <SkeletonCard className="h-[140px]" />}
       {!loading && error && <ErrorBanner message={error} onRetry={reload} />}
       {!loading && !error && requests && (
-        <div className="space-y-2.5 max-h-[320px] overflow-y-auto pr-1">
+        <div className="space-y-2.5 max-h-[320px] overflow-y-auto pe-1">
           {requests.length === 0 && (
-            <p className="text-sm text-[#4C5266] text-center py-8">No leave requests yet.</p>
+            <p className="text-sm text-[#4C5266] text-center py-8">{t("emp.noLeaveRequestsYet")}</p>
           )}
           {requests.map((request) => (
             <div key={request.id} className="rounded-xl p-3.5 bg-[#1A1F33]/70 border border-white/[0.06]">
@@ -55,7 +57,7 @@ export default function LeaveRequestSection() {
                 <span className="text-sm font-medium text-white">{dateLabel(request.date)}</span>
                 <LeaveStatusPill status={request.status} />
               </div>
-              <p className="mt-1.5 text-xs text-[#9AA1B4]">{TYPE_LABEL[request.type]}</p>
+              <p className="mt-1.5 text-xs text-[#9AA1B4]">{TYPE_LABEL[request.type] ? t(TYPE_LABEL[request.type]) : request.type}</p>
               {request.reason && <p className="mt-1 text-xs text-[#8B93A8]">{request.reason}</p>}
               {request.reviewNote && (
                 <p className="mt-1.5 text-xs text-[#8B93A8]">Supervisor note: {request.reviewNote}</p>

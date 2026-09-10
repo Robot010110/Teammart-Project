@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import {
   Building2, MapPinned, Store, ClipboardList, MessageCircle, ShieldAlert, Sparkles, CalendarCheck,
@@ -11,14 +12,14 @@ import AttendanceCheckInCard from "../components/common/AttendanceCheckInCard";
 import { listMarkets } from "../services/marketService";
 import { listMyNotifications, markNotificationRead, markAllNotificationsRead, deleteNotification, deleteAllNotifications } from "../services/notificationService";
 
-function timeAgo(iso) {
+function timeAgo(iso, t) {
   const diffMs = Date.now() - new Date(iso).getTime();
   const minutes = Math.floor(diffMs / 60000);
-  if (minutes < 1) return "Just now";
-  if (minutes < 60) return `${minutes}m ago`;
+  if (minutes < 1) return t("sup.justNow");
+  if (minutes < 60) return t("common.minutesAgo", { count: minutes });
   const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  return `${Math.floor(hours / 24)}d ago`;
+  if (hours < 24) return t("common.hoursAgo", { count: hours });
+  return t("common.daysAgo", { count: Math.floor(hours / 24) });
 }
 
 // Visual state per notification type (spec §3: unread/read/important/
@@ -45,6 +46,7 @@ function styleFor(n) {
 }
 
 function NotificationRow({ n, onRead, onDelete }) {
+  const { t } = useTranslation();
   const { icon: Icon, tone } = styleFor(n);
   return (
     <div
@@ -52,7 +54,7 @@ function NotificationRow({ n, onRead, onDelete }) {
         n.read ? "bg-[#171C2E]/50 border-white/[0.05]" : "bg-[#171C2E]/90 border-[#F47A20]/25"
       }`}
     >
-      <button type="button" onClick={() => !n.read && onRead(n.id)} className="flex-1 min-w-0 text-left flex items-start gap-3">
+      <button type="button" onClick={() => !n.read && onRead(n.id)} className="flex-1 min-w-0 text-start flex items-start gap-3">
         <span className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${tone}`}>
           <Icon size={16} />
         </span>
@@ -62,13 +64,13 @@ function NotificationRow({ n, onRead, onDelete }) {
             {!n.read && <span className="mt-1.5 w-2 h-2 rounded-full bg-[#F47A20] shrink-0" />}
           </div>
           <p className="text-xs text-[#9AA1B4] mt-0.5 line-clamp-2">{n.body}</p>
-          <p className="text-[11px] text-[#4C5266] mt-1">{timeAgo(n.createdAt)}</p>
+          <p className="text-[11px] text-[#4C5266] mt-1">{timeAgo(n.createdAt, t)}</p>
         </div>
       </button>
       <button
         type="button"
         onClick={(e) => { e.stopPropagation(); onDelete(n.id); }}
-        aria-label="Delete notification"
+        aria-label={t("emp.deleteNotification")}
         className="shrink-0 p-1.5 mt-0.5 rounded-lg text-[#4C5266] hover:text-red-400 hover:bg-red-500/10 transition-colors"
       >
         <Trash2 size={14} />
@@ -96,6 +98,7 @@ function StatCard({ icon: Icon, label, value }) {
 // derived from the real markets list, never hardcoded), and a real
 // notification feed below it, visually distinct by type.
 export default function RegionalManagerProfile({ session }) {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { data: markets, error: marketsError, loading: marketsLoading, reload: reloadMarkets } = useAsync(listMarkets, { deps: [] });
   const {
@@ -173,25 +176,25 @@ export default function RegionalManagerProfile({ session }) {
             <span className="text-xl font-bold text-white">{session.initials}</span>
           </div>
           <div className="min-w-0">
-            <p className="text-xs font-semibold uppercase tracking-wider text-[#F47A20]">Regional Manager</p>
+            <p className="text-xs font-semibold uppercase tracking-wider text-[#F47A20]">{t("roles.regionalManager")}</p>
             <h1 className="font-display text-2xl font-bold text-white truncate">{session.displayName}</h1>
             {marketsLoading ? (
-              <p className="text-xs text-[#4C5266] mt-1">Loading zones...</p>
+              <p className="text-xs text-[#4C5266] mt-1">{t("rm.loadingZones")}</p>
             ) : (
               <p className="mt-1 flex items-center gap-1.5 text-xs text-[#9AA1B4]">
                 <MapPinned size={12} />
-                {zoneNumbers.length > 0 ? zoneNumbers.map((n) => `Zone ${n}`).join(" • ") : "No zones assigned"}
+                {zoneNumbers.length > 0 ? zoneNumbers.map((n) => `Zone ${n}`).join(" • ") : t("rm.noZonesAssigned")}
               </p>
             )}
           </div>
         </div>
 
         <div className="mt-5 grid grid-cols-2 sm:grid-cols-3 gap-3">
-          <StatCard icon={Store} label="Markets" value={marketsLoading ? "—" : markets?.length ?? 0} />
-          <StatCard icon={MapPinned} label="Zones" value={marketsLoading ? "—" : zoneNumbers.length} />
+          <StatCard icon={Store} label={t("rm.markets")} value={marketsLoading ? "—" : markets?.length ?? 0} />
+          <StatCard icon={MapPinned} label={t("rm.zones")} value={marketsLoading ? "—" : zoneNumbers.length} />
           <StatCard
             icon={Building2}
-            label="Employees"
+            label={t("sup.employees")}
             value={marketsLoading ? "—" : markets?.reduce((sum, m) => sum + m.employeesCount, 0) ?? 0}
           />
         </div>
@@ -210,30 +213,30 @@ export default function RegionalManagerProfile({ session }) {
       <button
         type="button"
         onClick={() => navigate("/rm/communications")}
-        className="mt-4 w-full flex items-center gap-3 rounded-xl p-4 bg-[#171C2E]/80 border border-white/[0.06] hover:border-[#F47A20]/25 backdrop-blur-xl transition-colors text-left"
+        className="mt-4 w-full flex items-center gap-3 rounded-xl p-4 bg-[#171C2E]/80 border border-white/[0.06] hover:border-[#F47A20]/25 backdrop-blur-xl transition-colors text-start"
       >
         <span className="w-9 h-9 rounded-lg bg-[#F47A20]/10 flex items-center justify-center text-[#F47A20] shrink-0">
           <Megaphone size={17} />
         </span>
         <span className="flex-1 min-w-0">
-          <p className="text-sm font-semibold text-white">Warnings & Notifications</p>
-          <p className="text-xs text-[#8B93A8]">Send targeted communications to your zones</p>
+          <p className="text-sm font-semibold text-white">{t("rm.warningsNotifications")}</p>
+          <p className="text-xs text-[#8B93A8]">{t("rm.sendTargetedCommunicationsToYourZones")}</p>
         </span>
-        <ChevronRight size={16} className="text-[#4C5266] shrink-0" />
+        <ChevronRight size={16} className="text-[#4C5266] shrink-0 rtl-flip" />
       </button>
 
       <section className="mt-8">
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-sm font-semibold uppercase tracking-wider text-[#8B93A8]">Notifications</h2>
+          <h2 className="text-sm font-semibold uppercase tracking-wider text-[#8B93A8]">{t("settings.notifications")}</h2>
           <div className="flex items-center gap-3">
             {unreadCount > 0 && (
               <button type="button" onClick={handleMarkAllRead} className="flex items-center gap-1 text-xs font-medium text-[#F47A20] hover:text-[#ff8b36]">
-                <CheckCheck size={14} /> Mark all read
+                <CheckCheck size={14} /> {t("emp.markAllRead")}
               </button>
             )}
             {notifications.length > 0 && (
               <button type="button" onClick={handleDeleteAllNotifications} className="flex items-center gap-1 text-xs font-medium text-[#9AA1B4] hover:text-red-400">
-                <Trash2 size={14} /> Delete all
+                <Trash2 size={14} /> {t("emp.deleteAll")}
               </button>
             )}
           </div>
@@ -246,7 +249,7 @@ export default function RegionalManagerProfile({ session }) {
         ) : notifications.length === 0 ? (
           <div className="rounded-2xl p-8 bg-[#171C2E]/80 border border-white/[0.06] text-center">
             <BellOff size={22} className="mx-auto text-[#4C5266] mb-2" />
-            <p className="text-sm text-[#8B93A8]">No notifications yet</p>
+            <p className="text-sm text-[#8B93A8]">{t("rm.noNotificationsYet")}</p>
           </div>
         ) : (
           <div className="space-y-2">

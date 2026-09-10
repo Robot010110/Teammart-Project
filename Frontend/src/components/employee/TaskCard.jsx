@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Timer, MapPin } from "lucide-react";
 import { categoryVisual } from "../../utils/suddenTaskVisuals";
 
-const PRIORITY_LABEL = { NORMAL: "Normal Priority", HIGH: "High Priority", URGENT: "Urgent" };
+const PRIORITY_LABEL = { NORMAL: "emp.normalPriority", HIGH: "emp.highPriority", URGENT: "emp.urgent" };
 const PRIORITY_TONE = { NORMAL: "text-sky-400", HIGH: "text-amber-400", URGENT: "text-red-400" };
 
 function dueLabel(dueAt) {
@@ -46,6 +47,7 @@ const STATUS_EDGE = {
 };
 
 export default function TaskCard({ task, onClick }) {
+  const { t } = useTranslation();
   const visual = categoryVisual(task.category);
   const Icon = visual.icon;
   const [now, setNow] = useState(() => Date.now());
@@ -60,12 +62,12 @@ export default function TaskCard({ task, onClick }) {
     <button
       type="button"
       onClick={onClick}
-      className="card-premium relative w-full text-left rounded-2xl p-4 pl-[18px] bg-[#171C2E]/80 border border-white/[0.06] backdrop-blur-xl hover:border-[#F47A20]/25 active:scale-[0.99] transition-all"
+      className="card-premium relative w-full text-start rounded-2xl p-4 ps-[18px] bg-[#171C2E]/80 border border-white/[0.06] backdrop-blur-xl hover:border-[#F47A20]/25 active:scale-[0.99] transition-all"
     >
-      <span className={`absolute left-0 top-3 bottom-3 w-[3px] rounded-full ${STATUS_EDGE[task.status] ?? STATUS_EDGE.ASSIGNED}`} aria-hidden="true" />
+      <span className={`absolute start-0 top-3 bottom-3 w-[3px] rounded-full ${STATUS_EDGE[task.status] ?? STATUS_EDGE.ASSIGNED}`} aria-hidden="true" />
       <div className="flex items-center justify-between gap-2 mb-2.5">
         <span className={`text-[10px] font-bold uppercase tracking-wide ${PRIORITY_TONE[task.priority] ?? "text-sky-400"}`}>
-          {PRIORITY_LABEL[task.priority] ?? task.priority}
+          {PRIORITY_LABEL[task.priority] ? t(PRIORITY_LABEL[task.priority]) : task.priority}
         </span>
         {task.status === "IN_PROGRESS" ? (
           <span className="flex items-center gap-1 text-[11px] font-semibold text-[#F47A20]">
@@ -83,7 +85,7 @@ export default function TaskCard({ task, onClick }) {
         <div className="min-w-0 flex-1">
           <p className="text-sm font-semibold text-white truncate">{task.title}</p>
           <p className="text-xs text-[#8B93A8] truncate mt-0.5 flex items-center gap-1">
-            {visual.label}
+            {t(visual.label)}
             {task.location && (
               <>
                 <span aria-hidden="true">·</span>

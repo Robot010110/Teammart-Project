@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   Search, Users, CheckCircle2, Coffee, LogOut, AlertTriangle,
@@ -20,10 +21,10 @@ const PAGE_SIZE = 10;
 // icon + color exactly following the brief's hierarchy: green/working,
 // gold/on-break, muted blue-gray/checked-out, red/missing.
 const STATE_META = {
-  WORKING: { label: "Working", icon: CheckCircle2, chip: "bg-emerald-500/10 text-emerald-400 ring-emerald-500/20", dot: "bg-emerald-400" },
-  ON_BREAK: { label: "On Break", icon: Coffee, chip: "bg-amber-500/10 text-amber-400 ring-amber-500/20", dot: "bg-amber-400" },
-  CHECKED_OUT: { label: "Checked Out", icon: LogOut, chip: "bg-white/[0.06] text-[#9AA1B4] ring-white/10", dot: "bg-[#8B93A8]" },
-  MISSING: { label: "Missing", icon: AlertTriangle, chip: "bg-red-500/10 text-red-400 ring-red-500/20", dot: "bg-red-400" },
+  WORKING: { label: "admin.working", icon: CheckCircle2, chip: "bg-emerald-500/10 text-emerald-400 ring-emerald-500/20", dot: "bg-emerald-400" },
+  ON_BREAK: { label: "emp.onBreak", icon: Coffee, chip: "bg-amber-500/10 text-amber-400 ring-amber-500/20", dot: "bg-amber-400" },
+  CHECKED_OUT: { label: "emp.checkedOut", icon: LogOut, chip: "bg-white/[0.06] text-[#9AA1B4] ring-white/10", dot: "bg-[#8B93A8]" },
+  MISSING: { label: "emp.missing", icon: AlertTriangle, chip: "bg-red-500/10 text-red-400 ring-red-500/20", dot: "bg-red-400" },
 };
 
 // Real EmployeeRole/StaffRole values only (schema.prisma) — BUTCHER is a
@@ -32,11 +33,11 @@ const STATE_META = {
 // login flow already established (HardHat/Wallet — EmployeeTypeStep.jsx)
 // so a role reads the same way everywhere in the app.
 const ROLE_META = {
-  WORKER: { label: "Worker", icon: HardHat, tone: "text-[#7EA6FF] bg-[#7EA6FF]/10" },
-  CASHIER: { label: "Cashier", icon: Wallet, tone: "text-[#C08BFF] bg-[#C08BFF]/10" },
-  BUTCHER: { label: "Butcher", icon: Beef, tone: "text-amber-400 bg-amber-500/10" },
-  SUPERVISOR: { label: "Supervisor", icon: ShieldCheck, tone: "text-[#F9A03C] bg-[#F47A20]/10" },
-  OVERLOOKING_SUPERVISOR: { label: "Overlooking Sup.", icon: ShieldCheck, tone: "text-[#F9A03C] bg-[#F47A20]/10" },
+  WORKER: { label: "roles.worker", icon: HardHat, tone: "text-[#7EA6FF] bg-[#7EA6FF]/10" },
+  CASHIER: { label: "roles.cashier", icon: Wallet, tone: "text-[#C08BFF] bg-[#C08BFF]/10" },
+  BUTCHER: { label: "sup.butcher", icon: Beef, tone: "text-amber-400 bg-amber-500/10" },
+  SUPERVISOR: { label: "roles.supervisor", icon: ShieldCheck, tone: "text-[#F9A03C] bg-[#F47A20]/10" },
+  OVERLOOKING_SUPERVISOR: { label: "admin.overlookingSup", icon: ShieldCheck, tone: "text-[#F9A03C] bg-[#F47A20]/10" },
 };
 
 function isoDate(d) {
@@ -57,8 +58,11 @@ function timeLabel(iso) {
 // A CSV of exactly the rows currently on screen (every filter/search/date
 // already applied) — built client-side from the same real rows already
 // rendered, not a second fetch or a different shape of the data.
-function downloadCsv(rows, dateIso) {
-  const header = ["Name", "Employee Code", "Market", "Role", "Check In", "Check Out", "Status"];
+function downloadCsv(rows, dateIso, t) {
+  // ROLE_META/STATE_META hold translation KEYS, so the exported file has to
+  // resolve them too — otherwise the CSV would contain "roles.worker".
+  const header = [t("admin.csvName"), t("admin.csvEmployeeCode"), t("admin.csvMarket"),
+    t("admin.csvRole"), t("admin.csvCheckIn"), t("admin.csvCheckOut"), t("admin.csvStatus")];
   const escape = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
   const lines = [header.map(escape).join(",")];
   for (const r of rows) {
@@ -67,10 +71,10 @@ function downloadCsv(rows, dateIso) {
         r.name,
         r.employeeCode ?? "",
         r.marketName ?? "",
-        (ROLE_META[r.role]?.label ?? r.role ?? "").toString(),
+        ROLE_META[r.role]?.label ? t(ROLE_META[r.role].label) : (r.role ?? ""),
         r.checkIn ? new Date(r.checkIn).toISOString() : "",
         r.checkOut ? new Date(r.checkOut).toISOString() : "",
-        STATE_META[r.state]?.label ?? r.state,
+        STATE_META[r.state]?.label ? t(STATE_META[r.state].label) : r.state,
       ]
         .map(escape)
         .join(",")
@@ -108,6 +112,7 @@ function downloadCsv(rows, dateIso) {
 //     server-side because the endpoint doesn't support that, so neither
 //     claims to be a server capability.
 export default function AdminAttendancePage() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [date, setDate] = useState(() => new Date());
@@ -147,8 +152,8 @@ export default function AdminAttendancePage() {
   function trendHint(key) {
     if (!data?.summary || !prevData?.summary) return undefined;
     const diff = data.summary[key] - prevData.summary[key];
-    if (diff === 0) return "No change vs previous day";
-    return `${diff > 0 ? "+" : ""}${diff} vs previous day`;
+    if (diff === 0) return t("admin.noChangeVsPreviousDay");
+    return t("admin.diffVsPreviousDay", { diff: `${diff > 0 ? "+" : ""}${diff}` });
   }
 
   function profileHref(row) {
@@ -166,8 +171,8 @@ export default function AdminAttendancePage() {
       {/* Header: title + real selected date + a derived attendance-rate figure */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between mb-5">
         <div>
-          <h1 className="font-display text-xl md:text-[26px] font-bold text-white">Attendance</h1>
-          <p className="mt-1 text-sm text-[#9AA1B4]">Track and manage attendance across all markets and employees.</p>
+          <h1 className="font-display text-xl md:text-[26px] font-bold text-white">{t("emp.attendance")}</h1>
+          <p className="mt-1 text-sm text-[#9AA1B4]">{t("admin.trackAndManageAttendanceAcrossAll")}</p>
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
@@ -175,10 +180,10 @@ export default function AdminAttendancePage() {
             <button
               type="button"
               onClick={() => setDate((d) => addDays(d, -1))}
-              aria-label="Previous day"
+              aria-label={t("admin.previousDay")}
               className="grid h-7 w-7 place-items-center rounded-lg text-[#8B93A8] transition-colors hover:bg-white/[0.06] hover:text-white"
             >
-              <ChevronLeft size={15} />
+              <ChevronLeft size={15} className="rtl-flip" />
             </button>
             <span className="flex items-center gap-2 px-2 text-[13px] font-medium text-white">
               <CalendarDays size={14} className="text-[#F47A20]" />
@@ -188,10 +193,10 @@ export default function AdminAttendancePage() {
               type="button"
               onClick={() => !isToday && setDate((d) => addDays(d, 1))}
               disabled={isToday}
-              aria-label="Next day"
+              aria-label={t("admin.nextDay")}
               className="grid h-7 w-7 place-items-center rounded-lg text-[#8B93A8] transition-colors hover:bg-white/[0.06] hover:text-white disabled:opacity-30 disabled:hover:bg-transparent"
             >
-              <ChevronRight size={15} />
+              <ChevronRight size={15} className="rtl-flip" />
             </button>
           </div>
 
@@ -207,7 +212,7 @@ export default function AdminAttendancePage() {
             >
               <Gauge size={16} className={attendanceRate >= 80 ? "text-emerald-400" : attendanceRate >= 50 ? "text-amber-400" : "text-red-400"} />
               <div className="leading-tight">
-                <p className="text-[10.5px] uppercase tracking-wide text-[#8B93A8]">Attendance Today</p>
+                <p className="text-[10.5px] uppercase tracking-wide text-[#8B93A8]">{t("admin.attendanceToday")}</p>
                 <p className={`text-[15px] font-bold ${attendanceRate >= 80 ? "text-emerald-400" : attendanceRate >= 50 ? "text-amber-400" : "text-red-400"}`}>
                   {attendanceRate}%
                 </p>
@@ -219,51 +224,51 @@ export default function AdminAttendancePage() {
 
       {/* KPI cards — five real counts from the same summary object */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-5">
-        <AdminKpiCard icon={Users} tone="blue" value={loading ? undefined : data?.summary?.total ?? 0} label="Total" hint={trendHint("total")} loading={loading} onClick={() => setStatusFilter("")} />
-        <AdminKpiCard icon={CheckCircle2} tone="green" value={loading ? undefined : data?.summary?.working ?? 0} label="Working" hint={trendHint("working")} loading={loading} onClick={() => setStatusFilter("WORKING")} />
-        <AdminKpiCard icon={Coffee} tone="amber" value={loading ? undefined : data?.summary?.onBreak ?? 0} label="On Break" hint={trendHint("onBreak")} loading={loading} onClick={() => setStatusFilter("ON_BREAK")} />
-        <AdminKpiCard icon={LogOut} tone="purple" value={loading ? undefined : data?.summary?.checkedOut ?? 0} label="Checked Out" hint={trendHint("checkedOut")} loading={loading} onClick={() => setStatusFilter("CHECKED_OUT")} />
-        <AdminKpiCard icon={AlertTriangle} tone="red" value={loading ? undefined : data?.summary?.missing ?? 0} label="Missing" hint={trendHint("missing")} loading={loading} onClick={() => setStatusFilter("MISSING")} />
+        <AdminKpiCard icon={Users} tone="blue" value={loading ? undefined : data?.summary?.total ?? 0} label={t("admin.total")} hint={trendHint("total")} loading={loading} onClick={() => setStatusFilter("")} />
+        <AdminKpiCard icon={CheckCircle2} tone="green" value={loading ? undefined : data?.summary?.working ?? 0} label={t("admin.working")} hint={trendHint("working")} loading={loading} onClick={() => setStatusFilter("WORKING")} />
+        <AdminKpiCard icon={Coffee} tone="amber" value={loading ? undefined : data?.summary?.onBreak ?? 0} label={t("emp.onBreak")} hint={trendHint("onBreak")} loading={loading} onClick={() => setStatusFilter("ON_BREAK")} />
+        <AdminKpiCard icon={LogOut} tone="purple" value={loading ? undefined : data?.summary?.checkedOut ?? 0} label={t("emp.checkedOut")} hint={trendHint("checkedOut")} loading={loading} onClick={() => setStatusFilter("CHECKED_OUT")} />
+        <AdminKpiCard icon={AlertTriangle} tone="red" value={loading ? undefined : data?.summary?.missing ?? 0} label={t("emp.missing")} hint={trendHint("missing")} loading={loading} onClick={() => setStatusFilter("MISSING")} />
       </div>
 
       {/* Search + filters + export */}
       <div className="flex flex-col lg:flex-row flex-wrap gap-3 mb-4">
         <div className="relative flex-1 min-w-[240px]">
-          <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#4C5266]" />
+          <Search size={15} className="absolute start-3.5 top-1/2 -translate-y-1/2 text-[#4C5266]" />
           <input
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
-            placeholder="Search by name, employee code, or market..."
-            className="w-full rounded-xl bg-[#111A2D]/80 border border-white/[0.08] pl-10 pr-3 py-2.5 text-sm text-white placeholder:text-[#5C6479] outline-none transition-colors focus:border-[#F47A20]/50"
+            placeholder={t("admin.searchByNameEmployeeCodeOr")}
+            className="w-full rounded-xl bg-[#111A2D]/80 border border-white/[0.08] ps-10 pe-3 py-2.5 text-sm text-white placeholder:text-[#5C6479] outline-none transition-colors focus:border-[#F47A20]/50"
           />
         </div>
         <select value={marketId} onChange={(e) => setMarketId(e.target.value)} className={selectClass}>
-          <option value="">All Markets</option>
+          <option value="">{t("rm.allMarkets")}</option>
           {(markets ?? []).map((m) => (
             <option key={m.id} value={m.id}>{m.name}</option>
           ))}
         </select>
         <select value={role} onChange={(e) => setRole(e.target.value)} className={selectClass}>
-          <option value="">All Roles</option>
-          <option value="WORKER">Worker</option>
-          <option value="CASHIER">Cashier</option>
-          <option value="BUTCHER">Butcher</option>
-          <option value="STAFF">Supervisor/Overlooking</option>
+          <option value="">{t("admin.allRoles")}</option>
+          <option value="WORKER">{t("roles.worker")}</option>
+          <option value="CASHIER">{t("roles.cashier")}</option>
+          <option value="BUTCHER">{t("sup.butcher")}</option>
+          <option value="STAFF">{t("admin.supervisorOverlooking")}</option>
         </select>
         <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className={selectClass}>
-          <option value="">All Status</option>
-          <option value="WORKING">Working</option>
-          <option value="ON_BREAK">On Break</option>
-          <option value="CHECKED_OUT">Checked Out</option>
-          <option value="MISSING">Missing</option>
+          <option value="">{t("admin.allStatus")}</option>
+          <option value="WORKING">{t("admin.working")}</option>
+          <option value="ON_BREAK">{t("emp.onBreak")}</option>
+          <option value="CHECKED_OUT">{t("emp.checkedOut")}</option>
+          <option value="MISSING">{t("emp.missing")}</option>
         </select>
         <button
           type="button"
-          onClick={() => downloadCsv(rows, dateIso)}
+          onClick={() => downloadCsv(rows, dateIso, t)}
           disabled={rows.length === 0}
           className="flex items-center gap-1.5 rounded-xl px-4 py-2.5 text-sm font-semibold text-[#F47A20] border border-[#F47A20]/35 bg-[#F47A20]/[0.08] transition-all duration-150 hover:bg-[#F47A20]/[0.14] hover:shadow-[0_0_18px_-6px_rgba(244,122,32,0.6)] disabled:opacity-40 disabled:hover:shadow-none"
         >
-          <Download size={15} /> Export
+          <Download size={15} /> {t("admin.export")}
         </button>
       </div>
 
@@ -274,22 +279,22 @@ export default function AdminAttendancePage() {
         <ErrorBanner message={error} onRetry={reload} />
       ) : rows.length === 0 ? (
         <div className="rounded-2xl p-10 bg-[#111A2D]/80 border border-white/[0.07] text-center">
-          <p className="text-sm font-medium text-white">No attendance records found</p>
-          <p className="mt-1 text-xs text-[#8B93A8]">Try a different date, or clear the search and filters above.</p>
+          <p className="text-sm font-medium text-white">{t("admin.noAttendanceRecordsFound")}</p>
+          <p className="mt-1 text-xs text-[#8B93A8]">{t("admin.tryADifferentDateOrClear")}</p>
         </div>
       ) : (
         <div className="rounded-2xl border border-white/[0.07] bg-[#0C1424]/80 backdrop-blur-xl overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[820px] text-left">
+            <table className="w-full min-w-[820px] text-start">
               <thead>
                 <tr className="border-b border-white/[0.06] text-[11px] uppercase tracking-wide text-[#6B7284]">
-                  <th className="px-4 py-3 font-medium">Employee</th>
-                  <th className="px-4 py-3 font-medium">Market</th>
-                  <th className="px-4 py-3 font-medium">Role</th>
-                  <th className="px-4 py-3 font-medium">Check In</th>
-                  <th className="px-4 py-3 font-medium">Check Out</th>
-                  <th className="px-4 py-3 font-medium">Status</th>
-                  <th className="px-4 py-3 font-medium text-right">Actions</th>
+                  <th className="px-4 py-3 font-medium">{t("roles.employee")}</th>
+                  <th className="px-4 py-3 font-medium">{t("sup.market")}</th>
+                  <th className="px-4 py-3 font-medium">{t("admin.role")}</th>
+                  <th className="px-4 py-3 font-medium">{t("emp.checkIn")}</th>
+                  <th className="px-4 py-3 font-medium">{t("emp.checkOut")}</th>
+                  <th className="px-4 py-3 font-medium">{t("sup.status")}</th>
+                  <th className="px-4 py-3 font-medium text-end">{t("admin.actions")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -321,7 +326,7 @@ export default function AdminAttendancePage() {
                       <td className="px-4 py-3 text-[13px] text-[#C4C9D6]">{r.marketName ?? "—"}</td>
                       <td className="px-4 py-3">
                         <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium ${roleMeta?.tone ?? "text-[#9AA1B4] bg-white/[0.06]"}`}>
-                          <RoleIcon size={12} /> {roleMeta?.label ?? r.role?.replace(/_/g, " ")}
+                          <RoleIcon size={12} /> {roleMeta?.label ? t(roleMeta.label) : r.role?.replace(/_/g, " ")}
                         </span>
                       </td>
                       <td className="px-4 py-3 text-[13px] tabular-nums text-[#C4C9D6]">
@@ -333,16 +338,16 @@ export default function AdminAttendancePage() {
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold ring-1 ring-inset ${state.chip}`}>
-                            <StateIcon size={11} /> {state.label}
+                            <StateIcon size={11} /> {t(state.label)}
                           </span>
                           {r.status === "LATE" && <AttendanceStatusPill status="LATE" />}
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-right relative">
+                      <td className="px-4 py-3 text-end relative">
                         <button
                           type="button"
                           onClick={(e) => { e.stopPropagation(); setOpenMenuKey(openMenuKey === rowKey ? null : rowKey); }}
-                          aria-label="Row actions"
+                          aria-label={t("admin.rowActions")}
                           className="grid h-8 w-8 place-items-center rounded-lg text-[#6B7284] transition-colors hover:bg-white/[0.06] hover:text-white"
                         >
                           <MoreVertical size={16} />
@@ -350,18 +355,18 @@ export default function AdminAttendancePage() {
                         {openMenuKey === rowKey && (
                           <div
                             onClick={(e) => e.stopPropagation()}
-                            className="absolute right-4 top-11 z-20 w-44 rounded-xl border border-white/[0.08] bg-[#151B2E] p-1.5 shadow-[0_16px_40px_-12px_rgba(0,0,0,0.7)]"
+                            className="absolute end-4 top-11 z-20 w-44 rounded-xl border border-white/[0.08] bg-[#151B2E] p-1.5 shadow-[0_16px_40px_-12px_rgba(0,0,0,0.7)]"
                           >
                             {href ? (
                               <button
                                 type="button"
                                 onClick={() => { setOpenMenuKey(null); navigate(href); }}
-                                className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-[12.5px] text-[#C4C9D6] transition-colors hover:bg-white/[0.06] hover:text-white"
+                                className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-start text-[12.5px] text-[#C4C9D6] transition-colors hover:bg-white/[0.06] hover:text-white"
                               >
-                                <UserRound size={13} /> View Profile
+                                <UserRound size={13} /> {t("admin.viewProfile")}
                               </button>
                             ) : (
-                              <p className="px-3 py-2 text-[11.5px] text-[#5C6479]">No profile available</p>
+                              <p className="px-3 py-2 text-[11.5px] text-[#5C6479]">{t("admin.noProfileAvailable")}</p>
                             )}
                           </div>
                         )}
@@ -377,17 +382,21 @@ export default function AdminAttendancePage() {
               the endpoint itself returns everything in one response. */}
           <div className="flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-white/[0.06] px-4 py-3">
             <p className="text-[12.5px] text-[#8B93A8]">
-              Showing {rows.length === 0 ? 0 : (currentPage - 1) * PAGE_SIZE + 1}–{Math.min(currentPage * PAGE_SIZE, rows.length)} of {rows.length} record{rows.length === 1 ? "" : "s"}
+              {t("rm.showingRecordsRange", {
+                from: rows.length === 0 ? 0 : (currentPage - 1) * PAGE_SIZE + 1,
+                to: Math.min(currentPage * PAGE_SIZE, rows.length),
+                total: rows.length,
+              })}
             </p>
             <div className="flex items-center gap-1">
               <button
                 type="button"
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
                 disabled={currentPage === 1}
-                aria-label="Previous page"
+                aria-label={t("admin.previousPage")}
                 className="grid h-8 w-8 place-items-center rounded-lg border border-white/[0.07] text-[#8B93A8] transition-colors hover:bg-white/[0.06] hover:text-white disabled:opacity-30"
               >
-                <ChevronLeft size={14} />
+                <ChevronLeft size={14} className="rtl-flip" />
               </button>
               {Array.from({ length: totalPages }, (_, i) => i + 1)
                 .filter((p) => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 1)
@@ -416,10 +425,10 @@ export default function AdminAttendancePage() {
                 type="button"
                 onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                 disabled={currentPage === totalPages}
-                aria-label="Next page"
+                aria-label={t("admin.nextPage")}
                 className="grid h-8 w-8 place-items-center rounded-lg border border-white/[0.07] text-[#8B93A8] transition-colors hover:bg-white/[0.06] hover:text-white disabled:opacity-30"
               >
-                <ChevronRight size={14} />
+                <ChevronRight size={14} className="rtl-flip" />
               </button>
             </div>
           </div>

@@ -443,6 +443,23 @@ async function main() {
     });
   }
 
+  // Koch Operation product catalog — real DB rows the Cashier flow reads
+  // from (spec: "must come from backend/database data", never hardcoded
+  // in the frontend). Idempotent: only seeded the first time, same
+  // "check before creating" convention as the rest of this file.
+  const kochProductCount = await prisma.kochProduct.count();
+  if (kochProductCount === 0) {
+    await prisma.kochProduct.createMany({
+      data: [
+        { name: "Code T", variant: "Original", size: "900g" },
+        { name: "Code T", variant: "Original", size: "400g" },
+        { name: "Code T", variant: "Whole Wheat", size: "600g" },
+        { name: "Code B", variant: "Classic", size: "500g" },
+        { name: "Code B", variant: "Classic", size: "250g" },
+      ],
+    });
+  }
+
   console.log("Seed complete. Test logins:");
   console.log("  Admin:         admin@teammart.test / Admin123!");
   console.log("  Manager:       ali.hassan@teammart.test / Manager123! (Zones 1 & 3)");

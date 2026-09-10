@@ -1,4 +1,5 @@
 import { CheckCircle2, XCircle, MessageSquareQuote, ChevronRight } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { CATEGORY_LABELS } from "../../../data/workspaceData";
 
 // RecentReviews.jsx — the employee's most recently decided activities.
@@ -28,6 +29,7 @@ function reviewDateLabel(iso) {
 }
 
 export default function RecentReviews({ activities, limit = 4, onSeeAll }) {
+  const { t } = useTranslation();
   const reviewed = (activities ?? [])
     .filter((a) => a.status === "APPROVED" || a.status === "REJECTED")
     .sort((a, b) => new Date(b.reviewedAt ?? b.date) - new Date(a.reviewedAt ?? a.date))
@@ -36,14 +38,14 @@ export default function RecentReviews({ activities, limit = 4, onSeeAll }) {
   return (
     <section>
       <div className="mb-3 flex items-center justify-between gap-3">
-        <h2 className="text-[15px] font-bold text-white">Recent Reviews</h2>
+        <h2 className="text-[15px] font-bold text-white">{t("emp.recentReviews")}</h2>
         {onSeeAll && reviewed.length > 0 && (
           <button
             type="button"
             onClick={onSeeAll}
             className="text-[12px] font-semibold text-[#F47A20] hover:text-[#ff8b36] transition-colors"
           >
-            View All
+            {t("emp.viewAll")}
           </button>
         )}
       </div>
@@ -53,9 +55,9 @@ export default function RecentReviews({ activities, limit = 4, onSeeAll }) {
           <span className="mx-auto mb-3 w-11 h-11 rounded-full grid place-items-center bg-white/[0.04] text-[#4C5266]">
             <MessageSquareQuote size={19} />
           </span>
-          <p className="text-sm text-[#8B93A8]">No reviews yet.</p>
+          <p className="text-sm text-[#8B93A8]">{t("emp.noReviewsYet")}</p>
           <p className="mt-1 text-xs text-[#4C5266]">
-            Your supervisor's decisions on your activities will appear here.
+            {t("emp.yourSupervisorsDecisionsOnYourActivities")}
           </p>
         </div>
       ) : (
@@ -93,12 +95,12 @@ export default function RecentReviews({ activities, limit = 4, onSeeAll }) {
                           : "bg-[#FF5C5C]/[0.14] text-[#FF5C5C]"
                       }`}
                     >
-                      {approved ? "Approved" : "Rejected"}
+                      {approved ? t("emp.approved") : t("emp.rejected")}
                     </span>
                   </div>
 
                   <p className="mt-1 text-[13px] font-medium text-white truncate">
-                    {CATEGORY_LABELS[a.category] ?? a.category}
+                    {CATEGORY_LABELS[a.category] ? t(CATEGORY_LABELS[a.category]) : a.category}
                   </p>
 
                   {a.rejectionReason && (
@@ -106,7 +108,7 @@ export default function RecentReviews({ activities, limit = 4, onSeeAll }) {
                   )}
                 </div>
 
-                <ChevronRight size={16} className="shrink-0 mt-3 text-[#5C6479]" />
+                <ChevronRight size={16} className="shrink-0 mt-3 text-[#5C6479] rtl-flip" />
               </article>
             );
           })}

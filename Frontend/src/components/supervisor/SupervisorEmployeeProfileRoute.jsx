@@ -1,4 +1,5 @@
 import { Routes, Route, useNavigate, useParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { useAsync } from "../../hooks/useAsync";
 import { getEmployee } from "../../services/staffEmployeeService";
 import EmployeeInfoScreen from "./EmployeeInfoScreen";
@@ -15,13 +16,14 @@ import EmployeeTasksSection from "./EmployeeTasksSection";
 // this is the exact "Employees -> Employee Details -> deeper activity
 // screen -> Back" chain the routing spec uses as its acceptance example.
 export default function SupervisorEmployeeProfileRoute({ session, basePath }) {
+  const { t } = useTranslation();
   const { employeeId } = useParams();
   const navigate = useNavigate();
   const employeeBase = `${basePath}/employees/${employeeId}`;
 
   const { data: employee, setData: setEmployee, error, loading, reload } = useAsync(
     () => getEmployee(employeeId),
-    { deps: [employeeId], fallbackError: "Could not load this employee." }
+    { deps: [employeeId], fallbackError: t("sup.couldNotLoadThisEmployee") }
   );
 
   const goToInfo = () => navigate(employeeBase);

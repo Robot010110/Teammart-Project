@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Camera, Loader2, CheckCircle2, X } from "lucide-react";
 import Modal from "../common/Modal";
 import AuthenticatedImage from "../common/AuthenticatedImage";
@@ -15,6 +16,7 @@ import { ApiError } from "../../services/apiClient";
 // Item Reports, zero new image-handling code.
 
 export default function PriceReportFlow({ open, onClose, onSaved }) {
+  const { t } = useTranslation();
   const [photo, setPhoto] = useState(null); // { url, progress } | null
   const [photoBusy, setPhotoBusy] = useState(false);
   const [productName, setProductName] = useState("");
@@ -51,7 +53,7 @@ export default function PriceReportFlow({ open, onClose, onSaved }) {
       const url = await prepareImageForUpload(file, { onProgress: (progress) => setPhoto({ url: null, progress }) });
       setPhoto({ url, progress: 100 });
     } catch (err) {
-      setError("Could not process that photo. Please try again.");
+      setError(t("emp.couldNotProcessThatPhotoPlease"));
       setPhoto(null);
     } finally {
       setPhotoBusy(false);
@@ -65,7 +67,7 @@ export default function PriceReportFlow({ open, onClose, onSaved }) {
     if (!systemPrice || Number(systemPrice) < 0) errors.systemPrice = true;
     if (Object.keys(errors).length > 0) {
       setFieldErrors(errors);
-      setError("Fill in the product name, shelf price, and system price.");
+      setError(t("emp.fillInTheProductNameShelf"));
       return;
     }
 
@@ -80,10 +82,10 @@ export default function PriceReportFlow({ open, onClose, onSaved }) {
         notes: notes.trim() || undefined,
         photoUrl: photo?.url || undefined,
       });
-      onSaved(report, "Price report sent to your Supervisor.");
+      onSaved(report, t("emp.priceReportSentToYourSupervisor"));
       handleClose();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Could not submit this report. Please try again.");
+      setError(err instanceof ApiError ? err.message : t("emp.couldNotSubmitThisReportPlease"));
     } finally {
       setSubmitting(false);
     }
@@ -95,18 +97,18 @@ export default function PriceReportFlow({ open, onClose, onSaved }) {
     }`;
 
   return (
-    <Modal open={open} onClose={handleClose} title="Report Price Difference">
+    <Modal open={open} onClose={handleClose} title={t("emp.reportPriceDifference")}>
       <div className="space-y-4">
         <div>
-          <label className="block text-xs uppercase tracking-wide text-[#8B93A8] mb-1.5">Product Photo (optional)</label>
+          <label className="block text-xs uppercase tracking-wide text-[#8B93A8] mb-1.5">{t("emp.productPhotoOptional")}</label>
           {photo?.url ? (
             <div className="relative h-24 w-24 rounded-lg overflow-hidden ring-1 ring-white/10">
               <AuthenticatedImage src={photo.url} alt="" className="h-full w-full object-cover" />
               <button
                 type="button"
                 onClick={() => setPhoto(null)}
-                aria-label="Remove photo"
-                className="absolute -top-1 -right-1 h-6 w-6 rounded-full bg-black/80 grid place-items-center"
+                aria-label={t("emp.removePhoto")}
+                className="absolute -top-1 -end-1 h-6 w-6 rounded-full bg-black/80 grid place-items-center"
               >
                 <X size={12} className="text-white" />
               </button>
@@ -131,29 +133,29 @@ export default function PriceReportFlow({ open, onClose, onSaved }) {
                 capture="environment"
                 className="hidden"
                 onChange={(e) => handlePhoto(e.target.files[0])}
-                aria-label="Add product photo"
+                aria-label={t("emp.addProductPhoto")}
               />
             </label>
           )}
         </div>
 
         <div>
-          <label className="block text-xs uppercase tracking-wide text-[#8B93A8] mb-1.5">Product Name</label>
+          <label className="block text-xs uppercase tracking-wide text-[#8B93A8] mb-1.5">{t("emp.productName")}</label>
           <input
             value={productName}
             onChange={(e) => { setProductName(e.target.value); setFieldErrors((f) => ({ ...f, productName: false })); }}
-            placeholder="e.g. Lays Chips 150g"
+            placeholder={t("emp.eGLaysChips150g")}
             aria-invalid={fieldErrors.productName}
             className={inputClass(fieldErrors.productName)}
           />
         </div>
 
         <div>
-          <label className="block text-xs uppercase tracking-wide text-[#8B93A8] mb-1.5">Barcode (optional)</label>
+          <label className="block text-xs uppercase tracking-wide text-[#8B93A8] mb-1.5">{t("emp.barcodeOptional")}</label>
           <input
             value={barcode}
             onChange={(e) => setBarcode(e.target.value)}
-            placeholder="Barcode number"
+            placeholder={t("emp.barcodeNumber")}
             inputMode="numeric"
             className={inputClass(false)}
           />
@@ -161,7 +163,7 @@ export default function PriceReportFlow({ open, onClose, onSaved }) {
 
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="block text-xs uppercase tracking-wide text-[#8B93A8] mb-1.5">Shelf Price</label>
+            <label className="block text-xs uppercase tracking-wide text-[#8B93A8] mb-1.5">{t("emp.shelfPrice")}</label>
             <input
               type="number"
               inputMode="decimal"
@@ -175,7 +177,7 @@ export default function PriceReportFlow({ open, onClose, onSaved }) {
             />
           </div>
           <div>
-            <label className="block text-xs uppercase tracking-wide text-[#8B93A8] mb-1.5">System Price</label>
+            <label className="block text-xs uppercase tracking-wide text-[#8B93A8] mb-1.5">{t("emp.systemPrice")}</label>
             <input
               type="number"
               inputMode="decimal"
@@ -191,7 +193,7 @@ export default function PriceReportFlow({ open, onClose, onSaved }) {
         </div>
 
         <div>
-          <label className="block text-xs uppercase tracking-wide text-[#8B93A8] mb-1.5">Notes (optional)</label>
+          <label className="block text-xs uppercase tracking-wide text-[#8B93A8] mb-1.5">{t("emp.notesOptional")}</label>
           <textarea
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
@@ -208,7 +210,7 @@ export default function PriceReportFlow({ open, onClose, onSaved }) {
             disabled={submitting}
             className="flex-1 rounded-xl py-3 text-sm font-semibold text-[#9AA1B4] bg-white/[0.06] hover:bg-white/[0.1] active:bg-white/[0.14] disabled:opacity-50 transition-colors duration-200"
           >
-            Cancel
+            {t("emp.cancel")}
           </button>
           <button
             onClick={handleSubmit}
@@ -216,7 +218,7 @@ export default function PriceReportFlow({ open, onClose, onSaved }) {
             className="flex-1 flex items-center justify-center gap-2 rounded-xl py-3 text-sm font-semibold text-white bg-[#F47A20] hover:bg-[#ff8b36] active:bg-[#e06f18] disabled:bg-white/10 disabled:text-[#4C5266] transition-colors duration-200"
           >
             {submitting ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
-            {submitting ? "Submitting..." : "Submit Report"}
+            {submitting ? t("emp.submitting") : t("emp.submitReport")}
           </button>
         </div>
       </div>

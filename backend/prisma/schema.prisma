@@ -474,6 +474,20 @@ enum ConversationType {
   // real ConversationMember rows, added/removed individually. `name` and
   // `createdById` on Conversation are only meaningful for this type.
   CUSTOM_GROUP
+  // Koch Operation — one auto-created, market-scoped channel per market
+  // (findOrCreateChannel(marketId, "KOCH_OPERATION"), exactly like
+  // MARKET_GROUP/WARNINGS above — no membership rows, implicit access is
+  // "any employee/staff of that market"). Every access/mention check
+  // that treats MARKET_GROUP and WARNINGS the same way treats this the
+  // same way too (see chatController.conversationAccessFor and
+  // isValidMentionTarget) — a normal, freely-postable market channel,
+  // not WARNINGS' broadcast-only restriction. A Koch Operation
+  // submission (see kochOperationsController.js) auto-posts its
+  // structured record here, the same "controller creates a Message
+  // directly" pattern sendDepartmentReport already uses for
+  // MARKET_GROUP — but employees can also post/read here like any other
+  // market channel, unlike WARNINGS.
+  KOCH_OPERATION
   // Phase 3 — a real, backend-persisted 1:1 between two STAFF accounts
   // (Admin/Regional Manager/Supervisor/Overlooking), the one shape none
   // of the types above could represent (DIRECT is Employee-only,
@@ -744,6 +758,7 @@ model Market {
   auditLogs         AuditLog[]
   nightShiftTaskDefinitions NightShiftTaskDefinition[]
   communications Communication[]
+  kochOperations KochOperation[]
 
   @@index([zoneId])
 }
@@ -878,6 +893,7 @@ model Employee {
   groupJoinRequestsAsTarget   GroupJoinRequest[] @relation("GroupJoinTargetEmployee")
   groupJoinRequestsInvitedBy  GroupJoinRequest[] @relation("GroupJoinInviterEmployee")
   groupJoinRequestsReviewedBy GroupJoinRequest[] @relation("GroupJoinReviewerEmployee")
+  kochOperations              KochOperation[]
 
   @@index([marketId])
   @@index([operationalShift])
@@ -1854,6 +1870,125 @@ model WastedOverallReport {
   @@index([employeeId])
   @@index([marketId])
   @@index([reportedAt])
+}
+
+// ---------------------------------------------------------------------
+// Koch Operation — a new, additive feature; deliberately its own model
+// rather than a new Activity category (Activity.status is DRAFT/PENDING/
+// APPROVED/REJECTED, a review lifecycle Koch Operation doesn't have —
+// its one and only status is SUBMITTED; forcing it into ActivityStatus
+// would mean either lying about a review step that doesn't exist or
+// widening that enum's meaning for every other Activity category too).
+// Two distinct submission shapes share this one table exactly the way
+// WastedOverallReport/PriceReport already keep one shape per real-world
+// concept:
+//   - Worker: operationType is set (CUSTOMIZATION or
+//     DISCOUNT_CUSTOMIZATION), products is empty, evidenceUrl is the
+//     work photo.
+//   - Cashier: operationType is null, products holds the selected
+//     KochProduct rows (with quantity), evidenceUrl is the receipt
+//     photo.
+// Which shape applies is decided server-side from the authenticated
+// employee's real EmployeeRole (kochOperationsController.js) — never
+// trusted from the request body.
+// ---------------------------------------------------------------------
+enum KochOperationType {
+  CUSTOMIZATION
+  DISCOUNT_CUSTOMIZATION
+}
+
+enum KochOperationStatus {
+  SUBMITTED
+}
+
+// The Koch product catalog a Cashier picks from (spec: "must come from
+// backend/database data", never hardcoded in the frontend). Deliberately
+// NOT the existing per-market `Product` model (barcode/stock/price
+// inventory rows, no image/variant/size fields, and scoped to one
+// market) — Koch is a fixed vendor product line sold the same way at
+// every market, closer to a shared catalog than per-market inventory.
+// Extending Product with Koch-only fields would leak Koch-specific
+// concerns onto every other Product row and caller (barcode scanning,
+// stock decrement, label checking) that has nothing to do with this
+// feature.
+model KochProduct {
+  id       String  @id @default(cuid())
+  name     String // product/code name, e.g. "Code T"
+  variant  String?
+  size     String? // e.g. "900g", "400g"
+  imageUrl String?
+  active   Boolean @default(true) // inactive = no longer offered; past operations keep referencing it
+
+  createdAt DateTime @default(now())
+
+  operations KochOperationProduct[]
+
+  @@index([active])
+}
+
+model KochOperation {
+  id String @id @default(cuid())
+
+  // Worker-only — null for a Cashier submission (see this model's own
+  // top comment).
+  operationType KochOperationType?
+
+  // Worker: photo of the work performed. Cashier: photo of the printed
+  // receipt/slip. Exactly one photo either way (spec never asks for
+  // more than one), so a plain field here rather than a child table like
+  // ActivityImage — same single-photo convention ItemReport/PriceReport/
+  // WastedOverallReport already use.
+  evidenceUrl String
+
+  status KochOperationStatus @default(SUBMITTED)
+
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id])
+  marketId   String
+  market     Market   @relation(fields: [marketId], references: [id])
+  // Denormalized snapshot of the employee's department at submission
+  // time — same "historical record doesn't retroactively change"
+  // reasoning as Activity.department's own comment.
+  department String?
+
+  // Cashier-only — empty for a Worker submission.
+  products KochOperationProduct[]
+
+  // Where the auto-generated chat message actually landed — this
+  // market's own KOCH_OPERATION conversation (see
+  // chatController.findOrCreateChannel), never a hardcoded/invented
+  // group. Same plain-string-reference convention as
+  // DepartmentReport.conversationId/messageId above (no FK relation:
+  // the historical record stays intact even if the message is later
+  // edited/deleted).
+  conversationId String?
+  messageId      String?
+
+  date DateTime @default(now())
+  time String // e.g. "9:15 AM" — same text-label convention as Activity.time
+
+  createdAt DateTime @default(now())
+
+  @@index([employeeId])
+  @@index([marketId])
+  @@index([createdAt])
+}
+
+// Cashier multi-product selection with quantity — a genuine many-to-many
+// (one operation, several products; a product can appear in many
+// operations), so a join table rather than a scalar array, matching
+// this schema's existing convention for every other many-to-many here.
+model KochOperationProduct {
+  id String @id @default(cuid())
+
+  kochOperationId String
+  kochOperation   KochOperation @relation(fields: [kochOperationId], references: [id], onDelete: Cascade)
+  kochProductId   String
+  kochProduct     KochProduct   @relation(fields: [kochProductId], references: [id])
+  quantity        Int           @default(1)
+
+  @@index([kochOperationId])
+  @@index([kochProductId])
 }
 
 // ---------------------------------------------------------------------

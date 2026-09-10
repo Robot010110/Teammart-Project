@@ -1,4 +1,5 @@
 import { ArrowRight, Loader2 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 // PrimaryLoginButton.jsx — the one real Sign In button every login
 // screen uses. `submitting` disables it and swaps in a spinner
@@ -7,6 +8,7 @@ import { ArrowRight, Loader2 } from "lucide-react";
 // its own, the caller only navigates once its real onLogin actually
 // fires with a real session.
 export default function PrimaryLoginButton({ submitting, disabled }) {
+  const { t } = useTranslation();
   return (
     <button
       type="submit"
@@ -15,11 +17,11 @@ export default function PrimaryLoginButton({ submitting, disabled }) {
     >
       {submitting ? (
         <>
-          <Loader2 size={18} className="animate-spin" /> Signing in...
+          <Loader2 size={18} className="animate-spin" /> {t("auth.signingIn")}
         </>
       ) : (
         <>
-          Sign In <ArrowRight size={18} />
+          {t("auth.signIn")} <ArrowRight size={18} className="rtl-flip" />
         </>
       )}
     </button>

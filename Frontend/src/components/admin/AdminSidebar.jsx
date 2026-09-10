@@ -1,4 +1,5 @@
 import { NavLink } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { LayoutDashboard, Users, Layers, CalendarCheck, FileBarChart, PackageX, Megaphone, Settings, X } from "lucide-react";
 
 // Every entry points at a route that already exists in AdminWorkspace —
@@ -6,14 +7,14 @@ import { LayoutDashboard, Users, Layers, CalendarCheck, FileBarChart, PackageX, 
 // should still light this item up (Zones & Markets is one nav entry
 // covering the two existing pages; People covers employee profiles).
 export const ADMIN_NAV = [
-  { key: "home", label: "Dashboard", icon: LayoutDashboard, to: "/admin/home" },
-  { key: "employees", label: "People", icon: Users, to: "/admin/employees" },
-  { key: "zones", label: "Zones & Markets", icon: Layers, to: "/admin/zones", match: ["/admin/markets"] },
-  { key: "attendance", label: "Attendance", icon: CalendarCheck, to: "/admin/attendance" },
-  { key: "reports", label: "Reports", icon: FileBarChart, to: "/admin/reports", match: ["/admin/activities", "/admin/audit"] },
-  { key: "expired-items", label: "Expired Items", icon: PackageX, to: "/admin/expired-items" },
-  { key: "communications", label: "Communication", icon: Megaphone, to: "/admin/communications", match: ["/admin/chat"] },
-  { key: "settings", label: "Settings", icon: Settings, to: "/admin/settings" },
+  { key: "home", label: "admin.dashboard", icon: LayoutDashboard, to: "/admin/home" },
+  { key: "employees", label: "admin.people", icon: Users, to: "/admin/employees" },
+  { key: "zones", label: "admin.zonesMarkets", icon: Layers, to: "/admin/zones", match: ["/admin/markets"] },
+  { key: "attendance", label: "emp.attendance", icon: CalendarCheck, to: "/admin/attendance" },
+  { key: "reports", label: "emp.tabReports", icon: FileBarChart, to: "/admin/reports", match: ["/admin/activities", "/admin/audit"] },
+  { key: "expired-items", label: "emp.catExpiredItems", icon: PackageX, to: "/admin/expired-items" },
+  { key: "communications", label: "admin.communication", icon: Megaphone, to: "/admin/communications", match: ["/admin/chat"] },
+  { key: "settings", label: "settings.title", icon: Settings, to: "/admin/settings" },
 ];
 
 export function isNavActive(item, pathname) {
@@ -26,21 +27,24 @@ export function isNavActive(item, pathname) {
 // phone-first and use BottomNav), so this is a persistent rail on large
 // screens and a slide-in drawer below `lg`.
 export default function AdminSidebar({ session, pathname, open, onClose }) {
+  const { t } = useTranslation();
   return (
     <>
       {/* Drawer scrim — only below lg, where the rail is not persistent. */}
       {open && (
         <button
           type="button"
-          aria-label="Close navigation"
+          aria-label={t("admin.closeNavigation")}
           onClick={onClose}
           className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm lg:hidden"
         />
       )}
 
       <aside
-        className={`fixed inset-y-0 left-0 z-50 flex w-[248px] flex-col border-r border-white/[0.06] bg-[#0A101E]/95 backdrop-blur-xl
-                    transition-transform duration-300 ease-out lg:translate-x-0 ${open ? "translate-x-0" : "-translate-x-full"}`}
+        className={`fixed inset-y-0 start-0 z-50 flex w-[248px] flex-col border-e border-white/[0.06] bg-[#0A101E]/95 backdrop-blur-xl
+                    transition-transform duration-300 ease-out lg:translate-x-0 ${
+                      open ? "translate-x-0" : "-translate-x-full rtl:translate-x-full"
+                    }`}
       >
         <div className="flex items-center justify-between gap-2 px-5 pb-5 pt-5">
           <div className="flex items-center gap-2.5">
@@ -51,13 +55,13 @@ export default function AdminSidebar({ session, pathname, open, onClose }) {
               <p className="font-display text-[15px] font-bold tracking-wide text-white">
                 TEAM<span className="text-[#F47A20]">MART</span>
               </p>
-              <p className="text-[8.5px] uppercase tracking-[0.16em] text-[#5C6479]">People Drive Great Markets</p>
+              <p className="text-[8.5px] uppercase tracking-[0.16em] text-[#5C6479]">{t("admin.peopleDriveGreatMarkets")}</p>
             </div>
           </div>
           <button
             type="button"
             onClick={onClose}
-            aria-label="Close navigation"
+            aria-label={t("admin.closeNavigation")}
             className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-[#8B93A8] transition-colors hover:bg-white/[0.06] hover:text-white lg:hidden"
           >
             <X size={16} />
@@ -80,9 +84,9 @@ export default function AdminSidebar({ session, pathname, open, onClose }) {
                     : "text-[#8B93A8] hover:bg-white/[0.04] hover:text-white"
                 }`}
               >
-                {active && <span className="absolute inset-y-1.5 left-0 w-[3px] rounded-full bg-[#F47A20] shadow-[0_0_8px_rgba(244,122,32,0.9)]" />}
+                {active && <span className="absolute inset-y-1.5 start-0 w-[3px] rounded-full bg-[#F47A20] shadow-[0_0_8px_rgba(244,122,32,0.9)]" />}
                 <Icon size={17} className={active ? "text-[#F47A20]" : ""} />
-                {item.label}
+                {t(item.label)}
               </NavLink>
             );
           })}
@@ -94,8 +98,8 @@ export default function AdminSidebar({ session, pathname, open, onClose }) {
             {session?.initials ?? "AD"}
           </span>
           <div className="min-w-0">
-            <p className="truncate text-[13px] font-semibold text-white">{session?.displayName ?? "Admin"}</p>
-            <p className="truncate text-[10.5px] text-[#5C6479]">Administrator</p>
+            <p className="truncate text-[13px] font-semibold text-white">{session?.displayName ?? t("roles.admin")}</p>
+            <p className="truncate text-[10.5px] text-[#5C6479]">{t("admin.administrator")}</p>
           </div>
         </div>
       </aside>

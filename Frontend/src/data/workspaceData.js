@@ -40,9 +40,9 @@
 // destroy existing historical data unnecessarily"). This is a frontend
 // selector change only.
 export const ACTIVITY_SUBMISSION_OPTIONS = [
-  { category: "SHELF_CLEANING", label: "Cleaning Shelves" },
-  { category: "PRODUCT_CUSTOMIZATION", label: "Submit Product Customization" },
-  { category: "DAILY_CLEANING", label: "Report Daily Cleaning" },
+  { category: "SHELF_CLEANING", label: "emp.optCleaningShelves" },
+  { category: "PRODUCT_CUSTOMIZATION", label: "emp.optSubmitProductCustomization" },
+  { category: "DAILY_CLEANING", label: "emp.optReportDailyCleaning" },
 ];
 
 // Human-readable label for a category code, used anywhere an Activity is
@@ -59,7 +59,14 @@ export const CATEGORY_LABELS = {
     map[o.category] = o.label;
     return map;
   }, {}),
-  ITEM_COUNTING: "Inventory Counting",
+  ITEM_COUNTING: "sup.inventoryCounting",
+  // Every remaining real category, so an Activity can never fall through
+  // this map and render its raw enum value on screen.
+  LABEL_CHECKING: "sup.labelChecking",
+  REFILLING: "sup.refilling",
+  FACING: "sup.facing",
+  DEPARTMENT_CLOSING: "emp.catDepartmentClosing",
+  EXPIRED_ITEMS: "emp.catExpiredItems",
 };
 
 // CLEANING_CHECKLIST_ITEMS — the fixed cashier-station cleaning checklist

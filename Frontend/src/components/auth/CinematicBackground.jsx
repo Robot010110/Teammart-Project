@@ -39,7 +39,7 @@ const VARIANTS = {
   storefront: { photo: storefrontPhoto, focusMobile: "50% 32%", focusDesktop: "48% 30%", zoomedOut: true },
   // Produce stands sit lower-left in the aisle photo.
   produce: { photo: employeePhoto, focusMobile: "45% 55%", focusDesktop: "40% 45%" },
-  // TM logo/wordmark sits right-of-centre in the lobby photo.
+  // TM logo/wordmark sits left-of-centre in the lobby photo.
   aisles: { photo: staffPhoto, focusMobile: "68% 45%", focusDesktop: "58% 45%" },
 };
 

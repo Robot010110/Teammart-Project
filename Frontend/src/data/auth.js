@@ -7,28 +7,11 @@
 // configuration.
 
 export const ROLE_OPTIONS = [
-  {
-    key: "admin",
-    label: "Admin",
-    tagline: "Company-wide management",
-    hint: "Every zone, market, and staff account",
-  },
-  {
-    key: "regionalManager",
-    label: "Regional Manager",
-    tagline: "Strategic overview across your zones",
-    hint: "Every market in your assigned zones",
-  },
-  {
-    key: "supervisor",
-    label: "Supervisor",
-    tagline: "Operational management of one market",
-    hint: "Your assigned market only",
-  },
-  {
-    key: "employee",
-    label: "Employee",
-    tagline: "Your personal tasks & daily work",
-    hint: "Just your own profile and activity",
-  },
+  // Translation KEYS, not display text: the picker is rendered in
+  // whichever language is active, so the copy lives in locales/ and this
+  // file stays pure configuration. Keys resolve in RoleCardPremium.jsx.
+  { key: "admin", labelKey: "roles.admin", taglineKey: "auth.adminDesc", hintKey: "auth.adminHint" },
+  { key: "regionalManager", labelKey: "roles.regionalManager", taglineKey: "auth.regionalManagerDesc", hintKey: "auth.regionalManagerHint" },
+  { key: "supervisor", labelKey: "roles.supervisor", taglineKey: "auth.supervisorDesc", hintKey: "auth.supervisorHint" },
+  { key: "employee", labelKey: "roles.employee", taglineKey: "auth.employeeDesc", hintKey: "auth.employeeHint" },
 ];

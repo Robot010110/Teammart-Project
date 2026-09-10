@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   ArrowLeft, Plus, Loader2, Check, Clock3, CheckCircle2, MapPin, StickyNote,
   FileText, AlertTriangle, ClipboardCheck,
@@ -24,9 +25,9 @@ function isOverdue(t) {
 }
 
 const TABS = [
-  { key: "all", label: "All Tasks" },
-  { key: "open", label: "Assigned Tasks" },
-  { key: "completed", label: "Completed Tasks" },
+  { key: "all", label: "sup.allTasks" },
+  { key: "open", label: "emp.assignedTasks" },
+  { key: "completed", label: "sup.completedTasks" },
 ];
 
 const SUMMARY_TONE = {
@@ -59,9 +60,10 @@ function SummaryTile({ icon: Icon, label, value, tone }) {
 // assigned" — distinct from Activity History, which answers "what did
 // this employee actually do" (see EmployeeActivityHistoryScreen.jsx).
 export default function EmployeeTasksSection({ employeeId, employee, marketName, onBack }) {
+  const { t } = useTranslation();
   const { data: tasks, setData: setTasks, error, loading, reload } = useAsync(
     () => listSuddenTasks({ employeeId }),
-    { deps: [employeeId], fallbackError: "Could not load tasks." }
+    { deps: [employeeId], fallbackError: t("sup.couldNotLoadTasks") }
   );
   const [showForm, setShowForm] = useState(false);
   const [tab, setTab] = useState("all");
@@ -90,39 +92,39 @@ export default function EmployeeTasksSection({ employeeId, employee, marketName,
 
   return (
     <div className="px-4 sm:px-6 py-6 max-w-4xl mx-auto animate-fade-up">
-      <button type="button" onClick={onBack} className="flex items-center gap-1.5 text-sm text-[#9AA1B4] hover:text-white mb-1 -ml-1 py-1.5 px-1">
-        <ArrowLeft size={16} /> Back to Employee
+      <button type="button" onClick={onBack} className="flex items-center gap-1.5 text-sm text-[#9AA1B4] hover:text-white mb-1 -ms-1 py-1.5 px-1">
+        <ArrowLeft size={16} className="rtl-flip" /> {t("sup.backToEmployee")}
       </button>
 
       <EmployeeIdentityStrip employee={employee} marketName={marketName} />
 
       <div className="flex items-center justify-between gap-3 mb-4">
-        <h1 className="font-display text-[18px] font-bold text-white">Tasks{employee ? ` — ${employee.name}` : ""}</h1>
+        <h1 className="font-display text-[18px] font-bold text-white">{t("emp.navTasks")}{employee ? ` — ${employee.name}` : ""}</h1>
         <button
           type="button"
           onClick={() => setShowForm((v) => !v)}
           className="shrink-0 flex items-center gap-1.5 rounded-xl px-3.5 py-2.5 text-[13px] font-semibold text-white bg-gradient-to-r from-[#F47A20] to-[#E0561A] shadow-[0_4px_22px_-6px_rgba(244,122,32,0.75)] ring-1 ring-white/10 transition-all duration-150 hover:from-[#ff8b36] hover:to-[#F47A20] active:scale-[0.97]"
         >
-          <Plus size={15} /> Assign Task
+          <Plus size={15} /> {t("sup.assignTask")}
         </button>
       </div>
 
       {/* Tabs — real filters over the real fetched tasks, not decorative. */}
       <div className="flex gap-2 mb-4 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
-        {TABS.map((t) => {
-          const active = tab === t.key;
+        {TABS.map((tab_) => {
+          const active = tab === tab_.key;
           return (
             <button
-              key={t.key}
+              key={tab_.key}
               type="button"
-              onClick={() => setTab(t.key)}
+              onClick={() => setTab(tab_.key)}
               className={`shrink-0 rounded-xl px-3.5 py-2.5 text-[13px] font-semibold transition-all duration-200 ${
                 active
                   ? "bg-gradient-to-b from-[#F47A20]/25 to-[#F47A20]/[0.08] text-[#FFA35C] ring-1 ring-[#F47A20]/50 shadow-[0_0_22px_-6px_rgba(244,122,32,0.8)]"
                   : "bg-[#111A2D]/80 text-[#8B93A8] ring-1 ring-white/[0.06] hover:text-white hover:bg-white/[0.05]"
               }`}
             >
-              {t.label}
+              {t(tab_.label)}
             </button>
           );
         })}
@@ -130,10 +132,10 @@ export default function EmployeeTasksSection({ employeeId, employee, marketName,
 
       {/* Summary — real counts, Overdue derived honestly (see isOverdue). */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mb-4">
-        <SummaryTile icon={FileText} label="Total Tasks" value={loading ? "—" : summary.total} tone="blue" />
-        <SummaryTile icon={CheckCircle2} label="Completed" value={loading ? "—" : summary.completed} tone="green" />
-        <SummaryTile icon={ClipboardCheck} label="In Progress" value={loading ? "—" : summary.inProgress} tone="gold" />
-        <SummaryTile icon={AlertTriangle} label="Overdue" value={loading ? "—" : summary.overdue} tone="red" />
+        <SummaryTile icon={FileText} label={t("sup.totalTasks")} value={loading ? "—" : summary.total} tone="blue" />
+        <SummaryTile icon={CheckCircle2} label={t("status.completed")} value={loading ? "—" : summary.completed} tone="green" />
+        <SummaryTile icon={ClipboardCheck} label={t("status.inProgress")} value={loading ? "—" : summary.inProgress} tone="gold" />
+        <SummaryTile icon={AlertTriangle} label={t("sup.overdue")} value={loading ? "—" : summary.overdue} tone="red" />
       </div>
 
       {showForm && (
@@ -150,12 +152,12 @@ export default function EmployeeTasksSection({ employeeId, employee, marketName,
             <ClipboardCheck size={24} />
           </span>
           <p className="text-[15px] font-semibold text-white">
-            {tab === "completed" ? "No completed tasks yet" : tab === "open" ? "No assigned tasks" : "No tasks assigned yet"}
+            {tab === "completed" ? t("emp.noCompletedTasksYet") : tab === "open" ? t("sup.noAssignedTasks") : t("sup.noTasksAssignedYet")}
           </p>
           <p className="mt-1 text-[13px] text-[#8B93A8]">
             {tab === "all"
-              ? "This employee doesn't have any tasks right now. Assign a new task to get started."
-              : "Nothing in this view yet."}
+              ? t("sup.thisEmployeeDoesntHaveAnyTasks")
+              : t("sup.nothingInThisViewYet")}
           </p>
           {tab === "all" && (
             <button
@@ -163,19 +165,19 @@ export default function EmployeeTasksSection({ employeeId, employee, marketName,
               onClick={() => setShowForm(true)}
               className="mt-4 inline-flex items-center gap-1.5 rounded-xl px-4 py-2.5 text-[13px] font-semibold text-white bg-gradient-to-r from-[#F47A20] to-[#E0561A] shadow-[0_4px_22px_-6px_rgba(244,122,32,0.75)]"
             >
-              <Plus size={14} /> Assign Task
+              <Plus size={14} /> {t("sup.assignTask")}
             </button>
           )}
         </div>
       ) : (
         <div className="space-y-2.5">
-          {filtered.map((t) => {
-            const visual = categoryVisual(t.category);
+          {filtered.map((task) => {
+            const visual = categoryVisual(task.category);
             const Icon = visual.icon;
-            const overdue = isOverdue(t);
+            const overdue = isOverdue(task);
             return (
               <div
-                key={t.id}
+                key={task.id}
                 className={`rounded-2xl p-3.5 bg-gradient-to-b from-[#131D33]/90 to-[#0C1424]/90 border backdrop-blur-xl transition-colors duration-150 ${
                   overdue ? "border-red-500/30 shadow-[0_0_20px_-14px_rgba(248,113,113,0.7)]" : "border-white/[0.07]"
                 }`}
@@ -185,33 +187,33 @@ export default function EmployeeTasksSection({ employeeId, employee, marketName,
                     <span className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ring-1 ring-inset ${visual.bg} ${visual.tone} ${visual.glow}`}>
                       <Icon size={15} />
                     </span>
-                    <span className="text-[13.5px] font-semibold text-white truncate">{t.title}</span>
+                    <span className="text-[13.5px] font-semibold text-white truncate">{task.title}</span>
                   </div>
-                  <PriorityPill priority={t.priority} />
+                  <PriorityPill priority={task.priority} />
                 </div>
-                {t.description && <p className="mt-1.5 text-[12.5px] text-[#8B93A8]">{t.description}</p>}
-                {t.location && (
-                  <p className="mt-1.5 flex items-center gap-1 text-[11.5px] text-[#9AA1B4]"><MapPin size={11} /> {t.location}</p>
+                {task.description && <p className="mt-1.5 text-[12.5px] text-[#8B93A8]">{task.description}</p>}
+                {task.location && (
+                  <p className="mt-1.5 flex items-center gap-1 text-[11.5px] text-[#9AA1B4]"><MapPin size={11} /> {task.location}</p>
                 )}
-                {t.notes && (
-                  <p className="mt-1.5 flex items-center gap-1 text-[11.5px] text-[#9AA1B4]"><StickyNote size={11} /> {t.notes}</p>
+                {task.notes && (
+                  <p className="mt-1.5 flex items-center gap-1 text-[11.5px] text-[#9AA1B4]"><StickyNote size={11} /> {task.notes}</p>
                 )}
-                {t.dueAt && (
+                {task.dueAt && (
                   <p className={`mt-1.5 flex items-center gap-1 text-[11.5px] ${overdue ? "text-red-400" : "text-amber-400"}`}>
-                    {overdue && <AlertTriangle size={11} />} {overdue ? "Overdue since" : "Due"} {dueLabel(t.dueAt)}
+                    {overdue && <AlertTriangle size={11} />} {overdue ? t("sup.overdueSince") : t("sup.due")} {dueLabel(task.dueAt)}
                   </p>
                 )}
                 <div className="mt-1.5 flex items-center gap-1 text-[11.5px] text-[#9AA1B4]">
-                  <Clock3 size={11} /> Assigned {assignedTimeLabel(t.assignedAt)}
+                  <Clock3 size={11} /> {t("emp.assigned")} {assignedTimeLabel(task.assignedAt)}
                 </div>
-                {t.status === "COMPLETED" && t.completedAt && (
+                {task.status === "COMPLETED" && task.completedAt && (
                   <p className="mt-1.5 flex items-center gap-1 text-[11.5px] text-emerald-400">
-                    <CheckCircle2 size={11} /> Completed {assignedTimeLabel(t.completedAt)}
+                    <CheckCircle2 size={11} /> {t("emp.completed")} {assignedTimeLabel(task.completedAt)}
                   </p>
                 )}
-                {t.status === "IN_PROGRESS" && (
+                {task.status === "IN_PROGRESS" && (
                   <p className="mt-1.5 flex items-center gap-1 text-[11.5px] text-[#F47A20]">
-                    <Clock3 size={11} /> In progress since {assignedTimeLabel(t.startedAt)}
+                    <Clock3 size={11} /> {t("sup.inProgressSince")} {assignedTimeLabel(task.startedAt)}
                   </p>
                 )}
               </div>
@@ -224,6 +226,7 @@ export default function EmployeeTasksSection({ employeeId, employee, marketName,
 }
 
 function AssignTaskForm({ employeeId, onAssigned, onCancel }) {
+  const { t } = useTranslation();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [priority, setPriority] = useState("NORMAL");
@@ -237,7 +240,7 @@ function AssignTaskForm({ employeeId, onAssigned, onCancel }) {
 
   async function handleSubmit() {
     if (!title.trim() || !description.trim()) {
-      setError("Title and description are required.");
+      setError(t("sup.titleAndDescriptionAreRequired"));
       return;
     }
     setSubmitting(true);
@@ -255,7 +258,7 @@ function AssignTaskForm({ employeeId, onAssigned, onCancel }) {
       });
       onAssigned(task);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Could not assign this task.");
+      setError(err instanceof ApiError ? err.message : t("sup.couldNotAssignThisTask"));
     } finally {
       setSubmitting(false);
     }
@@ -264,25 +267,25 @@ function AssignTaskForm({ employeeId, onAssigned, onCancel }) {
   return (
     <div className="rounded-2xl p-4 mb-4 bg-gradient-to-b from-[#131D33]/90 to-[#0C1424]/90 border border-[#F47A20]/25 backdrop-blur-xl shadow-[0_10px_30px_-18px_rgba(0,0,0,0.9),0_0_30px_-16px_rgba(244,122,32,0.4)] space-y-3">
       <div>
-        <label className="block text-[10px] uppercase tracking-wide text-[#8B93A8] mb-1.5">Title</label>
-        <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Restock water bottles" className="w-full rounded-lg bg-white/[0.04] border border-white/[0.06] px-2.5 py-2 text-sm text-white placeholder:text-[#4C5266] outline-none focus:border-[#F47A20]/50" />
+        <label className="block text-[10px] uppercase tracking-wide text-[#8B93A8] mb-1.5">{t("sup.title")}</label>
+        <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder={t("sup.eGRestockWaterBottles")} className="w-full rounded-lg bg-white/[0.04] border border-white/[0.06] px-2.5 py-2 text-sm text-white placeholder:text-[#4C5266] outline-none focus:border-[#F47A20]/50" />
       </div>
       <div>
-        <label className="block text-[10px] uppercase tracking-wide text-[#8B93A8] mb-1.5">Description</label>
-        <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2} placeholder="What needs to be done" className="w-full rounded-lg bg-white/[0.04] border border-white/[0.06] px-2.5 py-2 text-sm text-white placeholder:text-[#4C5266] outline-none focus:border-[#F47A20]/50 resize-none" />
+        <label className="block text-[10px] uppercase tracking-wide text-[#8B93A8] mb-1.5">{t("sup.description")}</label>
+        <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2} placeholder={t("sup.whatNeedsToBeDone")} className="w-full rounded-lg bg-white/[0.04] border border-white/[0.06] px-2.5 py-2 text-sm text-white placeholder:text-[#4C5266] outline-none focus:border-[#F47A20]/50 resize-none" />
       </div>
       <div>
-        <label className="block text-[10px] uppercase tracking-wide text-[#8B93A8] mb-1.5">Priority</label>
+        <label className="block text-[10px] uppercase tracking-wide text-[#8B93A8] mb-1.5">{t("emp.priority")}</label>
         <div className="flex gap-2">
-          {["NORMAL", "HIGH", "URGENT"].map((p) => (
+          {[["NORMAL", "sup.normal"], ["HIGH", "sup.high"], ["URGENT", "emp.urgent"]].map(([p, labelKey]) => (
             <button key={p} type="button" onClick={() => setPriority(p)} className={`flex-1 rounded-lg py-2 text-xs font-medium transition-colors ${priority === p ? "bg-[#F47A20] text-white" : "bg-white/[0.05] text-[#9AA1B4]"}`}>
-              {p}
+              {t(labelKey)}
             </button>
           ))}
         </div>
       </div>
       <div>
-        <label className="block text-[10px] uppercase tracking-wide text-[#8B93A8] mb-1.5">Category</label>
+        <label className="block text-[10px] uppercase tracking-wide text-[#8B93A8] mb-1.5">{t("sup.category")}</label>
         <div className="grid grid-cols-4 gap-1.5">
           {Object.entries(CATEGORY_VISUALS).map(([key, v]) => {
             const Icon = v.icon;
@@ -292,11 +295,11 @@ function AssignTaskForm({ employeeId, onAssigned, onCancel }) {
                 key={key}
                 type="button"
                 onClick={() => setCategory(key)}
-                title={v.label}
+                title={t(v.label)}
                 className={`flex flex-col items-center gap-1 rounded-lg py-2 transition-colors ${selected ? "bg-[#F47A20]/15 border border-[#F47A20]/40" : "bg-white/[0.04] border border-white/[0.06]"}`}
               >
                 <Icon size={14} className={selected ? "text-[#F47A20]" : "text-[#9AA1B4]"} />
-                <span className={`text-[9px] leading-tight text-center ${selected ? "text-white" : "text-[#9AA1B4]"}`}>{v.label}</span>
+                <span className={`text-[9px] leading-tight text-center ${selected ? "text-white" : "text-[#9AA1B4]"}`}>{t(v.label)}</span>
               </button>
             );
           })}
@@ -304,29 +307,29 @@ function AssignTaskForm({ employeeId, onAssigned, onCancel }) {
       </div>
       <div className="grid grid-cols-2 gap-2">
         <div>
-          <label className="block text-[10px] uppercase tracking-wide text-[#8B93A8] mb-1.5">Due Date (optional)</label>
+          <label className="block text-[10px] uppercase tracking-wide text-[#8B93A8] mb-1.5">{t("sup.dueDateOptional")}</label>
           <input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} className="w-full rounded-lg bg-white/[0.04] border border-white/[0.06] px-2.5 py-2 text-sm text-white outline-none focus:border-[#F47A20]/50" />
         </div>
         <div>
-          <label className="block text-[10px] uppercase tracking-wide text-[#8B93A8] mb-1.5">Due Time (optional)</label>
+          <label className="block text-[10px] uppercase tracking-wide text-[#8B93A8] mb-1.5">{t("sup.dueTimeOptional")}</label>
           <input type="time" value={dueTime} onChange={(e) => setDueTime(e.target.value)} disabled={!dueDate} className="w-full rounded-lg bg-white/[0.04] border border-white/[0.06] px-2.5 py-2 text-sm text-white outline-none focus:border-[#F47A20]/50 disabled:opacity-40" />
         </div>
       </div>
       <div>
-        <label className="block text-[10px] uppercase tracking-wide text-[#8B93A8] mb-1.5">Location (optional)</label>
-        <input value={location} onChange={(e) => setLocation(e.target.value)} placeholder="e.g. Shelf A3" className="w-full rounded-lg bg-white/[0.04] border border-white/[0.06] px-2.5 py-2 text-sm text-white placeholder:text-[#4C5266] outline-none focus:border-[#F47A20]/50" />
+        <label className="block text-[10px] uppercase tracking-wide text-[#8B93A8] mb-1.5">{t("sup.locationOptional")}</label>
+        <input value={location} onChange={(e) => setLocation(e.target.value)} placeholder={t("sup.eGShelfA3")} className="w-full rounded-lg bg-white/[0.04] border border-white/[0.06] px-2.5 py-2 text-sm text-white placeholder:text-[#4C5266] outline-none focus:border-[#F47A20]/50" />
       </div>
       <div>
-        <label className="block text-[10px] uppercase tracking-wide text-[#8B93A8] mb-1.5">Notes (optional)</label>
-        <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} placeholder="Anything else the employee should know" className="w-full rounded-lg bg-white/[0.04] border border-white/[0.06] px-2.5 py-2 text-sm text-white placeholder:text-[#4C5266] outline-none focus:border-[#F47A20]/50 resize-none" />
+        <label className="block text-[10px] uppercase tracking-wide text-[#8B93A8] mb-1.5">{t("emp.notesOptional")}</label>
+        <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} placeholder={t("sup.anythingElseTheEmployeeShouldKnow")} className="w-full rounded-lg bg-white/[0.04] border border-white/[0.06] px-2.5 py-2 text-sm text-white placeholder:text-[#4C5266] outline-none focus:border-[#F47A20]/50 resize-none" />
       </div>
       {error && <p className="text-xs text-red-400">{error}</p>}
       <div className="flex gap-2">
         <button type="button" onClick={handleSubmit} disabled={submitting} className="flex-1 flex items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-semibold text-white bg-[#F47A20] hover:bg-[#ff8b36] disabled:opacity-50">
-          {submitting ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />} Assign
+          {submitting ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />} {t("sup.assign")}
         </button>
         <button type="button" onClick={onCancel} disabled={submitting} className="flex-1 rounded-lg py-2 text-xs font-medium text-[#9AA1B4] bg-white/[0.06] hover:bg-white/[0.1]">
-          Cancel
+          {t("common.cancel")}
         </button>
       </div>
     </div>

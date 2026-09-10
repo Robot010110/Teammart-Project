@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { Layers, Store, ShieldCheck, Users2, PackageX, AlertTriangle } from "lucide-react";
 import { useAsync } from "../hooks/useAsync";
@@ -14,12 +15,13 @@ import { listMarkets, listAccessibleSupervisors } from "../services/marketServic
 import { listZones } from "../services/zoneService";
 import { listMarketProblems } from "../services/marketProblemsService";
 import { listZoneItemReports } from "../services/itemReportService";
+import { PROBLEM_TYPE_LABEL } from "../utils/problemTypes";
 
 function greeting() {
   const hour = new Date().getHours();
-  if (hour < 12) return "Good morning";
-  if (hour < 18) return "Good afternoon";
-  return "Good evening";
+  if (hour < 12) return "sup.goodMorning";
+  if (hour < 18) return "sup.goodAfternoon";
+  return "sup.goodEvening";
 }
 
 // AdminDashboard.jsx — the organization-wide command center.
@@ -41,6 +43,7 @@ function greeting() {
 // Each section loads independently so one failing request degrades that
 // card only, instead of blanking the whole dashboard.
 export default function AdminDashboard({ session }) {
+  const { t } = useTranslation();
   const navigate = useNavigate();
 
   const { data: overview, error: overviewError, loading: overviewLoading, reload: reloadOverview } = useAsync(getCompanyOverview, { deps: [] });
@@ -99,9 +102,9 @@ export default function AdminDashboard({ session }) {
       items.push({
         id: `problem-${p.id}`,
         severity: "critical",
-        title: `${p.market?.name ? `${p.market.name} — ` : ""}${p.problemType}`,
-        context: p.location || p.description || "Open operational report",
-        meta: p.status === "IN_PROGRESS" ? "In progress" : "Open",
+        title: `${p.market?.name ? `${p.market.name} — ` : ""}${PROBLEM_TYPE_LABEL[p.problemType] ? t(PROBLEM_TYPE_LABEL[p.problemType]) : p.problemType}`,
+        context: p.location || p.description || t("admin.openOperationalReport"),
+        meta: p.status === "IN_PROGRESS" ? t("status.inProgress") : t("sup.open"),
         to: "/admin/markets",
       });
     }
@@ -112,9 +115,9 @@ export default function AdminDashboard({ session }) {
         items.push({
           id: `attendance-${m.id}`,
           severity: "warning",
-          title: `${m.name} — nobody checked in`,
-          context: `${m.employeesCount} employee${m.employeesCount === 1 ? "" : "s"} assigned, 0 on shift`,
-          meta: "Now",
+          title: t("admin.nobodyCheckedIn", { market: m.name }),
+          context: t("rm.employeesAssignedOnShift", { count: m.employeesCount, onShift: 0 }),
+          meta: t("admin.now"),
           to: "/admin/attendance",
         });
       }
@@ -122,9 +125,11 @@ export default function AdminDashboard({ session }) {
         items.push({
           id: `status-${m.id}`,
           severity: "warning",
-          title: `${m.name} is ${m.status === "MAINTENANCE" ? "under maintenance" : "inactive"}`,
-          context: `Zone ${m.zoneNumber}`,
-          meta: "Status",
+          title: m.status === "MAINTENANCE"
+            ? t("admin.marketUnderMaintenance", { market: m.name })
+            : t("admin.marketInactive", { market: m.name }),
+          context: t("rm.zoneNumbered", { number: m.zoneNumber }),
+          meta: t("sup.status"),
           to: "/admin/markets",
         });
       }
@@ -134,16 +139,16 @@ export default function AdminDashboard({ session }) {
       items.push({
         id: "expired-today",
         severity: "info",
-        title: `${expired.todayCount} expired/wasted item report${expired.todayCount === 1 ? "" : "s"} today`,
-        context: "Filed across the organization",
-        meta: "Today",
+        title: t("rm.expiredReportsToday", { count: expired.todayCount }),
+        context: t("admin.filedAcrossTheOrganization"),
+        meta: t("common.today"),
         to: "/admin/expired-items",
       });
     }
 
     const order = { critical: 0, warning: 1, info: 2 };
     return items.sort((a, b) => order[a.severity] - order[b.severity]);
-  }, [problems, markets, expired]);
+  }, [problems, markets, expired, t]);
 
   const supervisorCount = supervisors?.length ?? null;
   const attentionLoading = marketsLoading || problemsLoading || expiredLoading;
@@ -153,9 +158,9 @@ export default function AdminDashboard({ session }) {
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="font-display text-[26px] font-bold leading-tight text-white">
-            {greeting()}, {session?.displayName?.split(" ")[0] ?? "Admin"}
+            {t(greeting())}, {session?.displayName?.split(" ")[0] ?? t("roles.admin")}
           </h1>
-          <p className="mt-0.5 text-[13px] text-[#8B93A8]">Here's what's happening across TeamMart today.</p>
+          <p className="mt-0.5 text-[13px] text-[#8B93A8]">{t("admin.hereSWhatSHappeningAcross")}</p>
         </div>
         <p className="text-[12.5px] text-[#5C6479]">
           {new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
@@ -169,14 +174,14 @@ export default function AdminDashboard({ session }) {
       )}
 
       <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
-        <AdminKpiCard icon={Layers} tone="blue" value={overview?.zonesCount ?? "—"} label="Zones" loading={overviewLoading} onClick={() => navigate("/admin/zones")} />
-        <AdminKpiCard icon={Store} tone="orange" value={overview?.marketsCount ?? "—"} label="Markets" loading={overviewLoading} onClick={() => navigate("/admin/markets")} />
+        <AdminKpiCard icon={Layers} tone="blue" value={overview?.zonesCount ?? "—"} label={t("rm.zones")} loading={overviewLoading} onClick={() => navigate("/admin/zones")} />
+        <AdminKpiCard icon={Store} tone="orange" value={overview?.marketsCount ?? "—"} label={t("rm.markets")} loading={overviewLoading} onClick={() => navigate("/admin/markets")} />
         <AdminKpiCard
           icon={ShieldCheck}
           tone="purple"
           value={supervisorCount ?? "—"}
-          label="Supervisors"
-          hint="Assigned to a market"
+          label={t("rm.supervisors")}
+          hint={t("admin.assignedToAMarket")}
           loading={supervisorsLoading}
           onClick={() => navigate("/admin/employees")}
         />
@@ -184,7 +189,7 @@ export default function AdminDashboard({ session }) {
           icon={Users2}
           tone="green"
           value={overview ? overview.totalEmployees.toLocaleString("en-US") : "—"}
-          label="Employees"
+          label={t("sup.employees")}
           loading={overviewLoading}
           onClick={() => navigate("/admin/employees")}
         />
@@ -192,8 +197,8 @@ export default function AdminDashboard({ session }) {
           icon={PackageX}
           tone="amber"
           value={expired?.todayCount ?? "—"}
-          label="Expired Items"
-          hint="Reported today"
+          label={t("emp.catExpiredItems")}
+          hint={t("admin.reportedToday")}
           loading={expiredLoading}
           onClick={() => navigate("/admin/expired-items")}
         />
@@ -201,7 +206,7 @@ export default function AdminDashboard({ session }) {
           icon={AlertTriangle}
           tone={(problems?.length ?? 0) > 0 ? "red" : "blue"}
           value={problems?.length ?? "—"}
-          label="Open Issues"
+          label={t("rm.openIssues")}
           loading={problemsLoading}
           onClick={() => navigate("/admin/markets")}
         />

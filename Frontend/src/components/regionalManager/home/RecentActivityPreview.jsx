@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import {
   ChevronRight, ShoppingCart, Tag, PackageX, Sparkles, Wrench, ClipboardList, LayoutGrid,
   Activity as ActivityIcon,
@@ -18,23 +19,23 @@ const CATEGORY_STYLE = {
 };
 
 const CATEGORY_LABEL = {
-  REFILLING: "Refilled a section",
-  LABEL_CHECKING: "Checked a label",
-  EXPIRED_ITEMS: "Removed expired products",
-  DAILY_CLEANING: "Completed cleaning",
-  SHELF_CLEANING: "Completed shelf cleaning",
-  PRODUCT_CUSTOMIZATION: "Customized a product",
-  ITEM_COUNTING: "Counted items",
-  FACING: "Adjusted facing",
+  REFILLING: "rm.refilledASection",
+  LABEL_CHECKING: "rm.checkedALabel",
+  EXPIRED_ITEMS: "rm.removedExpiredProducts",
+  DAILY_CLEANING: "rm.completedCleaning",
+  SHELF_CLEANING: "rm.completedShelfCleaning",
+  PRODUCT_CUSTOMIZATION: "rm.customizedAProduct",
+  ITEM_COUNTING: "rm.countedItems",
+  FACING: "rm.adjustedFacing",
 };
 
-function timeAgo(iso) {
+function timeAgo(iso, t) {
   const minutes = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
-  if (minutes < 1) return "Just now";
-  if (minutes < 60) return `${minutes}m ago`;
+  if (minutes < 1) return t("sup.justNow");
+  if (minutes < 60) return t("common.minutesAgo", { count: minutes });
   const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  return `${Math.floor(hours / 24)}d ago`;
+  if (hours < 24) return t("common.hoursAgo", { count: hours });
+  return t("common.daysAgo", { count: Math.floor(hours / 24) });
 }
 
 // RecentActivityPreview.jsx — a two-row teaser of the real zone activity
@@ -43,6 +44,7 @@ function timeAgo(iso) {
 // the Activities page this links to, so Home can never grow into an
 // activity feed.
 export default function RecentActivityPreview({ activities, onViewAll, loading }) {
+  const { t } = useTranslation();
   const items = (activities ?? []).slice(0, 2);
 
   return (
@@ -50,14 +52,14 @@ export default function RecentActivityPreview({ activities, onViewAll, loading }
       <div className="mb-2 flex items-center justify-between">
         <h2 className="flex items-center gap-2 text-[14px] font-semibold text-white">
           <span className="h-3.5 w-[3px] rounded-full bg-[#F47A20] shadow-[0_0_8px_rgba(244,122,32,0.8)]" />
-          Recent Activity
+          {t("sup.recentActivity")}
         </h2>
         <button
           type="button"
           onClick={onViewAll}
           className="flex items-center gap-0.5 text-[11.5px] font-medium text-[#F47A20] transition-colors hover:text-[#ff9a4d]"
         >
-          View All <ChevronRight size={13} />
+          {t("common.viewAll")} <ChevronRight size={13} className="rtl-flip" />
         </button>
       </div>
 
@@ -68,12 +70,12 @@ export default function RecentActivityPreview({ activities, onViewAll, loading }
             <div className="h-8 animate-pulse rounded-lg bg-white/[0.05]" />
           </div>
         ) : items.length === 0 ? (
-          <p className="py-4 text-center text-[12px] text-[#8B93A8]">No activity logged yet</p>
+          <p className="py-4 text-center text-[12px] text-[#8B93A8]">{t("rm.noActivityLoggedYet")}</p>
         ) : (
           items.map((a, i) => {
             const style = CATEGORY_STYLE[a.category] ?? { icon: ActivityIcon, tone: "text-[#9AA1B4] bg-white/[0.06]" };
             const Icon = style.icon;
-            const who = a.employee?.name ?? a.submittedByStaff?.name ?? "Someone";
+            const who = a.employee?.name ?? a.submittedByStaff?.name ?? t("rm.someone");
             const market = a.employee?.market?.name ?? a.market?.name;
             return (
               <div key={a.id} className={`flex items-center gap-2.5 py-2.5 ${i > 0 ? "border-t border-white/[0.05]" : ""}`}>
@@ -83,11 +85,11 @@ export default function RecentActivityPreview({ activities, onViewAll, loading }
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-[12.5px] font-medium text-white">{who}</p>
                   <p className="truncate text-[11px] text-[#8B93A8]">
-                    {CATEGORY_LABEL[a.category] ?? "Logged an activity"}
+                    {CATEGORY_LABEL[a.category] ? t(CATEGORY_LABEL[a.category]) : t("rm.loggedAnActivity")}
                     {market ? ` — ${market}` : ""}
                   </p>
                 </div>
-                <span className="shrink-0 text-[10.5px] text-[#5C6479]">{timeAgo(a.date)}</span>
+                <span className="shrink-0 text-[10.5px] text-[#5C6479]">{timeAgo(a.date, t)}</span>
               </div>
             );
           })

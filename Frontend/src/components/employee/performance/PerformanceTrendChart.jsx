@@ -1,4 +1,5 @@
 import { useId, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 // PerformanceTrendChart.jsx — the Performance Trend card.
 //
@@ -31,7 +32,7 @@ const PLOT_L = AXIS_W;
 const PLOT_R = W - PAD_R;
 const BASE_Y = H - PAD_BOTTOM;
 
-const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+const DAY_LABELS = ["emp.mon", "emp.tue", "emp.wed", "emp.thu", "emp.fri", "emp.sat", "emp.sun"];
 
 function startOfWeek(date) {
   const d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
@@ -59,6 +60,7 @@ function smoothPath(pts) {
 }
 
 export default function PerformanceTrendChart({ activities, monthly }) {
+  const { t } = useTranslation();
   const uid = useId();
   const [period, setPeriod] = useState("week");
   const [activeKey, setActiveKey] = useState(null);
@@ -143,7 +145,7 @@ export default function PerformanceTrendChart({ activities, monthly }) {
   return (
     <section className="rounded-[22px] p-4 bg-[#0D1223]/80 border border-white/[0.07] shadow-[0_10px_40px_-14px_rgba(0,0,0,0.8)]">
       <div className="flex items-center justify-between gap-3">
-        <h2 className="text-[15px] font-bold text-white">Performance Trend</h2>
+        <h2 className="text-[15px] font-bold text-white">{t("emp.performanceTrend")}</h2>
 
         <div className="flex items-center gap-0.5 rounded-xl p-1 bg-white/[0.04] border border-white/[0.07]">
           {["week", "month"].map((p) => (
@@ -169,9 +171,9 @@ export default function PerformanceTrendChart({ activities, monthly }) {
 
       {points.length === 0 ? (
         <p className="py-12 text-center text-sm text-[#4C5266]">
-          No performance history yet.
+          {t("emp.noPerformanceHistoryYet")}
           <br />
-          <span className="text-xs">Your trend appears once your activities are reviewed.</span>
+          <span className="text-xs">{t("emp.yourTrendAppearsOnceYourActivities")}</span>
         </p>
       ) : (
         // Capped and centred on wide screens: the SVG scales with its
@@ -184,7 +186,7 @@ export default function PerformanceTrendChart({ activities, monthly }) {
             className="w-full h-auto overflow-visible"
             role="img"
             aria-label={`Performance trend by ${period}. ${points
-              .map((p) => `${p.bucket.label}: ${Math.round(p.bucket.rate)}%`)
+              .map((p) => `${t(p.bucket.label)}: ${Math.round(p.bucket.rate)}%`)
               .join(". ")}`}
           >
             <defs>
@@ -284,7 +286,7 @@ export default function PerformanceTrendChart({ activities, monthly }) {
                   fontSize="9.5"
                   textAnchor="middle"
                 >
-                  {b.label}
+                  {t(b.label)}
                 </text>
               );
             })}
@@ -306,7 +308,7 @@ export default function PerformanceTrendChart({ activities, monthly }) {
           <p className="mt-1 text-center text-[10.5px] text-[#4C5266]">
             {active
               ? `${active.bucket.approved}/${active.bucket.totalReviewed} approved`
-              : "Tap a point for detail"}
+              : t("emp.tapAPointForDetail")}
           </p>
         </div>
       )}

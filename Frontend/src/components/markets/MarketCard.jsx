@@ -1,10 +1,11 @@
 import { ChevronRight, MapPin, UserRound, Users2 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import MarketPhoto from "./MarketPhoto";
 
 const STATUS = {
-  ACTIVE: { label: "Active", dot: "bg-emerald-400", text: "text-emerald-400", ring: "ring-emerald-500/20", bg: "bg-emerald-500/10" },
-  MAINTENANCE: { label: "Maintenance", dot: "bg-amber-400", text: "text-amber-400", ring: "ring-amber-500/20", bg: "bg-amber-500/10" },
-  CLOSED: { label: "Inactive", dot: "bg-red-400", text: "text-red-400", ring: "ring-red-500/20", bg: "bg-red-500/10" },
+  ACTIVE: { label: "status.active", dot: "bg-emerald-400", text: "text-emerald-400", ring: "ring-emerald-500/20", bg: "bg-emerald-500/10" },
+  MAINTENANCE: { label: "rm.maintenance", dot: "bg-amber-400", text: "text-amber-400", ring: "ring-amber-500/20", bg: "bg-amber-500/10" },
+  CLOSED: { label: "status.inactive", dot: "bg-red-400", text: "text-red-400", ring: "ring-red-500/20", bg: "bg-red-500/10" },
 };
 
 // MarketCard.jsx — one market, scannable in about a second.
@@ -22,6 +23,7 @@ const STATUS = {
 // scan five or six markets at a glance, so rating/last-visit moved to
 // the market's own detail page rather than crowding this row.
 export default function MarketCard({ market, onOpen, index = 0 }) {
+  const { t } = useTranslation();
   const status = STATUS[market.status] ?? STATUS.ACTIVE;
   const isLive = market.activeCount > 0;
 
@@ -30,7 +32,7 @@ export default function MarketCard({ market, onOpen, index = 0 }) {
       type="button"
       onClick={onOpen}
       style={{ animationDelay: `${Math.min(index, 8) * 45}ms` }}
-      className="animate-fade-up group w-full rounded-[18px] border border-white/[0.07] bg-[#111A2D]/80 p-3 text-left backdrop-blur-xl
+      className="animate-fade-up group w-full rounded-[18px] border border-white/[0.07] bg-[#111A2D]/80 p-3 text-start backdrop-blur-xl
                  transition-all duration-200 ease-out hover:border-[#F47A20]/30 hover:bg-[#131E33]/90
                  active:scale-[0.985] focus:outline-none focus-visible:border-[#F47A20]/50"
     >
@@ -49,7 +51,7 @@ export default function MarketCard({ market, onOpen, index = 0 }) {
               className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-2 py-[3px] text-[10.5px] font-medium ring-1 ring-inset ${status.bg} ${status.text} ${status.ring}`}
             >
               <span className={`h-1.5 w-1.5 rounded-full ${status.dot}`} />
-              {status.label}
+              {t(status.label)}
             </span>
           </div>
 
@@ -62,20 +64,20 @@ export default function MarketCard({ market, onOpen, index = 0 }) {
           </p>
         </div>
 
-        <ChevronRight size={16} className="shrink-0 text-[#4C5266] transition-all duration-200 group-hover:translate-x-0.5 group-hover:text-[#F47A20]" />
+        <ChevronRight size={16} className="shrink-0 text-[#4C5266] transition-all duration-200 group-hover:translate-x-0.5 group-hover:text-[#F47A20] rtl-flip" />
       </div>
 
       <div className="mt-2.5 flex items-center gap-4 border-t border-white/[0.05] pt-2.5">
         <span className="flex items-center gap-1.5 text-[11.5px] text-[#9AA1B4]">
           <Users2 size={12} className="text-[#5C6479]" />
-          <span className="font-semibold tabular-nums text-white">{market.employeesCount}</span> Employees
+          <span className="font-semibold tabular-nums text-white">{market.employeesCount}</span> {t("sup.employees")}
         </span>
         <span className={`flex items-center gap-1.5 text-[11.5px] ${isLive ? "text-[#9AA1B4]" : "text-[#6B7488]"}`}>
           <span className="relative flex h-2 w-2 shrink-0 items-center justify-center">
             {isLive && <span className="absolute h-2 w-2 rounded-full bg-emerald-400/60 animate-glow-pulse" />}
             <span className={`relative h-1.5 w-1.5 rounded-full ${isLive ? "bg-emerald-400" : "bg-[#3A4155]"}`} />
           </span>
-          <span className={`font-semibold tabular-nums ${isLive ? "text-emerald-400" : "text-[#8B93A8]"}`}>{market.activeCount}</span> Active Now
+          <span className={`font-semibold tabular-nums ${isLive ? "text-emerald-400" : "text-[#8B93A8]"}`}>{market.activeCount}</span> {t("rm.activeNow")}
         </span>
       </div>
     </button>

@@ -1,4 +1,5 @@
 import { ChevronRight } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import ZoneFieldVisual from "./ZoneFieldVisual";
 
 function formatCount(n) {
@@ -15,19 +16,22 @@ function formatCount(n) {
 // MarketProblem rows — it says "All Systems Operational" only when that
 // is actually true, and names the real problem count when it isn't.
 export default function ZoneOverviewCard({ zoneLabel, marketCount, employeeCount, markets, problemMarketIds, openProblemCount, offlineCount, onOpen, loading }) {
+  const { t } = useTranslation();
   const healthy = openProblemCount === 0 && offlineCount === 0;
 
   const statusText = healthy
-    ? "All Systems Operational"
+    ? t("rm.allSystemsOperational")
     : openProblemCount > 0
-      ? `${openProblemCount} open ${openProblemCount === 1 ? "report" : "reports"}${offlineCount ? ` · ${offlineCount} market${offlineCount === 1 ? "" : "s"} offline` : ""}`
-      : `${offlineCount} market${offlineCount === 1 ? "" : "s"} not active`;
+      ? (offlineCount
+          ? t("rm.openReportsWithOffline", { reports: openProblemCount, offline: offlineCount })
+          : t("rm.openReportsOnly", { reports: openProblemCount }))
+      : t("rm.marketsNotActive", { count: offlineCount });
 
   return (
     <button
       type="button"
       onClick={onOpen}
-      className="group relative w-full overflow-hidden rounded-[20px] border border-white/[0.07] bg-gradient-to-b from-[#0E1729]/95 to-[#0A1120]/95 text-left backdrop-blur-xl shadow-[0_10px_36px_-18px_rgba(0,0,0,0.9)] transition-colors duration-300 hover:border-[#F47A20]/25"
+      className="group relative w-full overflow-hidden rounded-[20px] border border-white/[0.07] bg-gradient-to-b from-[#0E1729]/95 to-[#0A1120]/95 text-start backdrop-blur-xl shadow-[0_10px_36px_-18px_rgba(0,0,0,0.9)] transition-colors duration-300 hover:border-[#F47A20]/25"
     >
       <div className="absolute inset-0" aria-hidden="true">
         <ZoneFieldVisual markets={markets ?? []} problemMarketIds={problemMarketIds} />
@@ -41,11 +45,11 @@ export default function ZoneOverviewCard({ zoneLabel, marketCount, employeeCount
           <div className="min-w-0">
             <h2 className="font-display text-[22px] font-bold leading-tight text-white">{loading ? "…" : zoneLabel}</h2>
             <p className="mt-1 text-[12.5px] text-[#9AA1B4]">
-              {loading ? "Loading zone…" : `${formatCount(marketCount)} Markets · ${formatCount(employeeCount)} Employees`}
+              {loading ? t("rm.loadingZone") : t("rm.marketsEmployeesSummary", { markets: formatCount(marketCount), employees: formatCount(employeeCount) })}
             </p>
           </div>
           <span className="mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-full border border-white/10 bg-white/[0.06] text-[#9AA1B4] transition-colors group-hover:text-white">
-            <ChevronRight size={15} />
+            <ChevronRight size={15} className="rtl-flip" />
           </span>
         </div>
 
@@ -57,7 +61,7 @@ export default function ZoneOverviewCard({ zoneLabel, marketCount, employeeCount
             <span className={`relative inline-flex h-2 w-2 rounded-full ${healthy ? "bg-emerald-400" : "bg-amber-400"}`} />
           </span>
           <p className={`text-[12px] font-medium ${healthy ? "text-emerald-400" : "text-amber-400"}`}>
-            {loading ? "Checking zone status…" : statusText}
+            {loading ? t("rm.checkingZoneStatus") : statusText}
           </p>
         </div>
       </div>
