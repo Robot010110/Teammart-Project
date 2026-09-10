@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   CheckCircle2,
   PackageX,
@@ -56,33 +57,35 @@ const REVIEWABLE_KINDS = {
     ),
 };
 
+// Values are translation KEYS, resolved with t() inside the component —
+// these constants sit at module scope, where `t` doesn't exist yet.
 const CATEGORY_LABEL = {
-  EXPIRED_ITEMS: "expired items",
-  SHELF_CLEANING: "shelf cleaning",
-  PRODUCT_CUSTOMIZATION: "product customization",
-  DAILY_CLEANING: "daily cleaning",
-  ITEM_COUNTING: "item counting",
-  LABEL_CHECKING: "a label issue",
-  FACING: "facing",
-  REFILLING: "refilling",
+  EXPIRED_ITEMS: "emp.catExpiredItems",
+  SHELF_CLEANING: "sup.shelfCleaning",
+  PRODUCT_CUSTOMIZATION: "emp.productCustomization",
+  DAILY_CLEANING: "emp.dailyCleaning",
+  ITEM_COUNTING: "sup.inventoryCounting",
+  LABEL_CHECKING: "sup.labelChecking",
+  FACING: "sup.facing",
+  REFILLING: "sup.refilling",
 };
 const WASTED_LABEL = {
-  EGGS: "eggs",
-  TOMATO: "tomato",
-  POTATO: "potato",
-  CUCUMBER: "cucumber",
-  ONION: "onion",
-  OTHER: "other",
+  EGGS: "emp.eggs",
+  TOMATO: "emp.tomato",
+  POTATO: "emp.potato",
+  CUCUMBER: "emp.cucumber",
+  ONION: "emp.onion",
+  OTHER: "emp.other",
 };
 
-function wastedItemLabel(w) {
+function wastedItemLabel(w, t) {
   if (w.item === "OTHER" && w.otherItemName) return w.otherItemName;
-  return WASTED_LABEL[w.item] ?? w.item.toLowerCase();
+  return WASTED_LABEL[w.item] ? t(WASTED_LABEL[w.item]) : w.item.toLowerCase();
 }
-function wastedQuantityLabel(w) {
+function wastedQuantityLabel(w, t) {
   return w.item === "EGGS"
-    ? `${w.quantityCount} egg${w.quantityCount === 1 ? "" : "s"}`
-    : `${w.quantityKg}kg`;
+    ? t("sup.eggCount", { count: w.quantityCount })
+    : t("sup.kgAmount", { count: w.quantityKg });
 }
 
 function timeLabel(iso) {
@@ -102,9 +105,9 @@ function isNeedsReview(item) {
 }
 
 const REVIEW_STATUS_META = {
-  PENDING: { label: "Pending", tone: "text-amber-400 bg-amber-500/10 ring-amber-500/25" },
-  APPROVED: { label: "Approved", tone: "text-emerald-400 bg-emerald-500/10 ring-emerald-500/25" },
-  REJECTED: { label: "Rejected", tone: "text-red-400 bg-red-500/10 ring-red-500/25" },
+  PENDING: { label: "status.pending", tone: "text-amber-400 bg-amber-500/10 ring-amber-500/25" },
+  APPROVED: { label: "status.approved", tone: "text-emerald-400 bg-emerald-500/10 ring-emerald-500/25" },
+  REJECTED: { label: "status.rejected", tone: "text-red-400 bg-red-500/10 ring-red-500/25" },
 };
 
 function isToday(iso) {
@@ -156,6 +159,7 @@ function isToday(iso) {
 //               first — Home's preview only ever wants the top few, with
 //               "See All" as the real escape hatch to the full page.
 export default function TodayActivityFeed({ marketId, todayOnly = true, pendingOnly = false, recentLimit = 60, limit }) {
+  const { t } = useTranslation();
   const { data, error, loading, reload } = useAsync(
     async () => {
       // Activities are the one source with a real server-side status
@@ -181,11 +185,13 @@ export default function TodayActivityFeed({ marketId, todayOnly = true, pendingO
           id: `activity-${a.id}`,
           kind: "ACTIVITY",
           icon: Sparkles,
-          employeeName: a.employee?.name ?? "Unknown",
-          title: `completed ${CATEGORY_LABEL[a.category] ?? a.category.toLowerCase()}`,
+          employeeName: a.employee?.name ?? t("sup.unknown"),
+          title: t("sup.completedActivity", {
+            activity: CATEGORY_LABEL[a.category] ? t(CATEGORY_LABEL[a.category]) : a.category.toLowerCase(),
+          }),
           subtitle:
             a.notes ||
-            (a.images?.length ? `${a.images.length} photo(s)` : null),
+            (a.images?.length ? t("sup.photoCount", { count: a.images.length }) : null),
           timestamp: a.updatedAt ?? a.createdAt,
           raw: a,
         })),
@@ -193,9 +199,9 @@ export default function TodayActivityFeed({ marketId, todayOnly = true, pendingO
           id: `item-report-${r.id}`,
           kind: "ITEM_REPORT",
           icon: PackageX,
-          employeeName: r.employee?.name ?? "Unknown",
-          title: `reported ${r.condition === "EXPIRED" ? "expired" : "wasted"} items`,
-          subtitle: `${r.product?.name ?? "Item"} × ${r.quantity}`,
+          employeeName: r.employee?.name ?? t("sup.unknown"),
+          title: r.condition === "EXPIRED" ? t("sup.reportedExpiredItems") : t("sup.reportedWastedItems"),
+          subtitle: `${r.product?.name ?? t("sup.item")} × ${r.quantity}`,
           timestamp: r.reportedAt,
           raw: r,
         })),
@@ -203,28 +209,30 @@ export default function TodayActivityFeed({ marketId, todayOnly = true, pendingO
           id: `wasted-${w.id}`,
           kind: "WASTED_OVERALL",
           icon: PackageX,
-          employeeName: w.employee?.name ?? "Unknown",
-          title: "submitted a waste report",
-          subtitle: `${wastedItemLabel(w)} — ${wastedQuantityLabel(w)}`,
+          employeeName: w.employee?.name ?? t("sup.unknown"),
+          title: t("sup.submittedAWasteReport"),
+          subtitle: `${wastedItemLabel(w, t)} — ${wastedQuantityLabel(w, t)}`,
           timestamp: w.reportedAt,
           raw: w,
         })),
-        ...suddenTasks.map((t) => ({
-          id: `sudden-task-${t.id}`,
+        ...suddenTasks.map((task) => ({
+          id: `sudden-task-${task.id}`,
           kind: "SUDDEN_TASK",
           icon: CheckCircle2,
-          employeeName: t.employee?.name ?? "Unknown",
-          title: `completed "${t.title}"`,
+          employeeName: task.employee?.name ?? t("sup.unknown"),
+          title: t("sup.completedTaskNamed", { task: task.title }),
           subtitle: null,
-          timestamp: t.completedAt ?? t.assignedAt,
-          raw: t,
+          timestamp: task.completedAt ?? task.assignedAt,
+          raw: task,
         })),
         ...extraHours.map((r) => ({
           id: `extra-hours-${r.id}`,
           kind: "EXTRA_HOURS",
           icon: Clock3,
-          employeeName: r.employee?.name ?? "Unknown",
-          title: `reported ${r.hours} extra hour${r.hours === 1 ? "" : "s"}`,
+          employeeName: r.employee?.name ?? t("sup.unknown"),
+          title: r.hours === 1
+            ? t("sup.reportedExtraHour", { count: r.hours })
+            : t("sup.reportedExtraHours", { count: r.hours }),
           subtitle: r.reason,
           timestamp: r.createdAt,
           raw: r,
@@ -254,7 +262,7 @@ export default function TodayActivityFeed({ marketId, todayOnly = true, pendingO
     },
     {
       deps: [marketId, todayOnly, pendingOnly, recentLimit, limit],
-      fallbackError: todayOnly ? "Could not load today's activity." : "Could not load activity.",
+      fallbackError: todayOnly ? t("sup.couldNotLoadTodaysActivity") : t("sup.couldNotLoadActivity"),
     },
   );
 
@@ -265,10 +273,10 @@ export default function TodayActivityFeed({ marketId, todayOnly = true, pendingO
 
   if (data.items.length === 0) {
     const emptyMessage = pendingOnly
-      ? "No activities awaiting review."
+      ? t("sup.noActivitiesAwaitingReview")
       : todayOnly
-        ? "No activity yet today."
-        : "No recent activity yet.";
+        ? t("sup.noActivityYetToday")
+        : t("sup.noRecentActivityYet");
     return (
       <div className="rounded-2xl p-6 bg-[#171C2E]/80 border border-white/[0.06] text-center">
         <ClipboardList size={22} className="mx-auto text-[#4C5266] mb-2" />
@@ -291,8 +299,8 @@ export default function TodayActivityFeed({ marketId, todayOnly = true, pendingO
           const isFirstHistoryRow = showSections && i === data.pendingCount;
           return (
             <div key={item.id}>
-              {showSections && i === 0 && <SectionLabel icon={Hourglass} label="Needs Review" tone="amber" />}
-              {isFirstHistoryRow && <SectionLabel icon={ClipboardList} label="History" tone="slate" />}
+              {showSections && i === 0 && <SectionLabel icon={Hourglass} label={t("sup.needsReview")} tone="amber" />}
+              {isFirstHistoryRow && <SectionLabel icon={ClipboardList} label={t("emp.history")} tone="slate" />}
               <ActivityRow item={item} pendingRow={pendingRow} onOpen={() => setSelected(item)} />
             </div>
           );
@@ -336,13 +344,14 @@ function SectionLabel({ icon: Icon, label, tone }) {
 // now); an already-reviewed row gets a small Approved/Rejected pill
 // instead — visibly demoted, never hidden.
 function ActivityRow({ item, pendingRow, onOpen }) {
+  const { t } = useTranslation();
   const Icon = item.icon;
   const reviewStatus = REVIEWABLE_KINDS[item.kind] ? REVIEW_STATUS_META[item.raw.status] : null;
   return (
     <button
       type="button"
       onClick={onOpen}
-      className={`w-full text-left flex items-start gap-3 rounded-xl p-3.5 border backdrop-blur-xl transition-all duration-150 ${
+      className={`w-full text-start flex items-start gap-3 rounded-xl p-3.5 border backdrop-blur-xl transition-all duration-150 ${
         pendingRow
           ? "bg-amber-500/[0.06] border-amber-500/25 hover:border-amber-400/45 shadow-[0_0_16px_-8px_rgba(251,191,36,0.5)]"
           : "bg-[#1A1F33]/70 border-white/[0.06] hover:border-[#F47A20]/25"
@@ -362,11 +371,11 @@ function ActivityRow({ item, pendingRow, onOpen }) {
           </p>
           {reviewStatus && (
             <span className={`shrink-0 inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1 ring-inset ${reviewStatus.tone}`}>
-              {reviewStatus.label}
+              {t(reviewStatus.label)}
             </span>
           )}
         </div>
-        {pendingRow && <p className="text-[11px] text-amber-400/90 mt-0.5">Awaiting review</p>}
+        {pendingRow && <p className="text-[11px] text-amber-400/90 mt-0.5">{t("sup.awaitingReview")}</p>}
         {item.subtitle && <p className="text-xs text-[#8B93A8] mt-0.5">{item.subtitle}</p>}
         <p className="text-[11px] text-[#4C5266] mt-1">{timeLabel(item.timestamp)}</p>
       </div>
@@ -375,6 +384,7 @@ function ActivityRow({ item, pendingRow, onOpen }) {
 }
 
 function FeedItemDetail({ item, onReviewed }) {
+  const { t } = useTranslation();
   const { raw, kind } = item;
   const [reasonDraft, setReasonDraft] = useState("");
   const [rejecting, setRejecting] = useState(false);
@@ -385,7 +395,7 @@ function FeedItemDetail({ item, onReviewed }) {
     value != null && value !== "" ? (
       <div className="flex items-start justify-between gap-3 text-sm py-1.5 border-b border-white/[0.05] last:border-0">
         <span className="text-[#8B93A8]">{label}</span>
-        <span className="text-white text-right">{value}</span>
+        <span className="text-white text-end">{value}</span>
       </div>
     ) : null;
 
@@ -409,7 +419,7 @@ function FeedItemDetail({ item, onReviewed }) {
       return;
     }
     if (status === "REJECTED" && !reasonDraft.trim()) {
-      setReviewError("A rejection reason is required.");
+      setReviewError(t("sup.aRejectionReasonIsRequired"));
       return;
     }
     setBusy(status);
@@ -426,7 +436,7 @@ function FeedItemDetail({ item, onReviewed }) {
       setReviewError(
         err instanceof ApiError
           ? err.message
-          : "Could not submit this review. Please try again.",
+          : t("sup.couldNotSubmitThisReviewPlease"),
       );
     } finally {
       setBusy(null);
@@ -436,7 +446,7 @@ function FeedItemDetail({ item, onReviewed }) {
   return (
     <div>
       {row(
-        "Date",
+        t("emp.date"),
         new Date(item.timestamp).toLocaleDateString("en-US", {
           month: "short",
           day: "numeric",
@@ -444,7 +454,7 @@ function FeedItemDetail({ item, onReviewed }) {
         }),
       )}
       {row(
-        "Time",
+        t("sup.time"),
         new Date(item.timestamp).toLocaleTimeString("en-US", {
           hour: "numeric",
           minute: "2-digit",
@@ -453,62 +463,62 @@ function FeedItemDetail({ item, onReviewed }) {
 
       {kind === "ACTIVITY" && (
         <>
-          {row("Category", CATEGORY_LABEL[raw.category] ?? raw.category)}
-          {row("Status", raw.status)}
-          {row("Notes", raw.notes)}
-          {row("Rejection reason", raw.rejectionReason)}
+          {row(t("sup.category"), CATEGORY_LABEL[raw.category] ?? raw.category)}
+          {row(t("sup.status"), raw.status)}
+          {row(t("emp.notes"), raw.notes)}
+          {row(t("sup.rejectionReason"), raw.rejectionReason)}
         </>
       )}
       {kind === "ITEM_REPORT" && (
         <>
-          {row("Item", raw.product?.name)}
-          {row("Barcode", raw.product?.barcode)}
-          {row("Condition", raw.condition)}
-          {row("Quantity", raw.quantity)}
-          {row("Status", raw.status)}
-          {row("Notes", raw.notes)}
+          {row(t("sup.item"), raw.product?.name)}
+          {row(t("emp.barcode"), raw.product?.barcode)}
+          {row(t("emp.condition"), raw.condition)}
+          {row(t("emp.quantity"), raw.quantity)}
+          {row(t("sup.status"), raw.status)}
+          {row(t("emp.notes"), raw.notes)}
         </>
       )}
       {kind === "WASTED_OVERALL" && (
         <>
-          {row("Item", wastedItemLabel(raw))}
-          {row("Quantity", wastedQuantityLabel(raw))}
-          {row("Status", raw.status)}
-          {row("Notes", raw.notes)}
-          {row("Rejection reason", raw.rejectionReason)}
+          {row(t("sup.item"), wastedItemLabel(raw, t))}
+          {row(t("emp.quantity"), wastedQuantityLabel(raw, t))}
+          {row(t("sup.status"), raw.status)}
+          {row(t("emp.notes"), raw.notes)}
+          {row(t("sup.rejectionReason"), raw.rejectionReason)}
         </>
       )}
       {kind === "SUDDEN_TASK" && (
         <>
-          {row("Task", raw.title)}
-          {row("Description", raw.description)}
-          {row("Priority", raw.priority)}
+          {row(t("emp.task"), raw.title)}
+          {row(t("sup.description"), raw.description)}
+          {row(t("emp.priority"), raw.priority)}
         </>
       )}
       {kind === "EXTRA_HOURS" && (
         <>
           {row(
-            "Date worked",
+            t("sup.dateWorked"),
             new Date(raw.date).toLocaleDateString("en-US", {
               month: "short",
               day: "numeric",
               year: "numeric",
             }),
           )}
-          {row("Employee declared", `${raw.hours}h`)}
+          {row(t("sup.employeeDeclared"), `${raw.hours}h`)}
           {/* Extra Hours spec §8: compare the declaration against the real
               attendance-derived figure for that same date — the
               attendance record stays the primary source of truth; this
               is shown for the reviewer to compare, not to auto-decide. */}
           {row(
-            "Attendance record shows",
+            t("sup.attendanceRecordShows"),
             raw.hasAttendanceRecord
               ? `${raw.attendanceExtraHours?.toFixed(2)}h extra`
-              : "No attendance record for this date yet",
+              : t("sup.noAttendanceRecordForThisDate"),
           )}
-          {row("Status", raw.status)}
-          {row("Reason", raw.reason)}
-          {row("Review note", raw.reviewNote)}
+          {row(t("sup.status"), raw.status)}
+          {row(t("emp.reason"), raw.reason)}
+          {row(t("sup.reviewNote"), raw.reviewNote)}
         </>
       )}
 
@@ -545,7 +555,7 @@ function FeedItemDetail({ item, onReviewed }) {
             <textarea
               value={reasonDraft}
               onChange={(e) => setReasonDraft(e.target.value)}
-              placeholder="Reason for rejecting..."
+              placeholder={t("sup.reasonForRejecting")}
               rows={2}
               autoFocus
               className="w-full mb-2 resize-none rounded-lg bg-white/[0.04] border border-white/[0.06] px-3 py-2 text-sm text-white placeholder:text-[#4C5266] outline-none focus:border-red-500/50"
@@ -579,7 +589,7 @@ function FeedItemDetail({ item, onReviewed }) {
               ) : (
                 <XCircle size={15} />
               )}
-              {rejecting ? "Confirm Reject" : "Reject"}
+              {rejecting ? t("sup.confirmReject") : t("sup.reject")}
             </button>
           </div>
         </div>

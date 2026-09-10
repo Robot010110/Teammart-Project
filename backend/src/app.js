@@ -34,10 +34,34 @@ import adminRoutes from "./routes/admin.routes.js";
 import nightShiftRoutes from "./routes/nightShift.routes.js";
 import communicationsRoutes from "./routes/communications.routes.js";
 import marketProblemsRoutes from "./routes/marketProblems.routes.js";
+import kochOperationsRoutes from "./routes/kochOperations.routes.js";
 import { errorHandler } from "./middleware/errorHandler.js";
 import { notFound } from "./middleware/notFound.js";
 
 export const app = express();
+
+// Trust the first hop in front of this process (a reverse proxy or
+// tunnel — Cloudflare Tunnel for phone/remote testing today, whatever
+// sits in front of it in production tomorrow). Without this, Express
+// only ever sees the plain-HTTP connection cloudflared/nginx/etc. make
+// to the local origin, so req.protocol is always "http" even when the
+// real client connected over https — and req.ip is always the proxy's
+// own address instead of the client's. That mismatch is exactly what
+// silently corrupted every uploaded file's stored URL to "http://" when
+// the app was reached through an https tunnel (see uploadsController.js
+// / fileStorage.js's publicBaseUrl, which reads req.protocol): the file
+// itself uploaded fine, but the http:// URL handed back to the browser
+// then failed unpredictably once the browser re-requested it on a host
+// it had already pinned to https-only (HSTS) — a proxied production
+// deploy behind any TLS-terminating load balancer would hit the same
+// bug. `1` trusts exactly one hop away (the proxy/tunnel talking to
+// this process directly), which is correct for a single reverse proxy
+// in front of it and is what apiLimiter's IP-based keying needs to stay
+// meaningful (express-rate-limit refuses to key on req.ip at all under
+// the fully-permissive `true`, which trusts every hop in the chain —
+// including one a client could forge — see ERR_ERL_PERMISSIVE_TRUST_PROXY).
+// Not correct if this API is ever exposed with no proxy in front of it.
+app.set("trust proxy", 1);
 
 // Security headers (CSP, X-Frame-Options, etc.) — safe defaults for a
 // JSON-only API; this app serves no HTML from the backend.
@@ -116,6 +140,7 @@ app.use("/api/fingerprint-events", fingerprintRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/night-shift", nightShiftRoutes);
 app.use("/api/communications", communicationsRoutes);
+app.use("/api/koch-operations", kochOperationsRoutes);
 
 app.use(notFound);
 

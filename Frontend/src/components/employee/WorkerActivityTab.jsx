@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import {
-  Tag, PackageX, Building2, Sparkles, Palette, ClipboardList,
+  Tag, PackageX, Building2, Sparkles, Palette, ClipboardList, Package,
   CalendarCheck2, Clock, CheckCircle2, BarChart3, PackagePlus,
 } from "lucide-react";
 import SubmitTaskModal from "../workspace/SubmitTaskModal";
@@ -10,6 +11,7 @@ import ShelfLabelFlow from "./ShelfLabelFlow";
 import WastedOverallFlow from "./WastedOverallFlow";
 import DepartmentClosingFlow from "./DepartmentClosingFlow";
 import InventoryCountingSection from "./InventoryCountingSection";
+import KochOperationSection from "./KochOperationSection";
 import QuickReportRow from "./QuickReportRow";
 import ActivityMetricCard from "./ActivityMetricCard";
 import ActivityCarousel from "./ActivityCarousel";
@@ -27,14 +29,14 @@ import { getPerformanceSummary } from "../../services/activityService";
 import { useAsync } from "../../hooks/useAsync";
 import { useToast } from "../../hooks/useToast";
 
-const WASTED_ITEM_LABEL = { EGGS: "Eggs", TOMATO: "Tomato", POTATO: "Potato", CUCUMBER: "Cucumber", ONION: "Onion", OTHER: "Other" };
+const WASTED_ITEM_LABEL = { EGGS: "emp.eggs", TOMATO: "emp.tomato", POTATO: "emp.potato", CUCUMBER: "emp.cucumber", ONION: "emp.onion", OTHER: "emp.other" };
 const SHELF_CLEANING_OPTION = ACTIVITY_SUBMISSION_OPTIONS.find((o) => o.category === "SHELF_CLEANING");
 const PRODUCT_CUSTOMIZATION_OPTION = ACTIVITY_SUBMISSION_OPTIONS.find((o) => o.category === "PRODUCT_CUSTOMIZATION");
 const DAILY_CLEANING_OPTION = ACTIVITY_SUBMISSION_OPTIONS.find((o) => o.category === "DAILY_CLEANING");
 
-function wastedItemLabel(report) {
+function wastedItemLabel(report, t) {
   if (report.item === "OTHER" && report.otherItemName) return report.otherItemName;
-  return WASTED_ITEM_LABEL[report.item] || report.item;
+  return WASTED_ITEM_LABEL[report.item] ? t(WASTED_ITEM_LABEL[report.item]) : report.item;
 }
 function wastedQuantityLabel(report) {
   return report.item === "EGGS" ? `${report.quantityCount} egg${report.quantityCount === 1 ? "" : "s"}` : `${report.quantityKg}kg`;
@@ -83,12 +85,13 @@ function isToday(iso) {
 //     other two real numbers, not a fabricated figure. "—" when there's
 //     nothing assigned today to compute a ratio from.
 export default function WorkerActivityTab() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [toast, setToast] = useToast();
 
   const { data: wastedReports, setData: setWastedReports, error: wastedError, loading: wastedLoading, reload: loadWastedReports } = useAsync(
     listMyWastedOverallReports,
-    { fallbackError: "Could not load your waste reports." }
+    { fallbackError: t("emp.couldNotLoadYourWasteReports") }
   );
   // One fetch, sliced client-side by real status — My Tasks redesign
   // added a real IN_PROGRESS state between ASSIGNED and COMPLETED, so
@@ -104,6 +107,7 @@ export default function WorkerActivityTab() {
   const [wastedFlowOpen, setWastedFlowOpen] = useState(false);
   const [departmentClosingOpen, setDepartmentClosingOpen] = useState(false);
   const [countingOpen, setCountingOpen] = useState(false);
+  const [kochOpen, setKochOpen] = useState(false);
 
   const pendingWastedReports = (wastedReports ?? []).filter((r) => r.status === "PENDING");
   const completedToday = (completedTasks ?? []).filter((t) => isToday(t.completedAt));
@@ -125,57 +129,57 @@ export default function WorkerActivityTab() {
   return (
     <div className="px-4 sm:px-6 py-6 max-w-4xl mx-auto animate-fade-up">
       <div className="mb-5">
-        <h1 className="text-2xl font-bold text-white">Activity</h1>
-        <p className="text-sm text-[#8B93A8] mt-0.5">Track, report and keep your market running smoothly.</p>
+        <h1 className="text-2xl font-bold text-white">{t("emp.activity")}</h1>
+        <p className="text-sm text-[#8B93A8] mt-0.5">{t("emp.trackReportAndKeepYourMarket")}</p>
       </div>
 
       <section className="mb-6 rounded-2xl p-4 bg-[#171C2E]/80 border border-white/[0.06] backdrop-blur-xl">
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-sm font-semibold text-white">Today Overview</h2>
+          <h2 className="text-sm font-semibold text-white">{t("emp.todayOverview")}</h2>
           <button type="button" onClick={() => navigate("/me/profile/performance")} className="text-xs font-semibold text-[#F47A20] hover:text-[#ff8b36]">
-            View all
+            {t("emp.viewAll2")}
           </button>
         </div>
         <div className="flex gap-2">
-          <ActivityMetricCard icon={CalendarCheck2} value={completedToday.length} label="Completed" tone="emerald" />
-          <ActivityMetricCard icon={Clock} value={pendingCount} label="Pending" tone="orange" />
-          <ActivityMetricCard icon={CheckCircle2} value={complianceLabel} label="Compliance" tone="emerald" />
-          <ActivityMetricCard icon={BarChart3} value={performanceLabel} label="Performance" tone="violet" />
+          <ActivityMetricCard icon={CalendarCheck2} value={completedToday.length} label={t("emp.completed")} tone="emerald" />
+          <ActivityMetricCard icon={Clock} value={pendingCount} label={t("emp.pending")} tone="orange" />
+          <ActivityMetricCard icon={CheckCircle2} value={complianceLabel} label={t("emp.compliance")} tone="emerald" />
+          <ActivityMetricCard icon={BarChart3} value={performanceLabel} label={t("emp.performance")} tone="violet" />
         </div>
       </section>
 
       <section className="mb-6">
-        <h2 className="mb-3 text-sm font-semibold text-white">Quick Reports</h2>
+        <h2 className="mb-3 text-sm font-semibold text-white">{t("emp.quickReports")}</h2>
         <div className="space-y-2">
           <QuickReportRow
             icon={PackageX}
-            title="Expired / Wasted Items"
-            subtitle="Report expired or wasted products"
+            title={t("emp.expiredWastedItems")}
+            subtitle={t("emp.reportExpiredOrWastedProducts")}
             onClick={() => setItemReportsOpen(true)}
           />
           <QuickReportRow
             icon={Tag}
-            title="Label Issue"
-            subtitle="Report label problems"
+            title={t("emp.labelIssue")}
+            subtitle={t("emp.reportLabelProblems")}
             onClick={() => setLabelFlowOpen(true)}
           />
           <QuickReportRow
             icon={Building2}
-            title="Department Closing"
-            subtitle="End of day closing report"
+            title={t("emp.departmentClosing")}
+            subtitle={t("emp.endOfDayClosingReport")}
             onClick={() => setDepartmentClosingOpen(true)}
           />
           <QuickReportRow
             icon={PackageX}
-            title="Waste Report"
-            subtitle="Report wasted produce"
+            title={t("emp.wasteReport")}
+            subtitle={t("emp.reportWastedProduce")}
             badge={pendingWastedReports.length}
             onClick={() => setWastedFlowOpen(true)}
           />
           <QuickReportRow
             icon={PackagePlus}
-            title="Daily Cleaning"
-            subtitle="Report general daily cleaning"
+            title={t("emp.dailyCleaning")}
+            subtitle={t("emp.reportGeneralDailyCleaning")}
             onClick={() => setActiveOption(DAILY_CLEANING_OPTION)}
           />
         </div>
@@ -189,7 +193,7 @@ export default function WorkerActivityTab() {
             {pendingWastedReports.slice(0, 3).map((r) => (
               <div key={r.id} className="rounded-xl p-3.5 bg-[#1A1F33]/70 border border-white/[0.06]">
                 <div className="flex items-center justify-between gap-2">
-                  <span className="text-sm text-white">{wastedItemLabel(r)} — {wastedQuantityLabel(r)}</span>
+                  <span className="text-sm text-white">{wastedItemLabel(r, t)} — {wastedQuantityLabel(r)}</span>
                   <ActivityStatusPill status={r.status} />
                 </div>
                 <p className="mt-1 text-xs text-[#8B93A8]">{dateLabel(r.reportedAt)}</p>
@@ -200,38 +204,44 @@ export default function WorkerActivityTab() {
       </section>
 
       <section className="mb-6">
-        <h2 className="mb-3 text-sm font-semibold text-white">Daily Activities</h2>
+        <h2 className="mb-3 text-sm font-semibold text-white">{t("emp.dailyActivities")}</h2>
         <ActivityCarousel>
           <DailyActivityCard
             icon={Sparkles}
-            title="Cleaning Status"
-            description="Report cleaning & hygiene"
+            title={t("emp.cleaningStatus")}
+            description={t("emp.reportCleaningHygiene")}
             onClick={() => setActiveOption(SHELF_CLEANING_OPTION)}
           />
           <DailyActivityCard
             icon={Palette}
-            title="Product Customization"
-            description="Report display & adjustments"
+            title={t("emp.productCustomization")}
+            description={t("emp.reportDisplayAdjustments")}
             onClick={() => setActiveOption(PRODUCT_CUSTOMIZATION_OPTION)}
           />
           <DailyActivityCard
             icon={ClipboardList}
-            title="Daily Counting"
-            description="Report stock & inventory"
+            title={t("emp.dailyCounting")}
+            description={t("emp.reportStockInventory")}
             onClick={() => setCountingOpen(true)}
+          />
+          <DailyActivityCard
+            icon={Package}
+            title={t("emp.kochOperation")}
+            description={t("emp.kochOperationCardDescription")}
+            onClick={() => setKochOpen(true)}
           />
         </ActivityCarousel>
       </section>
 
       <section>
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-sm font-semibold text-white">My Tasks</h2>
+          <h2 className="text-sm font-semibold text-white">{t("emp.myTasks")}</h2>
           <button type="button" onClick={() => navigate("/me/tasks")} className="text-xs font-semibold text-[#F47A20] hover:text-[#ff8b36]">
-            View all
+            {t("emp.viewAll2")}
           </button>
         </div>
         {myTasks.length === 0 ? (
-          <p className="text-sm text-[#4C5266] text-center py-6">No tasks assigned right now.</p>
+          <p className="text-sm text-[#4C5266] text-center py-6">{t("emp.noTasksAssignedRightNow")}</p>
         ) : (
           <div className="space-y-2">
             {myTasks.map((t, i) => (
@@ -248,12 +258,16 @@ export default function WorkerActivityTab() {
       <WastedOverallFlow open={wastedFlowOpen} onClose={() => setWastedFlowOpen(false)} onSaved={handleWastedSaved} />
       <DepartmentClosingFlow open={departmentClosingOpen} onClose={() => setDepartmentClosingOpen(false)} onSaved={handleSaved} />
 
-      <Modal open={itemReportsOpen} onClose={() => setItemReportsOpen(false)} title="Expired / Wasted Items">
+      <Modal open={itemReportsOpen} onClose={() => setItemReportsOpen(false)} title={t("emp.expiredWastedItems")}>
         <ItemReportSection />
       </Modal>
 
-      <Modal open={countingOpen} onClose={() => setCountingOpen(false)} title="Daily Counting">
+      <Modal open={countingOpen} onClose={() => setCountingOpen(false)} title={t("emp.dailyCounting")}>
         <InventoryCountingSection />
+      </Modal>
+
+      <Modal open={kochOpen} onClose={() => setKochOpen(false)} title={t("emp.kochOperation")}>
+        <KochOperationSection />
       </Modal>
 
       <Toast message={toast} />
