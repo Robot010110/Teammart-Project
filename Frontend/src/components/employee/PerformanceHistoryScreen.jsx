@@ -283,7 +283,9 @@ export default function PerformanceHistoryScreen({ onBack }) {
         </div>
       )}
 
-      <SubmitTaskModal activity={editingActivity} onClose={() => setEditingActivity(null)} onSaved={handleSaved} />
+      {/* key forces a fresh SubmitTaskModal instance per edited activity —
+          see the same comment at WorkerActivityTab.jsx's call site. */}
+      <SubmitTaskModal key={editingActivity?.id ?? "none"} activity={editingActivity} onClose={() => setEditingActivity(null)} onSaved={handleSaved} />
       <Toast message={toast} />
     </div>
   );

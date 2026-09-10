@@ -253,7 +253,14 @@ export default function WorkerActivityTab() {
         )}
       </section>
 
-      <SubmitTaskModal option={activeOption} onClose={() => setActiveOption(null)} onSaved={handleSaved} />
+      {/* key forces a fresh SubmitTaskModal instance (fresh notes/photo
+          state) every time a different category opens, or the same
+          category is reopened after a submit/cancel — this component is
+          never unmounted by its own `open` check alone (it always stays
+          mounted here, just rendering null while closed), so without a
+          changing key its local useState survived across every switch
+          and leaked the previous category's photo into the next one. */}
+      <SubmitTaskModal key={activeOption?.category ?? "none"} option={activeOption} onClose={() => setActiveOption(null)} onSaved={handleSaved} />
       <ShelfLabelFlow open={labelFlowOpen} onClose={() => setLabelFlowOpen(false)} onSaved={handleSaved} />
       <WastedOverallFlow open={wastedFlowOpen} onClose={() => setWastedFlowOpen(false)} onSaved={handleWastedSaved} />
       <DepartmentClosingFlow open={departmentClosingOpen} onClose={() => setDepartmentClosingOpen(false)} onSaved={handleSaved} />
