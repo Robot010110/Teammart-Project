@@ -39,7 +39,9 @@
     "inProgress": "لە بەردەوامبووندایە",
     "draft": "ڕەشنووس",
     "active": "چالاک",
-    "inactive": "ناچالاک"
+    "inactive": "ناچالاک",
+    "onBreak": "لە پشوودایە",
+    "notActive": "ناچالاک"
   },
   "roles": {
     "employee": "کارمەند",

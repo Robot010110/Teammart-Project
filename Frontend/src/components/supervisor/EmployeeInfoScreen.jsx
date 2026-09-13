@@ -10,12 +10,35 @@ import { SkeletonCard } from "../common/SkeletonCard";
 import Modal from "../common/Modal";
 import EmployeeTodayActivity from "./EmployeeTodayActivity";
 import { assignDepartment } from "../../services/staffEmployeeService";
+import { getMarketAttendanceToday } from "../../services/attendanceService";
 import AssignCredentialsField from "./AssignCredentialsField";
 import CountingAssignmentField from "./CountingAssignmentField";
 import Toast from "../common/Toast";
+import { useAsync } from "../../hooks/useAsync";
+import { usePolling } from "../../hooks/usePolling";
 import { useToast } from "../../hooks/useToast";
 import { initialsOf } from "../../utils/initials";
 import { DEPARTMENTS } from "../../utils/departments";
+
+// Refetch cadence for the live attendance/break status below — same
+// order of magnitude as ChatListScreen's own poll (12s), reusing the
+// app's existing usePolling hook rather than adding a new real-time
+// mechanism. usePolling is already visibility-aware (pauses while this
+// tab/screen is hidden), so this doesn't burn requests in the background.
+const ATTENDANCE_POLL_MS = 15000;
+
+// Maps attendanceController.deriveAttendanceState's own output straight
+// to the three states this badge is allowed to show — WORKING and
+// ON_BREAK get their own look; every other state (CHECKED_OUT, MISSING/
+// not-checked-in-yet, ABSENT, DAY_OFF, APPROVED_LEAVE, PENDING_REVIEW)
+// is honestly "not currently working" and falls through to the same
+// "Not Active" red, matching the spec's exact if/else-if/else — there is
+// no fourth visual state.
+const LIVE_STATUS_META = {
+  WORKING: { label: "status.active", dot: "bg-emerald-400 shadow-[0_0_6px_1px_rgba(52,211,153,0.8)]", text: "text-emerald-400" },
+  ON_BREAK: { label: "status.onBreak", dot: "bg-violet-400 shadow-[0_0_6px_1px_rgba(167,139,250,0.8)]", text: "text-violet-400" },
+};
+const NOT_ACTIVE_META = { label: "status.notActive", dot: "bg-red-400 shadow-[0_0_6px_1px_rgba(248,113,113,0.8)]", text: "text-red-400" };
 
 function DepartmentField({ employeeId, department, onSaved }) {
   const { t } = useTranslation();
@@ -102,11 +125,27 @@ function DepartmentField({ employeeId, department, onSaved }) {
 // system: the rich trend/breakdown view under PerformanceHistoryScreen
 // only exists as a SELF-service endpoint (no staff/employeeId variant),
 // and this pass explicitly rules out a backend rebuild to add one.
-export default function EmployeeInfoScreen({ employee, setEmployee, loading, error, reload, marketName, onBack, onOpenAttendance, onOpenTasks, onOpenHistory }) {
+export default function EmployeeInfoScreen({ employee, setEmployee, loading, error, reload, marketName, marketId, onBack, onOpenAttendance, onOpenTasks, onOpenHistory }) {
   const { t } = useTranslation();
   const [toast, setToast] = useToast();
   const [copied, setCopied] = useState(false);
   const [perfOpen, setPerfOpen] = useState(false);
+
+  // Live check-in/break/check-out status — the real source of truth this
+  // badge now reflects, instead of the static employmentStatus flag it
+  // used to read. Reuses the exact same GET /attendance/market/today call
+  // (and its server-side deriveAttendanceState helper) that Supervisor
+  // Home's Team Status chart and Team Attendance screen already use —
+  // not a second attendance system, just one more reader of it. Polled
+  // (see ATTENDANCE_POLL_MS) so a break start/end or check-out on the
+  // employee's side shows up here without the supervisor having to leave
+  // and reopen the page.
+  const { data: teamAttendance, reload: reloadAttendance } = useAsync(() => getMarketAttendanceToday(marketId), {
+    deps: [marketId],
+  });
+  usePolling(() => reloadAttendance(), ATTENDANCE_POLL_MS, [marketId]);
+  const liveAttendance = employee ? teamAttendance?.employees?.find((e) => e.id === employee.id) ?? null : null;
+  const liveStatusMeta = liveAttendance ? (LIVE_STATUS_META[liveAttendance.state] ?? NOT_ACTIVE_META) : null;
 
   function copyCode() {
     if (!employee?.employeeCode) return;
@@ -143,14 +182,12 @@ export default function EmployeeInfoScreen({ employee, setEmployee, loading, err
                 <div className="min-w-0">
                   <h2 className="font-display text-lg font-bold text-white truncate">{employee.name}</h2>
                   <p className="text-[#F9A03C] text-sm font-semibold">{employee.position}</p>
-                  <span
-                    className={`mt-1 inline-flex items-center gap-1.5 text-[11px] font-medium ${
-                      employee.employmentStatus === "ACTIVE" ? "text-emerald-400" : "text-[#8B93A8]"
-                    }`}
-                  >
-                    <span className={`h-1.5 w-1.5 rounded-full ${employee.employmentStatus === "ACTIVE" ? "bg-emerald-400 shadow-[0_0_6px_1px_rgba(52,211,153,0.8)]" : "bg-[#4C5266]"}`} />
-                    {employee.employmentStatus === "ACTIVE" ? t("status.active") : employee.employmentStatus === "ON_LEAVE" ? t("emp.onLeave") : t("status.inactive")}
-                  </span>
+                  {liveStatusMeta && (
+                    <span className={`mt-1 inline-flex items-center gap-1.5 text-[11px] font-medium ${liveStatusMeta.text}`}>
+                      <span className={`h-1.5 w-1.5 rounded-full ${liveStatusMeta.dot}`} />
+                      {t(liveStatusMeta.label)}
+                    </span>
+                  )}
                 </div>
               </div>
               {employee.employeeCode && (

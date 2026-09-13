@@ -40,6 +40,7 @@ export default function SupervisorEmployeeProfileRoute({ session, basePath }) {
             error={error}
             reload={reload}
             marketName={session?.marketName}
+            marketId={session?.marketId}
             onBack={() => navigate(`${basePath}/employees`)}
             onOpenAttendance={() => navigate(`${employeeBase}/attendance`)}
             onOpenTasks={() => navigate(`${employeeBase}/tasks`)}

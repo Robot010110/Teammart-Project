@@ -39,7 +39,9 @@
     "inProgress": "In Progress",
     "draft": "Draft",
     "active": "Active",
-    "inactive": "Inactive"
+    "inactive": "Inactive",
+    "onBreak": "On Break",
+    "notActive": "Not Active"
   },
   "roles": {
     "employee": "Employee",
