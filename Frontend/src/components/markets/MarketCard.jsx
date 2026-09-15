@@ -57,10 +57,12 @@ export default function MarketCard({ market, onOpen, index = 0 }) {
 
           <p className="mt-1 flex items-center gap-1.5 truncate text-[11.5px] text-[#8B93A8]">
             <MapPin size={11} className="shrink-0" />
-            Zone {market.zoneNumber}
+            {t("rm.zoneNumbered", { number: market.zoneNumber })}
             <span className="text-[#3A4155]">·</span>
             <UserRound size={11} className="shrink-0" />
-            <span className="truncate">Sup. {market.supervisor}</span>
+            <span className="truncate">
+              {t("rm.supervisorPrefixed", { name: market.supervisor === "Unassigned" ? t("rm.unassigned") : market.supervisor })}
+            </span>
           </p>
         </div>
 

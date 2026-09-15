@@ -39,6 +39,20 @@ export function actionLabel(a, t) {
   return ACTION_LABEL[a] ? t(ACTION_LABEL[a]) : a.replace(/_/g, " ");
 }
 
+// Same "enum value drives logic, label is translated separately" rule as
+// ACTION_LABEL above — recordAudit's own targetType is always exactly
+// one of these three (see backend/src/utils/audit.js call sites), never
+// free text, so this can stay a closed lookup rather than falling back
+// to the raw value.
+const TARGET_TYPE_LABEL = {
+  Employee: "roles.employee",
+  User: "admin.targetTypeStaffAccount",
+  Market: "admin.csvMarket",
+};
+function targetTypeLabel(type, t) {
+  return TARGET_TYPE_LABEL[type] ? t(TARGET_TYPE_LABEL[type]) : type;
+}
+
 function dateLabel(iso) {
   return new Date(iso).toLocaleString("en-US", { month: "2-digit", day: "2-digit", hour: "numeric", minute: "2-digit" });
 }
@@ -98,7 +112,7 @@ export default function AdminAuditLogPage() {
                       <span className="font-semibold">{e.actor?.name}</span> — {actionLabel(e.action, t)}
                     </p>
                     <p className="text-xs text-[#8B93A8] truncate">
-                      {e.targetType} {e.targetId} {e.market ? `· ${e.market.name}` : ""} {e.zone ? `· ${t("rm.zoneNumbered", { number: e.zone.number })}` : ""}
+                      {targetTypeLabel(e.targetType, t)} {e.targetId} {e.market ? `· ${e.market.name}` : ""} {e.zone ? `· ${t("rm.zoneNumbered", { number: e.zone.number })}` : ""}
                     </p>
                   </div>
                   {isOpen ? <ChevronUp size={16} className="text-[#4C5266] shrink-0" /> : <ChevronDown size={16} className="text-[#4C5266] shrink-0" />}

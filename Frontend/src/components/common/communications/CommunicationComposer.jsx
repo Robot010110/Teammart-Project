@@ -274,7 +274,7 @@ export default function CommunicationComposer({ session, basePath }) {
               <Field label={t("emp.catZone")}>
                 <select value={form.zoneId} onChange={(e) => update({ zoneId: e.target.value })} className={selectClass}>
                   <option value="">{t("rm.selectAZone2")}</option>
-                  {(zones || []).map((z) => <option key={z.id} value={z.id}>Zone {z.number}</option>)}
+                  {(zones || []).map((z) => <option key={z.id} value={z.id}>{t("rm.zoneNumbered", { number: z.number })}</option>)}
                 </select>
               </Field>
             )}

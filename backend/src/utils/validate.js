@@ -343,9 +343,12 @@ const ACTIVITY_CATEGORIES = [
 
 const LABEL_ISSUE_TYPES = ["MISSING", "INCORRECT", "DAMAGED"];
 
-// An employee may only ever put their own activity into DRAFT or PENDING —
-// APPROVED/REJECTED are review outcomes, and no review endpoint exists yet
-// (that's Supervisor-side work, out of scope for this module).
+// An employee may only ever put their own activity into DRAFT or PENDING.
+// APPROVED/REJECTED are review outcomes, reachable ONLY through
+// workReviewService.recordReview — which is also what guarantees every
+// approval/rejection has a matching WorkReview scoring row. Widening this
+// list would let an employee self-approve AND silently bypass the
+// performance record, so it must stay exactly these two values.
 const EMPLOYEE_SETTABLE_ACTIVITY_STATUSES = ["DRAFT", "PENDING"];
 
 export const createActivitySchema = z.object({
@@ -1366,3 +1369,80 @@ export const createKochOperationSchema = z.object({
     .max(50)
     .optional(),
 });
+
+// ---------------------------------------------------------------------
+// Work Review — Performance Engine §E/§I. The one request shape a
+// supervisor's judgement can arrive in.
+//
+// .strict() is load-bearing, not stylistic: it is what structurally
+// guarantees the spec's "the API cannot accept fake performance values
+// from the frontend". There is deliberately NO qualityPoints/qualityMax
+// field here — those are derived server-side from `severity` by
+// scoringProfile at review time — and .strict() makes a request that
+// tries to send them a 400 rather than silently ignoring the extra key.
+// ---------------------------------------------------------------------
+export const WORK_TARGET_TYPE_VALUES = [
+  "ACTIVITY",
+  "TASK",
+  "ITEM_REPORT",
+  "PRICE_REPORT",
+  "WASTED_OVERALL",
+];
+
+export const recordWorkReviewSchema = z
+  .object({
+    targetType: z.enum(WORK_TARGET_TYPE_VALUES),
+    targetId: z.string().min(1),
+    outcome: z.enum(["APPROVED", "APPROVED_WITH_CORRECTION", "REJECTED"]),
+    // Required for a correction/rejection, forbidden for a plain approval —
+    // enforced in workReviewService.validateOutcomeShape, which owns that
+    // rule for every caller rather than only this endpoint.
+    severity: z.enum(["MINOR", "MODERATE", "MAJOR"]).nullable().optional(),
+    reason: z.string().max(500).nullable().optional(),
+  })
+  .strict();
+
+export const reviewQueueQuerySchema = z.object({
+  marketId: z.string().min(1).optional(),
+  // Comma-separated subset of WORK_TARGET_TYPE_VALUES, e.g. "ACTIVITY,TASK".
+  types: z.string().optional(),
+  take: z.coerce.number().int().min(1).max(200).optional(),
+});
+
+// ---------------------------------------------------------------------
+// Performance API — Performance Engine §D.
+//
+// Note what is NOT here: there is no schema anywhere that accepts a score,
+// a point value, or a category total. The engine derives every number
+// server-side from WorkReview/AttendanceRecord rows, so there is no
+// request shape in the app capable of supplying one (spec §20).
+// ---------------------------------------------------------------------
+export const performanceHistoryQuerySchema = z.object({
+  periodType: z.enum(["WEEK", "MONTH"]).optional(),
+  limit: z.coerce.number().int().min(1).max(24).optional(),
+  months: z.coerce.number().int().min(1).max(24).optional(),
+});
+
+export const performanceListQuerySchema = z.object({
+  marketId: z.string().min(1).optional(),
+  zoneId: z.coerce.number().int().positive().optional(),
+  periodType: z.enum(["WEEK", "MONTH"]).optional(),
+  // How many periods back: 1 = the most recently closed period.
+  offset: z.coerce.number().int().min(1).max(52).optional(),
+});
+
+export const performanceReviewsQuerySchema = z.object({
+  from: z.coerce.date().optional(),
+  to: z.coerce.date().optional(),
+});
+
+// Recompute takes a target and a date range only. .strict() so an attempt
+// to smuggle a score alongside it is a 400 rather than a silently ignored
+// extra key.
+export const recomputePerformanceSchema = z
+  .object({
+    employeeId: z.string().min(1),
+    from: z.coerce.date(),
+    to: z.coerce.date(),
+  })
+  .strict();

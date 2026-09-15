@@ -1,6 +1,7 @@
 import { prisma } from "../lib/prisma.js";
 import { assertMarketAccess } from "../middleware/auth.js";
 import { createNotificationForUser } from "../utils/notifications.js";
+import { startOfWeek } from "../utils/period.js";
 
 // itemReportsController.js — the Expired/Wasted Items module. An employee
 // identifies a Product (barcode scan or photo -> manual search on the
@@ -141,16 +142,19 @@ export async function listItemReportsForMarket(req, res, next) {
 // this codebase is computed exactly this way (marketsController,
 // attendanceController, employeeStatus.js, ...), so a report filed at
 // 23:30 local belongs to that local day here too, the same as it does
-// everywhere else. Week starts Monday, matching startOfWeek() in
-// activitiesController.js.
+// everywhere else. The week comes from utils/period.js — Saturday-start,
+// the one company-wide business week (Performance Engine §H). This used to
+// hand-roll a Monday-start week "matching startOfWeek() in
+// activitiesController.js"; that helper is now the shared one, so this
+// still matches it — it just isn't a second copy of the logic any more.
 function periodStart(period) {
   if (period === "all") return null;
   const d = new Date();
   d.setHours(0, 0, 0, 0);
   if (period === "week") {
-    const day = d.getDay(); // 0 = Sunday
-    d.setDate(d.getDate() + ((day === 0 ? -6 : 1) - day));
-  } else if (period === "month") {
+    return startOfWeek(d);
+  }
+  if (period === "month") {
     d.setDate(1);
   }
   return d;

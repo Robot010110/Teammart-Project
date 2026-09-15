@@ -13,6 +13,7 @@ import MarketFeedbackDetailScreen from "../components/supervisor/MarketFeedbackD
 import SupervisorAlertsPage from "../components/supervisor/home/SupervisorAlertsPage";
 import SupervisorRecentActivityPage from "../components/supervisor/home/SupervisorRecentActivityPage";
 import SupervisorPendingTasksPage from "../components/supervisor/home/SupervisorPendingTasksPage";
+import ReviewQueueScreen from "../components/supervisor/ReviewQueueScreen";
 import SupervisorTeamAttendancePage from "../components/supervisor/home/SupervisorTeamAttendancePage";
 
 const BASE_PATH = "/supervisor";
@@ -57,6 +58,9 @@ export default function SupervisorWorkspace({ session, onLogout }) {
         <Route path="alerts" element={<SupervisorAlertsPage session={session} basePath={BASE_PATH} />} />
         <Route path="activity" element={<SupervisorRecentActivityPage session={session} basePath={BASE_PATH} />} />
         <Route path="pending-tasks" element={<SupervisorPendingTasksPage session={session} basePath={BASE_PATH} />} />
+        {/* The cross-model review queue — everything in this market
+            awaiting a decision, whatever kind of work it is. */}
+        <Route path="review-queue" element={<ReviewQueueScreen marketId={session.marketId} />} />
         <Route path="team-attendance" element={<SupervisorTeamAttendancePage session={session} basePath={BASE_PATH} />} />
         <Route path="employees" element={<EmployeesListScreen session={session} basePath={BASE_PATH} />} />
         <Route path="employees/:employeeId/*" element={<SupervisorEmployeeProfileRoute session={session} basePath={BASE_PATH} />} />

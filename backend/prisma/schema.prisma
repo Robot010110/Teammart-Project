@@ -82,11 +82,20 @@ enum TaskType {
 // PENDING       -> employee submitted work, waiting for a supervisor to review it
 // APPROVED      -> reviewed and accepted
 // REJECTED      -> reviewed and sent back (see rejectionReason)
+// CANCELLED     -> Performance Engine §B: the assignment was withdrawn by
+//                  management (store closed, stock never arrived, work
+//                  reassigned). Distinct from REJECTED, which means the
+//                  employee DID the work and it wasn't good enough. Without
+//                  this state, a withdrawn assignment is indistinguishable
+//                  from one the employee simply never did, and the
+//                  Completion & Productivity score would punish an employee
+//                  for a supervisor's decision — see Task.cancelledAt.
 enum TaskStatus {
   ASSIGNED
   PENDING
   APPROVED
   REJECTED
+  CANCELLED
 }
 
 // ---------------------------------------------------------------------
@@ -167,10 +176,15 @@ enum SuddenTaskPriority {
 //                from ASSIGNED (My Tasks redesign's Start->timer->Complete
 //                lifecycle).
 // COMPLETED   -> employee marked it done
+// CANCELLED   -> withdrawn by management before completion. Same reasoning
+//                as TaskStatus.CANCELLED above (Performance Engine §B) —
+//                an urgent task that stopped being relevant must not count
+//                against the employee's completion rate.
 enum SuddenTaskStatus {
   ASSIGNED
   IN_PROGRESS
   COMPLETED
+  CANCELLED
 }
 
 // My Tasks redesign — supervisor-selected at creation (defaults GENERAL),
@@ -621,6 +635,13 @@ model User {
   reviewedTasks Task[] @relation("TaskReviewer")
   // Tasks this staff member proactively assigned to an employee.
   assignedTasks Task[] @relation("TaskAssigner")
+  // Assignments this staff member withdrew (Performance Engine §B) — a
+  // cancellation is a management decision and is attributed like any other.
+  cancelledTasks       Task[]       @relation("TaskCanceller")
+  cancelledSuddenTasks SuddenTask[] @relation("SuddenTaskCanceller")
+  // Every work-review decision this staff member made, across all five
+  // reviewable models (Performance Engine §A).
+  workReviews          WorkReview[] @relation("WorkReviewer")
 
   // Sudden Tasks this staff member has pushed to an employee.
   assignedSuddenTasks SuddenTask[] @relation("SuddenTaskAssigner")
@@ -759,6 +780,9 @@ model Market {
   nightShiftTaskDefinitions NightShiftTaskDefinition[]
   communications Communication[]
   kochOperations KochOperation[]
+  attendanceAdjustmentRequests AttendanceAdjustmentRequest[]
+  countingAssignments          CountingAssignment[]
+  workReviews                  WorkReview[]
 
   @@index([zoneId])
 }
@@ -894,6 +918,9 @@ model Employee {
   groupJoinRequestsInvitedBy  GroupJoinRequest[] @relation("GroupJoinInviterEmployee")
   groupJoinRequestsReviewedBy GroupJoinRequest[] @relation("GroupJoinReviewerEmployee")
   kochOperations              KochOperation[]
+  workReviews                 WorkReview[]
+  performanceSnapshots        PerformanceSnapshot[]
+  performanceStreak           PerformanceStreak?
 
   @@index([marketId])
   @@index([operationalShift])
@@ -935,10 +962,27 @@ model Task {
   assignedById Int?
   assignedBy   User?   @relation("TaskAssigner", fields: [assignedById], references: [id])
 
+  // Performance Engine §D.2 — when this assigned task is expected to be
+  // done. Nullable because a self-submitted task (assignedById null) has
+  // no deadline concept at all, and because every Task that existed before
+  // this column has no honest value to backfill. The timeliness half of
+  // Completion & Productivity is marked NON-APPLICABLE for a Task with no
+  // dueAt rather than silently treating it as on-time. Mirrors
+  // SuddenTask.dueAt, which already worked this way.
+  dueAt DateTime?
+
   reviewedById     Int?
   reviewedBy       User?     @relation("TaskReviewer", fields: [reviewedById], references: [id])
   rejectionReason  String?
   reviewedAt       DateTime?
+
+  // Set together when status becomes CANCELLED — see TaskStatus.CANCELLED's
+  // own comment for why a withdrawn assignment must be distinguishable from
+  // one the employee never did.
+  cancelledAt     DateTime?
+  cancelledById   Int?
+  cancelledBy     User?     @relation("TaskCanceller", fields: [cancelledById], references: [id])
+  cancelledReason String?
 
   submittedAt DateTime  @default(now())
   createdAt   DateTime  @default(now())
@@ -946,6 +990,9 @@ model Task {
   @@index([employeeId])
   @@index([marketId])
   @@index([status])
+  // Performance Engine — the Completion & Productivity query is always
+  // "this employee's assignments in this period", never a status scan.
+  @@index([employeeId, createdAt])
 }
 
 // ---------------------------------------------------------------------
@@ -1252,9 +1299,18 @@ model SuddenTask {
   startedAt   DateTime?
   completedAt DateTime?
 
+  // Set together when status becomes CANCELLED — see
+  // SuddenTaskStatus.CANCELLED's own comment (Performance Engine §B).
+  cancelledAt     DateTime?
+  cancelledById   Int?
+  cancelledBy     User?     @relation("SuddenTaskCanceller", fields: [cancelledById], references: [id])
+  cancelledReason String?
+
   @@index([employeeId])
   @@index([marketId])
   @@index([status])
+  // Performance Engine — same period-scoped access pattern as Task.
+  @@index([employeeId, assignedAt])
 }
 
 // ---------------------------------------------------------------------
@@ -1729,6 +1785,20 @@ model CountingAssignment {
   employeeId String
   employee   Employee @relation(fields: [employeeId], references: [id])
 
+  // Admin Actions Verification — same denormalized-cache convention as
+  // AttendanceAdjustmentRequest.marketId above: frozen at creation so a
+  // later employee reassignment can never retroactively move this
+  // assignment's market. Left null on existing rows rather than
+  // backfilled; populated on every new row going forward
+  // (countingAssignmentsController.createCountingAssignment, which
+  // already loads the full employee via requireAccessibleEmployee).
+  // Fixes a real bug — listCountingAssignmentsForMarket previously
+  // filtered on `employee: { marketId }`, which silently moved a
+  // reassigned employee's past counting-assignment history ("spec
+  // §10's audit trail") to their new market's list.
+  marketId String?
+  market   Market? @relation(fields: [marketId], references: [id])
+
   assignedById Int
   assignedBy   User @relation("CountingAssignmentAssigner", fields: [assignedById], references: [id])
 
@@ -1740,6 +1810,7 @@ model CountingAssignment {
   activities Activity[]
 
   @@index([employeeId])
+  @@index([marketId])
 }
 
 // ---------------------------------------------------------------------
@@ -2486,6 +2557,16 @@ model AuditLog {
   targetId    String?
   marketId    String?
   market      Market?     @relation(fields: [marketId], references: [id])
+  // Admin Actions Verification — populated only for
+  // MARKET_ASSIGNMENT_CHANGED rows, alongside `marketId` (which already
+  // holds the DESTINATION market). Promotes the same value that was
+  // already being written into `previousValue: { marketId }` JSON into
+  // a real, indexable column, so "every past market for employee X" is
+  // a plain query instead of a JSON scan — deliberately a bare scalar
+  // like `targetId` above, not a second relation to Market: this field
+  // exists purely for point/range lookups on the audit trail itself,
+  // not for enforcing referential integrity against Market.
+  previousMarketId String?
   zoneId      Int?
   zone        Zone?       @relation(fields: [zoneId], references: [id])
   reason      String?
@@ -2498,8 +2579,244 @@ model AuditLog {
   @@index([action])
   @@index([targetType, targetId])
   @@index([marketId])
+  @@index([previousMarketId])
   @@index([zoneId])
   @@index([createdAt])
+}
+
+// ---------------------------------------------------------------------
+// WorkReview — Performance Engine §A: the ONE authoritative record of a
+// supervisor's judgement of a piece of employee work, across all five
+// reviewable models (Activity, Task, ItemReport, PriceReport,
+// WastedOverallReport).
+//
+// Why polymorphic rather than new columns on all five models:
+//
+//   * Scoring a period is ONE indexed query here (@@index([employeeId,
+//     workDate])) instead of five queries against five different date
+//     fields and status enums that would each need normalizing.
+//   * ActivityStatus is shared by four of those models. Widening it with
+//     an APPROVED_WITH_CORRECTION value would mean auditing every
+//     `status === "APPROVED"` comparison in the backend AND every frontend
+//     filter. Instead a correction writes status: "APPROVED" — the
+//     WORKFLOW state is unchanged and existing screens keep working — and
+//     the JUDGEMENT is recorded here.
+//   * targetId deliberately has NO foreign key, the same precedent as
+//     AuditLog.targetId above. That is also a security property, not just
+//     a modelling one: Prisma cannot accidentally `include` this row from
+//     an employee-facing endpoint, so the hidden correction points (see
+//     qualityPoints below) cannot leak through a careless include. Reading
+//     them requires a deliberate second query, which is easy to review for.
+//
+// The per-model status/reviewedById/reviewedAt/rejectionReason columns are
+// KEPT and written in the same transaction as this row — they stay the
+// workflow state the rest of the app already reads; this is the scoring
+// source of truth. One write path (workReviewService.recordReview) owns
+// both, so they cannot drift.
+model WorkReview {
+  id         String         @id @default(cuid())
+  targetType WorkTargetType
+  targetId   String
+  outcome    WorkOutcome
+  // Set for APPROVED_WITH_CORRECTION and REJECTED; null for a plain
+  // APPROVED and on BACKFILL rows (historical approvals/rejections predate
+  // the concept — see scoringProfile's LEGACY_DEFAULT).
+  //
+  // One enum serves both outcomes, read in context:
+  //   correction -> MINOR / MODERATE / MAJOR      (how much rework)
+  //   rejection  -> MINOR / MODERATE ("serious") / MAJOR ("invalid")
+  severity ReviewSeverity?
+  // Employee-visible. The correction note or rejection reason.
+  reason   String?
+
+  // FROZEN scoring inputs, derived server-side from `severity` by the
+  // profile at review time and never recomputed afterwards — so changing
+  // the profile later cannot silently rewrite what past work was worth.
+  // NEVER accepted from the client (the request schema is .strict() and has
+  // no field for them). qualityPoints/qualityMax and severity are the
+  // management-only fields employees must never see.
+  qualityPoints  Float
+  qualityMax     Float
+  profileKey     String
+  profileVersion Int
+
+  // Denormalized so the scoring engine never joins back to five tables.
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id])
+  marketId   String
+  market     Market   @relation(fields: [marketId], references: [id])
+  // Flat string across five models (Activity.category / Task.type /
+  // "ITEM_REPORT" / ...) — an enum here would have to be the union of five
+  // unrelated enums and would need migrating every time any of them grows.
+  workCategory String
+  // The BUSINESS date of the work (operationalDate ?? date ?? reportedAt),
+  // NOT the date it was reviewed. A period owns the work done in it, even
+  // if the supervisor got around to judging it a week later.
+  workDate     DateTime
+
+  reviewedById Int?
+  reviewedBy   User?            @relation("WorkReviewer", fields: [reviewedById], references: [id])
+  reviewedAt   DateTime         @default(now())
+  source       WorkReviewSource @default(SUPERVISOR)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // One live review per work item. Also the concurrency guard: a
+  // double-clicked Approve hits this instead of creating two rows.
+  @@unique([targetType, targetId])
+  // THE scoring index — every period query is "this employee's reviewed
+  // work between these two dates".
+  @@index([employeeId, workDate])
+  @@index([marketId, reviewedAt])
+  @@index([employeeId, outcome])
+}
+
+enum WorkTargetType {
+  ACTIVITY
+  TASK
+  ITEM_REPORT
+  PRICE_REPORT
+  WASTED_OVERALL
+}
+
+// APPROVED                 -> full quality credit for that item's weight
+// APPROVED_WITH_CORRECTION -> accepted, but rework was needed (severity says
+//                             how much). Still an acceptance: it does NOT
+//                             break the employee's acceptance streak, but it
+//                             DOES break their "clean" streak (§F).
+// REJECTED                 -> not accepted. Scores far below even the worst
+//                             correction, deliberately (§D.1).
+enum WorkOutcome {
+  APPROVED
+  APPROVED_WITH_CORRECTION
+  REJECTED
+}
+
+enum ReviewSeverity {
+  MINOR
+  MODERATE
+  MAJOR
+}
+
+// SUPERVISOR -> a real review decision made through the app.
+// BACKFILL   -> synthesized from a pre-existing APPROVED/REJECTED status
+//               when the engine was introduced; severity is null on these
+//               and the profile scores them via LEGACY_DEFAULT.
+enum WorkReviewSource {
+  SUPERVISOR
+  BACKFILL
+}
+
+// ---------------------------------------------------------------------
+// PerformanceSnapshot — a CLOSED period's score, frozen.
+//
+// Performance Engine §B. This table exists because of one hard constraint:
+// runAdjustmentRetentionSweep (jobs/maintenanceScheduler.js) permanently
+// zeroes AttendanceRecord.punishmentHours after 30 days. A score computed
+// lazily from live rows would therefore SILENTLY RISE for old periods as
+// penalties age out. Closed periods must be stored, not derived.
+//
+// The in-progress period is deliberately NOT stored — it is computed on
+// read and returned as provisional. That is safe only because every live
+// period (current week, current month) is well inside the 30-day retention
+// window, so its source data is always still intact when it is read.
+//
+// `inputs` is the most important column here: it freezes the FACTS the
+// score was computed from (penalty hours, absence counts, per-outcome
+// review counts, assignment counts). That makes a snapshot self-contained
+// — a formula change can be replayed against frozen inputs forever, long
+// after the underlying rows have been purged. Only a SOURCE-DATA change (a
+// late review, a corrected import) needs re-gathering, which is exactly
+// what staleAt marks.
+model PerformanceSnapshot {
+  id         String   @id @default(cuid())
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id])
+  // Frozen at close time: a later market transfer must not rewrite which
+  // market this employee's past performance belonged to.
+  marketId   String
+  // Frozen role, so a per-role scoring profile stays explainable later.
+  position   String
+
+  periodType  PerfPeriodType
+  periodStart DateTime // inclusive. WEEK => always a Saturday.
+  periodEnd   DateTime // exclusive
+
+  // NULL score means NO_DATA (nothing measurable happened) — deliberately
+  // distinct from a real 0, which means measured and bad.
+  score    Float?
+  // Pre-curve, so a curve change is re-derivable without re-gathering facts.
+  rawScore Float?
+  // The four objective categories renormalized to 100. Improvement in the
+  // NEXT period is measured against this, never against rawScore — that
+  // would be circular, since improvement is itself part of rawScore.
+  baseScore Float?
+
+  qualityScore      Float?
+  completionScore   Float?
+  attendanceScore   Float?
+  reliabilityScore  Float?
+  consistencyScore  Float?
+  // Sum of the maxima of the categories that actually applied — the
+  // renormalization denominator, kept so a stored score is explainable.
+  applicableMax     Float
+
+  inputs  Json // frozen facts (see this model's own comment)
+  metrics Json // per-category explanation the drill-down renders
+
+  // false => computed when some source data was already purged (a
+  // backfilled period older than the 30-day penalty retention). Such a
+  // score is structurally inflated on Reliability and must be labelled
+  // rather than compared against honest ones.
+  inputsComplete Boolean @default(true)
+  profileKey     String
+  profileVersion Int
+
+  computedAt DateTime  @default(now())
+  // Set when a late review or penalty lands inside this already-closed
+  // period; the recompute sweep picks these up.
+  staleAt    DateTime?
+  // Once sealed the snapshot is immutable. Sealing happens INSIDE the
+  // 30-day penalty retention window on purpose: past that point the source
+  // data is gone, so a "recompute" would produce a wrong (inflated)
+  // number rather than a corrected one.
+  sealedAt   DateTime?
+
+  @@unique([employeeId, periodType, periodStart])
+  @@index([employeeId, periodType, periodStart])
+  @@index([marketId, periodType, periodStart])
+  @@index([periodType, periodStart, score])
+  @@index([staleAt])
+}
+
+enum PerfPeriodType {
+  WEEK
+  MONTH
+}
+
+// PerformanceStreak — an employee's CURRENT streak state.
+//
+// A streak is a property of the employee's timeline, not of a calendar
+// bucket: an approval run that spans a week boundary is still one run. So
+// it is maintained incrementally at review time (O(1) per review) rather
+// than recomputed by scanning history. Each period's snapshot also freezes
+// the streak values it saw, so history stays explainable.
+model PerformanceStreak {
+  employeeId String   @id
+  employee   Employee @relation(fields: [employeeId], references: [id])
+
+  // The "approval streak" shown to users is the CLEAN track: an approval
+  // that needed a correction is an acceptance, but not an unblemished
+  // approval, so it restarts this counter (see WorkOutcome's comment).
+  currentApprovalStreak  Int @default(0)
+  bestApprovalStreak     Int @default(0)
+  currentRejectionStreak Int @default(0)
+  worstRejectionStreak   Int @default(0)
+
+  lastOutcome   WorkOutcome?
+  lastReviewAt  DateTime?
+  updatedAt     DateTime     @updatedAt
 }
 
 enum AuditAction {
@@ -2521,6 +2838,14 @@ enum AuditAction {
   INSPECTION_STARTED
   INSPECTION_COMPLETED
   INSPECTION_CANCELLED
+  // Performance Engine — a supervisor's judgement of an employee's work is
+  // now an audited administrative action, which it never was before (the
+  // old approve/reject endpoints wrote no AuditLog row at all). Severity
+  // lives in this row's newValue; adminAuditController is ADMIN-gated, so
+  // that is an acceptable place for it — see §I's visibility rules.
+  WORK_REVIEW_RECORDED
+  WORK_REVIEW_CHANGED
+  PERFORMANCE_SNAPSHOT_RECOMPUTED
 }
 
 // A rating is never edited/overwritten — each one is its own row, so
@@ -2630,6 +2955,20 @@ model AttendanceAdjustmentRequest {
   reason     String?
   status     AttendanceAdjustmentStatus @default(PENDING)
 
+  // Admin Actions Verification — same denormalized-cache convention as
+  // AttendanceRecord.marketId above: frozen at creation so a later
+  // employee reassignment can never retroactively move this request's
+  // market. Left null on existing/imported rows rather than backfilled
+  // (nothing recorded what market a legacy row actually belonged to);
+  // populated on every new row going forward
+  // (attendanceController.submitExtraHours). Fixes a real bug —
+  // listAttendanceAdjustmentRequestsForMarket previously filtered on
+  // `employee: { marketId }`, which silently moved a reassigned
+  // employee's past extra-hours requests to their new market's review
+  // queue.
+  marketId String?
+  market   Market? @relation(fields: [marketId], references: [id])
+
   reviewedById Int?
   reviewedBy   User?     @relation("AttendanceAdjustmentReviewer", fields: [reviewedById], references: [id])
   reviewNote   String?
@@ -2649,6 +2988,7 @@ model AttendanceAdjustmentRequest {
   @@unique([employeeId, date])
   @@index([employeeId])
   @@index([status])
+  @@index([marketId])
 }
 
 // ---------------------------------------------------------------------

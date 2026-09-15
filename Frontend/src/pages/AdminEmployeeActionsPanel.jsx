@@ -4,9 +4,8 @@ import { ShieldAlert, ShieldOff, ShieldCheck, KeyRound, ArrowUpCircle, Building2
 import Modal from "../components/common/Modal";
 import { useAsync } from "../hooks/useAsync";
 import { ApiError } from "../services/apiClient";
-import { updateEmployee, assignDepartment } from "../services/staffEmployeeService";
+import { updateEmployee } from "../services/staffEmployeeService";
 import { listMarkets } from "../services/marketService";
-import { listMarketDepartments } from "../services/departmentClosingService";
 import {
   promoteEmployeeToStaff, resetEmployeePassword, setEmployeeAccountStatus,
 } from "../services/adminService";
@@ -20,9 +19,14 @@ const selectClass = inputClass;
 // the read-only profile view above it (RmEmployeeProfile, unchanged).
 // Every action here is a distinct confirmed operation calling a real
 // ADMIN-only backend endpoint — never an always-editable form. Market/
-// shift/department changes and Employee ID changes reuse the EXISTING
-// updateEmployee/assignDepartment endpoints (already ADMIN-accessible)
-// rather than duplicating them — see adminService.js's own comment.
+// shift changes and Employee ID changes reuse the EXISTING
+// updateEmployee endpoint (already ADMIN-accessible) rather than
+// duplicating it — see adminService.js's own comment. Department is
+// deliberately NOT editable from here — it's a Supervisor's call, made
+// from the market's own screen; the backend already clears it
+// automatically on a market change (see updateEmployeesController's own
+// comment on that transaction) so there's never a stale department left
+// pointing at the old market.
 export default function AdminEmployeeActionsPanel({ employee, onChanged }) {
   const { t } = useTranslation();
   const [modal, setModal] = useState(null); // "promote" | "assignment" | "id" | "password" | "status"
@@ -198,14 +202,31 @@ function PromoteModal({ employee, onClose, onDone }) {
   );
 }
 
-// --- Change Assignment (market/shift/department, §9/§11-12) ---
+// --- Change Assignment (market/shift, §9/§11-12) ---
+// Department is intentionally not editable here — see this file's own
+// top comment for why (it's a Supervisor call, and the backend already
+// clears it on a market change).
 function AssignmentModal({ employee, onClose, onDone }) {
   const { t } = useTranslation();
   const { data: markets } = useAsync(listMarkets, { deps: [] });
   const [marketId, setMarketId] = useState(employee.marketId);
-  const [shift, setShift] = useState(employee.shift ?? employee.cashierShift ?? "");
-  const { data: departments } = useAsync(() => listMarketDepartments(marketId), { deps: [marketId] });
-  const [department, setDepartment] = useState(employee.department ?? "");
+  const isCashier = employee.role === "CASHIER";
+  // Cashier shift is a real backend enum with no NIGHT value at all
+  // (Cashiers are never on a Night shift — see Employee.cashierShift's
+  // own schema comment), so its option set is deliberately narrower
+  // than the Worker/Butcher one below.
+  const shiftOptions = isCashier
+    ? [
+        { value: "MORNING", label: t("emp.morningShift") },
+        { value: "EVENING", label: t("emp.eveningShift") },
+      ]
+    : [
+        { value: "Morning Shift", label: t("emp.morningShift") },
+        { value: "Afternoon Shift", label: t("sup.afternoonShift") },
+        { value: "Night Shift", label: t("emp.nightShift") },
+      ];
+  const currentShift = employee.shift ?? employee.cashierShift ?? "";
+  const [shift, setShift] = useState(currentShift);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
 
@@ -213,11 +234,8 @@ function AssignmentModal({ employee, onClose, onDone }) {
     setBusy(true);
     setError(null);
     try {
-      const shiftField = employee.role === "CASHIER" ? { cashierShift: shift || null } : { shift: shift || null };
+      const shiftField = isCashier ? { cashierShift: shift || null } : { shift: shift || null };
       await updateEmployee(employee.id, { marketId, ...shiftField });
-      if (department && department !== employee.department && marketId === employee.marketId) {
-        await assignDepartment(employee.id, department);
-      }
       onClose();
       onDone();
     } catch (err) {
@@ -238,22 +256,10 @@ function AssignmentModal({ employee, onClose, onDone }) {
         </div>
         <div>
           <label className="block text-xs uppercase tracking-wide text-[#8B93A8] mb-1.5">{t("emp.shift")}</label>
-          <input value={shift} onChange={(e) => setShift(e.target.value)} placeholder={t("admin.eGMorning")} className={inputClass} />
+          <select value={shift} onChange={(e) => setShift(e.target.value)} className={selectClass}>
+            {shiftOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
         </div>
-        {marketId === employee.marketId && (
-          <div>
-            <label className="block text-xs uppercase tracking-wide text-[#8B93A8] mb-1.5">{t("emp.department")}</label>
-            <select value={department} onChange={(e) => setDepartment(e.target.value)} className={selectClass}>
-              <option value="">{t("admin.noChange")}</option>
-              {(departments ?? []).map((d) => (
-                <option key={d.marketDepartmentId ?? d.department} value={d.department}>{d.department}</option>
-              ))}
-            </select>
-          </div>
-        )}
-        {marketId !== employee.marketId && (
-          <p className="text-[11px] text-amber-400/90">{t("admin.changingMarketClearsTheCurrentDepartment")}</p>
-        )}
         <ErrorText error={error} />
         <button
           type="button"

@@ -178,7 +178,7 @@ export default function AdminZoneMarketsPage({ zoneId, onOpenMarket, onBack }) {
                   : "bg-red-500/12 text-red-400 ring-red-500/30 shadow-[0_0_10px_-3px_rgba(248,113,113,0.6)]"
             }`}
           >
-            <span className="h-1.5 w-1.5 rounded-full bg-current" /> {activeCount}/{markets.length} Active
+            <span className="h-1.5 w-1.5 rounded-full bg-current" /> {t("admin.activeCountOfTotal", { active: activeCount, total: markets.length })}
           </span>
         )}
       </div>

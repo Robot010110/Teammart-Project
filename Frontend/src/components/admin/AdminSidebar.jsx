@@ -41,8 +41,15 @@ export default function AdminSidebar({ session, pathname, open, onClose }) {
       )}
 
       <aside
+        // lg:!translate-x-0 (important) rather than plain lg:translate-x-0:
+        // Tailwind emits .rtl\:translate-x-full outside of and after the
+        // lg: media-query block, so at desktop width + RTL both rules
+        // have equal specificity and the later, unscoped rtl: one wins
+        // the cascade — pushing the persistent sidebar off-screen even
+        // though lg: was supposed to force it open. !important makes the
+        // lg: override win unconditionally, regardless of source order.
         className={`fixed inset-y-0 start-0 z-50 flex w-[248px] flex-col border-e border-white/[0.06] bg-[#0A101E]/95 backdrop-blur-xl
-                    transition-transform duration-300 ease-out lg:translate-x-0 ${
+                    transition-transform duration-300 ease-out lg:!translate-x-0 ${
                       open ? "translate-x-0" : "-translate-x-full rtl:translate-x-full"
                     }`}
       >

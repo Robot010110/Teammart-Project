@@ -6,7 +6,6 @@ import {
   CalendarCheck2, Clock, CheckCircle2, BarChart3, MessageCircle,
 } from "lucide-react";
 import { useAsync } from "../../hooks/useAsync";
-import { useUnreadBadges } from "../../hooks/useUnreadBadges";
 import PerformanceCircle from "./PerformanceCircle";
 import PerformanceHistoryScreen from "./PerformanceHistoryScreen";
 import TodayWorkLogScreen from "./TodayWorkLogScreen";
@@ -20,7 +19,7 @@ import ErrorBanner from "../common/ErrorBanner";
 import { SkeletonCard } from "../common/SkeletonCard";
 import AnimatedNumber from "../common/AnimatedNumber";
 import { getProfile } from "../../services/profileService";
-import { getPerformanceSummary } from "../../services/activityService";
+import { getMyPerformance } from "../../services/performanceService";
 import { listSuddenTasks } from "../../services/suddenTaskService";
 import { getTodayAttendance, getAttendanceMonth } from "../../services/attendanceService";
 
@@ -87,13 +86,30 @@ function hoursLabel(hours) {
 // Photo-change and WhatsApp self-service (previously on this page via
 // ProfileHeaderCard) remain fully available — ProfileHeaderCard.jsx is
 // still rendered at the top of the Profile tab, unchanged.
-export default function HomeTab({ onNavigate, basePath }) {
+export default function HomeTab({ onNavigate, basePath, chatUnread = 0 }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { chatUnread } = useUnreadBadges();
+  // chatUnread comes from the parent workspace shell (EmployeeWorkspace /
+  // CashierWorkspace), which already polls it for the bottom-nav badge —
+  // see that hook's own comment. This tab used to call useUnreadBadges()
+  // a second time here, which meant every employee sitting on Home (the
+  // default landing screen) was running TWO independent copies of both
+  // the notifications and conversations polling loops at once — double
+  // the request rate for identical data, confirmed via a real network
+  // capture (2 near-simultaneous requests per endpoint every ~20s instead
+  // of 1). That duplication was the dominant contributor to the 429
+  // "Too many requests" failures: an api rate-limit bucket shared by
+  // everyone on the same IP (see backend/src/middleware/rateLimit.js)
+  // filled twice as fast as it needed to, for every employee simply
+  // looking at their home screen.
 
   const { data: profile, error: profileError, loading: profileLoading, reload: reloadProfile } = useAsync(getProfile, { deps: [] });
-  const { data: performance } = useAsync(getPerformanceSummary, { deps: [] });
+  // The home card shows the CURRENT MONTH score out of 100 — never the
+  // week. A week is too short a window to judge anyone on at a glance,
+  // and the spec is explicit about it; the current week is still
+  // available one tap away inside Performance.
+  const { data: performance } = useAsync(getMyPerformance, { deps: [] });
+  const monthScore = performance?.current?.score ?? null;
   // One fetch, sliced client-side by real status — My Tasks redesign
   // added a real IN_PROGRESS state between ASSIGNED and COMPLETED, so
   // "pending" here means "not yet completed" (ASSIGNED or IN_PROGRESS),
@@ -150,7 +166,7 @@ export default function HomeTab({ onNavigate, basePath }) {
 
   const periodTotal = periodCompletedCount + pendingCount;
   const complianceLabel = periodTotal > 0 ? `${Math.round((periodCompletedCount / periodTotal) * 100)}%` : "—";
-  const performanceLabel = performance?.rate != null ? `${Math.round(performance.rate)}%` : "—";
+  const performanceLabel = monthScore != null ? String(monthScore) : "—";
 
   if (showPerformanceHistory) {
     return (
@@ -225,9 +241,14 @@ export default function HomeTab({ onNavigate, basePath }) {
           without tipping into heavy glassmorphism. */}
       <section className="card-premium relative mb-5 rounded-2xl p-5 bg-gradient-to-br from-[#0B1830]/85 to-[#050A18]/95 border border-white/[0.07] backdrop-blur-xl overflow-hidden shadow-[0_0_40px_-12px_rgba(244,122,32,0.15)]">
         <PerformanceAtmosphere />
-        <h2 className="relative mb-4 text-sm font-semibold text-white">{t("emp.todaysPerformance")}</h2>
+        <h2 className="relative mb-4 text-sm font-semibold text-white">{t("emp.performance")}</h2>
         <div className="relative flex items-center gap-5">
-          <PerformanceCircle rate={performance?.rate} onClick={() => setShowPerformanceHistory(true)} bare size={112} />
+          <div className="flex flex-col items-center shrink-0">
+            <PerformanceCircle rate={monthScore} onClick={() => setShowPerformanceHistory(true)} bare size={112} />
+            {/* Says WHICH period the number is, so the home figure can
+                never be mistaken for a weekly or all-time score. */}
+            <span className="mt-1 text-[10.5px] font-medium text-[#8B93A8]">{t("emp.perfThisMonth")}</span>
+          </div>
           <div className="flex-1 min-w-0 divide-y divide-white/[0.06]">
             <div className="flex items-center justify-between py-2 first:pt-0">
               <span className="flex items-center gap-1.5 text-xs text-[#9AA1B4]"><CheckCircle2 size={13} className="text-emerald-400" /> {t("emp.tasksToday")}</span>

@@ -1,4 +1,6 @@
 import { prisma } from "../lib/prisma.js";
+import { computeWorkingHours } from "../utils/attendanceMath.js";
+import { markPeriodsStale } from "../services/performance/performanceService.js";
 import { staffCanAccessMarket, requireAccessibleEmployee, assertMarketAccess } from "../middleware/auth.js";
 import { parseAttendanceWorkbook, buildAttendanceReportWorkbook } from "../utils/attendanceExcel.js";
 import { attendanceImportRowSchema } from "../utils/validate.js";
@@ -296,17 +298,6 @@ function formatDateLabel(date) {
   return date.toLocaleDateString("en-US", { month: "long", day: "numeric" });
 }
 
-// Working hours for one day, computed from checkIn/checkOut/break —
-// never stored, so there's no redundant derived value to drift out of
-// sync with the underlying times.
-function computeWorkingHours(record) {
-  if (!record.checkIn || !record.checkOut) return null;
-  let ms = record.checkOut.getTime() - record.checkIn.getTime();
-  if (record.breakStart && record.breakEnd) {
-    ms -= record.breakEnd.getTime() - record.breakStart.getTime();
-  }
-  return Math.max(ms / (1000 * 60 * 60), 0);
-}
 
 // POST /api/attendance/import — staff uploads the fingerprint system's
 // Excel export (multer puts the file on req.file; see
@@ -689,6 +680,12 @@ export async function setPunishmentHours(req, res, next) {
         reason,
       },
     });
+
+    // A penalty feeds Reliability & Discipline, so setting one on a day
+    // inside an already-closed period invalidates that period's stored
+    // score. Not optional: without this the snapshot keeps its pre-penalty
+    // number forever, because nothing else would ever re-read that day.
+    await markPeriodsStale({ employeeId, date });
 
     res.status(201).json({ record });
   } catch (err) {
@@ -1077,14 +1074,21 @@ export async function submitExtraHours(req, res, next) {
     const { date, hours, reason } = req.body;
     const employeeId = req.user.employeeId;
 
-    const request = await prisma.attendanceAdjustmentRequest.create({
-      data: { employeeId, date, hours, reason, type: "EXTRA_WORK" },
-    });
-
+    // Fetched before create (was after) so the request can freeze the
+    // employee's CURRENT market onto its own marketId column at the
+    // moment it's submitted — see the schema's own comment on this
+    // field. Never re-derived from employee.marketId later, so a
+    // subsequent reassignment can't retroactively move this request to
+    // a different market's review queue.
     const employee = await prisma.employee.findUnique({
       where: { id: employeeId },
       select: { name: true, marketId: true },
     });
+
+    const request = await prisma.attendanceAdjustmentRequest.create({
+      data: { employeeId, date, hours, reason, type: "EXTRA_WORK", marketId: employee.marketId },
+    });
+
     const market = await prisma.market.findUnique({
       where: { id: employee.marketId },
       select: { supervisorId: true },
@@ -1154,7 +1158,21 @@ export async function listAttendanceAdjustmentRequestsForMarket(req, res, next) 
     }
     await assertMarketAccess(req.user, marketId);
 
-    const where = { employee: { marketId } };
+    // A row with its own frozen marketId is matched ONLY on that value
+    // (transfer-safe — a later reassignment can't move it to a different
+    // market's queue, and it can never resurface under the market it
+    // used to belong to). Only a genuinely legacy row (marketId still
+    // null, predating this column) falls back to the employee's CURRENT
+    // market so it doesn't just vanish from every market's queue,
+    // matching this app's established "don't backfill, don't drop
+    // existing rows" convention for this class of migration. The naive
+    // `OR: [{ employee: { marketId } }, { marketId }]` form (seen
+    // elsewhere in the codebase for this same migration shape) was
+    // tried here first and rejected — it double-matches a row that
+    // already has its own marketId once the employee moves, since the
+    // employee-relation branch has no way to defer to the row's own
+    // value.
+    const where = { OR: [{ marketId }, { marketId: null, employee: { marketId } }] };
     if (status) where.status = status;
     if (employeeId) where.employeeId = employeeId;
 

@@ -25,7 +25,7 @@ import Toast from "../common/Toast";
 import { ACTIVITY_SUBMISSION_OPTIONS } from "../../data/workspaceData";
 import { listMyWastedOverallReports } from "../../services/wastedOverallService";
 import { listSuddenTasks } from "../../services/suddenTaskService";
-import { getPerformanceSummary } from "../../services/activityService";
+import { getMyPerformance } from "../../services/performanceService";
 import { useAsync } from "../../hooks/useAsync";
 import { useToast } from "../../hooks/useToast";
 
@@ -76,7 +76,7 @@ function isToday(iso) {
 // invented:
 //   - Completed / Pending: today's SuddenTasks by status.
 //   - Performance: the existing GET /activities/performance approval
-//     rate (activityService.getPerformanceSummary), same figure
+//     monthly score (performanceService.getMyPerformance), same figure
 //     HomeTab.jsx's PerformanceCircle already shows elsewhere.
 //   - Compliance: this app has no stored "compliance" metric anywhere
 //     (confirmed — no such field/endpoint exists), so rather than
@@ -99,7 +99,9 @@ export default function WorkerActivityTab() {
   const { data: allTasks } = useAsync(listSuddenTasks, { deps: [] });
   const pendingTasks = useMemo(() => (allTasks ?? []).filter((t) => t.status !== "COMPLETED"), [allTasks]);
   const completedTasks = useMemo(() => (allTasks ?? []).filter((t) => t.status === "COMPLETED"), [allTasks]);
-  const { data: performance } = useAsync(getPerformanceSummary, { deps: [] });
+  // The same monthly score the home card shows, so the two never
+  // disagree about what "Performance" means.
+  const { data: performance } = useAsync(getMyPerformance, { deps: [] });
 
   const [activeOption, setActiveOption] = useState(null);
   const [itemReportsOpen, setItemReportsOpen] = useState(false);
@@ -114,7 +116,7 @@ export default function WorkerActivityTab() {
   const pendingCount = (pendingTasks ?? []).length;
   const totalToday = completedToday.length + pendingCount;
   const complianceLabel = totalToday > 0 ? `${Math.round((completedToday.length / totalToday) * 100)}%` : "—";
-  const performanceLabel = performance?.rate != null ? `${Math.round(performance.rate)}` : "—";
+  const performanceLabel = performance?.current?.score != null ? String(performance.current.score) : "—";
 
   const myTasks = [...(pendingTasks ?? []), ...completedToday].slice(0, 4);
 

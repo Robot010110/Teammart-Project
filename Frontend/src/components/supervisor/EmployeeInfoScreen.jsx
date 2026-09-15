@@ -8,6 +8,10 @@ import ErrorBanner from "../common/ErrorBanner";
 import AuthenticatedImage from "../common/AuthenticatedImage";
 import { SkeletonCard } from "../common/SkeletonCard";
 import Modal from "../common/Modal";
+import PerformancePanel from "../employee/performance/PerformancePanel";
+import {
+  getEmployeePerformance, getEmployeePerformanceHistory, getEmployeePerformanceAggregate,
+} from "../../services/performanceService";
 import EmployeeTodayActivity from "./EmployeeTodayActivity";
 import { assignDepartment } from "../../services/staffEmployeeService";
 import { getMarketAttendanceToday } from "../../services/attendanceService";
@@ -280,17 +284,18 @@ export default function EmployeeInfoScreen({ employee, setEmployee, loading, err
             <EmployeeTodayActivity employeeId={employee.id} marketId={employee.marketId} />
           </div>
 
+          {/* The real, computed score — the same five-category figure the
+              employee sees, plus the management-only detail the API adds
+              for a staff viewer. This used to read Employee.performanceRate,
+              a column nothing ever wrote, so the tile always showed an em
+              dash. */}
           <Modal open={perfOpen} onClose={() => setPerfOpen(false)} title={t("emp.performance")}>
-            <div className="p-1 text-center">
-              <p className="font-display text-[40px] font-bold text-white tabular-nums">
-                {employee.performanceRate == null ? "—" : `${employee.performanceRate}%`}
-              </p>
-              <p className="mt-1 text-[12.5px] text-[#8B93A8]">
-                {employee.performanceRate == null
-                  ? t("sup.noPerformanceFigureHasBeenRecorded")
-                  : t("sup.overallPerformanceRating")}
-              </p>
-            </div>
+            <PerformancePanel
+              loadCurrent={(opts) => getEmployeePerformance(employee.id, opts)}
+              loadHistory={(opts) => getEmployeePerformanceHistory(employee.id, opts)}
+              loadAggregate={(opts) => getEmployeePerformanceAggregate(employee.id, opts)}
+              deps={[employee.id]}
+            />
           </Modal>
         </>
       )}

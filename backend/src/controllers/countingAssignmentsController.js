@@ -83,6 +83,12 @@ export async function createCountingAssignment(req, res, next) {
     const assignment = await prisma.countingAssignment.create({
       data: {
         employeeId: employee.id,
+        // Freezes the employee's CURRENT market onto this row — see the
+        // schema's own comment on CountingAssignment.marketId. Never
+        // re-derived later, so a subsequent reassignment can't
+        // retroactively move this assignment's history to a different
+        // market's list.
+        marketId: employee.marketId,
         originalDepartment: employee.department,
         assignedDepartment,
         countingArea: countingArea || null,
@@ -166,7 +172,16 @@ export async function listCountingAssignmentsForMarket(req, res, next) {
     if (!marketId) return res.status(400).json({ error: "marketId is required" });
     await assertMarketAccess(req.user, marketId);
 
-    const where = { employee: { marketId } };
+    // A row with its own frozen marketId is matched ONLY on that value
+    // (transfer-safe — see attendanceController.
+    // listAttendanceAdjustmentRequestsForMarket's own comment for why
+    // the naive `OR: [{ employee: { marketId } }, { marketId }]` form
+    // is wrong: it double-matches a row that already has its own
+    // marketId once the employee moves). Only a genuinely legacy row
+    // (marketId still null, predating this column) falls back to the
+    // employee's CURRENT market rather than silently disappearing from
+    // every market's list.
+    const where = { OR: [{ marketId }, { marketId: null, employee: { marketId } }] };
     if (employeeId) where.employeeId = employeeId;
     if (pending === "true") where.verifiedAt = null;
 

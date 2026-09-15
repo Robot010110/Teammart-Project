@@ -22,14 +22,26 @@ function sanitize(value) {
   return clean;
 }
 
-export function recordAudit({ actorUserId, action, targetType, targetId, marketId, zoneId, reason, previousValue, newValue, metadata }) {
-  return prisma.auditLog.create({
+// `tx` — optional Prisma transaction client (from `prisma.$transaction`).
+// Defaults to the global `prisma` client, so every existing call site
+// keeps working unchanged; pass `tx` only when the audit row must
+// commit atomically alongside other writes in the same transaction
+// (Admin Actions Verification — see updateEmployee/assignMarketSupervisor).
+//
+// `previousMarketId` — Admin Actions Verification: populated only for
+// MARKET_ASSIGNMENT_CHANGED rows, promoting the same value already
+// carried in previousValue.marketId into its own indexed column (see
+// the schema's own comment on AuditLog.previousMarketId).
+export function recordAudit({ actorUserId, action, targetType, targetId, marketId, previousMarketId, zoneId, reason, previousValue, newValue, metadata, tx }) {
+  const client = tx ?? prisma;
+  return client.auditLog.create({
     data: {
       actorUserId,
       action,
       targetType,
       targetId: targetId ?? null,
       marketId: marketId ?? null,
+      previousMarketId: previousMarketId ?? null,
       zoneId: zoneId ?? null,
       reason: reason ?? null,
       previousValue: sanitize(previousValue) ?? undefined,

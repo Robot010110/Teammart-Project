@@ -338,17 +338,37 @@ test("SNAPSHOT: a recipient reassigned to a different market after send still re
   const before = await apiFetch(baseUrl, "/api/communications/my", { token: tokenWorkerDrinksA1 });
   assert.ok(before.body.some((c) => c.id === send.body.id));
 
-  // Reassign the recipient to an entirely different market/zone.
+  // Reassign the recipient to an entirely different market/zone. Admin
+  // Actions Verification — a market change now bumps the employee's
+  // tokenVersion (closing a real gap: market/zone scope is baked into
+  // the JWT and trusted without a DB re-check — see middleware/auth.js's
+  // staffCanAccessMarket), so the pre-move token below is intentionally
+  // rejected; a freshly-signed one (reflecting the bumped tokenVersion)
+  // is needed to keep testing this employee's own endpoints.
   await apiFetch(baseUrl, `/api/employees/${workerDrinksA1.id}`, { method: "PATCH", token: tokenAdmin, body: { marketId: marketB1.id } });
 
-  const after = await apiFetch(baseUrl, "/api/communications/my", { token: tokenWorkerDrinksA1 });
+  const staleAttempt = await apiFetch(baseUrl, "/api/communications/my", { token: tokenWorkerDrinksA1 });
+  assert.equal(staleAttempt.status, 401);
+
+  const movedEmployee = await prisma.employee.findUnique({ where: { id: workerDrinksA1.id } });
+  const after = await apiFetch(baseUrl, "/api/communications/my", { token: tokenForEmployee(movedEmployee) });
   assert.ok(
     after.body.some((c) => c.id === send.body.id),
     "the historical recipient snapshot must survive the employee's later reassignment"
   );
 
-  // Move them back so later tests in this file aren't affected.
+  // Move them back so later tests in this file aren't affected, and
+  // refresh the shared token (another tokenVersion bump just happened)
+  // every later test in this file reuses. A market change also clears
+  // Employee.department (Admin Actions Verification §E.3 — the new
+  // market's department is unknown at transfer time, so it must be a
+  // deliberate follow-up call, never fabricated), so it must be
+  // explicitly re-assigned here too or every later "Snacks" targeting
+  // test in this file would stop matching this employee.
   await apiFetch(baseUrl, `/api/employees/${workerDrinksA1.id}`, { method: "PATCH", token: tokenAdmin, body: { marketId: marketA1.id } });
+  await apiFetch(baseUrl, `/api/employees/${workerDrinksA1.id}/department`, { method: "POST", token: tokenSupervisorA1, body: { department: "Snacks" } });
+  workerDrinksA1 = await prisma.employee.findUnique({ where: { id: workerDrinksA1.id } });
+  tokenWorkerDrinksA1 = tokenForEmployee(workerDrinksA1);
 });
 
 // --- RECIPIENT STATE MACHINE ----------------------------------------

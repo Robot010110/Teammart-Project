@@ -459,7 +459,11 @@ export default function AdminPeoplePage() {
               matching AdminAttendancePage.jsx's own convention. */}
           <div className="flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-white/[0.06] px-4 py-3">
             <p className="text-[12.5px] text-[#8B93A8]">
-              Showing {filteredRows.length === 0 ? 0 : (currentPage - 1) * PAGE_SIZE + 1}–{Math.min(currentPage * PAGE_SIZE, filteredRows.length)} of {filteredRows.length} people
+              {t("rm.showingRecordsRange", {
+                from: filteredRows.length === 0 ? 0 : (currentPage - 1) * PAGE_SIZE + 1,
+                to: Math.min(currentPage * PAGE_SIZE, filteredRows.length),
+                total: filteredRows.length,
+              })}
             </p>
             <div className="flex items-center gap-1">
               <button
@@ -653,7 +657,7 @@ function AddPersonModal({ markets, onClose, onCreated }) {
           </p>
           {error && <p className="text-xs text-red-400">{error}</p>}
           <button type="submit" disabled={saving} className="w-full flex items-center justify-center gap-1.5 rounded-xl py-3 text-sm font-semibold text-white bg-[#F47A20] hover:bg-[#ff8b36] disabled:bg-white/10 disabled:text-[#4C5266] transition-colors">
-            {saving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} Create Employee
+            {saving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} {t("admin.createEmployee")}
           </button>
         </form>
       ) : (
@@ -672,7 +676,7 @@ function AddPersonModal({ markets, onClose, onCreated }) {
           </p>
           {error && <p className="text-xs text-red-400">{error}</p>}
           <button type="submit" disabled={saving} className="w-full flex items-center justify-center gap-1.5 rounded-xl py-3 text-sm font-semibold text-white bg-[#F47A20] hover:bg-[#ff8b36] disabled:bg-white/10 disabled:text-[#4C5266] transition-colors">
-            {saving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} Create Account
+            {saving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} {t("admin.createStaffAccount")}
           </button>
         </form>
       )}

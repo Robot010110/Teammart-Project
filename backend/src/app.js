@@ -27,6 +27,8 @@ import wastedOverallRoutes from "./routes/wastedOverall.routes.js";
 import totalSalesRoutes from "./routes/totalSales.routes.js";
 import cardSalesRoutes from "./routes/cardSales.routes.js";
 import countingAssignmentsRoutes from "./routes/countingAssignments.routes.js";
+import workReviewsRoutes from "./routes/workReviews.routes.js";
+import performanceRoutes from "./routes/performance.routes.js";
 import uploadsRoutes from "./routes/uploads.routes.js";
 import breaksRoutes from "./routes/breaks.routes.js";
 import fingerprintRoutes from "./routes/fingerprint.routes.js";
@@ -133,6 +135,8 @@ app.use("/api/market-problems", marketProblemsRoutes);
 app.use("/api/total-sales", totalSalesRoutes);
 app.use("/api/card-sales", cardSalesRoutes);
 app.use("/api/counting-assignments", countingAssignmentsRoutes);
+app.use("/api/work-reviews", workReviewsRoutes);
+app.use("/api/performance", performanceRoutes);
 app.use("/api/breaks", breaksRoutes);
 // The controlled test/manual boundary for the (not yet connected) real
 // fingerprint system — see fingerprintController.js's own comment.

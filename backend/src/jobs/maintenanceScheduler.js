@@ -4,6 +4,11 @@ import { prisma } from "../lib/prisma.js";
 import { UPLOADS_DIR } from "../utils/fileStorage.js";
 import { createNotification, createNotificationForUser } from "../utils/notifications.js";
 import { generateNightShiftTasks } from "../services/nightShiftService.js";
+import {
+  runPerformanceSnapshotSweep,
+  runPerformanceRecomputeSweep,
+  runPerformanceSealSweep,
+} from "../services/performance/performanceRollupService.js";
 
 // maintenanceScheduler.js — Phase 2's answer to "improve break
 // completion so it doesn't depend on a user opening a screen" and "the
@@ -30,7 +35,23 @@ const BREAK_SWEEP_INTERVAL_MS = 60 * 1000; // every minute — a break only need
 const PHOTO_SWEEP_INTERVAL_MS = 15 * 60 * 1000; // every 15 minutes — a 16-hour retention window has no need for finer granularity
 const NIGHT_SHIFT_GENERATION_INTERVAL_MS = 10 * 60 * 1000; // every 10 minutes — idempotent (createMany skipDuplicates), so a tight interval just means new/newly-eligible employees pick up tonight's tasks quickly
 const ADJUSTMENT_RETENTION_SWEEP_INTERVAL_MS = 6 * 60 * 60 * 1000; // every 6 hours — a 30-day retention window has no need for tighter polling
+// WARNING — LOAD-BEARING VALUE. The Performance engine seals its snapshots
+// at SEAL_AFTER_DAYS (25) and refuses to trust facts older than
+// SNAPSHOT_LOOKBACK_DAYS (24), both in
+// services/performance/performanceService.js, specifically so that a
+// closed period is always frozen BEFORE the penalty data behind it is
+// destroyed by runAdjustmentRetentionSweep below. Lowering this number
+// below either of those makes historical performance scores silently
+// inflate as penalties age out, with no error raised anywhere.
 const ADJUSTMENT_RETENTION_DAYS = 30;
+
+// Performance rollover. All three are driven by ABSENCE rather than by
+// time (see performanceRollupService's own comment), so a missed tick or a
+// multi-day outage self-heals on the next pass — there is no run-state to
+// get out of sync.
+const PERFORMANCE_SNAPSHOT_INTERVAL_MS = 30 * 60 * 1000; // every 30 minutes — a period boundary only needs closing within the hour
+const PERFORMANCE_RECOMPUTE_INTERVAL_MS = 15 * 60 * 1000; // every 15 minutes — a late review should be reflected promptly
+const PERFORMANCE_SEAL_INTERVAL_MS = 6 * 60 * 60 * 1000; // every 6 hours — piggybacks the retention cadence it must stay ahead of
 
 // ACTIVE -> COMPLETED for every break whose expectedEndTime has passed.
 // Idempotent: the WHERE clause only ever matches rows still ACTIVE, so a
@@ -162,6 +183,7 @@ export async function runAdjustmentRetentionSweep() {
 }
 
 let breakInterval, photoInterval, nightShiftInterval, adjustmentRetentionInterval;
+let perfSnapshotInterval, perfRecomputeInterval, perfSealInterval;
 
 // Called once from index.js at startup. Kept separate from module load
 // so tests can import the sweep functions directly without accidentally
@@ -183,13 +205,26 @@ export function startMaintenanceScheduler() {
   adjustmentRetentionInterval = setInterval(() => {
     runAdjustmentRetentionSweep().catch((err) => console.error("Adjustment retention sweep crashed:", err));
   }, ADJUSTMENT_RETENTION_SWEEP_INTERVAL_MS);
-  // Unref all four — a scheduled maintenance tick should never be the
+  perfSnapshotInterval = setInterval(() => {
+    runPerformanceSnapshotSweep().catch((err) => console.error("Performance snapshot sweep crashed:", err));
+  }, PERFORMANCE_SNAPSHOT_INTERVAL_MS);
+  perfRecomputeInterval = setInterval(() => {
+    runPerformanceRecomputeSweep().catch((err) => console.error("Performance recompute sweep crashed:", err));
+  }, PERFORMANCE_RECOMPUTE_INTERVAL_MS);
+  perfSealInterval = setInterval(() => {
+    runPerformanceSealSweep().catch((err) => console.error("Performance seal sweep crashed:", err));
+  }, PERFORMANCE_SEAL_INTERVAL_MS);
+
+  // Unref every interval — a scheduled maintenance tick should never be the
   // reason the process can't exit cleanly (e.g. during tests or a
   // graceful shutdown that's just waiting on in-flight requests).
   breakInterval.unref();
   photoInterval.unref();
   nightShiftInterval.unref();
   adjustmentRetentionInterval.unref();
+  perfSnapshotInterval.unref();
+  perfRecomputeInterval.unref();
+  perfSealInterval.unref();
 }
 
 export function stopMaintenanceScheduler() {
@@ -197,8 +232,14 @@ export function stopMaintenanceScheduler() {
   clearInterval(photoInterval);
   clearInterval(nightShiftInterval);
   clearInterval(adjustmentRetentionInterval);
+  clearInterval(perfSnapshotInterval);
+  clearInterval(perfRecomputeInterval);
+  clearInterval(perfSealInterval);
   breakInterval = undefined;
   photoInterval = undefined;
   nightShiftInterval = undefined;
   adjustmentRetentionInterval = undefined;
+  perfSnapshotInterval = undefined;
+  perfRecomputeInterval = undefined;
+  perfSealInterval = undefined;
 }

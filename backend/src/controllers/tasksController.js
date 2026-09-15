@@ -1,5 +1,6 @@
 import { prisma } from "../lib/prisma.js";
 import { assertMarketAccess, requireAccessibleEmployee } from "../middleware/auth.js";
+import { recordReview } from "../services/workReviewService.js";
 
 // POST /api/tasks — an Employee submits a completed activity on their own
 // initiative (the common case: "Refilling Update", "Shelf Facing", etc.).
@@ -156,22 +157,20 @@ export async function getTask(req, res, next) {
 }
 
 // PATCH /api/tasks/:id/approve — staff only, scoped to their market/zone.
+// Delegates to the one review write path (Performance Engine §E) so the
+// approval also records its WorkReview scoring row and audit entry
+// atomically. Request/response shape and all checks are unchanged; as
+// before, no notification is sent for a task review (see the TASK entry in
+// reviewTargets.js for why that is deliberate).
 export async function approveTask(req, res, next) {
   try {
-    const task = await prisma.task.findUnique({ where: { id: req.params.id } });
-    if (!task) return res.status(404).json({ error: "Task not found" });
-
-    await assertMarketAccess(req.user, task.marketId);
-    if (task.status !== "PENDING") {
-      return res.status(400).json({ error: `Only PENDING tasks can be approved (this one is ${task.status})` });
-    }
-
-    const updated = await prisma.task.update({
-      where: { id: req.params.id },
-      data: { status: "APPROVED", reviewedById: req.user.userId, reviewedAt: new Date(), rejectionReason: null },
+    const { row } = await recordReview({
+      user: req.user,
+      targetType: "TASK",
+      targetId: req.params.id,
+      outcome: "APPROVED",
     });
-
-    res.json(updated);
+    res.json(row);
   } catch (err) {
     next(err);
   }
@@ -181,21 +180,17 @@ export async function approveTask(req, res, next) {
 export async function rejectTask(req, res, next) {
   try {
     const { rejectionReason } = req.body;
-
-    const task = await prisma.task.findUnique({ where: { id: req.params.id } });
-    if (!task) return res.status(404).json({ error: "Task not found" });
-
-    await assertMarketAccess(req.user, task.marketId);
-    if (task.status !== "PENDING") {
-      return res.status(400).json({ error: `Only PENDING tasks can be rejected (this one is ${task.status})` });
-    }
-
-    const updated = await prisma.task.update({
-      where: { id: req.params.id },
-      data: { status: "REJECTED", reviewedById: req.user.userId, reviewedAt: new Date(), rejectionReason },
+    const { row } = await recordReview({
+      user: req.user,
+      targetType: "TASK",
+      targetId: req.params.id,
+      outcome: "REJECTED",
+      // No severity field on this endpoint's body — see reviewActivity.
+      severity: null,
+      reason: rejectionReason,
+      allowUnspecifiedSeverity: true,
     });
-
-    res.json(updated);
+    res.json(row);
   } catch (err) {
     next(err);
   }

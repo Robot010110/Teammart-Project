@@ -6,6 +6,8 @@ import { createNotification, createNotificationForUser } from "../utils/notifica
 import { UPLOADS_DIR } from "../utils/fileStorage.js";
 import { ensureMarketDepartment } from "../services/departmentMonitoringService.js";
 import { notifyNightShiftCompletion } from "../services/nightShiftService.js";
+import { startOfWeek } from "../utils/period.js";
+import { recordReview } from "../services/workReviewService.js";
 
 // Department Closing photos expire 16 hours after submission (Phase 1
 // spec §15) — every other Activity category's images stay permanent
@@ -53,10 +55,9 @@ async function deleteUnderlyingFileIfOwned(url) {
 // to req.user.employeeId, so one employee can never read or edit another
 // employee's activities.
 
-// Once an activity has been reviewed, it should no longer be editable by
-// the employee. No review endpoint exists yet, so in practice this only
-// ever guards DRAFT/PENDING today — it's here so nothing breaks once a
-// Supervisor review feature is added later.
+// Once an activity has been reviewed, it is no longer editable by the
+// employee — otherwise the work behind a recorded WorkReview could change
+// after it was scored.
 const EDITABLE_STATUSES = ["DRAFT", "PENDING"];
 
 // Performance = approved reviewed work / all reviewed work. "Reviewed"
@@ -74,15 +75,13 @@ function computeActivityPerformance(activities) {
   return { approved, rejected, pending, totalReviewed, rate };
 }
 
-function startOfWeek(date) {
-  // Monday-start week, matching how most of this app's date logic treats
-  // a "week" elsewhere (attendance calendars render Mon-first rows).
-  const d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-  const day = d.getDay(); // 0 = Sunday
-  const diff = (day === 0 ? -6 : 1) - day;
-  d.setDate(d.getDate() + diff);
-  return d;
-}
+// Week bucketing now comes from utils/period.js — Saturday-start, the one
+// company-wide business week (Performance Engine §H). This used to be a
+// local Monday-start helper whose comment cited the attendance calendar's
+// Mon-first ROWS; that's a display choice, not the working week, so the two
+// are no longer conflated. Existing weekly buckets re-slice once as a
+// result — intended, and the reason this is a single shared definition
+// rather than a copy per controller.
 
 // GET /api/activities/performance — the current employee's lifetime
 // Performance figure (spec: a real number from real reviewed-activity
@@ -278,45 +277,32 @@ export async function listCompanyActivities(req, res, next) {
 // their market just by changing the :id in the URL (Regional Manager:
 // scoped to their zone; Admin: any, same as every other staff-scoped
 // endpoint in this app).
+// Now a thin wrapper over workReviewService.recordReview — the ONE review
+// write path (Performance Engine §E). The request/response shape, the
+// status/market/ownership checks and the notification wording are all
+// unchanged; what's new is that the same operation also records the
+// WorkReview scoring row and an audit entry, atomically.
+//
+// This endpoint's body stays {status, rejectionReason} because
+// TodayActivityFeed.jsx already sends that. The richer
+// {outcome, severity} vocabulary is reached through POST /api/work-reviews;
+// an APPROVED here maps to a plain approval with no correction.
 export async function reviewActivity(req, res, next) {
   try {
     const { status, rejectionReason } = req.body;
-    const activity = await prisma.activity.findUnique({
-      where: { id: req.params.id },
-      include: { employee: { select: { id: true, marketId: true } } },
+    const { row } = await recordReview({
+      user: req.user,
+      targetType: "ACTIVITY",
+      targetId: req.params.id,
+      outcome: status === "REJECTED" ? "REJECTED" : "APPROVED",
+      // This endpoint's body has no severity field and its live caller
+      // (TodayActivityFeed) cannot send one, so the review honestly records
+      // "unspecified" rather than a level nobody chose.
+      severity: null,
+      reason: status === "REJECTED" ? rejectionReason : null,
+      allowUnspecifiedSeverity: true,
     });
-    if (!activity) return res.status(404).json({ error: "Activity not found" });
-    await assertMarketAccess(req.user, activity.employee.marketId);
-
-    if (activity.status !== "PENDING") {
-      return res.status(400).json({ error: `This activity is ${activity.status.toLowerCase()}, not pending review` });
-    }
-
-    const updated = await prisma.activity.update({
-      where: { id: activity.id },
-      data: {
-        status,
-        rejectionReason: status === "REJECTED" ? rejectionReason : null,
-        reviewedById: req.user.userId,
-        reviewedAt: new Date(),
-      },
-      include: { images: true },
-    });
-
-    const categoryLabel = activity.category.toLowerCase().replace(/_/g, " ");
-    await createNotification({
-      employeeId: activity.employee.id,
-      type: "SUBMISSION_REVIEWED",
-      title: status === "APPROVED" ? "Activity Approved" : "Activity Rejected",
-      body:
-        status === "APPROVED"
-          ? `Your ${categoryLabel} activity was approved.`
-          : `Your ${categoryLabel} activity was rejected${rejectionReason ? `: ${rejectionReason}` : "."}`,
-      linkType: "ACTIVITY",
-      linkId: activity.id,
-    });
-
-    res.json(updated);
+    res.json(row);
   } catch (err) {
     next(err);
   }

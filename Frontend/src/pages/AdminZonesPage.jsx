@@ -163,7 +163,7 @@ export default function AdminZonesPage() {
                               : "bg-red-500/12 text-red-400 ring-red-500/30 shadow-[0_0_10px_-3px_rgba(248,113,113,0.6)]"
                         }`}
                       >
-                        <span className="h-1.5 w-1.5 rounded-full bg-current" /> {activity.active}/{activity.total} Active
+                        <span className="h-1.5 w-1.5 rounded-full bg-current" /> {t("admin.activeCountOfTotal", { active: activity.active, total: activity.total })}
                       </span>
                     )}
                     <ChevronRight size={17} className="relative shrink-0 text-[#4C5266] transition-all duration-150 group-hover:translate-x-0.5 group-hover:text-[#F47A20] rtl-flip" />
@@ -234,7 +234,7 @@ function CreateZoneModal({ onClose, onCreated }) {
         disabled={saving || !number.trim()}
         className="mt-4 w-full flex items-center justify-center gap-1.5 rounded-xl py-3 text-sm font-semibold text-white bg-[#F47A20] hover:bg-[#ff8b36] disabled:bg-white/10 disabled:text-[#4C5266] transition-colors duration-150"
       >
-        {saving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} Create Zone
+        {saving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} {t("admin.createZone")}
       </button>
     </Modal>
   );

@@ -199,6 +199,25 @@ export async function cleanup() {
     // of bug already fixed here for MarketProblem/ItemReport/etc.
     await prisma.requiredHoursAdjustment.deleteMany({ where: { employeeId: { in: created.employees } } }).catch(() => {});
     await prisma.attendanceAdjustmentRequest.deleteMany({ where: { employeeId: { in: created.employees } } }).catch(() => {});
+    // CountingAssignment.employeeId is also a no-cascade FK (Restrict) —
+    // left out, a leftover row silently blocks Employee deletion below
+    // (swallowed by the .catch(() => {})), which cascades into blocking
+    // Market/Zone deletion right after it, the same orphan-chain class
+    // of bug already fixed here for the other no-cascade tables.
+    await prisma.countingAssignment.deleteMany({ where: { employeeId: { in: created.employees } } }).catch(() => {});
+    // LeaveRequest.employeeId is a required FK (Restrict) too — same
+    // orphan-chain class as the two sweeps above: a leftover row silently
+    // blocks the Employee delete below (swallowed by .catch(() => {})),
+    // which then blocks Market and Zone deletion after it.
+    await prisma.leaveRequest.deleteMany({ where: { employeeId: { in: created.employees } } }).catch(() => {});
+    // Performance engine rows — WorkReview/PerformanceSnapshot/
+    // PerformanceStreak all hold a required employeeId FK (Restrict), so a
+    // leftover row blocks the Employee delete below and cascades into
+    // blocking Market and Zone deletion after it. Same orphan-chain class
+    // as the sweeps above.
+    await prisma.performanceSnapshot.deleteMany({ where: { employeeId: { in: created.employees } } }).catch(() => {});
+    await prisma.performanceStreak.deleteMany({ where: { employeeId: { in: created.employees } } }).catch(() => {});
+    await prisma.workReview.deleteMany({ where: { employeeId: { in: created.employees } } }).catch(() => {});
     await prisma.attendanceRecord.deleteMany({ where: { employeeId: { in: created.employees } } }).catch(() => {});
     await prisma.break.deleteMany({ where: { employeeId: { in: created.employees } } }).catch(() => {});
     await prisma.fingerprintEvent.deleteMany({ where: { employeeId: { in: created.employees } } }).catch(() => {});

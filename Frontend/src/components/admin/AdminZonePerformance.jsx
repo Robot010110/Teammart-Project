@@ -77,7 +77,7 @@ export default function AdminZonePerformance({ zones, loading, onOpenZones }) {
                     />
                   </div>
                 </div>
-                <span className="w-full truncate text-center text-[11px] text-[#8B93A8]">Zone {z.zoneNumber}</span>
+                <span className="w-full truncate text-center text-[11px] text-[#8B93A8]">{t("rm.zoneNumbered", { number: z.zoneNumber })}</span>
               </div>
             );
           })}

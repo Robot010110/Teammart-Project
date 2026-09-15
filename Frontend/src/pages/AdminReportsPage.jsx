@@ -11,6 +11,26 @@ const CATEGORY_LABEL = {
   FACING: "sup.facing", REFILLING: "sup.refilling", DEPARTMENT_CLOSING: "emp.catDepartmentClosing",
 };
 
+// Same "enum value drives the query, label is translated separately"
+// rule as AdminAuditLogPage's ACTION_LABEL — each of these three maps
+// covers exactly its own Prisma enum (AttendanceStatus/ActivityStatus/
+// MarketVisitType+Status — see backend/prisma/schema.prisma), never a
+// free-text value, so an unmapped key can only mean the enum grew and
+// this map needs a new line, not a formatting bug to hide.
+const ATTENDANCE_STATUS_LABEL = {
+  PRESENT: "emp.present", LATE: "emp.late", EARLY_LEAVE: "emp.earlyLeave", ABSENT: "emp.absent",
+  DAY_OFF: "emp.dayOff", APPROVED_LEAVE: "emp.approvedLeave", INCOMPLETE: "emp.incomplete", PENDING_REVIEW: "emp.pendingReview",
+};
+const ACTIVITY_STATUS_LABEL = {
+  DRAFT: "status.draft", PENDING: "status.pending", APPROVED: "status.approved", REJECTED: "status.rejected",
+};
+const VISIT_STATUS_LABEL = {
+  STARTED: "status.inProgress", COMPLETED: "status.completed", CANCELLED: "status.cancelled",
+};
+const VISIT_TYPE_LABEL = {
+  VISIT: "admin.marketVisit", INSPECTION: "admin.administrativeInspection",
+};
+
 function Section({ title, children }) {
   return (
     <section className="mb-6">
@@ -52,7 +72,9 @@ export default function AdminReportsPage() {
           {Object.entries(data.attendance.byStatus).length === 0 ? (
             <p className="px-4 py-4 text-sm text-[#6B7284]">{t("admin.noAttendanceRecordsYetToday")}</p>
           ) : (
-            Object.entries(data.attendance.byStatus).map(([status, count]) => <CountRow key={status} label={status} value={count} />)
+            Object.entries(data.attendance.byStatus).map(([status, count]) => (
+              <CountRow key={status} label={ATTENDANCE_STATUS_LABEL[status] ? t(ATTENDANCE_STATUS_LABEL[status]) : status} value={count} />
+            ))
           )}
         </div>
       </Section>
@@ -62,7 +84,9 @@ export default function AdminReportsPage() {
           {Object.entries(data.activities.byStatus).length === 0 ? (
             <p className="px-4 py-4 text-sm text-[#6B7284]">{t("admin.noActivitiesInThisRange")}</p>
           ) : (
-            Object.entries(data.activities.byStatus).map(([status, count]) => <CountRow key={status} label={status} value={count} />)
+            Object.entries(data.activities.byStatus).map(([status, count]) => (
+              <CountRow key={status} label={ACTIVITY_STATUS_LABEL[status] ? t(ACTIVITY_STATUS_LABEL[status]) : status} value={count} />
+            ))
           )}
         </div>
       </Section>
@@ -81,8 +105,12 @@ export default function AdminReportsPage() {
             <p className="px-4 py-4 text-sm text-[#6B7284]">{t("admin.noVisitsOrInspectionsInThis")}</p>
           ) : (
             <>
-              {Object.entries(data.visits.byType).map(([type, count]) => <CountRow key={type} label={type} value={count} />)}
-              {Object.entries(data.visits.byStatus).map(([status, count]) => <CountRow key={status} label={`Status: ${status}`} value={count} />)}
+              {Object.entries(data.visits.byType).map(([type, count]) => (
+                <CountRow key={type} label={VISIT_TYPE_LABEL[type] ? t(VISIT_TYPE_LABEL[type]) : type} value={count} />
+              ))}
+              {Object.entries(data.visits.byStatus).map(([status, count]) => (
+                <CountRow key={status} label={`${t("admin.csvStatus")}: ${VISIT_STATUS_LABEL[status] ? t(VISIT_STATUS_LABEL[status]) : status}`} value={count} />
+              ))}
             </>
           )}
         </div>

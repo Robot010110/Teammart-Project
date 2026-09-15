@@ -144,9 +144,11 @@ export async function updateEmployee(req, res, next) {
 
     await assertMarketAccess(req.user, employee.marketId);
 
+    const isMarketChange = !!req.body.marketId && req.body.marketId !== employee.marketId;
+
     // If moving the employee to a different market, the caller must also
     // have access to the DESTINATION market.
-    if (req.body.marketId && req.body.marketId !== employee.marketId) {
+    if (isMarketChange) {
       await assertMarketAccess(req.user, req.body.marketId);
     }
 
@@ -179,37 +181,83 @@ export async function updateEmployee(req, res, next) {
       data.tokenVersion = { increment: 1 };
     }
 
-    const updated = await prisma.employee.update({
-      where: { id: req.params.id },
-      data,
-    });
-
-    // Admin Phase 3 §11 — only audited when the actor is ADMIN (this
-    // endpoint is also used routinely by Supervisor/RM for ordinary
-    // employee edits, which aren't administrative-audit-worthy events —
-    // see recordAudit's own "don't flood the log" note).
-    if (req.user.kind === "staff" && req.user.role === "ADMIN") {
-      if (req.body.marketId && req.body.marketId !== employee.marketId) {
-        await recordAudit({
-          actorUserId: req.user.userId, action: "MARKET_ASSIGNMENT_CHANGED", targetType: "Employee", targetId: employee.id,
-          marketId: req.body.marketId, previousValue: { marketId: employee.marketId }, newValue: { marketId: req.body.marketId },
-        });
-      }
-      if (req.body.shift !== undefined && req.body.shift !== employee.shift) {
-        await recordAudit({
-          actorUserId: req.user.userId, action: "SHIFT_CHANGED", targetType: "Employee", targetId: employee.id,
-          marketId: employee.marketId, previousValue: { shift: employee.shift }, newValue: { shift: req.body.shift },
-        });
-      }
-      if ((employeeCode !== undefined && employeeCode !== employee.employeeCode) || (username !== undefined && username !== employee.username)) {
-        await recordAudit({
-          actorUserId: req.user.userId, action: "EMPLOYEE_ID_CHANGED", targetType: "Employee", targetId: employee.id,
-          marketId: employee.marketId,
-          previousValue: { employeeCode: employee.employeeCode, username: employee.username },
-          newValue: { employeeCode: employeeCode ?? employee.employeeCode, username: username ?? employee.username },
-        });
-      }
+    // Admin Actions Verification — a market transfer bundles three
+    // things that must succeed or fail together: the Employee row
+    // itself (marketId, plus clearing the now-stale department cache
+    // and bumping tokenVersion so the employee's already-issued JWT
+    // stops being trusted for the old market — every other sensitive
+    // mutation in this app already does this, market reassignment was
+    // the one gap), the audit trail, and ending the employee's
+    // currently-open DepartmentAssignment row rather than leaving it
+    // reading as still-ongoing against a department that belonged to
+    // the old market (verified against assignDepartment's own
+    // established pattern below — see updateEmployee's own history for
+    // the reasoning). This mirrors assignMarketSupervisor's existing
+    // transaction shape exactly, no new pattern.
+    if (isMarketChange) {
+      data.department = null;
+      data.tokenVersion = { increment: 1 };
     }
+
+    const updated = await prisma.$transaction(async (tx) => {
+      const result = await tx.employee.update({
+        where: { id: req.params.id },
+        data,
+      });
+
+      if (isMarketChange) {
+        // First half only of assignDepartment's own pattern (the
+        // "close out the open row" half) — never the second half
+        // (creating a new DepartmentAssignment row), since the new
+        // market's department is unknown at transfer time and picking
+        // one is a deliberate, separate assignDepartment call once
+        // someone actually chooses it.
+        await tx.departmentAssignment.updateMany({
+          where: { employeeId: employee.id, role: "MAIN", endDate: null },
+          data: { endDate: new Date() },
+        });
+
+        // Widened scope (confirmed during plan review): a market move
+        // is audited regardless of actor role — Admin, Regional
+        // Manager, or Supervisor — since it's materially more
+        // consequential than the routine SHIFT_CHANGED/
+        // EMPLOYEE_ID_CHANGED edits below, which stay ADMIN-only as
+        // before. This endpoint is staff-only (requireStaffRole above),
+        // so req.user.userId is always a valid actor here.
+        await recordAudit({
+          tx,
+          actorUserId: req.user.userId, action: "MARKET_ASSIGNMENT_CHANGED", targetType: "Employee", targetId: employee.id,
+          marketId: req.body.marketId, previousMarketId: employee.marketId,
+          previousValue: { marketId: employee.marketId }, newValue: { marketId: req.body.marketId },
+        });
+      }
+
+      // Admin Phase 3 §11 — only audited when the actor is ADMIN (this
+      // endpoint is also used routinely by Supervisor/RM for ordinary
+      // employee edits, which aren't administrative-audit-worthy events —
+      // see recordAudit's own "don't flood the log" note). Unlike
+      // MARKET_ASSIGNMENT_CHANGED above, this scope is unchanged.
+      if (req.user.role === "ADMIN") {
+        if (req.body.shift !== undefined && req.body.shift !== employee.shift) {
+          await recordAudit({
+            tx,
+            actorUserId: req.user.userId, action: "SHIFT_CHANGED", targetType: "Employee", targetId: employee.id,
+            marketId: employee.marketId, previousValue: { shift: employee.shift }, newValue: { shift: req.body.shift },
+          });
+        }
+        if ((employeeCode !== undefined && employeeCode !== employee.employeeCode) || (username !== undefined && username !== employee.username)) {
+          await recordAudit({
+            tx,
+            actorUserId: req.user.userId, action: "EMPLOYEE_ID_CHANGED", targetType: "Employee", targetId: employee.id,
+            marketId: employee.marketId,
+            previousValue: { employeeCode: employee.employeeCode, username: employee.username },
+            newValue: { employeeCode: employeeCode ?? employee.employeeCode, username: username ?? employee.username },
+          });
+        }
+      }
+
+      return result;
+    });
 
     res.json(publicEmployee(updated));
   } catch (err) {
@@ -217,7 +265,32 @@ export async function updateEmployee(req, res, next) {
   }
 }
 
-// DELETE /api/employees/:id
+// Admin Actions Verification — every Prisma model with an employeeId
+// relation to Employee (the same 16 named in the plan's complete
+// transfer data matrix, minus the 8 that don't carry employeeId at
+// all). Required-FK models (Task, ItemReport, etc.) default to
+// Restrict and would throw P2003 on delete; optional-FK models
+// (AttendanceRecord, Activity, FingerprintEvent, AttendanceAuditLog,
+// Break) default to SetNull and would throw NOTHING — Postgres just
+// silently blanks employeeId on every one of those rows and lets the
+// delete succeed, permanently losing the "who" on that history. A
+// try/catch around P2003 alone only guards the first group, so this
+// checks both groups up front and refuses the delete before it can
+// ever reach either failure mode.
+const EMPLOYEE_HISTORY_MODELS = [
+  "task", "suddenTask", "itemReport", "priceReport", "wastedOverallReport",
+  "leaveRequest", "requiredHoursAdjustment", "departmentAssignment",
+  "countingAssignment", "cashierCleaningLog", "attendanceAdjustmentRequest",
+  "kochOperation", "attendanceRecord", "activity", "fingerprintEvent",
+  "attendanceAuditLog", "break",
+];
+
+// DELETE /api/employees/:id — only ever succeeds for an employee with
+// genuinely zero rows across EMPLOYEE_HISTORY_MODELS (e.g. a
+// just-created, never-active account). Anyone with real history must
+// be suspended or banned instead — this mirrors the app's existing
+// suspend/ban-is-the-real-mechanism philosophy rather than
+// introducing a new one.
 export async function deleteEmployee(req, res, next) {
   try {
     const employee = await prisma.employee.findUnique({ where: { id: req.params.id } });
@@ -225,7 +298,27 @@ export async function deleteEmployee(req, res, next) {
 
     await assertMarketAccess(req.user, employee.marketId);
 
-    await prisma.employee.delete({ where: { id: req.params.id } });
+    const counts = await Promise.all(
+      EMPLOYEE_HISTORY_MODELS.map((model) => prisma[model].count({ where: { employeeId: req.params.id } }))
+    );
+    if (counts.some((c) => c > 0)) {
+      return res.status(409).json({
+        error: "This employee has historical records and cannot be deleted. Suspend or ban the account instead.",
+      });
+    }
+
+    try {
+      await prisma.employee.delete({ where: { id: req.params.id } });
+    } catch (err) {
+      // Defensive fallback only, e.g. a row inserted in the gap between
+      // the count check above and this delete — not the primary guard.
+      if (err.code === "P2003") {
+        return res.status(409).json({
+          error: "This employee has historical records and cannot be deleted. Suspend or ban the account instead.",
+        });
+      }
+      throw err;
+    }
     res.status(204).send();
   } catch (err) {
     next(err);

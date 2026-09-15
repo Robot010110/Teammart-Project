@@ -2,6 +2,7 @@ import { prisma } from "../lib/prisma.js";
 import { assertMarketAccess, HttpError } from "../middleware/auth.js";
 import { createNotification, createNotificationForUser } from "../utils/notifications.js";
 import { computeExtraHoursBalance, EXTRA_HOURS_PER_DAY_OFF } from "./attendanceController.js";
+import { startOfWeekUtc } from "../utils/period.js";
 
 // leaveRequestsController.js — Off Day / Personal Leave / Earned Day Off
 // requests.
@@ -59,17 +60,17 @@ function todayUtcMidnight() {
   const now = new Date();
   return utcMidnight(now.getFullYear(), now.getMonth(), now.getDate());
 }
-// Monday-start calendar week — same convention
-// activitiesController.startOfWeek uses for the Performance trend,
-// expressed in UTC terms here to match how this table's dates are
-// actually stored.
-function startOfWeekUtc(date) {
-  const day = date.getUTCDay(); // 0 = Sunday
-  const diff = (day === 0 ? -6 : 1) - day;
-  const start = new Date(date);
-  start.setUTCDate(start.getUTCDate() + diff);
-  return start;
-}
+// The WEEKLY_OFF quota week is the company working week (Saturday-start),
+// so "one weekly day off per week" lines up with the week an employee
+// actually works — it comes from utils/period.js like every other week in
+// the app. The UTC variant is used because this table's dates are stored at
+// UTC midnight (see todayUtcMidnight above), not local midnight.
+//
+// This was previously a hand-rolled Monday-start week. Changing it shifts
+// which week a given request counts against, which is a deliberate,
+// signed-off behaviour change, not a refactor: around the switchover an
+// employee who took their weekly off on a Friday may book again the very
+// next day (Saturday), because that Saturday now opens a new week.
 function startOfMonthUtc(date) {
   return utcMidnight(date.getUTCFullYear(), date.getUTCMonth(), 1);
 }

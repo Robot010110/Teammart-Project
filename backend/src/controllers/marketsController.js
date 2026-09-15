@@ -165,15 +165,38 @@ export async function assignMarketSupervisor(req, res, next) {
       if (supervisorId !== null) {
         await tx.market.updateMany({ where: { supervisorId, id: { not: req.params.id } }, data: { supervisorId: null } });
       }
-      return tx.market.update({ where: { id: req.params.id }, data: { supervisorId } });
-    });
+      const updated = await tx.market.update({ where: { id: req.params.id }, data: { supervisorId } });
 
-    if (req.user.kind === "staff" && req.user.role === "ADMIN") {
-      await recordAudit({
-        actorUserId: req.user.userId, action: "MARKET_ASSIGNMENT_CHANGED", targetType: "Market", targetId: req.params.id,
-        marketId: req.params.id, previousValue: { supervisorId: before?.supervisorId ?? null }, newValue: { supervisorId },
-      });
-    }
+      // Admin Actions Verification — assertMarketAccess reads
+      // req.user.marketId straight off the JWT, never a fresh DB
+      // lookup (see middleware/auth.js), so anyone whose actual
+      // market-supervisor relationship just changed here needs their
+      // token invalidated: the outgoing supervisor (if replaced) no
+      // longer belongs to this market, and the incoming one (if newly
+      // set) does now, even though their already-issued session still
+      // claims otherwise. A no-op reassignment (same id as before)
+      // bumps nobody.
+      const staleUserIds = new Set();
+      if (before?.supervisorId && before.supervisorId !== supervisorId) staleUserIds.add(before.supervisorId);
+      if (supervisorId !== null && supervisorId !== before?.supervisorId) staleUserIds.add(supervisorId);
+      if (staleUserIds.size > 0) {
+        await tx.user.updateMany({ where: { id: { in: [...staleUserIds] } }, data: { tokenVersion: { increment: 1 } } });
+      }
+
+      // Widened scope (Admin Actions Verification, matches
+      // updateEmployee's own MARKET_ASSIGNMENT_CHANGED widening) — a
+      // market's supervisor changing is audited regardless of actor
+      // role, not just when an ADMIN made the call.
+      if (staleUserIds.size > 0 || before?.supervisorId !== supervisorId) {
+        await recordAudit({
+          tx,
+          actorUserId: req.user.userId, action: "MARKET_ASSIGNMENT_CHANGED", targetType: "Market", targetId: req.params.id,
+          marketId: req.params.id, previousValue: { supervisorId: before?.supervisorId ?? null }, newValue: { supervisorId },
+        });
+      }
+
+      return updated;
+    });
 
     res.json(market);
   } catch (err) {
@@ -205,15 +228,27 @@ export async function assignMarketOverlookingSupervisor(req, res, next) {
       if (overlookingSupervisorId !== null) {
         await tx.market.updateMany({ where: { overlookingSupervisorId, id: { not: req.params.id } }, data: { overlookingSupervisorId: null } });
       }
-      return tx.market.update({ where: { id: req.params.id }, data: { overlookingSupervisorId } });
-    });
+      const updated = await tx.market.update({ where: { id: req.params.id }, data: { overlookingSupervisorId } });
 
-    if (req.user.kind === "staff" && req.user.role === "ADMIN") {
-      await recordAudit({
-        actorUserId: req.user.userId, action: "MARKET_ASSIGNMENT_CHANGED", targetType: "Market", targetId: req.params.id,
-        marketId: req.params.id, previousValue: { overlookingSupervisorId: before?.overlookingSupervisorId ?? null }, newValue: { overlookingSupervisorId },
-      });
-    }
+      // Same session-invalidation reasoning as assignMarketSupervisor above.
+      const staleUserIds = new Set();
+      if (before?.overlookingSupervisorId && before.overlookingSupervisorId !== overlookingSupervisorId) staleUserIds.add(before.overlookingSupervisorId);
+      if (overlookingSupervisorId !== null && overlookingSupervisorId !== before?.overlookingSupervisorId) staleUserIds.add(overlookingSupervisorId);
+      if (staleUserIds.size > 0) {
+        await tx.user.updateMany({ where: { id: { in: [...staleUserIds] } }, data: { tokenVersion: { increment: 1 } } });
+      }
+
+      // Widened scope — same as assignMarketSupervisor above.
+      if (staleUserIds.size > 0 || before?.overlookingSupervisorId !== overlookingSupervisorId) {
+        await recordAudit({
+          tx,
+          actorUserId: req.user.userId, action: "MARKET_ASSIGNMENT_CHANGED", targetType: "Market", targetId: req.params.id,
+          marketId: req.params.id, previousValue: { overlookingSupervisorId: before?.overlookingSupervisorId ?? null }, newValue: { overlookingSupervisorId },
+        });
+      }
+
+      return updated;
+    });
 
     res.json(market);
   } catch (err) {

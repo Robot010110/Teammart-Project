@@ -7,15 +7,13 @@ import ActivityStatusPill from "../common/ActivityStatusPill";
 import TaskStatusTabs from "../workspace/TaskStatusTabs";
 import SubmitTaskModal from "../workspace/SubmitTaskModal";
 import PerformanceHeader from "./performance/PerformanceHeader";
-import PerformanceHero from "./performance/PerformanceHero";
-import PerformanceTrendChart from "./performance/PerformanceTrendChart";
-import ConsistencyChart from "./performance/ConsistencyChart";
-import PerformanceBreakdown from "./performance/PerformanceBreakdown";
+import PerformancePanel from "./performance/PerformancePanel";
 import RecentReviews from "./performance/RecentReviews";
-import HighlightsCard from "./performance/HighlightsCard";
-import PerformanceSkeleton from "./performance/PerformanceSkeleton";
-import { getPerformanceSummary, getActivityPerformanceHistory, listActivities, deleteActivity } from "../../services/activityService";
-import { listMyExtraHoursRequests, getPerformanceHistory as getAttendancePerformanceHistory } from "../../services/attendanceService";
+import { listActivities, deleteActivity } from "../../services/activityService";
+import { listMyExtraHoursRequests } from "../../services/attendanceService";
+import {
+  getMyPerformance, getMyPerformanceHistory, getMyPerformanceAggregate,
+} from "../../services/performanceService";
 import { listMyWastedOverallReports } from "../../services/wastedOverallService";
 import { ApiError } from "../../services/apiClient";
 import { canEditActivity, canDeleteActivity } from "../../data/activityRules";
@@ -47,49 +45,23 @@ function shortDateLabel(iso) {
 // which are unchanged and were deliberately kept rather than dropped in
 // the redesign.
 //
-// The metric itself is untouched: approved / (approved + rejected)
-// reviewed Activities, DRAFT/PENDING excluded, computed server-side in
-// activitiesController.computeActivityPerformance. Nothing here
-// recalculates performance — the visual layer only presents what the
-// backend already returns.
+// The score is the five-category /100 figure computed entirely server
+// side by the Performance engine. Nothing here recalculates performance —
+// the visual layer only presents what the backend already decided, and
+// says so honestly ("no data for this period") when there is nothing to
+// present rather than showing a zero.
 //
 // Every figure on this page is real:
-//   GET /api/activities/performance          overall rate + status counts
-//   GET /api/activities/performance-history  weekly/monthly trend buckets
-//   GET /api/activities                      consistency + recent reviews
-//   GET /api/attendance/performance-history  the Attendance breakdown card
-// The first two are the same endpoints this screen already used; the
-// last two are lists the page was already loading or that already exist.
-// No endpoint was added and no controller was modified for this redesign.
+//   GET /api/performance/me            current month + streaks
+//   GET /api/performance/me/history    weekly (13) and monthly (12) history
+//   GET /api/performance/me/aggregate  the 6-month and 1-year figures
+//   GET /api/activities                Recent Reviews + My Activities
 //
-// Loading/error handling is intentionally per-section rather than
-// page-wide: a failure fetching, say, the attendance rate degrades that
-// one metric card to an em dash instead of replacing the whole page with
-// an error, and nothing ever substitutes placeholder numbers for data
-// that failed to load.
+// Correction severity and internal quality points are stripped by the API
+// itself before they reach this screen (see performanceView.js), so there
+// is nothing sensitive here for the UI to have to remember to hide.
 export default function PerformanceHistoryScreen({ onBack }) {
   const { t } = useTranslation();
-  const { data: summary, error: summaryError, loading: summaryLoading, reload: reloadSummary } = useAsync(
-    getPerformanceSummary,
-    { deps: [] }
-  );
-  // 8 weeks (up from 4) so the trend chart has a readable curve and the
-  // streak/best-week highlights have a real window to look back over.
-  // The backend already caps this at 12 — no change needed there.
-  const { data: history, error: historyError, loading: historyLoading, reload: reloadHistory } = useAsync(
-    () => getActivityPerformanceHistory({ weeks: 8, months: 6 }),
-    { deps: [] }
-  );
-  // Attendance Rate for the Performance Breakdown. 6 months so the card's
-  // sparkline has a real series and its month-over-month delta is a true
-  // comparison — this endpoint only ever reports COMPLETED months, so the
-  // most recent entry is the latest finished one, never a partial figure.
-  // Loaded independently so a failure here degrades only that one metric
-  // card rather than the page.
-  const { data: attendanceHistory, error: attendanceError } = useAsync(
-    () => getAttendancePerformanceHistory({ months: 6 }),
-    { deps: [], fallbackError: "Could not load attendance rate." }
-  );
   const {
     data: activities,
     setData: setActivities,
@@ -155,8 +127,8 @@ export default function PerformanceHistoryScreen({ onBack }) {
     setEditingActivity(activity);
   };
 
-  const loading = summaryLoading || historyLoading;
-  const error = summaryError || historyError;
+  // The performance panel owns its own loading/error state per section,
+  // so a failure there degrades that card rather than the whole page.
 
   // Set when a hero status card is tapped: scrolls to My Activities and
   // opens it on the matching tab (§9 drill-down).
@@ -172,38 +144,17 @@ export default function PerformanceHistoryScreen({ onBack }) {
     <div className="px-4 sm:px-6 pb-6 max-w-4xl mx-auto animate-fade-up">
       <PerformanceHeader onBack={onBack} />
 
-      {loading ? (
-        <div className="mt-6">
-          <PerformanceSkeleton />
-        </div>
-      ) : error ? (
-        <div className="mt-6">
-          <ErrorBanner message={error} onRetry={() => { reloadSummary(); reloadHistory(); }} />
-        </div>
-      ) : (
+      {(
         <div className="mt-6 space-y-6">
-          <PerformanceHero summary={summary} weekly={history.weekly} onStatusSelect={handleStatusSelect} />
-
-          {/* The trend's Week view and the consistency bars both read the
-              same activity list this page already loads for Recent
-              Reviews — no extra request for either. */}
-          <PerformanceTrendChart activities={activities} monthly={history.monthly} />
-
-          {activities && <ConsistencyChart activities={activities} />}
-
-          <PerformanceBreakdown
-            summary={summary}
-            weekly={history.weekly}
-            attendanceHistory={attendanceHistory}
-            attendanceError={attendanceError}
-            onViewAll={() => handleStatusSelect(t("emp.approved"))}
+          <PerformancePanel
+            loadCurrent={getMyPerformance}
+            loadHistory={getMyPerformanceHistory}
+            loadAggregate={getMyPerformanceAggregate}
           />
 
           {!activitiesLoading && !activitiesError && activities && (
             <RecentReviews activities={activities} onSeeAll={() => handleStatusSelect(t("emp.approved"))} />
           )}
-
-          <HighlightsCard weekly={history.weekly} activities={activities} />
 
           <section ref={activitiesRef} className="scroll-mt-4">
             <h2 className="mb-3 text-sm font-semibold text-white">{t("emp.myActivities")}</h2>

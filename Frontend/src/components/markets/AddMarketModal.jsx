@@ -100,7 +100,7 @@ export default function AddMarketModal({ open, onClose, onCreated, defaultZoneNu
           >
             <option value="" className="bg-[#1F2436]">{zonesLoading ? t("rm.loadingZones2") : t("rm.selectAZone")}</option>
             {zoneList.map((z) => (
-              <option key={z.id} value={z.number} className="bg-[#1F2436]">Zone {z.number}</option>
+              <option key={z.id} value={z.number} className="bg-[#1F2436]">{t("rm.zoneNumbered", { number: z.number })}</option>
             ))}
           </select>
         </div>

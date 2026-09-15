@@ -73,7 +73,8 @@ export default function PerformanceCircle({ rate, onClick, bare = false, size = 
         )}
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className="font-bold text-white" style={{ fontSize: size * 0.24 }}>{rate == null ? "—" : `${Math.round(rate)}%`}</span>
+        {/* Score out of 100, not a percentage — see PerformanceScoreRing. */}
+        <span className="font-bold text-white" style={{ fontSize: size * 0.24 }}>{rate == null ? "—" : Math.round(rate)}</span>
         {bare && <span className="text-[11px] text-[#9AA1B4] mt-0.5">{t(toneMessage(rate))}</span>}
       </div>
     </div>

@@ -75,6 +75,72 @@ export function onUnauthorized(handler) {
   unauthorizedHandler = handler;
 }
 
+// --- 429 recovery ------------------------------------------------------
+//
+// Reliability incident (2026-09): a 429 from the backend's rate limiter
+// (middleware/rateLimit.js) used to behave exactly like any other error —
+// surfaced once, and then nothing about it recovered on its own. A poll
+// loop (usePolling) would just keep silently failing every cycle until
+// the 15-minute window happened to expire, and a one-shot screen
+// (useAsync) would sit on the error until the user manually tapped Retry.
+// Neither of those is a loop or a flood by itself, but neither recovers
+// promptly either, which is what "the app is stuck" looks like to someone
+// watching it.
+//
+// The fix lives HERE, in the one function every request in the app
+// already funnels through, rather than in each of the ~30 individual
+// callers: on a 429, wait once (bounded, jittered) and retry ONCE. This
+// is safe to do unconditionally, including for POST/PATCH/DELETE — a 429
+// is rejected by the rate-limit middleware BEFORE any route handler runs
+// (see app.js: apiLimiter is mounted ahead of every router), so a 429
+// response is a guarantee the request was never processed. There is
+// nothing to double-submit.
+//
+// This deliberately does NOT loop: exactly one retry, ever, per call. If
+// that retry also comes back 429, it is thrown normally like any other
+// error — surfaced to the caller's existing error state, with its
+// existing manual Retry button, rather than the app silently hammering a
+// limiter that has made it clear it wants a longer break.
+const MAX_AUTO_RETRY_DELAY_MS = 8000;
+const MIN_AUTO_RETRY_DELAY_MS = 1000;
+
+// The backend sends a standards-compliant `Retry-After` (seconds) on
+// every 429 (confirmed live against the running rate limiter). Honored
+// when short; capped well below the full 15-minute window so a single
+// awaited call can't leave a screen spinning for that long — a legitimate
+// user should recover in a handful of seconds under the per-account
+// keying the limiter now uses, and if they don't, the single retry above
+// will surface a real error for them to act on instead of the UI hanging.
+function backoffDelayMs(response) {
+  const header = response.headers.get("retry-after");
+  const seconds = header ? Number(header) : NaN;
+  const base = Number.isFinite(seconds) && seconds > 0 ? seconds * 1000 : MIN_AUTO_RETRY_DELAY_MS;
+  const capped = Math.min(base, MAX_AUTO_RETRY_DELAY_MS);
+  // Jittered so multiple tabs/components that all got 429'd in the same
+  // instant don't all retry in that same instant too — that would just
+  // recreate the burst that caused the 429 in the first place.
+  return capped + Math.random() * 500;
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function performFetch(path, method, headers, body) {
+  try {
+    return await fetch(`${API_BASE_URL}${path}`, {
+      method,
+      headers,
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    });
+  } catch (networkErr) {
+    // fetch() itself throws for network failures (backend not running,
+    // no internet, CORS block) — this is the one case with no HTTP
+    // response to read a status/message from.
+    throw new ApiError("Could not reach the server. Please check your connection and try again.", 0);
+  }
+}
+
 // options:
 //   method       — "GET" (default), "POST", "PATCH", "DELETE"
 //   body         — plain JS object, gets JSON.stringify'd
@@ -87,18 +153,15 @@ export async function apiRequest(path, { method = "GET", body, auth = true } = {
     if (token) headers["Authorization"] = `Bearer ${token}`;
   }
 
-  let response;
-  try {
-    response = await fetch(`${API_BASE_URL}${path}`, {
-      method,
-      headers,
-      body: body !== undefined ? JSON.stringify(body) : undefined,
-    });
-  } catch (networkErr) {
-    // fetch() itself throws for network failures (backend not running,
-    // no internet, CORS block) — this is the one case with no HTTP
-    // response to read a status/message from.
-    throw new ApiError("Could not reach the server. Please check your connection and try again.", 0);
+  let response = await performFetch(path, method, headers, body);
+
+  // Exactly one bounded, jittered retry — see the block comment above.
+  // This `if` can only ever run once per apiRequest() call (it is not
+  // inside a loop and does not re-check its own result), so no sequence
+  // of 429s can turn this into more than "at most two attempts total".
+  if (response.status === 429) {
+    await sleep(backoffDelayMs(response));
+    response = await performFetch(path, method, headers, body);
   }
 
   // DELETE endpoints return 204 No Content — nothing to parse.
@@ -106,6 +169,13 @@ export async function apiRequest(path, { method = "GET", body, auth = true } = {
   const data = hasBody ? await response.json().catch(() => null) : null;
 
   if (!response.ok) {
+    // 429 must never be treated as a session problem: it does not log the
+    // user out, does not touch the token, and does not run
+    // unauthorizedHandler — only a real 401 does. The caller's own error
+    // state (useAsync's `error`, a polling loop's caught/ignored
+    // rejection) is all that reflects it, and it clears itself the moment
+    // any subsequent call succeeds — there is no separate "poisoned"
+    // flag anywhere for a 429 to get stuck in.
     if (response.status === 401 && unauthorizedHandler) unauthorizedHandler();
     throw new ApiError(data?.error || "Something went wrong. Please try again.", response.status, data?.details);
   }

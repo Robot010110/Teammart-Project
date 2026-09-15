@@ -186,10 +186,26 @@ export async function setRegionalManagerZones(req, res, next) {
 
     const previousZones = await prisma.zone.findMany({ where: { managerId: userId }, select: { id: true } });
 
-    await prisma.$transaction([
+    // Admin Actions Verification — bump tokenVersion only when the zone
+    // set actually changes (matches updateEmployee's own guard), since
+    // req.user.zoneIds is read straight off the JWT (never a fresh DB
+    // lookup — see middleware/auth.js) and would otherwise keep
+    // authorizing this RM against a stale zone list until their token
+    // naturally expires.
+    const previousZoneIds = previousZones.map((z) => z.id).sort();
+    const sortedZoneIds = [...zoneIds].sort();
+    const zonesChanged =
+      previousZoneIds.length !== sortedZoneIds.length ||
+      previousZoneIds.some((id, i) => id !== sortedZoneIds[i]);
+
+    const ops = [
       prisma.zone.updateMany({ where: { managerId: userId, id: { notIn: zoneIds } }, data: { managerId: null } }),
       prisma.zone.updateMany({ where: { id: { in: zoneIds } }, data: { managerId: userId } }),
-    ]);
+    ];
+    if (zonesChanged) {
+      ops.push(prisma.user.update({ where: { id: userId }, data: { tokenVersion: { increment: 1 } } }));
+    }
+    await prisma.$transaction(ops);
 
     const updatedZones = await prisma.zone.findMany({ where: { managerId: userId }, select: { id: true, number: true } });
 

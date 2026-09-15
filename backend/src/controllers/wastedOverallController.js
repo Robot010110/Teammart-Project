@@ -1,6 +1,7 @@
 import { prisma } from "../lib/prisma.js";
 import { assertMarketAccess } from "../middleware/auth.js";
-import { createNotificationForUser, createNotification } from "../utils/notifications.js";
+import { createNotificationForUser } from "../utils/notifications.js";
+import { recordReview } from "../services/workReviewService.js";
 
 // wastedOverallController.js — a Worker reporting wasted produce (Eggs,
 // Tomato, Potato, Cucumber, Onion), routed automatically to their
@@ -65,40 +66,24 @@ export async function listMyWastedOverallReports(req, res, next) {
 // PENDING report. Scoped via the report's own marketId (fetched fresh,
 // never trusted from the request) so a Supervisor can't act on a report
 // outside their market by guessing an id.
+// Delegates to the one review write path (Performance Engine §E) so the
+// decision also records its WorkReview scoring row and audit entry
+// atomically. Request/response shape, checks and notification wording are
+// all unchanged.
 export async function reviewWastedOverallReport(req, res, next) {
   try {
     const { status, rejectionReason } = req.body;
-    const report = await prisma.wastedOverallReport.findUnique({ where: { id: req.params.id } });
-    if (!report) return res.status(404).json({ error: "Report not found" });
-    await assertMarketAccess(req.user, report.marketId);
-
-    if (report.status !== "PENDING") {
-      return res.status(400).json({ error: `This report is ${report.status.toLowerCase()}, not pending review` });
-    }
-
-    const updated = await prisma.wastedOverallReport.update({
-      where: { id: report.id },
-      data: {
-        status,
-        rejectionReason: status === "REJECTED" ? rejectionReason : null,
-        reviewedById: req.user.userId,
-        reviewedAt: new Date(),
-      },
+    const { row } = await recordReview({
+      user: req.user,
+      targetType: "WASTED_OVERALL",
+      targetId: req.params.id,
+      outcome: status === "REJECTED" ? "REJECTED" : "APPROVED",
+      // No severity field on this endpoint's body — see reviewActivity.
+      severity: null,
+      reason: status === "REJECTED" ? rejectionReason : null,
+      allowUnspecifiedSeverity: true,
     });
-
-    await createNotification({
-      employeeId: report.employeeId,
-      type: "SUBMISSION_REVIEWED",
-      title: status === "APPROVED" ? "Waste Report Approved" : "Waste Report Rejected",
-      body:
-        status === "APPROVED"
-          ? "Your Wasted Overall report was approved."
-          : `Your Wasted Overall report was rejected${rejectionReason ? `: ${rejectionReason}` : "."}`,
-      linkType: "WASTED_OVERALL",
-      linkId: report.id,
-    });
-
-    res.json(updated);
+    res.json(row);
   } catch (err) {
     next(err);
   }
