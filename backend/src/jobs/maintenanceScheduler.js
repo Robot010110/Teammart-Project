@@ -3,7 +3,9 @@ import path from "path";
 import { prisma } from "../lib/prisma.js";
 import { UPLOADS_DIR } from "../utils/fileStorage.js";
 import { createNotification, createNotificationForUser } from "../utils/notifications.js";
+import { getBreakNotificationCopy } from "../utils/breakNotificationCopy.js";
 import { generateNightShiftTasks } from "../services/nightShiftService.js";
+import { runSelfServiceBreakReminderSweep } from "../controllers/attendanceController.js";
 import {
   runPerformanceSnapshotSweep,
   runPerformanceRecomputeSweep,
@@ -62,7 +64,11 @@ export async function runBreakCompletionSweep() {
   const now = new Date();
   const dueBreaks = await prisma.break.findMany({
     where: { status: "ACTIVE", expectedEndTime: { lte: now } },
-    select: { id: true, expectedEndTime: true, employeeId: true, staffUserId: true },
+    select: {
+      id: true, expectedEndTime: true, employeeId: true, staffUserId: true,
+      employee: { select: { language: true } },
+      staffUser: { select: { language: true } },
+    },
   });
 
   let completed = 0;
@@ -80,20 +86,22 @@ export async function runBreakCompletionSweep() {
 
       completed += 1;
       if (brk.employeeId) {
+        const copy = getBreakNotificationCopy("ENDED", brk.employee?.language ?? "ENGLISH");
         await createNotification({
           employeeId: brk.employeeId,
           type: "BREAK_COMPLETED",
-          title: "Break completed",
-          body: "Your break has ended.",
+          title: copy.title,
+          body: copy.body,
           linkType: "BREAK",
           linkId: brk.id,
         });
       } else if (brk.staffUserId) {
+        const copy = getBreakNotificationCopy("ENDED", brk.staffUser?.language ?? "ENGLISH");
         await createNotificationForUser({
           userId: brk.staffUserId,
           type: "BREAK_COMPLETED",
-          title: "Break completed",
-          body: "Your break has ended.",
+          title: copy.title,
+          body: copy.body,
           linkType: "BREAK",
           linkId: brk.id,
         });
@@ -183,7 +191,7 @@ export async function runAdjustmentRetentionSweep() {
 }
 
 let breakInterval, photoInterval, nightShiftInterval, adjustmentRetentionInterval;
-let perfSnapshotInterval, perfRecomputeInterval, perfSealInterval;
+let perfSnapshotInterval, perfRecomputeInterval, perfSealInterval, selfServiceBreakReminderInterval;
 
 // Called once from index.js at startup. Kept separate from module load
 // so tests can import the sweep functions directly without accidentally
@@ -192,6 +200,13 @@ export function startMaintenanceScheduler() {
   if (breakInterval || photoInterval || nightShiftInterval || adjustmentRetentionInterval) return; // already started — never double-schedule
   breakInterval = setInterval(() => {
     runBreakCompletionSweep().catch((err) => console.error("Break completion sweep crashed:", err));
+  }, BREAK_SWEEP_INTERVAL_MS);
+  // Attendance + Shift Timing §7/§8 — the SEPARATE self-service break
+  // (AttendanceRecord.breakStart/breakEnd, not the Break model above).
+  // Same interval/idempotency shape as the sweep just above, just a
+  // different table — see attendanceController.runSelfServiceBreakReminderSweep.
+  selfServiceBreakReminderInterval = setInterval(() => {
+    runSelfServiceBreakReminderSweep().catch((err) => console.error("Self-service break reminder sweep crashed:", err));
   }, BREAK_SWEEP_INTERVAL_MS);
   photoInterval = setInterval(() => {
     runDepartmentPhotoExpirySweep().catch((err) => console.error("Department photo expiry sweep crashed:", err));
@@ -219,6 +234,7 @@ export function startMaintenanceScheduler() {
   // reason the process can't exit cleanly (e.g. during tests or a
   // graceful shutdown that's just waiting on in-flight requests).
   breakInterval.unref();
+  selfServiceBreakReminderInterval.unref();
   photoInterval.unref();
   nightShiftInterval.unref();
   adjustmentRetentionInterval.unref();
@@ -229,6 +245,7 @@ export function startMaintenanceScheduler() {
 
 export function stopMaintenanceScheduler() {
   clearInterval(breakInterval);
+  clearInterval(selfServiceBreakReminderInterval);
   clearInterval(photoInterval);
   clearInterval(nightShiftInterval);
   clearInterval(adjustmentRetentionInterval);
@@ -236,6 +253,7 @@ export function stopMaintenanceScheduler() {
   clearInterval(perfRecomputeInterval);
   clearInterval(perfSealInterval);
   breakInterval = undefined;
+  selfServiceBreakReminderInterval = undefined;
   photoInterval = undefined;
   nightShiftInterval = undefined;
   adjustmentRetentionInterval = undefined;

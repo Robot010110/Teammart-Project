@@ -1,5 +1,6 @@
 import { prisma } from "../lib/prisma.js";
 import { createNotification, createNotificationForUser } from "../utils/notifications.js";
+import { getBreakNotificationCopy } from "../utils/breakNotificationCopy.js";
 
 const BREAK_DURATION_MINUTES = 60;
 
@@ -126,20 +127,24 @@ export async function withLazyCompletion(brk) {
     });
     if (result.count > 0) {
       if (brk.employeeId) {
+        const employee = await prisma.employee.findUnique({ where: { id: brk.employeeId }, select: { language: true } });
+        const copy = getBreakNotificationCopy("ENDED", employee?.language ?? "ENGLISH");
         await createNotification({
           employeeId: brk.employeeId,
           type: "BREAK_COMPLETED",
-          title: "Break completed",
-          body: "Your break has ended.",
+          title: copy.title,
+          body: copy.body,
           linkType: "BREAK",
           linkId: brk.id,
         });
       } else if (brk.staffUserId) {
+        const user = await prisma.user.findUnique({ where: { id: brk.staffUserId }, select: { language: true } });
+        const copy = getBreakNotificationCopy("ENDED", user?.language ?? "ENGLISH");
         await createNotificationForUser({
           userId: brk.staffUserId,
           type: "BREAK_COMPLETED",
-          title: "Break completed",
-          body: "Your break has ended.",
+          title: copy.title,
+          body: copy.body,
           linkType: "BREAK",
           linkId: brk.id,
         });

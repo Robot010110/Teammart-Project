@@ -415,8 +415,18 @@ enum NotificationType {
   // break?" (Phase 1 foundation; the full UX is Phase 2).
   BREAK_PENDING_CONFIRMATION
   // A Break the recipient confirmed reached its expected end time
-  // (ACTIVE -> COMPLETED).
+  // (ACTIVE -> COMPLETED). Also reused (Attendance + Shift Timing) for
+  // the self-service breakStart/breakEnd pair's own "break ended, return
+  // to work" reminder — same real-world event ("a break just ended"),
+  // deliberately not a separate type just because a different model
+  // triggered it.
   BREAK_COMPLETED
+  // Attendance + Shift Timing — the self-service break has used 30 of
+  // its 60 allowed minutes (halfway point).
+  BREAK_HALFWAY_REMINDER
+  // Attendance + Shift Timing — 10 minutes remain of the self-service
+  // break's 60-minute maximum.
+  BREAK_TEN_MINUTE_WARNING
   // An employee (or an authorized Supervisor on their behalf) submitted
   // a Department Closing activity — notifies the market's Supervisor/
   // Overlooking (Phase 2 §11).
@@ -1458,6 +1468,21 @@ model AttendanceRecord {
   // an acknowledgement/audit marker, not a substitute for real data.
   missingCheckoutAlertedAt DateTime?
   stillWorkingConfirmedAt  DateTime?
+
+  // Attendance + Shift Timing (self-service break auto-expiration, spec
+  // §7/§8) — the same "timestamp marker prevents re-notifying" pattern as
+  // missingCheckoutAlertedAt above, one per reminder threshold, applied to
+  // the self-service breakStart/breakEnd pair (NOT the separate
+  // fingerprint-triggered Break model below, which already has its own
+  // notification via breakService.js/maintenanceScheduler.js). Read by
+  // attendanceController.runSelfServiceBreakReminderSweep. Only one
+  // self-service break is ever allowed per AttendanceRecord (see
+  // startBreak's own "already taken your break today" rule), and every
+  // day gets a fresh row (upserted at check-in), so these are always
+  // null at the start of a new break — no explicit reset needed.
+  breakHalfwayAlertedAt    DateTime?
+  breakTenMinuteAlertedAt  DateTime?
+  breakExpiredAlertedAt    DateTime?
 
   // Nullable as of the cross-role attendance extension (Phase 1): a
   // Supervisor/Overlooking check-in has no Employee at all — see

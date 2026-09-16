@@ -328,6 +328,15 @@ function SelectedDay({ record, monthLabel, day }) {
           {record.workingHours != null && <span>{t("emp.hoursWorkedSuffix", { hours: record.workingHours.toFixed(1) })}</span>}
           <span>{t("emp.hoursRequiredSuffix", { hours: record.requiredHours })}</span>
           {record.extraHours > 0 && <span className="text-emerald-400">+{t("emp.hoursExtraSuffix", { hours: record.extraHours.toFixed(1) })}</span>}
+          {record.timing?.lateMinutes > 0 && (
+            <span className="text-amber-400">{t("emp.lateByMinutes", { minutes: record.timing.lateMinutes })}</span>
+          )}
+          {record.timing?.penaltyRecoveryHours > 0 && (
+            <span className="text-[#F9A03C]">{t("emp.penaltyRecoverySuffix", { hours: record.timing.penaltyRecoveryHours.toFixed(1) })}</span>
+          )}
+          {record.timing?.breakOverrunMinutes > 0 && (
+            <span className="text-red-400">{t("emp.breakOverrunSuffix", { minutes: record.timing.breakOverrunMinutes })}</span>
+          )}
         </div>
       )}
 

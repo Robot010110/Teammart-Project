@@ -162,6 +162,22 @@ export default function AttendanceCalendar({ days, onChanged }) {
                   <span>{t("emp.hoursRequiredSuffix", { hours: day.requiredHours })}</span>
                   {day.extraHours > 0 && <span className="text-emerald-400">+{t("emp.hoursExtraSuffix", { hours: day.extraHours.toFixed(1) })}</span>}
                   {day.punishmentHours > 0 && <span className="text-red-400">-{t("emp.hoursPenaltySuffix", { hours: day.punishmentHours.toFixed(1) })}</span>}
+                  {/* Attendance + Shift Timing §11 — the separately-visible
+                      breakdown behind the two numbers above: exactly how
+                      late, how much of the post-shift time was penalty
+                      recovery vs. genuinely extra, and any break overrun.
+                      Every value comes straight from day.timing (see
+                      attendanceController.buildMonthResponse), never
+                      recomputed here. */}
+                  {day.timing?.lateMinutes > 0 && (
+                    <span className="text-amber-400">{t("emp.lateByMinutes", { minutes: day.timing.lateMinutes })}</span>
+                  )}
+                  {day.timing?.penaltyRecoveryHours > 0 && (
+                    <span className="text-[#F9A03C]">{t("emp.penaltyRecoverySuffix", { hours: day.timing.penaltyRecoveryHours.toFixed(1) })}</span>
+                  )}
+                  {day.timing?.breakOverrunMinutes > 0 && (
+                    <span className="text-red-400">{t("emp.breakOverrunSuffix", { minutes: day.timing.breakOverrunMinutes })}</span>
+                  )}
                 </div>
               )}
               {day.status === "DAY_OFF" && day.dayOffType && (

@@ -35,6 +35,22 @@ function todayAt(hour) {
   return d;
 }
 
+// The shift-detail route takes a plain "YYYY-MM-DD" date key, matched
+// against the LOCAL day the backend stored each Activity's fixture under
+// (departmentClosingZoneService.js's own dayKey() uses local Date
+// getters, never UTC). `toISOString().slice(0, 10)` looks equivalent but
+// is a UTC-based date — good enough near the start of a UTC day, but a
+// genuine bug near a local-vs-UTC midnight boundary (confirmed live: a
+// machine local-ahead-of-UTC after ~"local midnight but still UTC
+// yesterday" produced a real 200 for a real-but-wrong day, with an empty
+// department->record match, not a 404 the old fallback assumed it'd be).
+function localDateKey(date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
 async function submitDepartmentClosing({ employeeId, department, date = todayAt(10) }) {
   const activity = await prisma.activity.create({
     data: {
@@ -173,7 +189,7 @@ test("Page 3 market detail for a market with zero activity still returns the ful
 // --- Page 4 / shift detail: canonical department order, real photos ----
 
 test("Shift detail returns departments in the canonical DEPARTMENTS order with real records", async () => {
-  const dateKey = new Date().toISOString().slice(0, 10);
+  const dateKey = localDateKey(new Date());
   const { status, body } = await apiFetch(
     baseUrl,
     `/api/zone-activities/department-closing/markets/${marketA1.id}/shifts/${dateKey}/MORNING`,
@@ -193,7 +209,7 @@ test("Shift detail returns departments in the canonical DEPARTMENTS order with r
 });
 
 test("Shift detail for a shift with no records still lists the market's departments as not completed", async () => {
-  const dateKey = new Date().toISOString().slice(0, 10);
+  const dateKey = localDateKey(new Date());
   const { status, body } = await apiFetch(
     baseUrl,
     `/api/zone-activities/department-closing/markets/${marketA1.id}/shifts/${dateKey}/NIGHT`,
@@ -236,7 +252,7 @@ test("A Regional Manager cannot pass another zone's zoneId to Page 2", async () 
 });
 
 test("A Regional Manager cannot reach shift detail for an unauthorized market", async () => {
-  const dateKey = new Date().toISOString().slice(0, 10);
+  const dateKey = localDateKey(new Date());
   const { status } = await apiFetch(
     baseUrl,
     `/api/zone-activities/department-closing/markets/${marketB1.id}/shifts/${dateKey}/MORNING`,
@@ -256,7 +272,7 @@ test("Admin can reach any market's Department Closing detail without managing a 
 });
 
 test("An unknown shift value is rejected with 400, never silently ignored", async () => {
-  const dateKey = new Date().toISOString().slice(0, 10);
+  const dateKey = localDateKey(new Date());
   const { status } = await apiFetch(
     baseUrl,
     `/api/zone-activities/department-closing/markets/${marketA1.id}/shifts/${dateKey}/EVENING`,

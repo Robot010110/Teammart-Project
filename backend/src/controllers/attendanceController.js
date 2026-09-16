@@ -1,5 +1,7 @@
 import { prisma } from "../lib/prisma.js";
 import { computeWorkingHours } from "../utils/attendanceMath.js";
+import { classifyAttendanceTiming, resolveEmployeeShift, BREAK_MAX_MINUTES } from "../utils/shiftSchedule.js";
+import { getBreakNotificationCopy } from "../utils/breakNotificationCopy.js";
 import { markPeriodsStale } from "../services/performance/performanceService.js";
 import { staffCanAccessMarket, requireAccessibleEmployee, assertMarketAccess } from "../middleware/auth.js";
 import { parseAttendanceWorkbook, buildAttendanceReportWorkbook } from "../utils/attendanceExcel.js";
@@ -95,13 +97,35 @@ export async function checkIn(req, res, next) {
       return res.json(existing);
     }
 
+    const checkInAt = new Date();
+
+    // Attendance + Shift Timing §2 — lateness is computed against the
+    // employee's OWN assigned shift (the same EmployeeShift field/
+    // precedent Department Closing already uses — see
+    // shiftSchedule.resolveEmployeeShift's own comment), and only for a
+    // real Employee (Worker/Cashier) — Supervisor/Overlooking/Regional
+    // Manager have no shift concept and keep their exact prior behavior
+    // (status always "PRESENT"). Never blocks the check-in itself, only
+    // classifies it — matches the spec's own "do not physically block"
+    // rule; a late check-in is still a check-in.
+    let status = "PRESENT";
+    if (owner.employeeId) {
+      const employee = await prisma.employee.findUnique({
+        where: { id: owner.employeeId },
+        select: { shift: true, cashierShift: true },
+      });
+      const shift = resolveEmployeeShift(employee);
+      const { lateMinutes } = classifyAttendanceTiming({ date: today, checkIn: checkInAt, checkOut: null, breakStart: null, breakEnd: null, punishmentHours: 0 }, shift);
+      if (lateMinutes) status = "LATE";
+    }
+
     const record = await prisma.attendanceRecord.upsert({
       where,
-      update: { checkIn: new Date(), status: "PRESENT" },
+      update: { checkIn: checkInAt, status },
       create: {
         date: today,
-        checkIn: new Date(),
-        status: "PRESENT",
+        checkIn: checkInAt,
+        status,
         source: "MANUAL",
         marketId: owner.marketId,
         employeeId: owner.employeeId ?? null,
@@ -229,6 +253,115 @@ export async function endBreak(req, res, next) {
     res.json(record);
   } catch (err) {
     next(err);
+  }
+}
+
+// Attendance + Shift Timing §6/§7/§8 — the self-service break's own
+// 60-minute maximum, auto-expiration, and the three reminder
+// notifications (halfway/10-minutes-left/ended). Called from
+// jobs/maintenanceScheduler.js on the exact same interval/idempotency
+// shape as the OTHER (fingerprint-triggered) Break model's own
+// runBreakCompletionSweep — a separate function because it targets a
+// separate table (AttendanceRecord.breakStart/breakEnd, not the Break
+// model), not a second unrelated notification system.
+//
+// This does NOT force-write breakEnd (spec §5's "do not physically
+// block/force" principle applied here too — the employee's real
+// checkIn/checkOut/break timestamps stay exactly what they actually did;
+// classifyAttendanceTiming's breakOverrunMinutes is what turns "still on
+// break past 60 minutes" into the correct "late/non-working" fact once
+// the employee is actually read). Each of the three
+// break*AlertedAt columns is only ever set once per break (the WHERE
+// clause below only matches rows where it's still null), which is what
+// makes this sweep safe to run every tick and safe across a server
+// restart — there is no in-memory state to lose.
+const BREAK_HALFWAY_MINUTES = BREAK_MAX_MINUTES / 2; // 30
+const BREAK_TEN_MINUTE_WARNING_AT = BREAK_MAX_MINUTES - 10; // 50
+
+export async function runSelfServiceBreakReminderSweep() {
+  const now = new Date();
+  // Only breaks still genuinely open (breakStart set, breakEnd not yet
+  // set) from roughly the last day need checking — a break from further
+  // back is either long since ended or an orphaned/imported row this
+  // sweep has no business alerting on.
+  const since = new Date(now);
+  since.setDate(since.getDate() - 1);
+
+  const openBreaks = await prisma.attendanceRecord.findMany({
+    where: { breakStart: { gte: since }, breakEnd: null },
+    select: {
+      id: true, breakStart: true, employeeId: true, staffUserId: true,
+      breakHalfwayAlertedAt: true, breakTenMinuteAlertedAt: true, breakExpiredAlertedAt: true,
+      employee: { select: { language: true } },
+      staffUser: { select: { language: true } },
+    },
+  });
+
+  let notified = 0;
+  for (const record of openBreaks) {
+    const elapsedMinutes = (now.getTime() - record.breakStart.getTime()) / 60000;
+    const language = record.employee?.language ?? record.staffUser?.language ?? "ENGLISH";
+
+    try {
+      if (elapsedMinutes >= BREAK_HALFWAY_MINUTES && !record.breakHalfwayAlertedAt) {
+        const claimed = await prisma.attendanceRecord.updateMany({
+          where: { id: record.id, breakHalfwayAlertedAt: null },
+          data: { breakHalfwayAlertedAt: now },
+        });
+        if (claimed.count > 0) {
+          await sendBreakReminder(record, "HALFWAY", "BREAK_HALFWAY_REMINDER", language);
+          notified += 1;
+        }
+      }
+      if (elapsedMinutes >= BREAK_TEN_MINUTE_WARNING_AT && !record.breakTenMinuteAlertedAt) {
+        const claimed = await prisma.attendanceRecord.updateMany({
+          where: { id: record.id, breakTenMinuteAlertedAt: null },
+          data: { breakTenMinuteAlertedAt: now },
+        });
+        if (claimed.count > 0) {
+          await sendBreakReminder(record, "TEN_MINUTES", "BREAK_TEN_MINUTE_WARNING", language);
+          notified += 1;
+        }
+      }
+      if (elapsedMinutes >= BREAK_MAX_MINUTES && !record.breakExpiredAlertedAt) {
+        const claimed = await prisma.attendanceRecord.updateMany({
+          where: { id: record.id, breakExpiredAlertedAt: null },
+          data: { breakExpiredAlertedAt: now },
+        });
+        if (claimed.count > 0) {
+          await sendBreakReminder(record, "ENDED", "BREAK_COMPLETED", language);
+          notified += 1;
+        }
+      }
+    } catch (err) {
+      // One bad row must never stop the rest of the sweep — same
+      // per-item isolation as maintenanceScheduler's other sweeps.
+      console.error(`Self-service break reminder sweep failed for record ${record.id}:`, err);
+    }
+  }
+  return { checked: openBreaks.length, notified };
+}
+
+async function sendBreakReminder(record, copyKind, notificationType, language) {
+  const copy = getBreakNotificationCopy(copyKind, language);
+  if (record.employeeId) {
+    await createNotification({
+      employeeId: record.employeeId,
+      type: notificationType,
+      title: copy.title,
+      body: copy.body,
+      linkType: "ATTENDANCE_RECORD",
+      linkId: record.id,
+    });
+  } else if (record.staffUserId) {
+    await createNotificationForUser({
+      userId: record.staffUserId,
+      type: notificationType,
+      title: copy.title,
+      body: copy.body,
+      linkType: "ATTENDANCE_RECORD",
+      linkId: record.id,
+    });
   }
 }
 
@@ -534,10 +667,22 @@ export async function createRequiredHoursAdjustment(req, res, next) {
 // 8:00h -> Extra Hours: 1:00" (not 0:45) is the spec's own example.
 const EXTRA_HOURS_GRACE = 0.25; // 15 minutes, in hours
 
+// Attendance + Shift Timing §4/§5 — penalty recovery must never be
+// rewarded as Extra Hours. `punishmentHours` is real, staff-set time this
+// employee owes (see setPunishmentHours below); comparing worked hours
+// against requiredHours ALONE (the old formula) silently credited every
+// penalty-recovery hour as bonus extra time the moment it was worked.
+// Comparing against (requiredHours + punishmentHours) instead means a
+// day with zero penalty behaves exactly as before (unchanged formula,
+// unchanged output), and a day with a real penalty only credits Extra
+// Hours for whatever is worked BEYOND paying that penalty back — the
+// spec's own worked example ("required 8h + 2h penalty, worked 10h ->
+// Extra Hours: 0").
 function computeExtraHours(record) {
   const worked = computeWorkingHours(record);
   if (worked == null) return 0;
-  const overage = worked - record.requiredHours;
+  const requiredIncludingPenalty = record.requiredHours + (record.punishmentHours ?? 0);
+  const overage = worked - requiredIncludingPenalty;
   return overage > EXTRA_HOURS_GRACE ? overage : 0;
 }
 
@@ -768,7 +913,7 @@ async function buildMonthResponse(employeeId, year, month) {
   const monthStart = new Date(year, month - 1, 1);
   const monthEnd = new Date(year, month, 1); // exclusive upper bound
 
-  const [records, adjustments] = await Promise.all([
+  const [records, adjustments, employee] = await Promise.all([
     prisma.attendanceRecord.findMany({
       where: { employeeId, date: { gte: monthStart, lt: monthEnd } },
       orderBy: { date: "asc" },
@@ -777,12 +922,21 @@ async function buildMonthResponse(employeeId, year, month) {
       where: { employeeId, date: { gte: monthStart, lt: monthEnd } },
       orderBy: { date: "asc" },
     }),
+    // Attendance + Shift Timing §11 — this employee's own CURRENT
+    // assigned shift, the same field/limitation resolveEmployeeShift's
+    // own comment documents (not a historical per-day snapshot).
+    prisma.employee.findUnique({ where: { id: employeeId }, select: { shift: true, cashierShift: true } }),
   ]);
+  const shift = resolveEmployeeShift(employee);
 
   const days = records.map((record) => ({
     ...record,
     workingHours: computeWorkingHours(record),
     extraHours: computeExtraHours(record),
+    // Attendance + Shift Timing §2/§3/§11 — the separately-visible timing
+    // breakdown (late/early-work/post-shift/penalty-recovery/break-
+    // overrun), never collapsed into the one extraHours number above.
+    timing: classifyAttendanceTiming(record, shift),
     adjustments: adjustments.filter((a) => sameDay(a.date, record.date)),
   }));
 
