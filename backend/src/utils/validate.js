@@ -8,6 +8,14 @@ import { DEPARTMENTS } from "./departments.js";
 // applied retroactively to existing rows.
 const departmentEnum = z.enum(DEPARTMENTS);
 
+// Shift System Cleanup — the ONE canonical shift concept shown on an
+// employee's own profile/card: exactly MORNING/AFTERNOON/NIGHT, no
+// "Evening". Used for Employee.shift and Employee.cashierShift (both
+// EmployeeShift in the schema — see that enum's own comment for why this
+// is a separate concept from the Night Shift TASK system's own
+// operationalShift enum, untouched throughout this file).
+export const EMPLOYEE_SHIFTS = ["MORNING", "AFTERNOON", "NIGHT"];
+
 // "User ID" shape (spec §5-7) — Employee.employeeCode/username and
 // User.loginId all share this same format constraint. Uniqueness is
 // case-insensitive and checked separately (see utils/accountIds.js);
@@ -139,7 +147,7 @@ export const demoteStaffSchema = z.object({
   role: z.enum(["WORKER", "CASHIER", "BUTCHER"]),
   marketId: z.string().min(1),
   password: z.string().min(8, "Password must be at least 8 characters"),
-  shift: z.string().min(1).optional(),
+  shift: z.enum(EMPLOYEE_SHIFTS).optional(),
   username: USER_ID_SCHEMA.optional(),
 }).refine((data) => data.role !== "CASHIER" || !!data.username, {
   message: "username is required when demoting to Cashier",
@@ -245,6 +253,14 @@ export const assignMarketOverlookingSupervisorSchema = z.object({
   overlookingSupervisorId: z.number().int().positive().nullable(),
 });
 
+// Admin Market <-> Zone Management — the destination zone for a market
+// move. Not nullable: unlike supervisor assignment, a market always
+// belongs to exactly one zone (Market.zoneId is a required Int, not
+// Int?), so there is no "unassign" case here.
+export const moveMarketZoneSchema = z.object({
+  zoneId: z.number().int().positive(),
+});
+
 // ---------------------------------------------------------------------
 // Employees
 // ---------------------------------------------------------------------
@@ -252,7 +268,7 @@ export const createEmployeeSchema = z.object({
   name: z.string().min(2).max(100),
   position: z.string().min(2).max(100),
   secondaryRole: z.string().max(100).optional(),
-  shift: z.string().max(100).optional(),
+  shift: z.enum(EMPLOYEE_SHIFTS).optional(),
   marketId: z.string().min(1),
   // Optional: caller can set an initial password, otherwise we generate one
   // and return it once (since employeeCode isn't a secret, the temp
@@ -264,7 +280,13 @@ export const updateEmployeeSchema = z.object({
   name: z.string().min(2).max(100).optional(),
   position: z.string().min(2).max(100).optional(),
   secondaryRole: z.string().max(100).nullable().optional(),
-  shift: z.string().max(100).nullable().optional(),
+  shift: z.enum(EMPLOYEE_SHIFTS).nullable().optional(),
+  // A Cashier's own profile shift (see Employee.cashierShift's schema
+  // comment) — was missing from this schema entirely, which meant the
+  // Change Assignment modal's cashierShift update was silently stripped
+  // by validateBody and never actually applied. Fixed here as part of
+  // the same shift-system cleanup.
+  cashierShift: z.enum(EMPLOYEE_SHIFTS).nullable().optional(),
   // Night Shift — the enum-typed authoritative shift (see Employee.
   // operationalShift's own schema comment). NIGHT is only valid for
   // WORKER/BUTCHER — enforced in employeesController.updateEmployee,
@@ -965,7 +987,7 @@ export const companyAttendanceQuerySchema = z.object({
   marketId: z.string().min(1).optional(),
   zoneId: z.coerce.number().int().positive().optional(),
   role: z.enum(["WORKER", "CASHIER", "BUTCHER", "STAFF"]).optional(),
-  shift: z.string().min(1).optional(),
+  shift: z.enum(EMPLOYEE_SHIFTS).optional(),
   status: z.string().min(1).optional(),
   search: z.string().min(1).optional(),
 });
@@ -985,6 +1007,56 @@ export const companyActivitiesQuerySchema = z.object({
   status: z.string().min(1).optional(),
   employeeId: z.string().min(1).optional(),
   take: z.coerce.number().int().min(1).max(200).optional(),
+});
+
+// ---------------------------------------------------------------------
+// Zone Activities (Regional Manager) — a read-only aggregation layer over
+// the existing Activity/ItemReport/WastedOverallReport/PriceReport/
+// MarketProblem models. See services/zoneActivitiesService.js for the
+// category registry these keys map to. Deliberately no "all" period —
+// this feature's own spec is Day/Week/Month only, default Day.
+export const ZONE_ACTIVITY_CATEGORIES = [
+  "expired-items",
+  "waste-reports",
+  "label-checking",
+  "shelf-cleaning",
+  "customization",
+  "market-washing",
+  "inventory-checking",
+  "product-checking",
+  "facing",
+  "refilling",
+  "daily-cleaning",
+  "maintenance-reports",
+];
+
+export const zoneActivitiesCountsQuerySchema = z.object({
+  period: z.enum(["today", "week", "month"]).optional().default("today"),
+  // zoneId is a filter for the ADMIN path only (see
+  // zoneActivitiesController's own comment) — a Regional Manager's own
+  // frontend never sends this; passing one they don't manage is still
+  // rejected server-side regardless.
+  zoneId: z.coerce.number().int().positive().optional(),
+});
+
+// Department Closing's own dedicated drill-down (Market -> Shift ->
+// Department -> Photo) — a hierarchical shape the flat category-detail
+// schema above doesn't fit. Same period vocabulary as every other Zone
+// Activities query for consistency.
+export const departmentClosingZoneQuerySchema = z.object({
+  period: z.enum(["today", "week", "month"]).optional().default("today"),
+  zoneId: z.coerce.number().int().positive().optional(),
+});
+
+export const departmentClosingMarketQuerySchema = z.object({
+  period: z.enum(["today", "week", "month"]).optional().default("today"),
+});
+
+export const zoneActivitiesCategoryQuerySchema = z.object({
+  period: z.enum(["today", "week", "month"]).optional().default("today"),
+  zoneId: z.coerce.number().int().positive().optional(),
+  page: z.coerce.number().int().min(1).optional().default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).optional().default(25),
 });
 
 // Admin Phase 1 — global search (§14).

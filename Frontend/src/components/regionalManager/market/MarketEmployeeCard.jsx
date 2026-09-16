@@ -1,6 +1,7 @@
 import { ChevronRight, Coffee, LogOut, Store } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { initialsOfName } from "./activityMeta";
+import ShiftBadge from "../../common/ShiftBadge";
 
 function minutesSince(iso) {
   return Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 60000));
@@ -34,6 +35,9 @@ export default function MarketEmployeeCard({ employee, onOpen, index = 0 }) {
   const state = employeeState(employee);
   const cfg = STATE[state];
   const Icon = cfg.icon;
+  // Worker's `shift` vs. Cashier's `cashierShift` — both the same
+  // canonical EmployeeShift value since the Shift System Cleanup.
+  const shift = employee.shift ?? employee.cashierShift ?? null;
 
   const detail =
     state === "ON_BREAK"
@@ -64,9 +68,12 @@ export default function MarketEmployeeCard({ employee, onOpen, index = 0 }) {
             {t(cfg.label)}
           </span>
         </div>
-        <p className="mt-0.5 truncate text-[11.5px] text-[#8B93A8]">
-          {employee.position}
-          {employee.department ? ` · ${employee.department}` : ""}
+        <p className="mt-0.5 flex items-center gap-1.5 truncate text-[11.5px] text-[#8B93A8]">
+          <span className="truncate">{employee.position}</span>
+          {shift && <span className="text-[#3A4155]">·</span>}
+          {shift && <ShiftBadge shift={shift} size={11} />}
+          {employee.department && <span className="text-[#3A4155]">·</span>}
+          {employee.department && <span className="truncate">{employee.department}</span>}
         </p>
         <p className="mt-0.5 flex items-center gap-1 truncate text-[10.5px] text-[#5C6479]">
           <Icon size={10} className="shrink-0" /> {detail}

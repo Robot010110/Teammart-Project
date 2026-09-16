@@ -27,7 +27,7 @@ export const MARKET_ROSTER = [
   "Worker",
 ];
 
-export const SHIFTS = ["Morning Shift", "Afternoon Shift", "Night Shift"];
+export const SHIFTS = ["Morning", "Afternoon", "Night"];
 
 export const APPROVERS = ["Market Manager", "Supervisor"];
 

@@ -5,6 +5,7 @@ import { staffCanAccessMarket, assertMarketAccess } from "../middleware/auth.js"
 import { userIdTaken } from "../utils/accountIds.js";
 import { ensureMarketDepartment } from "../services/departmentMonitoringService.js";
 import { recordAudit } from "../utils/audit.js";
+import { attachAttendanceState } from "../utils/employeeStatus.js";
 
 function publicEmployee(e) {
   // Never send passwordHash back to the client.
@@ -36,9 +37,10 @@ export async function generateUniqueEmployeeCode() {
 //   SUPERVISOR         -> only employees in their own market
 //
 // role filters on Employee.role (WORKER/CASHIER/BUTCHER); shift matches
-// EITHER cashierShift (Cashiers) OR the free-text shift field (Workers)
-// so one query param works for both; search does a case-insensitive
-// match on name or employeeCode.
+// EITHER cashierShift (Cashiers) OR shift (Workers) — both the same
+// canonical EmployeeShift enum (MORNING/AFTERNOON/NIGHT) since the Shift
+// System Cleanup — so one query param works for both; search does a
+// case-insensitive match on name or employeeCode.
 export async function listEmployees(req, res, next) {
   try {
     const { marketId, role, shift, search } = req.query;
@@ -69,7 +71,14 @@ export async function listEmployees(req, res, next) {
       orderBy: { name: "asc" },
     });
 
-    res.json(employees.map(publicEmployee));
+    // attendanceState (ACTIVE/BREAK/NOT_ACTIVE) is the real, computed
+    // presence status — see utils/employeeStatus.js. This is the single
+    // shared roster endpoint behind the Admin People page, the
+    // Supervisor Employees list and the Regional Manager Employees page,
+    // so fixing it here fixes "Active" everywhere this list is rendered
+    // instead of patching each screen separately.
+    const withAttendance = await attachAttendanceState(employees.map(publicEmployee));
+    res.json(withAttendance);
   } catch (err) {
     next(err);
   }
@@ -152,10 +161,14 @@ export async function updateEmployee(req, res, next) {
       await assertMarketAccess(req.user, req.body.marketId);
     }
 
-    // Night Shift — CashierShift has no NIGHT value by existing,
-    // intentional design ("Cashiers are never on a Night shift"); a
-    // Cashier's operationalShift can never be NIGHT either, so the two
-    // shift concepts never disagree about who's eligible.
+    // Night Shift — a Cashier's operationalShift (the Night Shift TASK
+    // system's eligibility field — see its own schema comment) can never
+    // be NIGHT, by existing, intentional design. This is unrelated to
+    // the Shift System Cleanup: a Cashier's own profile `cashierShift`
+    // display value CAN be NIGHT now (see that field's schema comment) —
+    // being scheduled to display "Night" on a profile card is a
+    // different fact from being enrolled in the automated Night Shift
+    // task-generation workflow, which stays WORKER/BUTCHER-only.
     if (req.body.operationalShift === "NIGHT") {
       const targetRole = req.body.role ?? employee.role;
       if (targetRole === "CASHIER") {

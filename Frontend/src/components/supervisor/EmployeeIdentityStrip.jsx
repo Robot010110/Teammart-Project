@@ -14,12 +14,29 @@ const ROLE_META = {
 // code, role badge, market, shift. Extracted here so all three stay
 // visually identical instead of drifting — first built for the
 // Attendance redesign, now shared rather than copy-pasted again.
+//
+// The badge shows `employee.attendanceState` (ACTIVE/BREAK/NOT_ACTIVE,
+// from GET /api/employees/:id — see employeesController.getEmployee /
+// utils/employeeStatus.js attachAttendanceState), never employmentStatus
+// — that HR flag is ACTIVE for virtually every employed person
+// regardless of whether they checked in today, which used to make this
+// strip claim "Active" for employees who hadn't checked in at all.
+const ATTENDANCE_META = {
+  ACTIVE: { label: "status.active", tone: "text-emerald-400 bg-emerald-500/10 ring-emerald-500/25", dot: "bg-emerald-400 shadow-[0_0_6px_1px_rgba(52,211,153,0.8)]" },
+  BREAK: { label: "status.onBreak", tone: "text-violet-400 bg-violet-500/10 ring-violet-500/25", dot: "bg-violet-400 shadow-[0_0_6px_1px_rgba(167,139,250,0.8)]" },
+};
+
 export default function EmployeeIdentityStrip({ employee, marketName }) {
   const { t } = useTranslation();
   if (!employee) return null;
   const roleMeta = ROLE_META[employee.role];
   const RoleIcon = roleMeta?.icon ?? ShieldCheck;
   const shiftLabel = employee.shift || employee.cashierShift || employee.operationalShift;
+  // NOT_ACTIVE (never checked in / already checked out) shows no badge
+  // here at all, same as this strip's previous "only show if Active"
+  // convention — a red "Not Active" chip on every single closed profile
+  // would be noise; ACTIVE/BREAK are the states worth calling out inline.
+  const attendanceMeta = ATTENDANCE_META[employee.attendanceState];
 
   return (
     <div className="flex items-center gap-3 mb-4">
@@ -29,9 +46,9 @@ export default function EmployeeIdentityStrip({ employee, marketName }) {
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
           <h1 className="font-display text-[16px] font-bold text-white truncate">{employee.name}</h1>
-          {employee.employmentStatus === "ACTIVE" && (
-            <span className="shrink-0 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold text-emerald-400 bg-emerald-500/10 ring-1 ring-inset ring-emerald-500/25">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_1px_rgba(52,211,153,0.8)]" /> {t("status.active")}
+          {attendanceMeta && (
+            <span className={`shrink-0 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1 ring-inset ${attendanceMeta.tone}`}>
+              <span className={`h-1.5 w-1.5 rounded-full ${attendanceMeta.dot}`} /> {t(attendanceMeta.label)}
             </span>
           )}
         </div>

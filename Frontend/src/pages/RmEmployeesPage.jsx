@@ -1,13 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
-import { Search, ChevronRight, Store, Users2, X, SlidersHorizontal, RotateCw, ShieldCheck, Clock3 } from "lucide-react";
+import { Search, ChevronRight, Store, Users2, X, SlidersHorizontal, RotateCw, ShieldCheck } from "lucide-react";
 import { useAsync } from "../hooks/useAsync";
 import ErrorBanner from "../components/common/ErrorBanner";
 import AuthenticatedImage from "../components/common/AuthenticatedImage";
+import ShiftBadge from "../components/common/ShiftBadge";
 import { listEmployees } from "../services/staffEmployeeService";
 import { listMarkets, listAccessibleSupervisors } from "../services/marketService";
 import { initialsOf } from "../utils/initials";
+import { EMPLOYEE_SHIFT_VALUES, SHIFT_META } from "../utils/shiftMeta";
 
 // Only the roles this organisation actually has. EmployeeRole still
 // carries a BUTCHER value in the schema (and Admin-side code that reads
@@ -16,7 +18,6 @@ import { initialsOf } from "../utils/initials";
 // is hidden by doing so: with no BUTCHER employees, "All" is still
 // genuinely everyone.
 const ROLE_LABEL = { WORKER: "roles.worker", CASHIER: "roles.cashier" };
-const SHIFT_OPTIONS = ["MORNING", "EVENING", "NIGHT"];
 
 const TABS = [
   { key: "ALL", label: "common.all" },
@@ -61,6 +62,17 @@ const LIVE = {
   OFF: { chip: "bg-white/[0.06] text-[#8B93A8] ring-white/10", dot: "bg-[#4C5266]" },
 };
 
+// Worker/Cashier rows get their tone from `attendanceState` (ACTIVE/
+// BREAK/NOT_ACTIVE — see employeesController.listEmployees), the same
+// real check-in/break/check-out derivation the Supervisor rows above
+// already use via onBreak/onShift, just under the 3-state name this
+// shared /api/employees endpoint returns it as.
+function employeeLiveTone(e) {
+  if (e.attendanceState === "BREAK") return { tone: LIVE.ON_BREAK, label: "emp.onBreak" };
+  if (e.attendanceState === "ACTIVE") return { tone: LIVE.ACTIVE, label: "status.active" };
+  return { tone: LIVE.OFF, label: "rm.offShift" };
+}
+
 function PersonRow({ avatarUrl, name, roleLabel, marketName, shift, code, tone, statusLabel, onOpen, index, accentRing }) {
   return (
     <button
@@ -88,11 +100,7 @@ function PersonRow({ avatarUrl, name, roleLabel, marketName, shift, code, tone, 
           )}
         </p>
         <p className="mt-0.5 flex items-center gap-2 text-[10.5px] text-[#5C6479]">
-          {shift && (
-            <span className="flex items-center gap-1">
-              <Clock3 size={10} /> {shift}
-            </span>
-          )}
+          {shift && <ShiftBadge shift={shift} size={10} />}
           {code && <span className="tabular-nums">{code}</span>}
         </p>
       </div>
@@ -284,8 +292,8 @@ export default function RmEmployeesPage() {
                 className="w-full rounded-lg border border-white/[0.08] bg-white/[0.04] px-2.5 py-2 text-[12.5px] text-white outline-none focus:border-[#F47A20]/50 disabled:opacity-50"
               >
                 <option value="" className="bg-[#1F2436]">{t("rm.allShifts")}</option>
-                {SHIFT_OPTIONS.map((s) => (
-                  <option key={s} value={s} className="bg-[#1F2436]">{s.charAt(0) + s.slice(1).toLowerCase()}</option>
+                {EMPLOYEE_SHIFT_VALUES.map((s) => (
+                  <option key={s} value={s} className="bg-[#1F2436]">{t(SHIFT_META[s].labelKey)}</option>
                 ))}
               </select>
             </label>
@@ -341,19 +349,24 @@ export default function RmEmployeesPage() {
               />
             ))}
 
-            {employeeList.map((e, i) => (
-              <PersonRow
-                key={e.id}
-                index={visibleSupervisors.length + i}
-                avatarUrl={e.profilePictureUrl}
-                name={e.name}
-                roleLabel={ROLE_LABEL[e.role] ? t(ROLE_LABEL[e.role]) : e.position}
-                marketName={marketNameById.get(e.marketId)}
-                shift={e.cashierShift ?? e.shift ?? null}
-                code={e.employeeCode}
-                onOpen={() => navigate(`/rm/markets/${e.marketId}/employees/${e.id}`)}
-              />
-            ))}
+            {employeeList.map((e, i) => {
+              const { tone, label } = employeeLiveTone(e);
+              return (
+                <PersonRow
+                  key={e.id}
+                  index={visibleSupervisors.length + i}
+                  avatarUrl={e.profilePictureUrl}
+                  name={e.name}
+                  roleLabel={ROLE_LABEL[e.role] ? t(ROLE_LABEL[e.role]) : e.position}
+                  marketName={marketNameById.get(e.marketId)}
+                  shift={e.cashierShift ?? e.shift ?? null}
+                  code={e.employeeCode}
+                  tone={tone}
+                  statusLabel={t(label)}
+                  onOpen={() => navigate(`/rm/markets/${e.marketId}/employees/${e.id}`)}
+                />
+              );
+            })}
           </>
         )}
       </div>

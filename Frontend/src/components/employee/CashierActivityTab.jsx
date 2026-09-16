@@ -1,10 +1,11 @@
-import { Sun, Moon, ClipboardList, CheckCircle2, Clock3, Lightbulb } from "lucide-react";
+import { ClipboardList, CheckCircle2, Clock3, Lightbulb } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import CashierCleaningSection from "./CashierCleaningSection";
 import PriceReportSection from "./PriceReportSection";
 import CashierKochOperationSection from "./CashierKochOperationSection";
 import ErrorBanner from "../common/ErrorBanner";
 import { SkeletonCard } from "../common/SkeletonCard";
+import ShiftBadge from "../common/ShiftBadge";
 import { getProfile } from "../../services/profileService";
 import { listSuddenTasks } from "../../services/suddenTaskService";
 import { listPriceReports } from "../../services/priceReportService";
@@ -74,9 +75,6 @@ export default function CashierActivityTab() {
   const { data: priceReports } = useAsync(listPriceReports, { deps: [] });
   const { data: attendance } = useAsync(getTodayAttendance, { deps: [] });
 
-  const ShiftIcon = profile?.cashierShift === "EVENING" ? Moon : Sun;
-  const shiftLabel = profile?.cashierShift === "EVENING" ? t("emp.eveningShift") : t("emp.morningShift");
-
   const tasksToday = (completedTasks ?? []).filter((t) => isToday(t.completedAt ?? t.assignedAt)).length;
   const priceReportsToday = (priceReports ?? []).filter((r) => isToday(r.reportedAt)).length;
 
@@ -87,13 +85,14 @@ export default function CashierActivityTab() {
           <h1 className="text-xl font-bold text-white">{t("emp.dailyActivity")}</h1>
           <p className="text-sm text-[#8B93A8] mt-0.5">{t("emp.cashierWorkspace")}</p>
         </div>
-        <div className="shrink-0 flex items-center gap-2 rounded-xl px-3 py-2 bg-[#171C2E]/80 border border-white/[0.06]">
-          <ShiftIcon size={15} className="text-[#F47A20]" />
-          <div className="leading-tight text-end">
-            <p className="text-xs font-semibold text-white">{shiftLabel}</p>
-            <p className="text-[10px] text-[#8B93A8]">{todayLabel()}</p>
+        {profile?.cashierShift && (
+          <div className="shrink-0 flex items-center gap-2 rounded-xl px-3 py-2 bg-[#171C2E]/80 border border-white/[0.06]">
+            <div className="leading-tight text-end">
+              <p className="text-xs font-semibold text-white"><ShiftBadge shift={profile.cashierShift} size={13} /></p>
+              <p className="text-[10px] text-[#8B93A8]">{todayLabel()}</p>
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       {loading ? (

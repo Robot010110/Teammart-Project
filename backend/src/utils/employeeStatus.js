@@ -48,3 +48,19 @@ export async function attachEmployeeStatuses(employees) {
     };
   });
 }
+
+// attachAttendanceState — the same real attendance facts as
+// attachEmployeeStatuses above (built on it, not a second query), just
+// collapsed to the exact three-value presence status the employee/
+// supervisor/admin-facing UIs show: ACTIVE (checked in, not out, not on
+// break), BREAK (checked in and currently on break), NOT_ACTIVE
+// (everything else — no check-in yet today, already checked out, or an
+// off/leave/absent day). No caller may treat "unknown" as ACTIVE — the
+// ternary below only ever produces ACTIVE from a genuine open check-in.
+export async function attachAttendanceState(employees) {
+  const withLegacyStatus = await attachEmployeeStatuses(employees);
+  return withLegacyStatus.map((e) => ({
+    ...e,
+    attendanceState: e.onBreak ? "BREAK" : e.status === "ACTIVE" ? "ACTIVE" : "NOT_ACTIVE",
+  }));
+}

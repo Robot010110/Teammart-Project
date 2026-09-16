@@ -5,8 +5,13 @@ import { apiRequest } from "./apiClient";
 // Supervisor Mode this is always scoped server-side to the caller's own
 // market (a Supervisor token can never see another market's row).
 
-export function listMarkets() {
-  return apiRequest("/markets");
+// Admin Market <-> Zone Management — pass { excludeClosed: true } for a
+// picker that must only offer active operating markets (new-employee
+// creation, reassignment). Omitted/false keeps the original unfiltered
+// behavior every existing caller already relies on.
+export function listMarkets({ excludeClosed } = {}) {
+  const query = excludeClosed ? "?excludeClosed=true" : "";
+  return apiRequest(`/markets${query}`);
 }
 
 export function getMarket(id) {
@@ -40,6 +45,18 @@ export function assignMarketSupervisor(marketId, supervisorId) {
 
 export function assignMarketOverlookingSupervisor(marketId, overlookingSupervisorId) {
   return apiRequest(`/markets/${marketId}/overlooking-supervisor`, { method: "PATCH", body: { overlookingSupervisorId } });
+}
+
+// Admin Market <-> Zone Management — ADMIN-only (marketsController.
+// moveMarketZone rejects anyone else, including a Regional Manager).
+export function moveMarketZone(marketId, zoneId) {
+  return apiRequest(`/markets/${marketId}/zone`, { method: "PATCH", body: { zoneId } });
+}
+
+// ADMIN or the owning Regional Manager. Does not delete the market —
+// sets its status to CLOSED (see marketsController.closeMarket).
+export function closeMarket(marketId) {
+  return apiRequest(`/markets/${marketId}/close`, { method: "PATCH" });
 }
 
 // --- Supervisor directory (Admin / Regional Manager) ---

@@ -173,6 +173,22 @@ const OWNER_RESOLVERS = [
     if (!r) return null;
     return { rule: "marketRmAdminOnly", marketId: r.marketId };
   },
+  // Market Problem (maintenance/technical issue) photos — a Supervisor's
+  // own evidence, viewable by any staff with access to that market
+  // (Admin/RM/the reporting Supervisor), same rule as marketFeedbackPhoto/
+  // cardSalesPhoto above. Zone Activities' "Maintenance Reports" category
+  // is the first real caller that needs a Regional Manager to be able to
+  // open this photo — there was previously no resolver at all here, so it
+  // silently fell through to uploaderFallback (viewable only by the
+  // Supervisor who uploaded it, not even an Admin).
+  async function marketProblemPhoto(filename) {
+    const r = await prisma.marketProblem.findFirst({
+      where: { photoUrl: { contains: filename } },
+      select: { marketId: true },
+    });
+    if (!r) return null;
+    return { rule: "marketStaffOnly", marketId: r.marketId };
+  },
   // A market's own official storefront photo (Market.photoUrl) —
   // viewable by any staff with access to that market, same rule as
   // marketFeedbackPhoto/cardSalesPhoto above (not sensitive financial

@@ -168,7 +168,7 @@ test("MARKET TRANSFER: a Supervisor-initiated market change now DOES write a MAR
   assert.equal(marketAudit.actorUserId, rmA.id);
 
   const { status: shiftStatus } = await apiFetch(baseUrl, `/api/employees/${worker.id}`, {
-    method: "PATCH", token: tokenRmA, body: { shift: "EVENING" },
+    method: "PATCH", token: tokenRmA, body: { shift: "NIGHT" },
   });
   assert.equal(shiftStatus, 200);
 

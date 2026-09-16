@@ -20,6 +20,7 @@ import { listItemReportsForMarket } from "../services/itemReportService";
 import { listWastedOverallReportsForMarket } from "../services/wastedOverallService";
 import { listSuddenTasks } from "../services/suddenTaskService";
 import { listCountingAssignmentsForMarket } from "../services/countingAssignmentService";
+import { SHIFT_META } from "../utils/shiftMeta";
 
 const CATEGORY_LABEL = {
   EXPIRED_ITEMS: "expired items", SHELF_CLEANING: "shelf cleaning", PRODUCT_CUSTOMIZATION: "product customization",
@@ -77,6 +78,12 @@ export default function RmEmployeeProfile({ marketId, employeeId, onBack, onOpen
   const month = viewDate.getMonth() + 1;
 
   const { data: employee, error: empError, loading: empLoading, reload: reloadEmp } = useAsync(() => getEmployee(employeeId), { deps: [employeeId] });
+  // Worker's `shift` vs. Cashier's `cashierShift` — both the same
+  // canonical EmployeeShift value since the Shift System Cleanup.
+  // Deliberately NOT falling back to `operationalShift` (the unrelated
+  // Night Shift TASK eligibility field) — mixing the two used to show a
+  // misleading value here.
+  const shift = employee?.shift ?? employee?.cashierShift ?? null;
   const { data: attendance } = useAsync(() => getEmployeeAttendanceMonth(employeeId, { year, month }), { deps: [employeeId, year, month] });
 
   // Live shift state + the market's display name. getEmployee returns the
@@ -292,7 +299,12 @@ export default function RmEmployeeProfile({ marketId, employeeId, onBack, onOpen
       <div className="mt-2.5 divide-y divide-white/[0.05] rounded-2xl border border-white/[0.07] bg-[#111A2D]/80 px-3.5 backdrop-blur-xl">
         <InfoRow icon={Store} label={t("sup.market")} value={marketName ?? "—"} tone="text-[#F47A20] bg-[#F47A20]/10" />
         <InfoRow icon={LayoutGrid} label={t("emp.department")} value={employee.department || t("rm.unassigned")} tone="text-sky-400 bg-sky-500/10" />
-        <InfoRow icon={Clock3} label={t("emp.shift")} value={employee.shift || employee.operationalShift || employee.cashierShift || "—"} tone="text-violet-400 bg-violet-500/10" />
+        <InfoRow
+          icon={shift ? SHIFT_META[shift].icon : Clock3}
+          label={t("emp.shift")}
+          value={shift ? t(SHIFT_META[shift].labelKey) : "—"}
+          tone="text-violet-400 bg-violet-500/10"
+        />
         <InfoRow
           icon={CalendarCheck}
           label={t("rm.employmentDate")}

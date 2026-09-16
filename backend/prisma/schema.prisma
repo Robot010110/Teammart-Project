@@ -310,12 +310,25 @@ enum EmployeeRole {
   BUTCHER
 }
 
-// Only two values for Cashiers (unlike the three-shift Shift enum used by
-// Attendance) — deliberately its own enum, not a reuse of `Shift`, since
-// Cashiers are never on a Night shift per the spec.
-enum CashierShift {
+// EmployeeShift — the ONE canonical shift concept shown on an employee's
+// own profile/card (Worker.shift, Employee.cashierShift, and
+// PriceReport.shift, which records "the cashier's shift at the time of
+// reporting"). Exactly three values, company-wide, no "Evening":
+//   MORNING, AFTERNOON, NIGHT
+// Deliberately NOT the same enum as `Shift` above (MORNING/EVENING/NIGHT,
+// 4-8-8 clock blocks) — that one drives the Night Shift task-generation/
+// AttendanceRecord/DepartmentReport system and is a completely different,
+// operational concept this cleanup does not touch (see Employee.shift's
+// own comment for how the two stay independent). This enum replaces the
+// old free-text `Employee.shift` String and the old `CashierShift`
+// enum (MORNING/EVENING only, "Cashiers are never on a Night shift" —
+// that operational restriction still applies to operationalShift/Night
+// Shift task eligibility, unchanged; a Cashier's own profile shift label
+// can now be any of the three, same as a Worker's).
+enum EmployeeShift {
   MORNING
-  EVENING
+  AFTERNOON
+  NIGHT
 }
 
 enum EmploymentStatus {
@@ -816,17 +829,23 @@ model Employee {
   passwordHash  String?
   position      String
   secondaryRole String?
-  shift         String?
-  // Night Shift — the authoritative, enum-typed shift, reusing the exact
-  // Shift enum (MORNING/EVENING/NIGHT) AttendanceRecord/DepartmentReport
-  // already use, rather than the free-text `shift` field above (which
-  // stays untouched — existing screens display it as-is, e.g. "Morning
-  // Shift"/"Afternoon Shift"/"Night", and nothing here repurposes or
-  // migrates that data). Only WORKER/BUTCHER roles are eligible for
-  // NIGHT here (enforced in the controller, not the DB) — CASHIER keeps
-  // its own separate cashierShift below, whose CashierShift enum has no
-  // NIGHT value at all by existing, intentional design ("Cashiers are
-  // never on a Night shift").
+  // The Worker's own displayed shift — canonical EmployeeShift now
+  // (MORNING/AFTERNOON/NIGHT), migrated off free text (see migration
+  // 20260916_shift_system_cleanup: "Morning Shift"/"Moring Shift"->
+  // MORNING, "Evening"->NIGHT per the shift cleanup spec). Nothing here
+  // is the Night Shift task system's eligibility field — that stays
+  // operationalShift below, untouched by this cleanup.
+  shift         EmployeeShift?
+  // Night Shift — the authoritative, enum-typed shift for the Night
+  // Shift TASK system, reusing the separate `Shift` enum (MORNING/
+  // EVENING/NIGHT, 8/8/8 clock blocks) AttendanceRecord/DepartmentReport
+  // already use — completely independent of the profile-display `shift`
+  // field above; this cleanup does not touch it or its enum (out of
+  // scope: attendance/task-assignment logic, not shift display). Only
+  // WORKER/BUTCHER roles are eligible for NIGHT here (enforced in the
+  // controller, not the DB) — that operational restriction is unrelated
+  // to whether a Cashier's own profile `cashierShift` below can display
+  // NIGHT (it now can, see that field's comment).
   operationalShift Shift?
   role          EmployeeRole @default(WORKER)
   marketId      String
@@ -872,8 +891,13 @@ model Employee {
   // standardized Daily Activity checklist regardless of this value (see
   // CashierActivityTab.jsx; it used to gate the cleaning checklist to
   // MORNING only, but that was a frontend restriction, never enforced
-  // here or in cashierCleaningController.js).
-  cashierShift CashierShift?
+  // here or in cashierCleaningController.js). Canonical EmployeeShift
+  // now (MORNING/AFTERNOON/NIGHT) — the old CashierShift enum (MORNING/
+  // EVENING only) is retired; a Cashier's own profile shift label can be
+  // any of the three (existing EVENING data migrated to NIGHT). This is
+  // purely a display field and has no bearing on Night Shift TASK
+  // eligibility (operationalShift above), which stays WORKER/BUTCHER-only.
+  cashierShift EmployeeShift?
 
   // department applies to EVERY employee now (Worker or Cashier) — kept
   // as a fast denormalized "current department" cache, synced whenever a
@@ -1858,7 +1882,7 @@ model PriceReport {
   systemPrice Float
   notes       String?
   photoUrl    String?
-  shift       CashierShift? // the cashier's shift at the time of reporting
+  shift       EmployeeShift? // the cashier's shift at the time of reporting — canonical EmployeeShift, same as Employee.cashierShift
   status      ActivityStatus @default(PENDING)
 
   employeeId String
@@ -2846,6 +2870,15 @@ enum AuditAction {
   WORK_REVIEW_RECORDED
   WORK_REVIEW_CHANGED
   PERFORMANCE_SNAPSHOT_RECOMPUTED
+  // Admin Market <-> Zone Management — a market's zoneId changing
+  // (MARKET_ZONE_CHANGED) or its status changing, e.g. closing
+  // (MARKET_STATUS_CHANGED). Distinct from the existing
+  // ZONE_ASSIGNMENT_CHANGED (targetType "User" — a Regional Manager's
+  // own managed-zones changing) and MARKET_ASSIGNMENT_CHANGED
+  // (supervisor/overlooking-supervisor assignment) so an audit reader
+  // never has to infer which real-world fact changed from context.
+  MARKET_ZONE_CHANGED
+  MARKET_STATUS_CHANGED
 }
 
 // A rating is never edited/overwritten — each one is its own row, so

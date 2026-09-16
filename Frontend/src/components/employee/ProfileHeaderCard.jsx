@@ -1,16 +1,18 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { BadgeCheck, Store, Sun, Moon, Clock, Briefcase, CircleDot, Camera } from "lucide-react";
+import { BadgeCheck, Store, Briefcase, CircleDot, Camera } from "lucide-react";
 import { initialsOf } from "../../utils/initials";
 import WhatsAppField from "./WhatsAppField";
 import AuthenticatedImage from "../common/AuthenticatedImage";
 import ChangePhotoModal from "./ChangePhotoModal";
+import ShiftBadge from "../common/ShiftBadge";
 
 // ProfileHeaderCard.jsx — the profile header shown at the top of both
 // EmployeeWorkspace.jsx (Worker) and CashierWorkspace.jsx (Cashier). One
 // component, role-aware only where the underlying data actually differs
-// (shift: Worker's free-text `shift` string vs. Cashier's `cashierShift`
-// enum).
+// (shift: Worker's `shift` vs. Cashier's `cashierShift` — both the same
+// canonical EmployeeShift value since the Shift System Cleanup, rendered
+// identically via the shared ShiftBadge).
 //
 // Performance is deliberately NOT shown here anymore — it has its own
 // dedicated circular widget on the Home tab (PerformanceCircle.jsx) now
@@ -19,27 +21,17 @@ import ChangePhotoModal from "./ChangePhotoModal";
 // left to live (and shouldn't — a placeholder that will never resolve
 // into anything useful in this exact spot).
 
-const CASHIER_SHIFT_LABEL = { MORNING: "emp.morning", EVENING: "emp.evening" };
-const CASHIER_SHIFT_ICON = { MORNING: Sun, EVENING: Moon };
-const EMPLOYMENT_STATUS_LABEL = { ACTIVE: "emp.active", INACTIVE: "emp.inactive", ON_LEAVE: "emp.onLeave" };
+// Real, attendance-derived presence (checked in / on break / not
+// checked in yet or already checked out) — NOT employmentStatus, which
+// is an unrelated HR "currently employed" flag that used to be shown
+// here mislabeled as this person's live status.
+const ATTENDANCE_STATUS_LABEL = { ACTIVE: "status.active", BREAK: "status.onBreak", NOT_ACTIVE: "status.notActive" };
+const ATTENDANCE_STATUS_TONE = { ACTIVE: "text-emerald-400", BREAK: "text-violet-400", NOT_ACTIVE: "text-[#9AA1B4]" };
 
 function ShiftField({ profile }) {
-  const { t } = useTranslation();
-  if (profile.role === "CASHIER") {
-    if (!profile.cashierShift) return null;
-    const Icon = CASHIER_SHIFT_ICON[profile.cashierShift];
-    return (
-      <span className="flex items-center gap-1.5">
-        <Icon size={13} /> {CASHIER_SHIFT_LABEL[profile.cashierShift] ? t(CASHIER_SHIFT_LABEL[profile.cashierShift]) : profile.cashierShift} {t("emp.shift")}
-      </span>
-    );
-  }
-  if (!profile.shift) return null;
-  return (
-    <span className="flex items-center gap-1.5">
-      <Clock size={13} /> {profile.shift}
-    </span>
-  );
+  const shift = profile.role === "CASHIER" ? profile.cashierShift : profile.shift;
+  if (!shift) return null;
+  return <ShiftBadge shift={shift} size={13} />;
 }
 
 export default function ProfileHeaderCard({ profile }) {
@@ -86,8 +78,8 @@ export default function ProfileHeaderCard({ profile }) {
         <ShiftField profile={profile} />
         <span className="flex items-center gap-1.5"><Store size={13} /> {profile.market?.name}</span>
         <span className="flex items-center gap-1.5">
-          <CircleDot size={13} className={profile.employmentStatus === "ACTIVE" ? "text-emerald-400" : "text-[#9AA1B4]"} />
-          {EMPLOYMENT_STATUS_LABEL[profile.employmentStatus] ? t(EMPLOYMENT_STATUS_LABEL[profile.employmentStatus]) : profile.employmentStatus}
+          <CircleDot size={13} className={ATTENDANCE_STATUS_TONE[profile.attendanceState] ?? "text-[#9AA1B4]"} />
+          {ATTENDANCE_STATUS_LABEL[profile.attendanceState] ? t(ATTENDANCE_STATUS_LABEL[profile.attendanceState]) : t("status.notActive")}
         </span>
       </div>
 

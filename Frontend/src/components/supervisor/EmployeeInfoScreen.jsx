@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
-  ArrowLeft, BadgeCheck, Briefcase, Clock, Copy, Check as CheckIcon, Pencil, Check, Loader2,
+  ArrowLeft, BadgeCheck, Briefcase, Copy, Check as CheckIcon, Pencil, Check, Loader2,
   CalendarDays, History, ClipboardList, Layers, Store, ChevronRight, TrendingUp,
 } from "lucide-react";
 import ErrorBanner from "../common/ErrorBanner";
+import ShiftBadge from "../common/ShiftBadge";
 import AuthenticatedImage from "../common/AuthenticatedImage";
 import { SkeletonCard } from "../common/SkeletonCard";
 import Modal from "../common/Modal";
@@ -207,7 +208,7 @@ export default function EmployeeInfoScreen({ employee, setEmployee, loading, err
 
             <div className="relative mt-4 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[12px] text-[#9AA1B4]">
               {(employee.shift || employee.cashierShift) && (
-                <span className="flex items-center gap-1.5"><Clock size={13} /> {employee.shift || employee.cashierShift}</span>
+                <ShiftBadge shift={employee.shift || employee.cashierShift} size={13} />
               )}
               {employee.username && <span className="flex items-center gap-1.5"><BadgeCheck size={13} /> {employee.username}</span>}
               {employee.startDate && (

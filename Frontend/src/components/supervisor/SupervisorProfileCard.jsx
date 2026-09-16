@@ -1,8 +1,6 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
-  Sun,
-  Moon,
   BadgeCheck,
   Store,
   Users,
@@ -12,6 +10,7 @@ import {
 import AuthenticatedImage from "../common/AuthenticatedImage";
 import ChangePhotoModal from "../employee/ChangePhotoModal";
 import WhatsAppField from "../employee/WhatsAppField";
+import ShiftBadge from "../common/ShiftBadge";
 import SupervisorWindBackground from "./home/SupervisorWindBackground";
 import { getProfile } from "../../services/profileService";
 import { listEmployeesByMarket } from "../../services/staffEmployeeService";
@@ -45,8 +44,6 @@ import { useAsync } from "../../hooks/useAsync";
 // a tap on the avatar or the WhatsApp field.
 export default function SupervisorProfileCard({ session, onDuty }) {
   const { t } = useTranslation();
-  const isEvening = session.shift === "EVENING";
-  const ShiftIcon = isEvening ? Moon : Sun;
 
   const { data: profile, setData: setProfile } = useAsync(getProfile, {
     deps: [],
@@ -108,10 +105,7 @@ export default function SupervisorProfileCard({ session, onDuty }) {
       </div>
 
       <div className="relative mt-4 grid grid-cols-2 gap-x-4 gap-y-2.5 text-xs text-[#9AA1B4]">
-        <span className="flex items-center gap-1.5">
-          <ShiftIcon size={13} />{" "}
-          {isEvening ? t("emp.eveningShift") : t("emp.morningShift")}
-        </span>
+        <ShiftBadge shift={session.shift} />
         <span className="flex items-center gap-1.5">
           <BadgeCheck size={13} />{" "}
           {session.loginId || t("sup.staffIdNumber", { id: session.staffId })}

@@ -1,6 +1,7 @@
 import bcrypt from "bcryptjs";
 import { prisma } from "../lib/prisma.js";
 import { userIdTaken } from "../utils/accountIds.js";
+import { attachAttendanceState } from "../utils/employeeStatus.js";
 
 // GET /api/profile — returns whoever is currently logged in, staff or
 // employee. The frontend hits one endpoint regardless of role.
@@ -50,6 +51,12 @@ export async function getProfile(req, res, next) {
     });
     if (!employee) return res.status(404).json({ error: "Account not found" });
 
+    // Real, attendance-derived presence — see utils/employeeStatus.js.
+    // employmentStatus below is a separate HR flag (employed/on-leave/
+    // inactive) and must never be read by the frontend as "currently
+    // checked in"; attendanceState is the one honest answer to that.
+    const [withAttendance] = await attachAttendanceState([employee]);
+
     res.json({
       kind: "employee",
       id: employee.id,
@@ -85,6 +92,7 @@ export async function getProfile(req, res, next) {
       // self-view).
       operationalShift: employee.operationalShift,
       employmentStatus: employee.employmentStatus,
+      attendanceState: withAttendance.attendanceState,
       whatsappNumber: employee.whatsappNumber,
     });
   } catch (err) {

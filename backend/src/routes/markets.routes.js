@@ -9,6 +9,8 @@ import {
   deleteMarket,
   listAccessibleSupervisors,
   getAccessibleSupervisor,
+  moveMarketZone,
+  closeMarket,
 } from "../controllers/marketsController.js";
 import {
   getMarketOverview,
@@ -33,6 +35,7 @@ import {
   updateMarketSchema,
   assignMarketSupervisorSchema,
   assignMarketOverlookingSupervisorSchema,
+  moveMarketZoneSchema,
   rateMarketSchema,
   addMarketNoteSchema,
   sendMarketFeedbackSchema,
@@ -169,6 +172,30 @@ router.patch(
   requireOwnMarketOrElevated((req) => req.params.id),
   validateBody(assignMarketOverlookingSupervisorSchema),
   assignMarketOverlookingSupervisor
+);
+
+// Admin Market <-> Zone Management — moving a market to a different zone
+// is ADMIN-only (deliberately narrower than the ADMIN/REGIONAL_MANAGER
+// pattern every other market-mutation route above uses): the operation
+// can move a market OUT of a zone the acting Regional Manager manages
+// and INTO one they have no access to at all, which requireOwnMarketOrElevated
+// alone cannot express — see moveMarketZone's own comment.
+router.patch(
+  "/:id/zone",
+  requireStaffRole("ADMIN"),
+  validateBody(moveMarketZoneSchema),
+  moveMarketZone
+);
+
+// Closing a market keeps the same authorization level as the generic
+// PATCH /:id above (which already technically accepts status: "CLOSED")
+// — this is a dedicated, audited path for the same action, not a wider
+// permission.
+router.patch(
+  "/:id/close",
+  requireStaffRole("ADMIN", "REGIONAL_MANAGER"),
+  requireOwnMarketOrElevated((req) => req.params.id),
+  closeMarket
 );
 
 router.delete(

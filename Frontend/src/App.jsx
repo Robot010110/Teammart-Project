@@ -164,7 +164,10 @@ function AppRoutes() {
             marketId: profile.marketId,
             zoneId: profile.zoneId,
             marketName,
-            shift: isOverlooking ? "EVENING" : "MORNING",
+            // Overlooking Supervisor covers the market's later coverage —
+            // shown via the shared ShiftBadge (Shift System Cleanup: no
+            // "Evening" anymore, so this reads as NIGHT).
+            shift: isOverlooking ? "NIGHT" : "MORNING",
             // A translation KEY, not display text — the session outlives any
             // language switch, so resolving it here would freeze the title in
             // whatever language was active at login. SupervisorProfileCard

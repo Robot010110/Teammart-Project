@@ -133,6 +133,13 @@ export function trackActivity(id) {
 export function trackEmployee(id) {
   created.employees.push(id);
 }
+// Same reasoning as trackEmployee above — a Market created indirectly
+// through a real API call (e.g. POST /api/markets in a regression test)
+// rather than through makeMarket, so cleanup() still finds and deletes
+// it (and its zone, once no market references it).
+export function trackMarket(id) {
+  created.markets.push(id);
+}
 export function trackUser(id) {
   created.users.push(id);
 }
@@ -257,8 +264,41 @@ export async function cleanup() {
     // marketId with no cascade too.
     await prisma.itemReport.deleteMany({ where: { marketId: { in: created.markets } } }).catch(() => {});
     await prisma.priceReport.deleteMany({ where: { marketId: { in: created.markets } } }).catch(() => {});
+    // Zone Activities — WastedOverallReport also references marketId
+    // with no cascade; same orphan-chain class as MarketProblem/
+    // ItemReport/PriceReport above, just never swept before now because
+    // no earlier test file created one against a tracked market.
+    await prisma.wastedOverallReport.deleteMany({ where: { marketId: { in: created.markets } } }).catch(() => {});
+    // Product also references marketId with no cascade, and is itself
+    // referenced by ItemReport/Activity.productId — deleted last, after
+    // both of those sweeps above, for exactly that reason. Same orphan-
+    // chain class of bug, first triggered by Zone Activities' tests
+    // being the first to create a Product against a tracked market.
+    await prisma.product.deleteMany({ where: { marketId: { in: created.markets } } }).catch(() => {});
     await prisma.totalSalesReport.deleteMany({ where: { marketId: { in: created.markets } } }).catch(() => {});
     await prisma.cardSalesReport.deleteMany({ where: { marketId: { in: created.markets } } }).catch(() => {});
+  }
+  // AuditLog.marketId/zoneId/actorUserId are all real FKs with no
+  // cascade (see AuditLog's own schema comment) — same orphan-chain
+  // class of bug as MarketProblem/ItemReport/etc. above. Any test that
+  // records an audit row referencing a tracked market/zone/user (e.g.
+  // moveMarketZone/closeMarket/assignMarketSupervisor) silently blocks
+  // that Market/Zone/User deletion below, which then blocks the Zone
+  // deletion after it and leaves a fixed zone `number` permanently
+  // collided for every future run — exactly the failure this line
+  // fixes. AuditLog itself is genuinely append-only in the real app
+  // (see utils/audit.js), so this sweep only ever runs against test-
+  // tagged rows, never production data.
+  if (created.markets.length || created.zones.length || created.users.length) {
+    await prisma.auditLog.deleteMany({
+      where: {
+        OR: [
+          { marketId: { in: created.markets } },
+          { zoneId: { in: created.zones } },
+          { actorUserId: { in: created.users } },
+        ],
+      },
+    }).catch(() => {});
   }
   await prisma.employee.deleteMany({ where: { id: { in: created.employees } } }).catch(() => {});
   await prisma.market.deleteMany({ where: { id: { in: created.markets } } }).catch(() => {});

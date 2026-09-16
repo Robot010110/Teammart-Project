@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import {
   Search, Users, UserRound, ShieldCheck, Crown, HardHat, Wallet, Beef,
-  Store, Layers, Sunrise, Sunset, Moon, MoreVertical, UserPlus,
+  Store, Layers, MoreVertical, UserPlus,
   ChevronLeft, ChevronRight, Check, Loader2, KeyRound,
 } from "lucide-react";
 import { useAsync } from "../hooks/useAsync";
@@ -12,12 +12,14 @@ import { SkeletonCard } from "../components/common/SkeletonCard";
 import AdminKpiCard from "../components/admin/AdminKpiCard";
 import AuthenticatedImage from "../components/common/AuthenticatedImage";
 import Modal from "../components/common/Modal";
+import ShiftBadge from "../components/common/ShiftBadge";
 import AdminStaffActionsPanel from "./AdminStaffActionsPanel";
 import { listEmployees, createEmployee } from "../services/staffEmployeeService";
 import { listStaffAccounts, registerStaff } from "../services/authService";
 import { listMarkets } from "../services/marketService";
 import { ApiError } from "../services/apiClient";
 import { initialsOf } from "../utils/initials";
+import { EMPLOYEE_SHIFT_VALUES, SHIFT_META } from "../utils/shiftMeta";
 
 const PAGE_SIZE = 10;
 
@@ -37,10 +39,19 @@ const ROLE_META = {
   REGIONAL_MANAGER: { label: "roles.regionalManager", icon: Crown, tone: "text-[#FBBF24] bg-[#FBBF24]/15 ring-[#FBBF24]/35 shadow-[0_0_10px_-3px_rgba(251,191,36,0.7)]" },
 };
 
-const EMPLOYMENT_STATUS_META = {
+// The table's "Status" column for an employee row shows this — real,
+// attendance-derived presence (checked in / on break / not checked in
+// or checked out), never the employmentStatus HR flag above (which is
+// ACTIVE for almost every employed person regardless of whether they
+// showed up today — that conflation was the reported bug: the list
+// showed nearly everyone "Active" when only a handful had checked in).
+// employmentStatus is still used for the Status FILTER dropdown below,
+// a separate, legitimate "is this person currently employed / on leave"
+// admin concept that this fix does not touch.
+const ATTENDANCE_STATUS_META = {
   ACTIVE: { label: "status.active", tone: "bg-emerald-500/12 text-emerald-400 ring-emerald-500/30 shadow-[0_0_10px_-3px_rgba(52,211,153,0.6)]" },
-  ON_LEAVE: { label: "emp.onLeave", tone: "bg-amber-500/12 text-amber-400 ring-amber-500/30 shadow-[0_0_10px_-3px_rgba(251,191,36,0.6)]" },
-  INACTIVE: { label: "status.inactive", tone: "bg-red-500/12 text-red-400 ring-red-500/30 shadow-[0_0_10px_-3px_rgba(248,113,113,0.6)]" },
+  BREAK: { label: "status.onBreak", tone: "bg-violet-500/12 text-violet-400 ring-violet-500/30 shadow-[0_0_10px_-3px_rgba(167,139,250,0.6)]" },
+  NOT_ACTIVE: { label: "status.notActive", tone: "bg-red-500/12 text-red-400 ring-red-500/30 shadow-[0_0_10px_-3px_rgba(248,113,113,0.6)]" },
 };
 // Users don't share Employee's employmentStatus enum — accountStatus is
 // a different, real enum (ACTIVE/SUSPENDED/BANNED). Shown with the same
@@ -49,12 +60,6 @@ const ACCOUNT_STATUS_META = {
   ACTIVE: { label: "status.active", tone: "bg-emerald-500/12 text-emerald-400 ring-emerald-500/30 shadow-[0_0_10px_-3px_rgba(52,211,153,0.6)]" },
   SUSPENDED: { label: "admin.suspended", tone: "bg-amber-500/12 text-amber-400 ring-amber-500/30 shadow-[0_0_10px_-3px_rgba(251,191,36,0.6)]" },
   BANNED: { label: "admin.banned", tone: "bg-red-500/12 text-red-400 ring-red-500/30 shadow-[0_0_10px_-3px_rgba(248,113,113,0.6)]" },
-};
-
-const SHIFT_META = {
-  MORNING: { label: "emp.morning", icon: Sunrise },
-  EVENING: { label: "emp.evening", icon: Sunset },
-  NIGHT: { label: "emp.night", icon: Moon },
 };
 
 function useDebounced(value, delayMs) {
@@ -85,6 +90,7 @@ function shapeEmployee(e, marketById) {
     shift,
     statusKind: "employment",
     status: e.employmentStatus,
+    attendanceState: e.attendanceState ?? "NOT_ACTIVE",
     href: `/admin/employees/${e.id}`,
     raw: e,
   };
@@ -113,16 +119,8 @@ function shapeStaff(u) {
 }
 
 function ShiftCell({ shift }) {
-  const { t } = useTranslation();
   if (!shift) return <span className="text-[#5C6479]">—</span>;
-  const meta = SHIFT_META[shift];
-  if (!meta) return <span className="text-[#C4C9D6]">{shift}</span>; // legacy free-text value — shown as-is, not fabricated into an icon it doesn't have
-  const Icon = meta.icon;
-  return (
-    <span className="inline-flex items-center gap-1.5 text-[#C4C9D6]">
-      <Icon size={13} className="text-[#8B93A8]" /> {t(meta.label)}
-    </span>
-  );
+  return <ShiftBadge shift={shift} className="text-[#C4C9D6]" />;
 }
 
 // AdminPeoplePage.jsx — Admin → People, replacing AdminEmployeesPage.jsx
@@ -364,7 +362,13 @@ export default function AdminPeoplePage() {
                 {pageRows.map((r, i) => {
                   const roleMeta = ROLE_META[r.role];
                   const RoleIcon = roleMeta?.icon ?? UserRound;
-                  const statusMeta = (r.statusKind === "employment" ? EMPLOYMENT_STATUS_META : ACCOUNT_STATUS_META)[r.status];
+                  // Employee rows show real attendance presence; staff
+                  // rows show their real account status (ACTIVE/
+                  // SUSPENDED/BANNED) — accountStatus was never the bug,
+                  // it genuinely describes the account, not presence.
+                  const statusMeta =
+                    r.kind === "employee" ? ATTENDANCE_STATUS_META[r.attendanceState] : ACCOUNT_STATUS_META[r.status];
+                  const statusValue = r.kind === "employee" ? r.attendanceState : r.status;
                   const canViewProfile = !!r.href;
                   const canManageAccount = r.kind === "staff";
 
@@ -409,7 +413,7 @@ export default function AdminPeoplePage() {
                       <td className="px-4 py-3 text-[13px]"><ShiftCell shift={r.shift} /></td>
                       <td className="px-4 py-3">
                         <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold ring-1 ring-inset ${statusMeta?.tone ?? "bg-white/[0.06] text-[#9AA1B4] ring-white/10"}`}>
-                          <span className="h-1.5 w-1.5 rounded-full bg-current" /> {statusMeta?.label ? t(statusMeta.label) : r.status}
+                          <span className="h-1.5 w-1.5 rounded-full bg-current" /> {statusMeta?.label ? t(statusMeta.label) : statusValue}
                         </span>
                       </td>
                       <td className="px-4 py-3 text-end relative">
@@ -573,7 +577,7 @@ function AddPersonModal({ markets, onClose, onCreated }) {
         name: empForm.name.trim(),
         position: empForm.position.trim(),
         marketId: empForm.marketId,
-        shift: empForm.shift.trim() || undefined,
+        shift: empForm.shift || undefined,
       });
       setResult({ name: created.name, credentialLabel: t("settings.employeeId"), credentialValue: created.employeeCode, extra: `Temporary password: ${created.temporaryPassword}` });
     } catch (err) {
@@ -649,9 +653,14 @@ function AddPersonModal({ markets, onClose, onCreated }) {
           <input value={empForm.position} onChange={(e) => setEmpForm((f) => ({ ...f, position: e.target.value }))} placeholder={t("admin.positionEGShelfStocker")} required className={fieldClass} />
           <select value={empForm.marketId} onChange={(e) => setEmpForm((f) => ({ ...f, marketId: e.target.value }))} required className={fieldClass}>
             <option value="" disabled>{t("admin.selectAMarket")}</option>
-            {markets.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+            {/* A closed market is not an active operating market — never
+                offered as a destination for a brand-new hire. */}
+            {markets.filter((m) => m.status !== "CLOSED").map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
           </select>
-          <input value={empForm.shift} onChange={(e) => setEmpForm((f) => ({ ...f, shift: e.target.value }))} placeholder={t("admin.shiftOptionalEGMorning")} className={fieldClass} />
+          <select value={empForm.shift} onChange={(e) => setEmpForm((f) => ({ ...f, shift: e.target.value }))} className={fieldClass}>
+            <option value="">{t("admin.shiftOptionalEGMorning")}</option>
+            {EMPLOYEE_SHIFT_VALUES.map((s) => <option key={s} value={s}>{t(SHIFT_META[s].labelKey)}</option>)}
+          </select>
           <p className="text-[11px] text-[#6B7284]">
             {t("admin.createsAWorkerWithAGenerated")}
           </p>

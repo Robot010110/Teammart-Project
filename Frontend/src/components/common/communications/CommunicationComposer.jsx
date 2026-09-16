@@ -23,8 +23,7 @@ import { DEPARTMENTS } from "../../../utils/departments";
 //
 // Every option this shows for role/department/market/zone comes from
 // either the fixed backend enum values (Type/Category/Priority/Role —
-// same as this app already hardcodes SHIFTS=[MORNING,EVENING,NIGHT]
-// elsewhere; these are protocol values, not organizational data) or a
+// these are protocol values, not organizational data) or a
 // real backend query (Zones/Markets/Departments) — never an invented
 // list. Frontend filtering here is UX only; every one of these is
 // re-validated server-side on preview AND send (communicationTargeting.js).

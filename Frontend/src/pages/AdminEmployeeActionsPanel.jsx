@@ -9,6 +9,7 @@ import { listMarkets } from "../services/marketService";
 import {
   promoteEmployeeToStaff, resetEmployeePassword, setEmployeeAccountStatus,
 } from "../services/adminService";
+import { EMPLOYEE_SHIFT_VALUES, SHIFT_META } from "../utils/shiftMeta";
 
 const inputClass =
   "w-full rounded-lg bg-white/[0.04] border border-white/[0.06] px-3 py-2.5 text-sm text-white placeholder:text-[#4C5266] outline-none focus:border-[#F47A20]/50";
@@ -152,7 +153,10 @@ function PromoteModal({ employee, onClose, onDone }) {
                 <label className="block text-xs uppercase tracking-wide text-[#8B93A8] mb-1.5">{t("sup.market")}</label>
                 <select value={marketId} onChange={(e) => setMarketId(e.target.value)} className={selectClass}>
                   <option value="">{t("admin.selectAMarket")}</option>
-                  {(markets ?? []).map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+                  {/* A closed market is not an active operating market —
+                      never offered for a new Supervisor/Overlooking
+                      assignment. */}
+                  {(markets ?? []).filter((m) => m.status !== "CLOSED").map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
                 </select>
               </div>
             )}
@@ -211,21 +215,12 @@ function AssignmentModal({ employee, onClose, onDone }) {
   const { data: markets } = useAsync(listMarkets, { deps: [] });
   const [marketId, setMarketId] = useState(employee.marketId);
   const isCashier = employee.role === "CASHIER";
-  // Cashier shift is a real backend enum with no NIGHT value at all
-  // (Cashiers are never on a Night shift — see Employee.cashierShift's
-  // own schema comment), so its option set is deliberately narrower
-  // than the Worker/Butcher one below.
-  const shiftOptions = isCashier
-    ? [
-        { value: "MORNING", label: t("emp.morningShift") },
-        { value: "EVENING", label: t("emp.eveningShift") },
-      ]
-    : [
-        { value: "Morning Shift", label: t("emp.morningShift") },
-        { value: "Afternoon Shift", label: t("sup.afternoonShift") },
-        { value: "Night Shift", label: t("emp.nightShift") },
-      ];
-  const currentShift = employee.shift ?? employee.cashierShift ?? "";
+  // Shift System Cleanup — one canonical option set (MORNING/AFTERNOON/
+  // NIGHT, see shiftMeta.js), same for Worker and Cashier now. Worker and
+  // Cashier still write to different backend fields (shift vs.
+  // cashierShift below), but the value set and labels are identical.
+  const shiftOptions = EMPLOYEE_SHIFT_VALUES.map((value) => ({ value, labelKey: SHIFT_META[value].labelKey }));
+  const currentShift = (isCashier ? employee.cashierShift : employee.shift) ?? "";
   const [shift, setShift] = useState(currentShift);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
@@ -251,13 +246,20 @@ function AssignmentModal({ employee, onClose, onDone }) {
         <div>
           <label className="block text-xs uppercase tracking-wide text-[#8B93A8] mb-1.5">{t("sup.market")}</label>
           <select value={marketId} onChange={(e) => setMarketId(e.target.value)} className={selectClass}>
-            {(markets ?? []).map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+            {/* A closed market is not offered as a NEW destination — but
+                if the employee's own current market has since closed,
+                it still needs to render as the selected option here, or
+                this select would silently show the wrong value. */}
+            {(markets ?? [])
+              .filter((m) => m.status !== "CLOSED" || m.id === employee.marketId)
+              .map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
           </select>
         </div>
         <div>
           <label className="block text-xs uppercase tracking-wide text-[#8B93A8] mb-1.5">{t("emp.shift")}</label>
           <select value={shift} onChange={(e) => setShift(e.target.value)} className={selectClass}>
-            {shiftOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+            <option value="">{t("emp.notAssigned")}</option>
+            {shiftOptions.map((o) => <option key={o.value} value={o.value}>{t(o.labelKey)}</option>)}
           </select>
         </div>
         <ErrorText error={error} />

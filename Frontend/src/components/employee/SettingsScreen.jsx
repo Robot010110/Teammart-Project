@@ -1,4 +1,4 @@
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { ArrowLeft, User, Bell, Globe, LogOut, ChevronRight } from "lucide-react";
 import { useAsync } from "../../hooks/useAsync";
@@ -34,10 +34,19 @@ const ENTRIES = [
   { key: "language", icon: Globe, title: "settings.language", sub: "settings.languageSub", lead: "settings.languageLead" },
 ];
 
-export default function SettingsScreen({ onBack, onLogout }) {
+// `extraEntries` — role-specific rows appended after the three shared
+// ones above (default empty, so Employee/Supervisor/Admin Settings and
+// RM's own account/notifications/language entries are all byte-for-byte
+// unchanged). An entry with a `to` navigates to a real route instead of
+// opening the ?section= in-page panel the other three use — for a full
+// destination page (e.g. Regional Manager's Zone Activities), not a
+// settings toggle.
+export default function SettingsScreen({ onBack, onLogout, extraEntries = [] }) {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
   const section = params.get("section");
+  const allEntries = [...ENTRIES, ...extraEntries];
 
   const { data: profile, loading, setData } = useAsync(getProfile, { deps: [] });
 
@@ -109,11 +118,11 @@ export default function SettingsScreen({ onBack, onLogout }) {
       <h1 className="mb-4 font-display text-[22px] font-bold text-white">{t("settings.title")}</h1>
 
       <div className="space-y-2.5">
-        {ENTRIES.map(({ key, icon: Icon, title, sub }) => (
+        {allEntries.map(({ key, icon: Icon, title, sub, to }) => (
           <button
             key={key}
             type="button"
-            onClick={() => openSection(key)}
+            onClick={() => (to ? navigate(to) : openSection(key))}
             className="flex w-full items-center gap-3 rounded-2xl border border-white/[0.07] bg-[#111A2D]/80 p-3.5 text-start backdrop-blur-xl transition-all duration-200 hover:border-[#F47A20]/30 hover:bg-[#131E33]/90 active:scale-[0.99]"
           >
             <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#F47A20]/10 text-[#F47A20] ring-1 ring-inset ring-[#F47A20]/20">

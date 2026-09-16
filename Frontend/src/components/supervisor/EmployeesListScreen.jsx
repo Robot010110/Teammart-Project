@@ -8,14 +8,29 @@ import AuthenticatedImage from "../common/AuthenticatedImage";
 import { SkeletonCard } from "../common/SkeletonCard";
 import { listEmployeesByMarket } from "../../services/staffEmployeeService";
 import { initialsOf } from "../../utils/initials";
+import ShiftBadge from "../common/ShiftBadge";
 
 const ROLE_LABEL = { WORKER: "roles.worker", CASHIER: "roles.cashier", BUTCHER: "sup.butcher" };
-const STATUS_TONE = { ACTIVE: "text-emerald-400", INACTIVE: "text-[#9AA1B4]", ON_LEAVE: "text-amber-400" };
-const STATUS_LABEL = { ACTIVE: "status.active", INACTIVE: "status.inactive", ON_LEAVE: "emp.onLeave" };
+
+// Real, attendance-derived presence — NOT the employmentStatus HR flag
+// (which is ACTIVE for virtually every currently-employed person
+// regardless of whether they've checked in today). `e.attendanceState`
+// comes straight from the backend's getEmployeeAttendanceStatus-style
+// derivation (see employeesController.listEmployees /
+// utils/employeeStatus.js attachAttendanceState) — ACTIVE only for a
+// genuine open check-in, BREAK while on an active break, NOT_ACTIVE for
+// everything else (never checked in today, or already checked out).
+const ATTENDANCE_TONE = { ACTIVE: "text-emerald-400", BREAK: "text-violet-400", NOT_ACTIVE: "text-red-400" };
+const ATTENDANCE_LABEL = { ACTIVE: "status.active", BREAK: "status.onBreak", NOT_ACTIVE: "status.notActive" };
 
 function EmployeeCard({ e, onOpen }) {
   const { t } = useTranslation();
   const userId = e.employeeCode || e.username;
+  // Worker uses `shift`, Cashier uses `cashierShift` — both the same
+  // canonical EmployeeShift value (MORNING/AFTERNOON/NIGHT) since the
+  // Shift System Cleanup; ShiftBadge renders it as [icon] [label],
+  // never as raw text, matching the presentation used everywhere else.
+  const shift = e.shift ?? e.cashierShift ?? null;
   return (
     <button
       type="button"
@@ -31,19 +46,24 @@ function EmployeeCard({ e, onOpen }) {
       </div>
       <div className="min-w-0 flex-1">
         <p className="text-sm font-medium text-white truncate">{e.name}</p>
-        {/* Role comes from the EmployeeRole enum, so it translates; `shift`
-            and `department` are free-text columns an admin typed in, so they
-            render as stored — the same way a person's name does. */}
-        <p className="text-xs text-[#8B93A8] truncate">
-          {[ROLE_LABEL[e.role] ? t(ROLE_LABEL[e.role]) : e.position, e.shift, e.department].filter(Boolean).join(" · ")}
+        {/* Role comes from the EmployeeRole enum, so it translates;
+            `department` is a free-text column an admin typed in, so it
+            renders as stored — the same way a person's name does. */}
+        <p className="flex items-center gap-1.5 text-xs text-[#8B93A8] truncate">
+          <span className="truncate">{ROLE_LABEL[e.role] ? t(ROLE_LABEL[e.role]) : e.position}</span>
+          {shift && <span className="text-[#3A4155]">·</span>}
+          {shift && <ShiftBadge shift={shift} size={11} />}
+          {e.department && <span className="text-[#3A4155]">·</span>}
+          {e.department && <span className="truncate">{e.department}</span>}
         </p>
         <div className="flex items-center gap-2 mt-1">
           {userId && <span className="text-[10px] font-mono text-[#4C5266]">#{userId}</span>}
           {!e.employeeCode && !e.username ? (
             <span className="text-[10px] font-medium text-amber-400">{t("sup.pendingLogin")}</span>
           ) : (
-            <span className={`text-[10px] font-medium ${STATUS_TONE[e.employmentStatus] || "text-[#9AA1B4]"}`}>
-              {STATUS_LABEL[e.employmentStatus] ? t(STATUS_LABEL[e.employmentStatus]) : e.employmentStatus}
+            <span className={`inline-flex items-center gap-1 text-[10px] font-medium ${ATTENDANCE_TONE[e.attendanceState] || "text-[#9AA1B4]"}`}>
+              <span className={`h-1.5 w-1.5 rounded-full bg-current`} />
+              {ATTENDANCE_LABEL[e.attendanceState] ? t(ATTENDANCE_LABEL[e.attendanceState]) : t("status.notActive")}
             </span>
           )}
         </div>

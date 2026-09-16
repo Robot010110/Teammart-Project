@@ -14,11 +14,21 @@ import { recordAudit } from "../utils/audit.js";
 // group" query; correctness over a premature aggregation here.
 export async function listMarkets(req, res, next) {
   try {
-    let where;
+    let where = {};
     if (req.user.role === "REGIONAL_MANAGER") {
-      where = { zoneId: { in: req.user.zoneIds } };
+      where.zoneId = { in: req.user.zoneIds };
     } else if (req.user.role === "SUPERVISOR") {
-      where = { id: req.user.marketId };
+      where.id = req.user.marketId;
+    }
+    // Admin Market <-> Zone Management — an opt-in filter for the callers
+    // that specifically need "active operating markets only" (a new-
+    // employee/reassignment market picker), so a closed market is never
+    // offered as a destination for a new operational assignment (spec
+    // §7). Every other existing caller (reports, filters, the Zones &
+    // Markets management view itself) keeps seeing every market exactly
+    // as before — this parameter is additive and opt-in, default off.
+    if (req.query.excludeClosed === "true") {
+      where.status = { not: "CLOSED" };
     }
 
     const markets = await prisma.market.findMany({
@@ -261,6 +271,104 @@ export async function deleteMarket(req, res, next) {
   try {
     await prisma.market.delete({ where: { id: req.params.id } });
     res.status(204).send();
+  } catch (err) {
+    next(err);
+  }
+}
+
+// PATCH /api/markets/:id/zone — Admin Market <-> Zone Management,
+// ADMIN-only (route-gated — a move can cross into a zone the acting
+// Regional Manager has no access to, so this is deliberately NOT opened
+// up to REGIONAL_MANAGER the way updateMarket/assignMarketSupervisor
+// are).
+//
+// This changes exactly one column: Market.zoneId. Nothing else needs to
+// move. Every existing scope check in this app already derives
+// Regional-Manager/organizational access from a LIVE join against
+// Market.zoneId at request time (employeesController.listEmployees,
+// staffCanAccessMarket, dashboardController, chatController, etc. — see
+// this feature's own audit) rather than caching a zone id anywhere on
+// Employee or on a staff session/JWT. So updating this one field is
+// both correct and sufficient: every one of those queries re-resolves
+// against the market's new zone on its very next request, with no
+// token invalidation, no Employee rewrite, and no second "which zone is
+// this employee really in" concept to keep in sync — reusing the
+// existing single source of truth instead of duplicating it (spec: "If
+// zone membership is derived from Market -> Zone, prefer changing the
+// single source relationship rather than rewriting every employee's
+// zone").
+export async function moveMarketZone(req, res, next) {
+  try {
+    const { zoneId } = req.body;
+
+    const market = await prisma.market.findUnique({ where: { id: req.params.id } });
+    if (!market) return res.status(404).json({ error: "Market not found" });
+
+    const destinationZone = await prisma.zone.findUnique({ where: { id: zoneId } });
+    if (!destinationZone) return res.status(400).json({ error: "zoneId does not refer to an existing zone" });
+
+    if (market.zoneId === zoneId) {
+      return res.status(400).json({ error: "This market is already in that zone" });
+    }
+
+    const updated = await prisma.$transaction(async (tx) => {
+      const result = await tx.market.update({ where: { id: market.id }, data: { zoneId } });
+      await recordAudit({
+        tx,
+        actorUserId: req.user.userId, action: "MARKET_ZONE_CHANGED", targetType: "Market", targetId: market.id,
+        marketId: market.id, zoneId,
+        previousValue: { zoneId: market.zoneId }, newValue: { zoneId },
+      });
+      return result;
+    });
+
+    res.json(updated);
+  } catch (err) {
+    next(err);
+  }
+}
+
+// PATCH /api/markets/:id/close — Admin Market <-> Zone Management, ADMIN
+// or the owning REGIONAL_MANAGER (same authorization level as the
+// generic updateMarket, which already technically accepts
+// status: "CLOSED" through its own schema — this is the same real
+// change through a dedicated, auditable, idempotency-checked endpoint
+// rather than a bare field edit, matching the pattern
+// assignMarketSupervisor/assignMarketOverlookingSupervisor already
+// established for "give this specific organizational action its own
+// audited endpoint").
+//
+// Deliberately does NOT touch employees, the market's supervisor/
+// overlooking-supervisor assignment, or any historical record — a
+// closed market keeps every existing relationship exactly as it was
+// (spec §6-8: employees remain attached to their market historically;
+// this app has no existing "reassign on closure" rule to reuse, and
+// inventing one here would be exactly the "dangerous migration" the
+// spec says to avoid). Market.status already drives "is this an active
+// operating market" everywhere this feature adds that check (see
+// listMarkets' `excludeClosed` and the frontend's active-market
+// pickers) — no new status/field was needed.
+export async function closeMarket(req, res, next) {
+  try {
+    const market = await prisma.market.findUnique({ where: { id: req.params.id } });
+    if (!market) return res.status(404).json({ error: "Market not found" });
+
+    if (market.status === "CLOSED") {
+      return res.status(400).json({ error: "This market is already closed" });
+    }
+
+    const updated = await prisma.$transaction(async (tx) => {
+      const result = await tx.market.update({ where: { id: market.id }, data: { status: "CLOSED" } });
+      await recordAudit({
+        tx,
+        actorUserId: req.user.userId, action: "MARKET_STATUS_CHANGED", targetType: "Market", targetId: market.id,
+        marketId: market.id,
+        previousValue: { status: market.status }, newValue: { status: "CLOSED" },
+      });
+      return result;
+    });
+
+    res.json(updated);
   } catch (err) {
     next(err);
   }

@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate, useNavigate, useParams } from "react-router-dom";
+import { Routes, Route, Navigate, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { Home, Store, Users, MessageCircle, Settings as SettingsIcon, Activity } from "lucide-react";
 import AppShell from "../components/employee/AppShell";
@@ -23,6 +23,10 @@ import RmChatPage from "./RmChatPage";
 import RmTotalSalesPage from "./RmTotalSalesPage";
 import RmCardSalesPage from "./RmCardSalesPage";
 import RmSettingsPage from "./RmSettingsPage";
+import RmZoneActivitiesPage from "./RmZoneActivitiesPage";
+import RmZoneActivityCategoryPage from "./RmZoneActivityCategoryPage";
+import RmDepartmentClosingMarketsPage from "./RmDepartmentClosingMarketsPage";
+import RmDepartmentClosingMarketPage from "./RmDepartmentClosingMarketPage";
 import CommunicationHistoryScreen from "../components/common/communications/CommunicationHistoryScreen";
 import CommunicationComposer from "../components/common/communications/CommunicationComposer";
 
@@ -100,6 +104,10 @@ export default function RegionalManagerWorkspace({ session, onLogout }) {
         <Route path="chat" element={<RmChatPage session={session} />} />
         <Route path="chat/:conversationId" element={<RmChatPage session={session} />} />
         <Route path="settings" element={<RmSettingsPage onLogout={onLogout} />} />
+        <Route path="zone-activities" element={<RmZoneActivitiesRoute />} />
+        <Route path="zone-activities/department-closing/markets" element={<RmDepartmentClosingMarketsRoute />} />
+        <Route path="zone-activities/department-closing/markets/:marketId" element={<RmDepartmentClosingMarketRoute />} />
+        <Route path="zone-activities/:category" element={<RmZoneActivityCategoryRoute />} />
         <Route path="*" element={<Navigate to="profile" replace />} />
       </Route>
     </Routes>
@@ -116,6 +124,65 @@ function RmAttentionRoute({ session }) {
 function RmExpiredItemsRoute() {
   const navigate = useNavigate();
   return <RmExpiredItemsPage onBack={() => navigate(`${BASE_PATH}/profile`)} />;
+}
+
+// Zone Activities — reached from Settings, not a bottom-nav tab. Same
+// "no marketId/zoneId passed" rule as every other zone-wide screen; the
+// selected period travels to the category page via ?period= so switching
+// period there, then going Back, doesn't silently reset to Today.
+function RmZoneActivitiesRoute() {
+  const navigate = useNavigate();
+  return (
+    <RmZoneActivitiesPage
+      onBack={() => navigate(`${BASE_PATH}/settings`)}
+      onOpenCategory={(category, period) => navigate(`${BASE_PATH}/zone-activities/${category}?period=${period}`)}
+      onOpenDepartmentClosing={(period) => navigate(`${BASE_PATH}/zone-activities/department-closing/markets?period=${period}`)}
+    />
+  );
+}
+
+function RmZoneActivityCategoryRoute() {
+  const { category } = useParams();
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  return (
+    <RmZoneActivityCategoryPage
+      category={category}
+      initialPeriod={searchParams.get("period") ?? "today"}
+      onBack={() => navigate(`${BASE_PATH}/zone-activities`)}
+    />
+  );
+}
+
+// Department Closing's own dedicated Page 2/Page 3 routes — see
+// RmZoneActivitiesPage.jsx's openTile() for why this bypasses the generic
+// zone-activities/:category list. Same "no zoneId/marketId passed, period
+// travels via ?period=" convention as the rest of Zone Activities.
+function RmDepartmentClosingMarketsRoute() {
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  return (
+    <RmDepartmentClosingMarketsPage
+      initialPeriod={searchParams.get("period") ?? "today"}
+      onBack={() => navigate(`${BASE_PATH}/zone-activities`)}
+      onOpenMarket={(marketId, period) =>
+        navigate(`${BASE_PATH}/zone-activities/department-closing/markets/${marketId}?period=${period}`)
+      }
+    />
+  );
+}
+
+function RmDepartmentClosingMarketRoute() {
+  const { marketId } = useParams();
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  return (
+    <RmDepartmentClosingMarketPage
+      marketId={marketId}
+      initialPeriod={searchParams.get("period") ?? "today"}
+      onBack={() => navigate(`${BASE_PATH}/zone-activities/department-closing/markets?period=${searchParams.get("period") ?? "today"}`)}
+    />
+  );
 }
 
 function RmMarketOverviewRoute() {
