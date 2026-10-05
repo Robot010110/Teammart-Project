@@ -179,7 +179,7 @@ async function main() {
           name: "Shalaw Naji",
           passwordHash: employeePasswordHash,
           position: "Cashier",
-          shift: "Morning Shift",
+          shift: "MORNING",
           marketId: qushtapa1.id,
         },
       });
@@ -193,7 +193,7 @@ async function main() {
       passwordHash: employeePasswordHash,
       position: "Worker",
       secondaryRole: "Assistant",
-      shift: "Afternoon Shift",
+      shift: "AFTERNOON",
       marketId: qushtapa1.id,
     },
   });
@@ -226,7 +226,7 @@ async function main() {
       passwordHash: cashierPasswordHash,
       position: "Cashier",
       role: "CASHIER",
-      cashierShift: "EVENING",
+      cashierShift: "NIGHT",
       department: "Cashier",
       employmentStatus: "ACTIVE",
       whatsappNumber: "9647509876543",
@@ -262,7 +262,7 @@ async function main() {
       name: "Soran Tahseen",
       passwordHash: soranPasswordHash,
       position: "Worker",
-      shift: "Morning",
+      shift: "MORNING",
       employmentStatus: "ACTIVE",
       marketId: qushtapa1.id,
     },
@@ -283,7 +283,7 @@ async function main() {
       passwordHash: rahandPasswordHash,
       position: "Cashier",
       role: "CASHIER",
-      cashierShift: "EVENING",
+      cashierShift: "NIGHT",
       username: "em148",
       employmentStatus: "ACTIVE",
       marketId: qushtapa2.id,
@@ -305,7 +305,7 @@ async function main() {
       passwordHash: raminPasswordHash,
       position: "Cashier",
       role: "CASHIER",
-      shift: "Night",
+      shift: "NIGHT",
       username: "em144",
       employmentStatus: "ACTIVE",
       marketId: qushtapa2.id,
@@ -322,7 +322,7 @@ async function main() {
     const existing = await prisma.employee.findFirst({ where: { name, marketId: qushtapa2.id, employeeCode: null } });
     if (!existing) {
       await prisma.employee.create({
-        data: { name, position: "Worker", shift: "Evening", employmentStatus: "ACTIVE", marketId: qushtapa2.id },
+        data: { name, position: "Worker", shift: "NIGHT", employmentStatus: "ACTIVE", marketId: qushtapa2.id },
       });
     }
   }
