@@ -1,0 +1,88 @@
+# Render Blueprint for TeamMart
+# -----------------------------
+# One "Apply" provisions all three pieces on Render's free tier:
+#   - teammart-db   a managed PostgreSQL database
+#   - teammart-api  the Express + Prisma API (this repo's backend/)
+#   - teammart-web  the static React build (this repo's Frontend/)
+#
+# How to deploy (see DEPLOY.md for the click-by-click version):
+#   1. Push this repo to GitHub (already done for this branch).
+#   2. On https://render.com -> New -> Blueprint, pick this repo/branch.
+#      Render reads this file and creates everything.
+#   3. ONE manual step afterwards: the frontend bakes the API URL in at
+#      BUILD time, so it can't be wired automatically. Once teammart-api
+#      is live, copy its URL and set VITE_API_URL on teammart-web to
+#      "<that-url>/api", then redeploy teammart-web. That's it.
+#
+# Spec: https://render.com/docs/blueprint-spec
+
+databases:
+  - name: teammart-db
+    plan: free              # Render's free Postgres — fine for testing
+
+services:
+  # ---- Backend API (Express + Prisma) --------------------------------
+  - type: web
+    name: teammart-api
+    runtime: node
+    plan: free              # free web services cold-start after ~15 min idle
+    rootDir: backend
+    # --include=dev: the service runs with NODE_ENV=production (below),
+    # which would otherwise make `npm install` skip the Prisma CLI
+    # (a devDependency) that the next two commands need. migrate deploy
+    # applies existing migrations; prisma:seed loads the demo accounts.
+    buildCommand: npm install --include=dev && npx prisma generate && npx prisma migrate deploy && npm run prisma:seed
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: teammart-db
+          property: connectionString
+      # `prisma migrate deploy` never connects to the shadow database, but
+      # schema.prisma declares shadowDatabaseUrl via env(), so the variable
+      # must exist for the CLI to parse the schema. Pointing it at the same
+      # database is safe precisely because deploy never touches it.
+      - key: SHADOW_DATABASE_URL
+        fromDatabase:
+          name: teammart-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true          # Render generates a strong random value
+      - key: NODE_ENV
+        value: production
+      # CORS_ORIGIN is intentionally left unset -> the API allows any
+      # origin. This app authenticates with Bearer tokens, not cookies, so
+      # allow-all CORS carries no CSRF/ambient-credential risk. To lock it
+      # down later, add CORS_ORIGIN = the teammart-web URL.
+      # PUBLIC_BASE_URL is also left unset -> uploaded-file URLs fall back
+      # to the request's own https host, which is correct behind Render's
+      # proxy (the app already sets `trust proxy` to 1).
+
+  # ---- Frontend (static React build) ---------------------------------
+  # A static site, NOT served through the API, so the API's helmet() CSP
+  # never applies to the app shell (that CSP would block the blob:/data:
+  # image previews the UI relies on). This mirrors how the app already
+  # runs in development: Vite serves the frontend, Express serves the API.
+  - type: web
+    name: teammart-web
+    runtime: static
+    rootDir: Frontend
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
+    # SPA fallback: React Router owns client-side routing, so every path
+    # that isn't a real asset must return index.html.
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      # Set this AFTER the first deploy to the live API URL + "/api"
+      # (e.g. https://teammart-api-xxxx.onrender.com/api), then redeploy.
+      # It's build-time only, which is why it can't be auto-wired here.
+      - key: VITE_API_URL
+        sync: false
