@@ -161,21 +161,32 @@ const buildWorld = (st: Structure) => {
     return { e, mesh, mat, geo, per: radial * 6, n: st.nodes[e.to] };
   });
 
-  // The task packet with a comet tail.
+  // The task packet: a comet of light. Soft additive sprites rather than
+  // spheres, so it stays a glow (not a flat disc) when it passes the lens.
+  const glowTex = (() => {
+    const c = document.createElement('canvas');
+    c.width = c.height = 128;
+    const g = c.getContext('2d')!;
+    const grad = g.createRadialGradient(64, 64, 0, 64, 64, 64);
+    grad.addColorStop(0, 'rgba(255,255,255,1)');
+    grad.addColorStop(0.18, 'rgba(255,255,255,0.75)');
+    grad.addColorStop(0.45, 'rgba(255,255,255,0.18)');
+    grad.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = grad;
+    g.fillRect(0, 0, 128, 128);
+    return new THREE.CanvasTexture(c);
+  })();
+  const glow = (color: string, k: number) =>
+    new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color: hdr(color, k), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
   const packet = new THREE.Group();
-  const pCore = new THREE.Mesh(new THREE.SphereGeometry(0.13, 24, 12), new THREE.MeshBasicMaterial({ color: hdr('#FFFFFF', 4) }));
-  const pHalo = new THREE.Mesh(
-    new THREE.SphereGeometry(0.28, 24, 12),
-    new THREE.MeshBasicMaterial({ color: hdr(blue, 1.6), transparent: true, opacity: 0.28, depthWrite: false, blending: THREE.AdditiveBlending }),
-  );
-  packet.add(pCore, pHalo);
+  const pCore = glow('#FFFFFF', 7);
+  pCore.scale.setScalar(0.6);
+  const pHalo = glow(blue, 2.2);
+  pHalo.scale.setScalar(1.9);
+  packet.add(pHalo, pCore);
   root.add(packet);
-  // Dense enough that, with motion blur, the beads merge into one streak.
   const tail = Array.from({ length: 22 }, () => {
-    const m = new THREE.Mesh(
-      new THREE.SphereGeometry(0.085, 12, 8),
-      new THREE.MeshBasicMaterial({ color: hdr('#9BB3FF', 2.2), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }),
-    );
+    const m = glow('#9BB3FF', 3);
     root.add(m);
     return m;
   });
@@ -242,8 +253,8 @@ const buildWorld = (st: Structure) => {
       if (q) {
         m.position.set(q.pos[0], q.pos[1] + 0.12, q.pos[2]);
         const k = 1 - i / tail.length;
-        m.scale.setScalar(Math.max(0.0001, k * q.on));
-        m.material.opacity = 0.6 * k * q.on;
+        m.scale.setScalar(Math.max(0.0001, 0.42 * k * q.on));
+        m.material.opacity = 0.7 * k * q.on;
       }
     });
 
