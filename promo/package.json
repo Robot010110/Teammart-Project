@@ -1,0 +1,32 @@
+{
+  "name": "teammart-promo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "40-second TeamMart motion graphic promo, built with Remotion (16:9 master + 9:16 vertical).",
+  "scripts": {
+    "dev": "remotion studio",
+    "render": "remotion render TeamMartPromo out/teammart-promo-16x9.mp4",
+    "render:vertical": "remotion render TeamMartPromoVertical out/teammart-promo-9x16.mp4",
+    "render:all": "npm run render && npm run render:vertical",
+    "render:web": "remotion render TeamMartPromo out/teammart-promo-16x9-web.mp4 --crf=23 && remotion render TeamMartPromoVertical out/teammart-promo-9x16-web.mp4 --crf=23",
+    "render:draft": "remotion render TeamMartPromo out/teammart-promo-draft.mp4 --scale=0.5 --crf=28",
+    "stills": "node scripts/render-stills.mjs",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@remotion/cli": "4.0.527",
+    "@remotion/fonts": "4.0.527",
+    "@remotion/noise": "4.0.527",
+    "@remotion/paths": "4.0.527",
+    "lucide-react": "0.383.0",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "remotion": "4.0.527"
+  },
+  "devDependencies": {
+    "@remotion/bundler": "4.0.527",
+    "@remotion/renderer": "4.0.527",
+    "@types/react": "18.3.31",
+    "typescript": "5.9.3"
+  }
+}
