@@ -1,22 +1,90 @@
 import React from 'react';
 import { AbsoluteFill, Img, staticFile } from 'remotion';
 import { Camera, ClipboardList, Crown, ShieldCheck, UserRound } from 'lucide-react';
-import { COLORS, COPY, SCREENS } from '../../config';
+import { COLORS, SCREENS } from '../../config';
 import { BrowserFrame, Phone, PHONE } from '../../components/Devices';
 import { Glass } from '../../components/Glass';
 import { MotionBlur } from '../../components/MotionBlur';
+import { useAsset, useCopy, useLang } from '../../i18n/copy';
 import { FONT_STACK } from '../../lib/fonts';
 import { EASE, mix, ramp, sp, SPRING } from '../../lib/motion';
-import { sceneClock, SCENES, useAbsoluteFrame } from '../../lib/timing';
-import { alpha, useLayout } from '../../lib/util';
+import { sceneClock, SCENES, useAbsoluteFrame, useFrameStep } from '../../lib/timing';
+import { alpha, useLayout, type LayoutMode } from '../../lib/util';
 import { BarsCard, ChartCard, DashHeader, FeedCard, KpiCard, RingsCard } from './Panels';
+
+type PanelKind = 'chart' | 'rings' | 'bars' | 'feed';
+/** [panel, width (0 = fill the rest of the row), height] */
+type Cell = [PanelKind, number, number];
+
+type DashLayout = {
+  FW: number;
+  FH: number;
+  pad: number;
+  gap: number;
+  titleSize: number;
+  kpiCols: number;
+  kpiH: number;
+  rows: Cell[][];
+  ringSize: number;
+  compact: boolean;
+};
+
+/**
+ * One grid per format. 16:9 is the reference; 9:16 stacks every panel;
+ * 1:1 keeps two columns but swaps the rings and the feed so the live feed
+ * sits next to the chart, where the eye already is.
+ */
+const DASH: Record<LayoutMode, DashLayout> = {
+  landscape: {
+    FW: 1640,
+    FH: 900,
+    pad: 30,
+    gap: 20,
+    titleSize: 34,
+    kpiCols: 4,
+    kpiH: 140,
+    rows: [
+      [['chart', 960, 320], ['rings', 0, 320]],
+      [['bars', 960, 284], ['feed', 0, 284]],
+    ],
+    ringSize: 136,
+    compact: false,
+  },
+  portrait: {
+    FW: 980,
+    FH: 1576,
+    pad: 30,
+    gap: 20,
+    titleSize: 32,
+    kpiCols: 2,
+    kpiH: 132,
+    rows: [[['chart', 0, 290]], [['rings', 0, 214]], [['bars', 0, 262]], [['feed', 0, 300]]],
+    ringSize: 118,
+    compact: false,
+  },
+  square: {
+    FW: 1000,
+    FH: 922,
+    pad: 26,
+    gap: 18,
+    titleSize: 30,
+    kpiCols: 4,
+    kpiH: 118,
+    rows: [
+      [['chart', 590, 330], ['feed', 0, 330]],
+      [['bars', 590, 300], ['rings', 0, 300]],
+    ],
+    ringSize: 80,
+    compact: true,
+  },
+};
 
 /**
  * S5 DASHBOARD (0:27–0:35) and the hand-off into S6.
  *
  *  5A  glass dashboard settles in as the graph falls away behind it
  *  5B  panels assemble on unique, staggered clocks (counters, line, rings, bars, feed)
- *  5C  live beat: the approved task from S4 lands in the feed, a KPI pops +1
+ *  5C  live beat: the task approved in S4 lands in the feed, a KPI pops +1
  *  5D  pull back; a light sweep materialises the REAL TeamMart admin dashboard
  *  5E  three phones with REAL screens fly in from depth (RM, Supervisor, Employee)
  *  6A  (in S6 time) devices converge on the center and fall out of focus
@@ -26,7 +94,11 @@ import { BarsCard, ChartCard, DashHeader, FeedCard, KpiCard, RingsCard } from '.
  */
 export const DashboardScene: React.FC = () => {
   const F = useAbsoluteFrame();
-  const { cx, cy, vertical } = useLayout();
+  const step = useFrameStep();
+  const { cx, cy, mode, pick } = useLayout();
+  const copy = useCopy();
+  const { rtl } = useLang();
+  const asset = useAsset();
   const d = sceneClock('dashboard', F);
   const c6 = sceneClock('close', F);
   const D0 = d.range.start;
@@ -48,8 +120,8 @@ export const DashboardScene: React.FC = () => {
   };
 
   // ── Vector dashboard ─────────────────────────────────────────────────
-  const FW = vertical ? 980 : 1640;
-  const FH = vertical ? 1576 : 900;
+  const L = DASH[mode];
+  const { FW, FH, pad, gap } = L;
   const enter = sp(F, T.frame, SPRING.heavy);
   const recede = ramp(F, T.pull, T.pull + d.len(48), 0, 1, EASE.inOut);
   const drift = { x: 12 * Math.sin(F * 0.01), y: 7 * Math.cos(F * 0.013) };
@@ -59,19 +131,30 @@ export const DashboardScene: React.FC = () => {
   const dashOpacity = Math.min(1, enter * 1.4) * (1 - ramp(F, T.pull + d.len(10), T.pull + d.len(46), 0, 1, EASE.in));
   const par = (p: number) => `translate(${drift.x * (p - 1) * 6}px, ${drift.y * (p - 1) * 6}px)`;
 
-  const gap = 20;
-  const pad = 30;
   const innerW = FW - pad * 2;
-  const kpiW = vertical ? (innerW - gap) / 2 : (innerW - gap * 3) / 4;
-  const leftW = vertical ? innerW : 960;
-  const rightW = vertical ? innerW : innerW - 960 - gap;
+  const kpiW = (innerW - gap * (L.kpiCols - 1)) / L.kpiCols;
+
+  const panel = ([kind, w, h]: Cell, width: number) => {
+    switch (kind) {
+      case 'chart':
+        return <ChartCard key={kind} f={F} t={T.chart} w={width} h={h} />;
+      case 'rings':
+        return <RingsCard key={kind} f={F} t={T.rings} w={width} h={h} ringSize={L.ringSize} />;
+      case 'bars':
+        return <BarsCard key={kind} f={F} t={T.bars} w={width} h={h} live={T.live} />;
+      case 'feed':
+        return <FeedCard key={kind} f={F} t={T.feed} w={width} h={h} live={T.live} rows={3} />;
+      default:
+        return w;
+    }
+  };
 
   const dashboard = dashOpacity > 0.001 && (
     <div
       style={{
         position: 'absolute',
         left: cx - FW / 2,
-        top: cy - FH / 2 + (vertical ? 10 : 8),
+        top: cy - FH / 2 + pick({ landscape: 8, portrait: 10, square: -36 }),
         width: FW,
         height: FH,
         transform: `translate(${drift.x}px, ${drift.y - recede * 40}px) scale(${dashScale})`,
@@ -80,29 +163,73 @@ export const DashboardScene: React.FC = () => {
       }}
     >
       <Glass radius={30} style={{ width: FW, height: FH, padding: pad, boxSizing: 'border-box', background: 'linear-gradient(180deg, rgba(19,22,34,0.93), rgba(11,13,21,0.95))' }}>
-        <DashHeader f={F} t={T.header} vertical={vertical} />
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap, marginTop: 24, transform: par(1.06) }}>
+        <DashHeader f={F} t={T.header} titleSize={L.titleSize} />
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap, marginTop: L.compact ? 20 : 24, transform: par(1.06) }}>
           {[0, 1, 2, 3].map((i) => (
-            <KpiCard key={i} i={i} f={F} t={T.kpi[i]} live={T.live} w={kpiW} h={vertical ? 132 : 140} />
+            <KpiCard key={i} i={i} f={F} t={T.kpi[i]} live={T.live} w={kpiW} h={L.kpiH} compact={L.compact} />
           ))}
         </div>
-        <div style={{ display: 'flex', flexDirection: vertical ? 'column' : 'row', gap, marginTop: gap, transform: par(1.09) }}>
-          <ChartCard f={F} t={T.chart} w={leftW} h={vertical ? 290 : 320} />
-          <RingsCard f={F} t={T.rings} w={rightW} h={vertical ? 214 : 320} ringSize={vertical ? 118 : 136} />
-        </div>
-        <div style={{ display: 'flex', flexDirection: vertical ? 'column' : 'row', gap, marginTop: gap, transform: par(1.12) }}>
-          <BarsCard f={F} t={T.bars} w={leftW} h={vertical ? 262 : 284} live={T.live} />
-          <FeedCard f={F} t={T.feed} w={rightW} h={vertical ? 300 : 284} live={T.live} rows={vertical ? 3 : 3} />
-        </div>
+        {L.rows.map((row, r) => {
+          const fixed = row.reduce((s, [, w]) => s + w, 0);
+          const rest = innerW - fixed - gap * (row.length - 1);
+          return (
+            <div key={r} style={{ display: 'flex', gap, marginTop: gap, transform: par(1.09 + r * 0.03) }}>
+              {row.map((cell) => panel(cell, cell[1] || rest))}
+            </div>
+          );
+        })}
       </Glass>
     </div>
   );
 
   // ── Real product reveal ──────────────────────────────────────────────
   const sweep = ramp(F, T.sweep[0], T.sweep[1], 0, 1, EASE.inOut);
-  const bw = vertical ? 980 : 1120;
+  const R = pick({
+    landscape: {
+      bw: 1120,
+      browser: { x: cx - 262, y: cy - 6 },
+      phoneW: 250,
+      phones: [
+        { x: cx + 290, y: cy + 52 },
+        { x: cx + 505, y: cy + 12 },
+        { x: cx + 720, y: cy - 28 },
+      ],
+      from: { x: 380, y: 60 },
+      pillSize: 19,
+      caption: { top: 1000, size: 21 } as { top: number; size: number } | null,
+    },
+    portrait: {
+      bw: 980,
+      browser: { x: cx, y: 562 },
+      phoneW: 300,
+      phones: [
+        { x: cx - 322, y: 1336 },
+        { x: cx, y: 1306 },
+        { x: cx + 322, y: 1336 },
+      ],
+      from: { x: 0, y: 420 },
+      pillSize: 22,
+      caption: { top: 1772, size: 25 },
+    },
+    // 1:1: the browser on top, phones overlapping its lower edge. Captions
+    // own the bottom band, so the role tags sit on the devices and the
+    // "real screens" note moves to the top.
+    square: {
+      bw: 860,
+      browser: { x: cx, y: 352 },
+      phoneW: 184,
+      phones: [
+        { x: cx - 286, y: 748 },
+        { x: cx, y: 724 },
+        { x: cx + 286, y: 748 },
+      ],
+      from: { x: 0, y: 340 },
+      pillSize: 16,
+      caption: { top: 24, size: 19 },
+    },
+  });
+  const bw = R.bw;
   const bh = (bw / 1440) * (900 + 52);
-  const bCenter = vertical ? { x: cx, y: 562 } : { x: cx - 262, y: cy - 6 };
   const browserIn = sp(F, T.sweep[0] - 4, SPRING.heavy);
 
   // Close-out (S6 time): converge to center, fall out of focus.
@@ -112,20 +239,9 @@ export const DashboardScene: React.FC = () => {
   const settle = ramp(F, T.phones[2] + 20, C0, 0, 1, EASE.smooth);
   const groupZoom = (1 + 0.035 * settle) * mix(1, 0.5, conv);
 
-  const phoneW = vertical ? 300 : 250;
+  const phoneW = R.phoneW;
   const phoneH = PHONE.h * (phoneW / PHONE.w);
-  const phoneSlots = vertical
-    ? [
-        { x: cx - 322, y: 1336 },
-        { x: cx, y: 1306 },
-        { x: cx + 322, y: 1336 },
-      ]
-    : [
-        { x: cx + 290, y: cy + 52 },
-        { x: cx + 505, y: cy + 12 },
-        { x: cx + 720, y: cy - 28 },
-      ];
-  const phoneShots = [SCREENS.regionalManager, SCREENS.supervisor, SCREENS.employee];
+  const phoneShots = [SCREENS.regionalManager, SCREENS.supervisor, SCREENS.employee].map(asset);
   const roleIcons = [ShieldCheck, ClipboardList, UserRound];
 
   const toCenter = (p: { x: number; y: number }, depth: number) => ({
@@ -136,10 +252,25 @@ export const DashboardScene: React.FC = () => {
   const rolePill = (Icon: React.ElementType, label: string, t: number) => {
     const p = sp(F, t, SPRING.snap);
     if (p <= 0.001) return null;
+    const size = R.pillSize;
     return (
       <div style={{ opacity: Math.min(1, p * 1.5), transform: `translateY(${(1 - p) * 16}px)` }}>
-        <Glass radius={999} style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '9px 18px 9px 12px', fontFamily: FONT_STACK, fontSize: vertical ? 22 : 19, fontWeight: 680, color: COLORS.text, whiteSpace: 'nowrap' }}>
-          <Icon size={vertical ? 20 : 18} color={COLORS.accentSoft} strokeWidth={2.3} />
+        <Glass
+          radius={999}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: size * 0.47,
+            padding: `${size * 0.47}px ${size * 0.95}px`,
+            fontFamily: FONT_STACK,
+            fontSize: size,
+            fontWeight: 680,
+            color: COLORS.text,
+            whiteSpace: 'nowrap',
+            background: 'rgba(16,19,30,0.82)',
+          }}
+        >
+          <Icon size={size * 0.95} color={COLORS.accentSoft} strokeWidth={2.3} />
           {label}
         </Glass>
       </div>
@@ -151,10 +282,11 @@ export const DashboardScene: React.FC = () => {
       <AbsoluteFill style={{ transform: `scale(${groupZoom})` }}>
         {/* Browser with the real Admin dashboard */}
         {(() => {
-          const pos = toCenter(bCenter, 1);
+          const pos = toCenter(R.browser, 1);
           const left = pos.x - bw / 2;
           const top = pos.y - bh / 2;
           const edge = sweep * bw;
+          const inset = mode === 'square' ? 18 : 4;
           return (
             <>
               <div
@@ -166,8 +298,8 @@ export const DashboardScene: React.FC = () => {
                   clipPath: `inset(-40px ${bw - edge}px -40px -40px)`,
                 }}
               >
-                <BrowserFrame width={bw} title={COPY.reveal.browserTitle}>
-                  <Img src={staticFile(SCREENS.admin)} style={{ width: 1440, height: 900, display: 'block' }} />
+                <BrowserFrame width={bw} title={copy.reveal.browserTitle}>
+                  <Img src={staticFile(asset(SCREENS.admin))} style={{ width: 1440, height: 900, display: 'block' }} />
                 </BrowserFrame>
               </div>
               {sweep > 0 && sweep < 1 && (
@@ -184,28 +316,35 @@ export const DashboardScene: React.FC = () => {
                   }}
                 />
               )}
-              <div style={{ position: 'absolute', left: left + 4, top: top + bh + 18 }}>
-                {rolePill(Crown, COPY.reveal.admin, T.sweep[1] - 6)}
+              <div
+                style={{
+                  position: 'absolute',
+                  top: mode === 'square' ? top + 18 : top + bh + 18,
+                  // Aligned to the browser's leading edge (right in Kurdish).
+                  ...(rtl ? { right: 2 * cx - (left + bw) + inset } : { left: left + inset }),
+                }}
+              >
+                {rolePill(Crown, copy.reveal.admin, T.sweep[1] - 6)}
               </div>
             </>
           );
         })()}
 
         {/* Phones with real Regional Manager / Supervisor / Employee screens */}
-        {phoneSlots.map((slot, i) => {
+        {R.phones.map((slot, i) => {
           const start = T.phones[i];
           const p = sp(F, start, SPRING.heavy);
-          const pPrev = sp(F - 1, start, SPRING.heavy);
+          const pPrev = sp(F - step, start, SPRING.heavy);
           if (p <= 0.001) return null;
-          const from = vertical ? { x: 0, y: 420 } : { x: 380, y: 60 };
           const pos = toCenter(slot, 1.12);
-          const x = pos.x + from.x * (1 - p);
-          const y = pos.y + from.y * (1 - p);
-          const xPrev = pos.x + from.x * (1 - pPrev);
-          const yPrev = pos.y + from.y * (1 - pPrev);
+          const x = pos.x + R.from.x * (1 - p);
+          const y = pos.y + R.from.y * (1 - p);
+          const xPrev = pos.x + R.from.x * (1 - pPrev);
+          const yPrev = pos.y + R.from.y * (1 - pPrev);
           const scale = mix(1.35, 1, Math.min(1, p));
           const blur = Math.max(0, 1 - p) * 16;
           const Icon = roleIcons[i];
+          const pillTop = mode === 'square' ? phoneH / 2 - 64 : phoneH / 2 + 16;
           return (
             <div key={i} style={{ position: 'absolute', left: x, top: y, width: 0, height: 0, zIndex: 10 + i }}>
               <div style={{ position: 'absolute', left: 0, top: 0, transform: 'translate(-50%, -50%)' }}>
@@ -215,42 +354,44 @@ export const DashboardScene: React.FC = () => {
                   </div>
                 </MotionBlur>
               </div>
-              <div style={{ position: 'absolute', left: 0, top: phoneH / 2 + 16, transform: 'translateX(-50%)' }}>
-                {rolePill(Icon, COPY.reveal.devices[i], start + 16)}
+              <div style={{ position: 'absolute', left: 0, top: pillTop, transform: 'translateX(-50%)', direction: rtl ? 'rtl' : 'ltr' }}>
+                {rolePill(Icon, copy.reveal.devices[i], start + 16)}
               </div>
             </div>
           );
         })}
       </AbsoluteFill>
 
-      {/* Caption */}
-      {(() => {
-        const p = sp(F, T.phones[0] + 24, SPRING.settle);
-        if (p <= 0.001) return null;
-        return (
-          <div
-            style={{
-              position: 'absolute',
-              left: 0,
-              right: 0,
-              top: vertical ? 1772 : 1000,
-              display: 'flex',
-              justifyContent: 'center',
-              alignItems: 'center',
-              gap: 10,
-              fontFamily: FONT_STACK,
-              fontSize: vertical ? 25 : 21,
-              color: COLORS.textDim,
-              fontWeight: 560,
-              opacity: Math.min(1, p * 1.4) * (1 - conv),
-              transform: `translateY(${(1 - p) * 14}px)`,
-            }}
-          >
-            <Camera size={vertical ? 22 : 19} color={COLORS.accentSoft} />
-            {COPY.reveal.caption}
-          </div>
-        );
-      })()}
+      {/* Caption: these are real screens */}
+      {R.caption &&
+        (() => {
+          const p = sp(F, T.phones[0] + 24, SPRING.settle);
+          if (p <= 0.001) return null;
+          const { top, size } = R.caption;
+          return (
+            <div
+              style={{
+                position: 'absolute',
+                left: 0,
+                right: 0,
+                top,
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: 'center',
+                gap: 10,
+                fontFamily: FONT_STACK,
+                fontSize: size,
+                color: COLORS.textDim,
+                fontWeight: 560,
+                opacity: Math.min(1, p * 1.4) * (1 - conv),
+                transform: `translateY(${(1 - p) * 14}px)`,
+              }}
+            >
+              <Camera size={size * 0.92} color={COLORS.accentSoft} />
+              {copy.reveal.caption}
+            </div>
+          );
+        })()}
     </AbsoluteFill>
   );
 

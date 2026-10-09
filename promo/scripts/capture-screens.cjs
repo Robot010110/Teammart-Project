@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Re-capture the real TeamMart screens used in the promo (public/screens/).
+ * Re-capture the real TeamMart screens used in the promo (public/screens/<lang>/).
  *
  * Prerequisites: the TeamMart app running locally with seeded demo data
  * (see the repo README: backend on :4000, frontend on :5173), plus Playwright:
@@ -8,6 +8,8 @@
  *   npm i --no-save playwright@1.56.1 && npx playwright install chromium
  *   node scripts/capture-screens.cjs                 # capture only
  *   node scripts/capture-screens.cjs --seed-activity # first add a "lived-in" day
+ *   node scripts/capture-screens.cjs --lang ckb      # Sorani Kurdish (switches the
+ *                                                    # demo accounts' language, then back)
  *
  * --seed-activity uses the app's own API (no direct DB writes) to check the
  * demo Supervisor in and assign a few sudden tasks, so the screens show a
@@ -29,7 +31,8 @@ try {
 
 const APP = process.env.APP_URL || 'http://localhost:5173';
 const API = process.env.API_URL || 'http://localhost:4000/api';
-const OUT = path.resolve(__dirname, '..', 'public', 'screens');
+const LANG = process.argv.includes('--lang') ? process.argv[process.argv.indexOf('--lang') + 1] : 'en';
+const OUT = path.resolve(__dirname, '..', 'public', 'screens', LANG);
 
 const ACCOUNTS = {
   admin: { kind: 'staff', body: { email: process.env.ADMIN_EMAIL || 'admin@teammart.test', password: process.env.ADMIN_PASSWORD || 'Admin123!' } },
@@ -116,6 +119,9 @@ async function shoot(browser, { token, route, file, vp }) {
   const tokens = {};
   for (const name of Object.keys(ACCOUNTS)) tokens[name] = await login(name);
   if (process.argv.includes('--seed-activity')) await seedActivity(tokens);
+  const setLanguage = (language) => Promise.all(Object.values(tokens).map((t) => call('PATCH', '/profile', t, { language })));
+  if (LANG !== 'en') await setLanguage('KURDISH');
+  require('node:fs').mkdirSync(OUT, { recursive: true });
 
   const browser = await chromium.launch();
   const jobs = [
@@ -124,8 +130,12 @@ async function shoot(browser, { token, route, file, vp }) {
     { token: tokens.supervisor, route: '/supervisor/home', file: 'supervisor-home.png', vp: MOBILE },
     { token: tokens.employee, route: '/me/tasks', file: 'employee-tasks.png', vp: MOBILE },
   ];
-  for (const job of jobs) await shoot(browser, job);
-  await browser.close();
+  try {
+    for (const job of jobs) await shoot(browser, job);
+  } finally {
+    await browser.close();
+    if (LANG !== 'en') await setLanguage('ENGLISH');
+  }
 })().catch((e) => {
   console.error(e);
   process.exit(1);

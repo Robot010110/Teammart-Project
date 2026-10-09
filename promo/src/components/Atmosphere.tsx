@@ -1,5 +1,6 @@
 import React from 'react';
 import { AbsoluteFill, Img, staticFile, useCurrentFrame } from 'remotion';
+import { useAbsoluteFrame } from '../lib/timing';
 import { noise2D } from '@remotion/noise';
 import { COLORS, LOOK } from '../config';
 import { alpha, rr, useLayout } from '../lib/util';
@@ -10,7 +11,7 @@ import { alpha, rr, useLayout } from '../lib/util';
  * accent takes over from the beat onwards.
  */
 export const Background: React.FC<{ accent: number; warm: number; lift?: number }> = ({ accent, warm, lift = 0 }) => {
-  const frame = useCurrentFrame();
+  const frame = useAbsoluteFrame();
   const { W, H, cx, cy, vertical } = useLayout();
   const big = Math.max(W, H) * 1.15;
   const d1x = noise2D('bg1x', frame * 0.004, 0) * W * 0.08;
@@ -63,7 +64,7 @@ export const Dust: React.FC<{ camX?: number; camY?: number; opacity?: number; co
   opacity = 1,
   count = 34,
 }) => {
-  const frame = useCurrentFrame();
+  const frame = useAbsoluteFrame();
   const { W, H } = useLayout();
   return (
     <AbsoluteFill style={{ opacity, overflow: 'hidden' }}>

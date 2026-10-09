@@ -1,5 +1,6 @@
 import React from 'react';
-import { COLORS, COPY } from '../config';
+import { COLORS } from '../config';
+import { useCopy } from '../i18n/copy';
 import { FONT_STACK } from '../lib/fonts';
 import { EASE, ramp, sp, SPRING } from '../lib/motion';
 import { alpha } from '../lib/util';
@@ -88,12 +89,13 @@ export const Wordmark: React.FC<{ size: number; frame: number; start?: number; g
   start = -1e6,
   gap = 2,
 }) => {
-  const [a, b] = COPY.close.wordmark;
+  const [a, b] = useCopy().close.wordmark;
   const letters = [...a.split('').map((c) => ({ c, accent: false })), ...b.split('').map((c) => ({ c, accent: true }))];
   return (
     <div
       style={{
         display: 'flex',
+        direction: 'ltr',
         fontFamily: FONT_STACK,
         fontWeight: 720,
         fontSize: size,

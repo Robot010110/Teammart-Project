@@ -1,21 +1,18 @@
 import React from 'react';
 import { AlertTriangle, Clock, Mail, Paperclip, PhoneMissed } from 'lucide-react';
-import { COLORS, COPY } from '../../config';
+import { COLORS } from '../../config';
+import { useCopy } from '../../i18n/copy';
 import { FONT_STACK } from '../../lib/fonts';
 import { alpha } from '../../lib/util';
 import type { ChaosItem } from './sim';
 
-const SENDERS = [
-  { n: 'Ahmed · Market 7', c: '#3E5A9E' },
-  { n: 'Sara · Cashier', c: '#8A4E6B' },
-  { n: 'Soran · Night shift', c: '#3F7D6A' },
-  { n: 'Rostam · Market 2', c: '#8C6A3A' },
-];
+const AVATAR_COLORS = ['#3E5A9E', '#8A4E6B', '#3F7D6A', '#8C6A3A'];
 
 const base: React.CSSProperties = { fontFamily: FONT_STACK, boxSizing: 'border-box' };
 
 const Bubble: React.FC<{ it: ChaosItem; hero?: boolean }> = ({ it, hero }) => {
-  const s = SENDERS[it.variant % SENDERS.length];
+  const c = useCopy().chaos;
+  const s = { n: c.senders[it.variant % c.senders.length], c: AVATAR_COLORS[it.variant % AVATAR_COLORS.length] };
   const outgoing = !hero && it.variant === 3;
   const size = hero ? 27 : 21;
   return (
@@ -58,7 +55,7 @@ const Bubble: React.FC<{ it: ChaosItem; hero?: boolean }> = ({ it, hero }) => {
       </div>
       <div style={{ minWidth: 0 }}>
         <div style={{ fontSize: hero ? 15 : 13, color: COLORS.textDim, fontWeight: 600, marginBottom: 3 }}>
-          {hero ? 'Area Manager · now' : s.n}
+          {hero ? c.heroSender : s.n}
         </div>
         <div style={{ fontSize: size, lineHeight: 1.27, color: COLORS.text, fontWeight: hero ? 650 : 500, letterSpacing: '-0.012em' }}>
           {it.text}
@@ -126,7 +123,7 @@ const Note: React.FC<{ it: ChaosItem }> = ({ it }) => (
 );
 
 const Sheet: React.FC<{ it: ChaosItem }> = ({ it }) => {
-  const c = COPY.chaos;
+  const c = useCopy().chaos;
   const cell: React.CSSProperties = {
     borderRight: '1px solid #D3D9E3',
     borderBottom: '1px solid #D3D9E3',
@@ -147,7 +144,7 @@ const Sheet: React.FC<{ it: ChaosItem }> = ({ it }) => {
     <div style={{ ...base, width: it.w, height: it.h, borderRadius: 8, overflow: 'hidden', background: '#F6F8FB', boxShadow: '0 24px 50px -20px rgba(0,0,0,0.9)' }}>
       <div style={{ height: 32, display: 'flex', alignItems: 'center', gap: 8, padding: '0 10px', background: '#1E7A46', color: '#fff', fontSize: 13, fontWeight: 700 }}>
         <span style={{ width: 16, height: 16, borderRadius: 3, background: 'rgba(255,255,255,0.25)', display: 'grid', placeItems: 'center', fontSize: 10 }}>X</span>
-        shift_schedule_v7_FINAL(2).xlsx
+        {c.sheetName}
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '28px 1fr 0.8fr 1fr', gridAutoRows: 34 }}>
         {['', ...c.sheetHeader].map((h, i) => (
@@ -219,7 +216,9 @@ const Counter: React.FC<{ it: ChaosItem; count: number }> = ({ it, count }) => (
   </div>
 );
 
-const Email: React.FC<{ it: ChaosItem }> = ({ it }) => (
+const Email: React.FC<{ it: ChaosItem }> = ({ it }) => {
+  const c = useCopy().chaos;
+  return (
   <div
     style={{
       ...base,
@@ -240,13 +239,14 @@ const Email: React.FC<{ it: ChaosItem }> = ({ it }) => (
     </div>
     <div style={{ minWidth: 0, flex: 1 }}>
       <div style={{ fontSize: 13, color: '#6B7280', fontWeight: 600, display: 'flex', gap: 8, alignItems: 'center' }}>
-        <span style={{ color: '#DC2626', fontWeight: 800 }}>!</span> Area Ops · 07:42
+        <span style={{ color: '#DC2626', fontWeight: 800 }}>!</span> {c.emailSender}
       </div>
       <div style={{ fontSize: 19, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', letterSpacing: '-0.015em' }}>{it.text}</div>
     </div>
     <Paperclip size={18} color="#6B7280" />
   </div>
-);
+  );
+};
 
 const Badge: React.FC<{ it: ChaosItem }> = ({ it }) => (
   <div

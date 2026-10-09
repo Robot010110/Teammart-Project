@@ -27,4 +27,21 @@ loadFont({
     'U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF',
 });
 
-export const FONT_STACK = `${FONT_FAMILY}, system-ui, sans-serif`;
+/**
+ * Noto Sans Arabic (variable, weight 100–900) for the Sorani Kurdish cut —
+ * the same family the TeamMart app uses for Kurdish. Registered only for the
+ * Arabic-script range, so Latin text, digits and the brand keep using Inter.
+ * License: public/fonts/OFL-NotoSansArabic.txt.
+ */
+export const ARABIC_FAMILY = 'Noto Sans Arabic';
+
+loadFont({
+  family: ARABIC_FAMILY,
+  url: staticFile('fonts/NotoSansArabic-arabic.woff2'),
+  weight: '100 900',
+  format: 'woff2',
+  unicodeRange: 'U+0600-06FF, U+0750-077F, U+0870-088E, U+0890-0891, U+0897-08E1, U+08E3-08FF, U+200C-200E, U+2010-2011, U+204F, U+2E41, U+FB50-FDFF, U+FE70-FE74, U+FE76-FEFC',
+});
+
+/** Inter first; Arabic-script characters fall through to Noto Sans Arabic. */
+export const FONT_STACK = `${FONT_FAMILY}, '${ARABIC_FAMILY}', system-ui, sans-serif`;

@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { AbsoluteFill } from 'remotion';
-import { COLORS, COPY } from '../config';
+import { COLORS } from '../config';
+import { useCopy, useLang } from '../i18n/copy';
 import { KineticLine, KWord } from '../components/Kinetic';
 import { EASE, pulse, ramp, sp, SPRING, stagger } from '../lib/motion';
 import { sceneClock, useAbsoluteFrame } from '../lib/timing';
@@ -85,13 +86,15 @@ export const LightPoint: React.FC<{ x: number; y: number; intensity: number; fla
 
 export const Beat: React.FC = () => {
   const abs = useAbsoluteFrame();
-  const { W, H, cx, cy, vertical } = useLayout();
+  const { W, H, cx, cy, mode, pick } = useLayout();
+  const copy = useCopy();
+  const { rtl } = useLang();
   const b = sceneClock('beat', abs);
   const s3 = sceneClock('structure', abs);
   const B = b.range.start;
 
   // Light brightens with every element that lands in it.
-  const sim = useMemo(() => getChaosSim(W, H), [W, H]);
+  const sim = useMemo(() => getChaosSim(W, H, copy.chaos), [W, H, copy.chaos]);
   const snapStart = B + b.len(18);
   const snapDur = b.len(18);
   const snapSpread = b.len(22);
@@ -104,7 +107,7 @@ export const Beat: React.FC = () => {
   const intensity = born * (0.3 + 0.7 * arrived) * (1 - 0.25 * ramp(abs, flareAt + 10, flareAt + 40));
 
   // Lift above the text, then return to center for the bloom.
-  const liftY = vertical ? -470 : -250;
+  const liftY = pick({ landscape: -250, portrait: -470, square: -360 });
   const lift = sp(abs, B + b.at(68), SPRING.heavy) - sp(abs, B + b.at(158), SPRING.snap);
   const lightY = cy + liftY * lift;
 
@@ -114,22 +117,21 @@ export const Beat: React.FC = () => {
   // Shockwave on the flare.
   const wave = ramp(abs, flareAt, flareAt + b.len(40), 0, 1, EASE.out);
 
-  // Words: re-wrapped two-per-line on the vertical cut.
-  const rawLines = COPY.beat.lines.map((l) => [...l]);
-  const lines: string[][] = vertical ? rawLines.flatMap((l) => [l.slice(0, 2), l.slice(2)]).filter((l) => l.length) : rawLines;
+  // Words: two lines on 16:9, the copy's own portrait breaks elsewhere.
+  const lines: string[][] = mode === 'landscape' ? copy.beat.lines : copy.beat.portraitLines;
   let n = 0;
   const wordLines: KWord[][] = lines.map((line, li) =>
     line.map((text) => {
       // 5-frame stagger, a beat longer between lines; golden sub-frame offsets keep every start unique.
       const start = B + stagger(b.at(72), n, b.len(5)) + li * b.len(4);
       n += 1;
-      return { text, start, accent: (COPY.beat.highlight as readonly string[]).includes(text) };
+      return { text, start, accent: copy.beat.highlight.includes(text) };
     }),
   );
-  const size = vertical ? 136 : 134;
+  const size = pick({ landscape: 134, portrait: 136, square: 112 }) * (rtl ? 0.88 : 1);
   const exitStart = B + b.at(162);
-  const lineH = size * 1.04;
-  const blockY = vertical ? cy + 90 : cy + 50;
+  const lineH = size * (rtl ? 1.3 : 1.04);
+  const blockY = pick({ landscape: cy + 50, portrait: cy + 90, square: cy + 70 });
 
   return (
     <AbsoluteFill style={{ pointerEvents: 'none' }}>

@@ -16,6 +16,13 @@ Config.setPixelFormat('yuv420p');
 
 Config.setOverwriteOutput(true);
 
+// The 3D hierarchy (S3–S4) is WebGL. ANGLE gives headless Chrome a GPU
+// path everywhere, falling back to SwiftShader on machines without one.
+Config.setChromiumOpenGlRenderer('angle');
+// Software-rendered WebGL frames plus video-frame extraction can be slow
+// on CPU-only machines; give each frame room.
+Config.setDelayRenderTimeoutInMilliseconds(120000);
+
 // Optional: use an already-installed Chrome/Chromium instead of letting
 // Remotion download its headless shell (useful on locked-down networks / CI).
 //   REMOTION_BROWSER_EXECUTABLE=/path/to/chrome npx remotion render ...

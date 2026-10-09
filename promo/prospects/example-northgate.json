@@ -1,0 +1,17 @@
+{
+  "lang": "en",
+  "captions": true,
+  "prospect": {
+    "company": "Northgate Markets",
+    "zones": [
+      { "name": "Erbil North", "markets": ["Sami Abdulrahman", "Ankawa", "Shorsh"] },
+      { "name": "Erbil South", "markets": ["Bakhtiari", "Iskan"] },
+      { "name": "Duhok", "markets": ["Malta", "Nakhoshkhana", "Zakho Rd"] },
+      { "name": "Sulaymaniyah", "markets": ["Salim St", "Bakhtiari Sq"] }
+    ],
+    "employeesPerMarket": 4,
+    "focusZone": 0,
+    "focusMarket": 1,
+    "employee": "Shalaw N."
+  }
+}

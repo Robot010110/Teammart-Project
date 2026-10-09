@@ -2,6 +2,8 @@ import React from 'react';
 import { COLORS } from '../config';
 import { FONT_STACK } from '../lib/fonts';
 import { EASE, ramp, sp, SPRING } from '../lib/motion';
+import { useLang } from '../i18n/copy';
+import { useFrameStep } from '../lib/timing';
 import { alpha } from '../lib/util';
 import { MotionBlur } from './MotionBlur';
 
@@ -35,6 +37,11 @@ export const KineticLine: React.FC<{
   color = COLORS.text,
   wordGap = 0.24,
 }) => {
+  const step = useFrameStep();
+  const { rtl } = useLang();
+  // Arabic script is cursive: never track it.
+  const track = rtl ? 0 : tracking;
+  const lineHeight = rtl ? 1.3 : 1.04;
   const yAt = (f: number, w: KWord, i: number) => {
     const p = sp(f, w.start, SPRING.snap);
     const e = Number.isFinite(exitStart) ? ramp(f, exitStart + i * exitGap, exitStart + i * exitGap + 14, 0, 1, EASE.in) : 0;
@@ -44,13 +51,13 @@ export const KineticLine: React.FC<{
     <div style={{ display: 'flex', justifyContent: align, alignItems: 'baseline', gap: `0 ${wordGap}em`, fontSize: size, flexWrap: 'nowrap' }}>
       {words.map((w, i) => {
         const now = yAt(frame, w, i);
-        const prev = yAt(frame - 1, w, i);
+        const prev = yAt(frame - step, w, i);
         const opacity = Math.min(1, Math.max(0, now.p * 1.7)) * (1 - now.e);
         const blur = Math.max(0, 1 - now.p) * 16 + now.e * 12;
         const scale = (0.94 + 0.06 * Math.min(1.04, now.p)) * (1 - 0.05 * now.e);
         if (opacity <= 0.001) {
           return (
-            <span key={i} style={{ fontFamily: FONT_STACK, fontWeight: weight, letterSpacing: `${tracking}em`, opacity: 0, lineHeight: 1.04 }}>
+            <span key={i} style={{ fontFamily: FONT_STACK, fontWeight: weight, letterSpacing: `${track}em`, opacity: 0, lineHeight }}>
               {w.text}
             </span>
           );
@@ -64,8 +71,8 @@ export const KineticLine: React.FC<{
                 display: 'inline-block',
                 fontFamily: FONT_STACK,
                 fontWeight: weight,
-                letterSpacing: `${tracking}em`,
-                lineHeight: 1.04,
+                letterSpacing: `${track}em`,
+                lineHeight,
                 whiteSpace: 'nowrap',
                 transform: `translateY(${now.y}px) scale(${scale})`,
                 opacity,

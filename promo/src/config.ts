@@ -2,49 +2,85 @@
  * ─────────────────────────────────────────────────────────────────────────
  *  TeamMart promo — the one file to edit.
  *
- *  COLORS  → brand palette (promo frame) + the real app's tokens (phone UI)
- *  COPY    → every word that appears on screen
- *  TIMING  → scene lengths in seconds (the choreography inside each scene
- *            scales to fit, so you can lengthen/shorten any scene safely)
- *  LOOK    → grain, vignette, motion blur, fade-out
- *  SFX     → turn on once you've dropped audio files into public/sfx/
+ *  COLORS            palette (from ../../brand/tokens.mjs, shared with the app)
+ *  DEFAULT_PROSPECT  the org structure shown in the film (zones, markets…).
+ *                    Per-client versions override it with a JSON file —
+ *                    see prospects/ and the README.
+ *  COPY              every English word on screen. {zone}, {market},
+ *                    {employee} and {company} are filled from the prospect.
+ *                    Kurdish lives in src/i18n/ckb.ts with the same shape.
+ *  CAPTIONS          burned-in caption lines per edit (40 s / 15 s / 6 s)
+ *  TIMING            scene lengths in seconds for the 40 s master
+ *  LOOK / AUDIO      grain, blur, 3D quality, soundtrack levels
  * ─────────────────────────────────────────────────────────────────────────
  */
+import { BRAND } from '../../brand/tokens.mjs';
+
+const B = BRAND.colors;
 
 export const COLORS = {
   /** Near-black canvas. */
-  bg: '#0A0B10',
-  /** The one electric accent. */
-  accent: '#4F7CFF',
-  /** Lighter tint of the accent for secondary highlights. */
-  accentSoft: '#9BB3FF',
-  /** Warm secondary — reserved for alerts and urgency. */
-  warm: '#FFB547',
-  text: '#F4F6FB',
-  textDim: '#A3ABBF',
-  textFaint: '#626A80',
-  danger: '#FF5D6C',
+  bg: B.night,
+  /** Brand blue — identity, data, focus. The film's electric accent. */
+  accent: B.blue,
+  accentSoft: B.blueSoft,
+  accentDeep: B.blueDeep,
+  /** Brand orange — action and alerts (the app's primary button color). */
+  warm: B.orange,
+  warmDeep: B.orangeDeep,
+  text: B.text,
+  textDim: B.textDim,
+  textFaint: B.textFaint,
+  danger: B.red,
+  success: B.green,
 
-  /**
-   * In-product UI. The phone mockups use TeamMart's real design tokens
-   * (Frontend/tailwind.config.js) so the animated UI matches the real
-   * screenshots that appear later in the film.
-   */
+  /** In-product UI tokens (the phone mockups match the real app). */
   app: {
     bg: '#0A0F1C',
-    card: '#111A2E',
+    card: B.ink,
     cardBorder: 'rgba(255,255,255,0.08)',
-    navy: '#1D2D5C',
-    orange: '#F47A20',
+    navy: B.navy,
+    orange: B.orange,
     text: '#F2F4F8',
     textDim: '#8B93A8',
-    green: '#34D399',
+    green: B.green,
   },
-} as const;
+};
+
+export type ProspectZone = { name: string; markets: string[] };
+export type Prospect = {
+  /** Shown as "Prepared for …" at the close. Empty = hidden. */
+  company: string;
+  zones: ProspectZone[];
+  /** Employee dots drawn per market (2–6). */
+  employeesPerMarket: number;
+  /** Index of the zone the workflow zooms into (the Regional Manager's). */
+  focusZone: number;
+  /** Index, inside that zone, of the Supervisor's market. */
+  focusMarket: number;
+  /** Name on the employee node that receives the task. */
+  employee: string;
+};
+
+export const DEFAULT_PROSPECT: Prospect = {
+  company: '',
+  // Empty names are filled per language: "Zone 1", "Market 7", …
+  zones: [
+    { name: '', markets: ['', '', ''] },
+    { name: '', markets: ['', '', ''] },
+    { name: '', markets: ['', '', ''] },
+  ],
+  employeesPerMarket: 4,
+  focusZone: 2,
+  focusMarket: 1,
+  employee: 'Shalaw N.',
+};
+
+export type CaptionLine = { from: number; to: number; text: string };
 
 export const COPY = {
   chaos: {
-    hero: "who's covering Zone 3?",
+    hero: "who's covering {zone}?",
     bubbles: [
       'Shelf 4 is empty AGAIN',
       'did anyone check the dairy chiller??',
@@ -53,17 +89,21 @@ export const COPY = {
       "where's the delivery manifest",
       'who approved this price change?',
       'supervisor not picking up',
-      'is Market 7 still closed?',
+      'is {market} still closed?',
       'pls send a photo when done',
       '??',
       'call me asap',
       'which schedule is the right one',
       'nobody told me',
     ],
-    notes: ['Restock dairy!!', 'Call Ahmed re: shift', 'Zone 3 — WHO?', 'Expired items → ?', 'Inventory Fri??', 'Fix price tags A5', 'Ask HQ'],
+    senders: ['Ahmed · {market}', 'Sara · Cashier', 'Soran · Night shift', 'Rostam · Market 2'],
+    heroSender: 'Area Manager · now',
+    notes: ['Restock dairy!!', 'Call Ahmed re: shift', '{zone} — WHO?', 'Expired items → ?', 'Inventory Fri??', 'Fix price tags A5', 'Ask HQ'],
     emails: ['RE: RE: FW: shift_schedule_v7_FINAL(2).xlsx', 'URGENT: inventory count (again)', 'Fwd: who has the keys?'],
-    missedCalls: ['Missed call · Market 7', 'Missed call · Supervisor', 'Missed call · Unknown'],
+    emailSender: 'Area Ops · 07:42',
+    missedCalls: ['Missed call · {market}', 'Missed call · Supervisor', 'Missed call · Unknown'],
     missedCounterLabel: 'missed calls',
+    sheetName: 'shift_schedule_v7_FINAL(2).xlsx',
     sheetHeader: ['Shift', 'Zone', 'Cover'],
     sheetRows: [
       ['06–14', 'Z3', '???'],
@@ -75,11 +115,13 @@ export const COPY = {
   },
 
   beat: {
-    /** One array per line on 16:9. The vertical cut re-wraps these words automatically. */
+    /** One array per line on 16:9. */
     lines: [
       ['What', 'if', 'every', 'market'],
       ['ran', 'like', 'one', 'team?'],
     ],
+    /** The same words, broken for portrait and square frames. */
+    portraitLines: [['What', 'if'], ['every', 'market'], ['ran', 'like'], ['one', 'team?']],
     /** Words drawn in the accent color. */
     highlight: ['one', 'team?'],
   },
@@ -87,8 +129,8 @@ export const COPY = {
   structure: {
     levels: ['Zones', 'Markets', 'Employees'],
     hq: 'HQ',
-    zoneNames: ['Zone 1', 'Zone 2', 'Zone 3'],
-    marketPrefix: 'M',
+    zonePattern: 'Zone {n}',
+    marketPattern: 'Market {n}',
     subtitle: 'Every role sees exactly what it owns.',
     roles: [
       { key: 'admin', title: 'Admin', scope: 'Every zone, every market' },
@@ -100,9 +142,9 @@ export const COPY = {
   workflow: {
     steps: ['Assign', 'Complete', 'Approve'],
     stepDetails: [
-      'A Regional Manager sends the task straight to the right market.',
-      'The Supervisor gets it on their phone, does it, adds a photo.',
-      'One tap to approve. Everyone can see it is done.',
+      'A Supervisor sends a task straight to the right person.',
+      'They complete it on their phone, with photo proof.',
+      'Logged work comes back to the Supervisor — approved in one tap.',
     ],
     task: {
       title: 'Restock dairy shelf',
@@ -110,14 +152,13 @@ export const COPY = {
       location: 'Aisle 4 · Dairy',
       priority: 'High',
       due: 'Due in 30 min',
-      dueTime: 'Today, 2:45 PM',
-      description: 'Dairy chiller is running low. Pull anything near expiry, restock, and attach a photo.',
     },
-    assignedBy: 'Regional Manager',
-    assignee: 'Supervisor',
-    notification: 'New task assigned',
-    approveButton: 'Approve',
+    assignedBy: 'Supervisor',
+    assignee: '{employee}',
     approvedLabel: 'Approved',
+    approvedDetail: 'Visible to {zone} and HQ',
+    /** On the phones in S4. {speed} = how much the screen recording is sped up. */
+    realBadge: 'Real app · demo data · {speed}× speed',
   },
 
   dashboard: {
@@ -133,9 +174,11 @@ export const COPY = {
     ],
     chart: {
       title: 'Tasks completed · this week',
+      range: 'Mon – Sun',
       days: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
       values: [148, 172, 161, 198, 214, 236, 252],
     },
+    ringsTitle: 'Completion today',
     rings: [
       { label: 'Tasks', value: 0.92 },
       { label: 'Attendance', value: 0.87 },
@@ -152,7 +195,7 @@ export const COPY = {
       { text: 'Price labels fixed', where: 'Market 07', time: '6m' },
       { text: 'Cleaning checklist done', where: 'Market 05', time: '9m' },
     ],
-    liveItem: { text: 'Restock dairy shelf · Approved', where: 'Zone 3', time: 'now' },
+    liveItem: { text: 'Restock dairy shelf · Approved', where: '{zone}', time: 'now' },
   },
 
   reveal: {
@@ -168,25 +211,58 @@ export const COPY = {
     cta: 'Book a demo',
     /** Optional line under the CTA, e.g. 'teammart.app'. Leave empty to hide. */
     url: '',
+    preparedFor: 'Prepared for {company}',
   },
-} as const;
 
-/** Real screenshots captured from the running TeamMart app (see README). */
+  /**
+   * Burned-in captions, written for sound-off autoplay: they carry the story
+   * where the picture has no words of its own and stay quiet while on-screen
+   * type is already talking. Seconds on each edit's own timeline.
+   */
+  captions: {
+    full: [
+      { from: 0.4, to: 2.9, text: 'This is a normal morning in retail.' },
+      { from: 3.1, to: 5.8, text: "Calls, chats, spreadsheets — and nobody's sure who's covering." },
+      { from: 9.4, to: 12.9, text: 'TeamMart maps your whole operation.' },
+      { from: 12.9, to: 15.8, text: 'Every role gets its own clear view.' },
+      { from: 27.4, to: 31.3, text: 'Every market, live, on one screen.' },
+      { from: 31.9, to: 34.8, text: 'Built on the real TeamMart app.' },
+    ] as CaptionLine[],
+    cut15: [
+      { from: 0.3, to: 3.0, text: "Calls, chats, spreadsheets — and nobody's sure who's covering." },
+      { from: 5.6, to: 7.9, text: 'TeamMart puts every market on one team.' },
+      { from: 8.2, to: 11.9, text: 'Tasks assigned, done with photo proof, approved.' },
+    ] as CaptionLine[],
+    cut6: [{ from: 0.2, to: 1.9, text: "Nobody's sure who's covering?" }] as CaptionLine[],
+  },
+};
+
+export type Copy = typeof COPY;
+
+/** Real material captured from the running TeamMart app (see README). */
 export const SCREENS = {
-  admin: 'screens/admin-dashboard.png',
-  regionalManager: 'screens/regional-manager-home.png',
-  supervisor: 'screens/supervisor-home.png',
-  employee: 'screens/employee-tasks.png',
-} as const;
+  admin: 'screens/{lang}/admin-dashboard.png',
+  regionalManager: 'screens/{lang}/regional-manager-home.png',
+  supervisor: 'screens/{lang}/supervisor-home.png',
+  employee: 'screens/{lang}/employee-tasks.png',
+  /**
+   * Screen recordings of the real flow, played inside the phones in S4
+   * (made by scripts/record-flows.cjs, which also writes their key moments
+   * to src/recordings/events.json).
+   */
+  supervisorAssigns: 'recordings/{lang}/supervisor-assigns.mp4',
+  employeeCompletes: 'recordings/{lang}/employee-completes-task.mp4',
+  supervisorApproves: 'recordings/{lang}/supervisor-approves.mp4',
+};
 
 export const TIMING = {
   fps: 60,
-  /** Seconds per scene. Default total = 40 s. */
+  /** Seconds per scene of the 40 s master. Cutdowns are edits of it (src/timeline/edits.ts). */
   scenes: {
     chaos: 6,
     beat: 3,
-    structure: 8,
-    workflow: 10,
+    structure: 7,
+    workflow: 11,
     dashboard: 8,
     close: 5,
   },
@@ -197,22 +273,30 @@ export const LOOK = {
   grain: 0.065,
   /** Edge darkening (0 = off). */
   vignette: 0.6,
-  /** Directional, velocity-based motion blur on fast moves. */
+  /** Directional, velocity-based motion blur on fast DOM moves. */
   motionBlur: true,
   /** 180° = classic film shutter. Higher = longer smears. */
   shutterAngle: 180,
   /** Cap on blur length in px so very fast moves stay legible. */
   maxBlurPx: 34,
-  /** Frames of fade-to-black at the very end (0 = hard end on the logo). */
+  /** Frames of fade-to-black at the very end of each edit (0 = hard end). */
   fadeOutFrames: 12,
+  /**
+   * 3D hierarchy: most sub-frame samples for real motion blur (1 = off,
+   * 6 = film-like). Each frame uses only as many as its motion needs.
+   */
+  motionBlurSamples3d: 6,
+  /**
+   * 3D hierarchy: internal resolution (1 = full). Its labels, phones and
+   * type are DOM and stay sharp; 0.75 renders ~1.8× faster on CPU-only machines.
+   */
+  scale3d: 0.75,
+  /** 3D hierarchy: bloom strength. */
+  bloom: 0.8,
 };
 
-export const SFX = {
-  /**
-   * Off by default: the cue sheet lives in src/sfx.ts and every cue is also
-   * marked in the scene code. Drop matching files into public/sfx/ and flip
-   * this to true to hear them in the Studio and in renders.
-   */
-  enabled: false,
-  masterVolume: 0.9,
+export const AUDIO = {
+  /** Play the generated soundtrack (public/audio/, made by `npm run audio`). */
+  enabled: true,
+  masterVolume: 1,
 };

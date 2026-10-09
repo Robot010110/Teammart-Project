@@ -2,31 +2,38 @@
   "name": "teammart-promo",
   "version": "1.0.0",
   "private": true,
-  "description": "40-second TeamMart motion graphic promo, built with Remotion (16:9 master + 9:16 vertical).",
+  "description": "TeamMart motion graphic: 40 s master, 15 s and 6 s cutdowns in 16:9, 9:16 and 1:1, English and Sorani Kurdish, personalisable per prospect. Built with Remotion.",
   "scripts": {
     "dev": "remotion studio",
-    "render": "remotion render TeamMartPromo out/teammart-promo-16x9.mp4",
-    "render:vertical": "remotion render TeamMartPromoVertical out/teammart-promo-9x16.mp4",
-    "render:all": "npm run render && npm run render:vertical",
-    "render:web": "remotion render TeamMartPromo out/teammart-promo-16x9-web.mp4 --crf=23 && remotion render TeamMartPromoVertical out/teammart-promo-9x16-web.mp4 --crf=23",
-    "render:draft": "remotion render TeamMartPromo out/teammart-promo-draft.mp4 --scale=0.5 --crf=28",
+    "render": "remotion render TeamMartPromo out/teammart-40s-16x9.mp4",
+    "render:vertical": "remotion render TeamMartPromoVertical out/teammart-40s-9x16.mp4",
+    "render:all": "node scripts/render-all.mjs",
+    "render:draft": "remotion render TeamMartPromo out/teammart-draft.mp4 --scale=0.5 --crf=28",
     "stills": "node scripts/render-stills.mjs",
+    "audio": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/audio/generate.ts",
+    "captions": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/export-captions.ts",
+    "record": "node scripts/record-flows.cjs && node scripts/record-flows.cjs --lang ckb",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@react-three/fiber": "8.18.0",
     "@remotion/cli": "4.0.527",
     "@remotion/fonts": "4.0.527",
     "@remotion/noise": "4.0.527",
     "@remotion/paths": "4.0.527",
+    "@remotion/three": "4.0.527",
     "lucide-react": "0.383.0",
     "react": "18.3.1",
     "react-dom": "18.3.1",
-    "remotion": "4.0.527"
+    "remotion": "4.0.527",
+    "three": "0.185.1",
+    "zod": "4.5.4"
   },
   "devDependencies": {
     "@remotion/bundler": "4.0.527",
     "@remotion/renderer": "4.0.527",
     "@types/react": "18.3.31",
+    "@types/three": "0.185.4",
     "typescript": "5.9.3"
   }
 }

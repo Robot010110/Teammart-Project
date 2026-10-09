@@ -1,0 +1,78 @@
+{
+  "en": {
+    "supervisor-assigns": {
+      "duration": 16.033,
+      "events": {
+        "tapAssignTask": 1.277,
+        "formOpen": 2.998,
+        "typeTitle": 3.727,
+        "titleTyped": 4.903,
+        "pickPriority": 7.179,
+        "locationTyped": 11.105,
+        "tapSubmit": 11.606,
+        "assigned": 14.843
+      }
+    },
+    "employee-completes-task": {
+      "duration": 12.623,
+      "events": {
+        "tapTask": 1.586,
+        "detail": 3.676,
+        "tapStart": 3.676,
+        "started": 5.699,
+        "tapCamera": 6.362,
+        "photoShown": 6.675,
+        "tapComplete": 7.875,
+        "done": 10.832
+      }
+    },
+    "supervisor-approves": {
+      "duration": 8.314,
+      "events": {
+        "tapRow": 1.594,
+        "modal": 3.459,
+        "tapApprove": 3.459,
+        "tapSave": 4.985,
+        "approved": 6.112
+      }
+    }
+  },
+  "ckb": {
+    "supervisor-assigns": {
+      "duration": 16.329,
+      "events": {
+        "tapAssignTask": 1.274,
+        "formOpen": 2.976,
+        "typeTitle": 3.706,
+        "titleTyped": 4.877,
+        "pickPriority": 7.205,
+        "locationTyped": 11.382,
+        "tapSubmit": 11.883,
+        "assigned": 15.14
+      }
+    },
+    "employee-completes-task": {
+      "duration": 12.51,
+      "events": {
+        "tapTask": 1.588,
+        "detail": 3.673,
+        "tapStart": 3.673,
+        "started": 5.715,
+        "tapCamera": 6.377,
+        "photoShown": 6.58,
+        "tapComplete": 7.78,
+        "done": 10.717
+      }
+    },
+    "supervisor-approves": {
+      "duration": 8.344,
+      "events": {
+        "tapRow": 1.59,
+        "modal": 3.475,
+        "tapApprove": 3.475,
+        "tapSave": 5.022,
+        "approved": 6.153
+      }
+    }
+  }
+}

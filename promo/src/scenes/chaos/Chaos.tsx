@@ -1,12 +1,13 @@
 import React, { useMemo } from 'react';
 import { AbsoluteFill } from 'remotion';
 import { noise2D } from '@remotion/noise';
-import { COLORS, COPY } from '../../config';
+import { COLORS } from '../../config';
+import { useCopy, useLang } from '../../i18n/copy';
 import { MotionBlur } from '../../components/MotionBlur';
 import { shake } from '../../lib/camera';
 import { FONT_STACK } from '../../lib/fonts';
 import { EASE, mix, pulse, ramp, sp, SPRING, stagger } from '../../lib/motion';
-import { sceneClock, useAbsoluteFrame } from '../../lib/timing';
+import { sceneClock, useAbsoluteFrame, useFrameStep } from '../../lib/timing';
 import { alpha, useLayout } from '../../lib/util';
 import { ChaosVisual } from './Items';
 import { getChaosSim, LAYERS, SIM_FRAMES, snapSchedule } from './sim';
@@ -25,8 +26,11 @@ import { getChaosSim, LAYERS, SIM_FRAMES, snapSchedule } from './sim';
  */
 export const Chaos: React.FC = () => {
   const abs = useAbsoluteFrame();
-  const { W, H, cx, cy, vertical } = useLayout();
-  const sim = useMemo(() => getChaosSim(W, H), [W, H]);
+  const { W, H, cx, cy, mode, pick } = useLayout();
+  const copy = useCopy();
+  const { rtl } = useLang();
+  const step = useFrameStep();
+  const sim = useMemo(() => getChaosSim(W, H, copy.chaos), [W, H, copy.chaos]);
 
   const c = sceneClock('chaos', abs);
   const b = sceneClock('beat', abs);
@@ -80,7 +84,7 @@ export const Chaos: React.FC = () => {
     if (abs < enterAbs) return null;
     const now = posAt(i, abs);
     if (now.q >= 1) return null;
-    const prev = posAt(i, abs - 1);
+    const prev = posAt(i, abs - step);
     const st = sim.states[simFrameAt(abs)];
     const pop = 0.72 + 0.28 * sp(abs, enterAbs, SPRING.pop);
     const imp = st.impact[i];
@@ -113,13 +117,14 @@ export const Chaos: React.FC = () => {
   // ── Giant hero line: "who's covering Zone 3?" ────────────────────────────
   // SFX: hero_thud at c.at(200)
   const heroStart = c.range.start + c.at(200);
-  const heroWords = COPY.chaos.hero.split(' ');
-  const heroLines = vertical ? [heroWords.slice(0, 2), heroWords.slice(2)] : [heroWords];
+  const heroWords = copy.chaos.hero.split(' ');
+  const half = Math.ceil(heroWords.length / 2);
+  const heroLines = mode === 'landscape' ? [heroWords] : [heroWords.slice(0, half), heroWords.slice(half)];
   const heroSnapStart = snapStart + snapSpread * 0.55;
   const heroQ = ramp(abs, heroSnapStart, heroSnapStart + snapDur, 0, 1, EASE.in);
   const heroGrow = 1 + 0.12 * ramp(abs, heroStart, freezeAt, 0, 1, EASE.in);
   const heroJit = abs < freezeAt ? 1 : 0;
-  const heroSize = vertical ? 128 : 150;
+  const heroSize = pick({ landscape: 150, portrait: 128, square: 116 }) * (rtl ? 0.9 : 1);
   const heroLine = (dx: number, dy: number, color: string, opacity: number, key: string) => (
     <div key={key} style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, transform: `translate(${dx}px, ${dy}px)`, opacity }}>
       <div style={{ position: 'absolute', left: 0, right: 0, top: '50%', transform: 'translateY(-50%)' }}>
@@ -136,8 +141,8 @@ export const Chaos: React.FC = () => {
                     display: 'inline-block',
                     fontFamily: FONT_STACK,
                     fontWeight: 780,
-                    letterSpacing: '-0.05em',
-                    lineHeight: 1.02,
+                    letterSpacing: rtl ? 0 : '-0.05em',
+                    lineHeight: rtl ? 1.25 : 1.02,
                     color,
                     opacity: Math.min(1, p * 1.6),
                     transform: `translateY(${(1 - p) * heroSize * 0.4}px) scale(${0.86 + 0.14 * p})`,
@@ -180,8 +185,8 @@ export const Chaos: React.FC = () => {
                 position: 'absolute',
                 left: '50%',
                 top: '50%',
-                width: vertical ? 1100 : 1500,
-                height: vertical ? 700 : 520,
+                width: mode === 'landscape' ? 1500 : 1100,
+                height: mode === 'landscape' ? 520 : 700,
                 transform: 'translate(-50%, -50%)',
                 background: 'radial-gradient(ellipse, rgba(6,7,10,0.82) 0%, rgba(6,7,10,0.55) 45%, transparent 72%)',
                 opacity: ramp(abs, heroStart, heroStart + 20),
