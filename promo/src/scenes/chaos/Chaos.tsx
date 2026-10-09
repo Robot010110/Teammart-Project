@@ -118,13 +118,23 @@ export const Chaos: React.FC = () => {
   // SFX: hero_thud at c.at(200)
   const heroStart = c.range.start + c.at(200);
   const heroWords = copy.chaos.hero.split(' ');
-  const half = Math.ceil(heroWords.length / 2);
-  const heroLines = mode === 'landscape' ? [heroWords] : [heroWords.slice(0, half), heroWords.slice(half)];
+  // Fit any zone name: one line on 16:9 while it fits, else two balanced
+  // lines; then shrink until the longest line fits, leaving room to grow.
+  const heroBase = pick({ landscape: 150, portrait: 128, square: 116 }) * (rtl ? 0.9 : 1);
+  const lineW = (ws: string[], size: number) => ws.join(' ').length * size * 0.48;
+  const fitW = (W * 0.94) / 1.12;
+  let cut = 1;
+  for (let i = 1; i < heroWords.length; i++) {
+    const worst = (k: number) => Math.max(lineW(heroWords.slice(0, k), 1), lineW(heroWords.slice(k), 1));
+    if (worst(i) < worst(cut)) cut = i;
+  }
+  const oneLine = mode === 'landscape' && lineW(heroWords, heroBase) <= fitW;
+  const heroLines = oneLine || heroWords.length < 2 ? [heroWords] : [heroWords.slice(0, cut), heroWords.slice(cut)];
+  const heroSize = heroBase * Math.min(1, fitW / Math.max(...heroLines.map((l) => lineW(l, heroBase))));
   const heroSnapStart = snapStart + snapSpread * 0.55;
   const heroQ = ramp(abs, heroSnapStart, heroSnapStart + snapDur, 0, 1, EASE.in);
   const heroGrow = 1 + 0.12 * ramp(abs, heroStart, freezeAt, 0, 1, EASE.in);
   const heroJit = abs < freezeAt ? 1 : 0;
-  const heroSize = pick({ landscape: 150, portrait: 128, square: 116 }) * (rtl ? 0.9 : 1);
   const heroLine = (dx: number, dy: number, color: string, opacity: number, key: string) => (
     <div key={key} style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, transform: `translate(${dx}px, ${dy}px)`, opacity }}>
       <div style={{ position: 'absolute', left: 0, right: 0, top: '50%', transform: 'translateY(-50%)' }}>
