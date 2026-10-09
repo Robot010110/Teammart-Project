@@ -16,7 +16,7 @@ product → logo, tagline, call to action. Shot-by-shot plan: **[PLAN.md](PLAN.m
 | | | |
 |---|---|---|
 | ![Chaos](docs/frames/01-chaos.jpg) **0:05** chaos | ![3D hierarchy](docs/frames/02-hierarchy.jpg) **0:14** 3D hierarchy, role scopes | ![Real app](docs/frames/03-real-app.jpg) **0:21** real app, recorded |
-| ![Approved](docs/frames/04-approved.jpg) **0:26** approved | ![Real product](docs/frames/05-product.jpg) **0:34** real product | ![Close](docs/frames/06-close.jpg) **0:38** close |
+| ![Approved](docs/frames/04-approved.jpg) **0:26** approved | ![Real product](docs/frames/05-product.jpg) **0:33** real product | ![Close](docs/frames/06-close.jpg) **0:38** close |
 
 ### What's new in v2
 
