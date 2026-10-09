@@ -16,6 +16,11 @@ Employees hierarchy with role scopes → one task's round trip (assign → compl
 approve) → a live dashboard → the real product → logo, tagline, call to action.
 The shot-by-shot plan with exact frames is in **[PLAN.md](PLAN.md)**.
 
+| | | |
+|---|---|---|
+| ![Chaos](docs/frames/01-f330.jpg) **0:05.5** chaos | ![Role scopes](docs/frames/02-f960.jpg) **0:16.0** role scopes | ![Phone](docs/frames/03-f1330.jpg) **0:22.2** complete on the phone |
+| ![Approved](docs/frames/04-f1530.jpg) **0:25.5** approved | ![Real product](docs/frames/05-f2060.jpg) **0:34.3** real product | ![Close](docs/frames/06-f2330.jpg) **0:38.8** close |
+
 ---
 
 ## Install
@@ -54,7 +59,7 @@ npm run stills -- TeamMartPromo 600 1300    # specific frames
 ## Render
 
 ```bash
-# 16:9 master (H.264, CRF 18 — high quality, ~15 Mbps)
+# 16:9 master (H.264, CRF 18 — ~18 Mbps, ~90 MB)
 npx remotion render TeamMartPromo out/teammart-promo-16x9.mp4
 
 # 9:16 vertical
@@ -203,6 +208,7 @@ own API — only run it against a local/demo database.
 ```
 promo/
   PLAN.md                     shot-by-shot plan (exact frames)
+  docs/frames/                poster frames used in this README
   remotion.config.ts          render defaults (H.264, CRF 18, JPEG frames)
   public/
     fonts/                    Inter variable (wght + opsz), OFL license
