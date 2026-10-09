@@ -5,6 +5,7 @@ import CinematicBackground from "./CinematicBackground";
 import RoleCardPremium from "./RoleCardPremium";
 import LanguagePreLoginToggle from "./LanguagePreLoginToggle";
 import { ROLE_OPTIONS } from "../../data/auth";
+import { BrandMark, BrandWordmark } from "../common/BrandMark";
 
 // RoleSelectScreen.jsx — Stage 1, "Who's logging in?" the cinematic
 // entrance the rest of the login flow branches from. `onSelect(roleKey)`
@@ -29,14 +30,10 @@ export default function RoleSelectScreen({ onSelect }) {
       <div className="relative min-h-screen flex flex-col px-5 sm:px-8 py-6">
         <header className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className="relative h-10 w-10 shrink-0 rounded-xl bg-gradient-to-br from-[#F47A20] to-[#c95c10] grid place-items-center shadow-[0_0_16px_-2px_rgba(244,122,32,0.6)]">
-              <span className="font-display font-extrabold text-white text-[15px]">TM</span>
-            </div>
+            <BrandMark className="h-10 w-10" />
             <div className="leading-tight">
-              <p className="font-display font-bold text-white text-[16px] tracking-wide">
-                TEAM<span className="text-[#F47A20]">MART</span>
-              </p>
-              <p className="text-[9.5px] uppercase tracking-[0.18em] text-[#8B93A8]">{t("auth.brandSubtitle")}</p>
+              <BrandWordmark className="h-[16px]" />
+              <p className="mt-1 text-[9.5px] uppercase tracking-[0.18em] text-[#8B93A8]">{t("auth.brandSubtitle")}</p>
             </div>
           </div>
           <LanguagePreLoginToggle />

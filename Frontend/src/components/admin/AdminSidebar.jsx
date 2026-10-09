@@ -1,6 +1,7 @@
 import { NavLink } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { LayoutDashboard, Users, Layers, CalendarCheck, FileBarChart, PackageX, Megaphone, Settings, X } from "lucide-react";
+import { BrandMark, BrandWordmark } from "../common/BrandMark";
 
 // Every entry points at a route that already exists in AdminWorkspace —
 // no invented destinations. `match` lists the extra path prefixes that
@@ -55,14 +56,10 @@ export default function AdminSidebar({ session, pathname, open, onClose }) {
       >
         <div className="flex items-center justify-between gap-2 px-5 pb-5 pt-5">
           <div className="flex items-center gap-2.5">
-            <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-[#F47A20] to-[#c95c10] shadow-[0_0_16px_-2px_rgba(244,122,32,0.55)]">
-              <span className="font-display text-[13px] font-extrabold tracking-tight text-white">TM</span>
-            </div>
+            <BrandMark className="h-9 w-9" />
             <div className="leading-tight">
-              <p className="font-display text-[15px] font-bold tracking-wide text-white">
-                TEAM<span className="text-[#F47A20]">MART</span>
-              </p>
-              <p className="text-[8.5px] uppercase tracking-[0.16em] text-[#5C6479]">{t("admin.peopleDriveGreatMarkets")}</p>
+              <BrandWordmark className="h-[15px]" />
+              <p className="mt-1 text-[8.5px] uppercase tracking-[0.16em] text-[#5C6479]">{t("admin.peopleDriveGreatMarkets")}</p>
             </div>
           </div>
           <button

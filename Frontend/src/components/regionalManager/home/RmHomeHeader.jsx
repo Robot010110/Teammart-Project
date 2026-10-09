@@ -2,6 +2,7 @@ import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { UserRound } from "lucide-react";
 import NotificationBell from "../../employee/NotificationBell";
+import { BrandMark, BrandWordmark } from "../../common/BrandMark";
 
 function greeting() {
   const hour = new Date().getHours();
@@ -31,12 +32,8 @@ export default function RmHomeHeader({ session, zoneLabel, basePath }) {
     <header>
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2.5">
-          <div className="relative h-9 w-9 shrink-0 rounded-xl bg-gradient-to-br from-[#F47A20] to-[#c95c10] grid place-items-center shadow-[0_0_16px_-2px_rgba(244,122,32,0.55)]">
-            <span className="font-display font-extrabold text-white text-[13px] tracking-tight">TM</span>
-          </div>
-          <p className="font-display font-bold text-white text-[15px] tracking-wide">
-            TEAM<span className="text-[#F47A20]">MART</span>
-          </p>
+          <BrandMark className="h-9 w-9" />
+          <BrandWordmark className="h-[15px]" />
         </div>
         <NotificationBell basePath={basePath} />
       </div>

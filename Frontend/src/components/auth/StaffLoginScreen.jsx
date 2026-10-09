@@ -10,6 +10,7 @@ import { listMarkets } from "../../services/marketService";
 import { ApiError } from "../../services/apiClient";
 import { initialsOf } from "../../utils/initials";
 import LanguagePreLoginToggle from "./LanguagePreLoginToggle";
+import { BrandMark, BrandWordmark } from "../common/BrandMark";
 
 const STAFF_ROLES = [
   { key: "supervisor", labelKey: "roles.supervisor", icon: ClipboardList },
@@ -138,12 +139,8 @@ export default function StaffLoginScreen({ onBack, onLogin, initialRole = "super
             <ArrowLeft size={17} className="rtl-flip" />
           </button>
           <div className="flex items-center gap-2">
-            <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-[#F47A20] to-[#c95c10] grid place-items-center shadow-[0_0_12px_-2px_rgba(244,122,32,0.6)]">
-              <span className="font-display font-extrabold text-white text-[11px]">TM</span>
-            </div>
-            <p className="font-display font-bold text-white text-[13px] tracking-wide">
-              TEAM<span className="text-[#F47A20]">MART</span>
-            </p>
+            <BrandMark className="h-8 w-8" />
+            <BrandWordmark className="h-[13px]" />
           </div>
           <LanguagePreLoginToggle />
         </div>
