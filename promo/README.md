@@ -1,39 +1,63 @@
-# TeamMart — 40-second promo (Remotion)
+# TeamMart — promo film (Remotion)
 
-A 40 s motion-graphic promo for **TeamMart**, built entirely from shapes, type and UI components in
-[Remotion](https://www.remotion.dev) (React). One composition drives both cuts:
+A motion-graphic film for **TeamMart**, built in [Remotion](https://www.remotion.dev) (React +
+three.js): a 40 s master, 15 s and 6 s cutdowns, in 16:9, 9:16 and 1:1, in English and Sorani
+Kurdish, personalisable per prospect, with an original score and sound design.
 
-| Composition | Size | FPS | Frames |
-|---|---|---|---|
-| `TeamMartPromo` | 1920×1080 (16:9 master) | 60 | 2,400 |
-| `TeamMartPromoVertical` | 1080×1920 (9:16) | 60 | 2,400 |
+No stock footage and no mock-ups of the product: every app screen in the film is the **real
+TeamMart app**, either a screenshot or a screen recording driven by a script against the running
+app with its demo data.
 
-No stock footage. The only bitmaps are **real screenshots of the TeamMart app**, captured from
-the running app with its seeded demo data (see [Real screenshots](#real-screenshots)).
-
-**Story:** chaos → freeze → *"What if every market ran like one team?"* → Zone → Markets →
-Employees hierarchy with role scopes → one task's round trip (assign → complete on the phone →
-approve) → a live dashboard → the real product → logo, tagline, call to action.
-The shot-by-shot plan with exact frames is in **[PLAN.md](PLAN.md)**.
+**Story:** chaos → freeze → *"What if every market ran like one team?"* → a 3D Zone → Market →
+Employee hierarchy where each role's scope lights up → one task's real round trip (Supervisor
+assigns → employee completes with a photo → Supervisor approves) → a live dashboard → the real
+product → logo, tagline, call to action. Shot-by-shot plan: **[PLAN.md](PLAN.md)**.
 
 | | | |
 |---|---|---|
-| ![Chaos](docs/frames/01-f330.jpg) **0:05.5** chaos | ![Role scopes](docs/frames/02-f960.jpg) **0:16.0** role scopes | ![Phone](docs/frames/03-f1330.jpg) **0:22.2** complete on the phone |
-| ![Approved](docs/frames/04-f1530.jpg) **0:25.5** approved | ![Real product](docs/frames/05-f2060.jpg) **0:34.3** real product | ![Close](docs/frames/06-f2330.jpg) **0:38.8** close |
+| ![Chaos](docs/frames/01-chaos.jpg) **0:05** chaos | ![3D hierarchy](docs/frames/02-hierarchy.jpg) **0:14** 3D hierarchy, role scopes | ![Real app](docs/frames/03-real-app.jpg) **0:21** real app, recorded |
+| ![Approved](docs/frames/04-approved.jpg) **0:26** approved | ![Real product](docs/frames/05-product.jpg) **0:34** real product | ![Close](docs/frames/06-close.jpg) **0:38** close |
+
+### What's new in v2
+
+1. **Original score + sound design, mixed to picture.** 120 BPM, every cut on the beat grid;
+   ~135 synthesised cues placed from the picture's own beat sheet (taps inside the phones land on
+   the recorded taps); a separate arrangement per edit; −14 LUFS. → [Soundtrack](#soundtrack)
+2. **Real 3D hierarchy.** three.js via `@remotion/three`: perspective camera flights, lighting,
+   true sub-frame motion blur, bloom and depth of field. → [3D](#the-3d-hierarchy)
+3. **The real workflow.** The phones play screen recordings of the actual app flow, and the step
+   copy now says exactly what the product does. → [Recordings](#real-app-recordings-and-screenshots)
+4. **Per-prospect versions + Kurdish.** Props for company, zones, markets and names; a full Sorani
+   Kurdish (RTL) version. → [Personalise](#personalise-for-a-prospect)
+5. **Final logo, one palette, every format.** A brand kit shared with the app (blue = identity,
+   orange = action), 15 s / 6 s cutdowns, square format, burned-in captions + SRT/VTT.
+   → [`../brand/`](../brand/README.md)
 
 ---
 
+## Compositions
+
+| Folder | Composition ids | Sizes | Length |
+|---|---|---|---|
+| Master-40s | `TeamMartPromo`, `…Vertical`, `…Square` | 1920×1080 · 1080×1920 · 1080×1080 | 40 s (2,400 f) |
+| Social-15s | `TeamMart15`, `…Vertical`, `…Square` | same | 15 s (900 f) |
+| Social-6s | `TeamMart6`, `…Vertical`, `…Square` | same | 6 s (360 f) |
+| Kurdish | `TeamMartPromoKurdish`, `…Vertical`, `…Square` | same | 40 s |
+
+All run at 60 fps. Every composition takes the same props (language, captions, prospect), so any
+cut can be rendered in Kurdish or for a prospect.
+
 ## Install
 
-Requires Node 18+ (tested on Node 22).
+Requires Node 22+ (the soundtrack and caption scripts run TypeScript directly) and ffmpeg.
 
 ```bash
 cd promo
 npm install
 ```
 
-The first render downloads Remotion's headless Chrome automatically. On a locked-down network,
-point it at any installed Chrome/Chromium instead:
+The first render downloads Remotion's headless Chrome. On a locked-down network, point it at an
+installed Chrome/Chromium instead:
 
 ```bash
 export REMOTION_BROWSER_EXECUTABLE=/path/to/chrome   # optional
@@ -42,201 +66,220 @@ export REMOTION_BROWSER_EXECUTABLE=/path/to/chrome   # optional
 ## Preview
 
 ```bash
-npm run dev          # = npx remotion studio
-```
-
-Opens the Remotion Studio. Pick `TeamMartPromo` or `TeamMartPromoVertical` in the sidebar; each
-scene appears as a named sequence on the timeline (`S1 Chaos + snap`, `S2 Beat`, …).
-
-Quick stills of key frames (one per shot in PLAN.md) without opening the Studio:
-
-```bash
-npm run stills                              # 16:9 → out/stills/
-npm run stills -- TeamMartPromoVertical     # 9:16
-npm run stills -- TeamMartPromo 600 1300    # specific frames
+npm run dev          # Remotion Studio: every composition, editable props panel
+npm run stills                                     # key frames of the 16:9 master → out/stills/
+npm run stills -- TeamMartPromo@600,1300 TeamMart15Square@420   # any compositions/frames
 ```
 
 ## Render
 
 ```bash
-# 16:9 master (H.264, CRF 18 — ~18 Mbps, ~90 MB)
-npx remotion render TeamMartPromo out/teammart-promo-16x9.mp4
-
-# 9:16 vertical
-npx remotion render TeamMartPromoVertical out/teammart-promo-9x16.mp4
+npm run render:all                    # all 12 deliverables → out/*.mp4
+npm run render:all -- TeamMart15      # only ids starting with TeamMart15 (add $ for an exact id)
+npm run render                        # just the 16:9 master
+npx remotion render TeamMart6Vertical out/6s.mp4 --props='{"lang":"ckb","captions":true,"prospect":…}'
 ```
 
-Or via npm scripts:
+`render:all` uses one bundle and one browser for everything (H.264 CRF 18 + AAC 256 kb/s).
+Timing on a 4-core machine with no GPU: about 35 min for a 40 s master, 10 min for a 15 s cut,
+2 min for a 6 s cut — the 3D section dominates (see [Performance](#performance)).
 
-| Script | What it does |
+---
+
+## Personalise for a prospect
+
+Everything about the org is a prop, validated by a zod schema (`src/props.ts`), so the Studio
+shows a form for it:
+
+```jsonc
+// prospects/example-northgate.json
+{
+  "lang": "en",
+  "captions": true,
+  "prospect": {
+    "company": "Northgate Markets",                    // "Prepared for …" under the CTA
+    "zones": [
+      { "name": "Erbil North", "markets": ["Sami Abdulrahman", "Ankawa", "Shorsh"] },
+      { "name": "Erbil South", "markets": ["Bakhtiari", "Iskan"] },
+      …                                                // 2–6 zones, 1–6 markets each
+    ],
+    "employeesPerMarket": 4,
+    "focusZone": 0,          // the Regional Manager's zone, nearest the camera
+    "focusMarket": 1,        // the Supervisor's market inside it
+    "employee": "Shalaw N."  // who receives the task
+  }
+}
+```
+
+```bash
+npm run render:all -- --props=prospects/example-northgate.json --suffix=-northgate TeamMart15
+npm run audio -- --prospect prospects/example-northgate.json   # re-time node ticks to that org
+```
+
+The prospect's names flow everywhere: the chaos hero line (*"who's covering Erbil North?"*), the
+3D hierarchy and its labels, *"Visible to Erbil North and HQ"*, the live dashboard feed, and
+*"Prepared for Northgate Markets"* on the close. Empty names fall back to *Zone 1 / Market 3*.
+
+**Kurdish:** `"lang": "ckb"` switches every string to Sorani (`src/i18n/ckb.ts`, following the
+app's own glossary), lays the film out right-to-left, uses Noto Sans Arabic, plays the Kurdish
+screen recordings and screenshots, and the Kurdish soundtrack mix. Have a native speaker review
+the copy before external use, as with the app's locales.
+
+## Soundtrack
+
+```bash
+npm run audio      # → public/audio/{full,cut15,cut6}[-ckb].m4a  (+ stems in out/audio-stems/)
+```
+
+Nothing is sampled; it's all synthesised in `scripts/audio/` (oscillators, FM bells, filtered
+noise, a Freeverb), so there are no licences to clear.
+
+- **Cue sheet** — `src/timeline/cues.ts` builds every cue from the same data the picture uses:
+  the chaos cast's entry frames, the 3D beat sheet, the dashboard and close beats, and the taps
+  in the screen recordings (from `src/recordings/events.json`). Change timing and the sound moves
+  with it.
+- **Score** — 120 BPM in D (one beat = 30 frames, so every cut lands on the grid). Chaos: a
+  dissonant cluster, quickening heartbeat and ticking hats that tape-stop dead on the freeze. Beat:
+  silence, then an airy Dmaj9. Structure: chords arrive with the hierarchy. Workflow and dashboard:
+  the groove. Close: one big Dmaj9 and a long tail.
+- **Per edit** — the 15 s and 6 s cuts get their own arrangement over their own sections rather
+  than a chopped-up master, plus a whoosh on every cut.
+- **Mix** — music ducks under the big hits; master limited, then loudness-normalised with ffmpeg
+  `loudnorm` (two pass) to −14 LUFS integrated, −1.5 dBTP.
+
+The film plays `public/audio/<edit>-<lang>.m4a` (falling back to `<edit>.m4a`) when it exists;
+set `AUDIO.enabled = false` in `config.ts` to render silent.
+
+## Captions
+
+Burned in by default on the social cuts and on 9:16/1:1 masters (prop `captions`). Sidecar files
+for players and platforms:
+
+```bash
+npm run captions   # → captions/<edit>.<lang>.srt / .vtt
+```
+
+## The 3D hierarchy
+
+`src/scenes/graph3d/` — S3 and S4.
+
+| File | Role |
 |---|---|
-| `npm run render` | 16:9 master → `out/teammart-promo-16x9.mp4` |
-| `npm run render:vertical` | 9:16 → `out/teammart-promo-9x16.mp4` |
-| `npm run render:all` | both |
-| `npm run render:web` | both at CRF 23 (smaller files for sharing) |
-| `npm run render:draft` | 16:9 at half resolution, fast, for review |
+| `beats.ts` | Every beat in master frames (pure; the soundtrack reads it too). |
+| `choreo.ts` | The world as a pure function of the frame: camera keyframes, node/edge growth, role scopes, the task packet, ring pulses. Also the camera → screen projection the overlays use. |
+| `World.tsx` | three.js scene and render loop: an accumulation pass renders N sub-frames across a 180° shutter (true motion blur, N chosen from on-screen motion), then half-res bloom, depth of field from real scene depth, output. Stateless between frames, so Remotion can render frames in any order, in parallel. |
+| `GraphScene.tsx` | `<ThreeCanvas>` composited with `screen` over the film's background, plus DOM labels, phones, leader lines and the approval burst, pinned to nodes through the same camera. |
+| `Overlays.tsx` | Headline, role badges with scope pies, the 3-step stepper. |
+| `PhoneClip.tsx` | Plays a real recording inside a phone, frame-accurately from master time. |
 
-Useful flags: `--frames=1020-1619` (render one scene), `--concurrency=8`, `--crf=16`,
-`--codec=prores --prores-profile=4444` (for an editing master). Defaults live in
-[`remotion.config.ts`](remotion.config.ts). A full 16:9 render takes ~30 min on 4 CPU cores.
+### Performance
+
+WebGL in headless Chrome falls back to SwiftShader (CPU) on machines without a GPU. Measured on 4
+cores: ~0.3 s per DOM frame, ~1.5 s per 3D frame. Knobs in `LOOK` (`config.ts`):
+`motionBlurSamples3d` (max sub-frames; each costs ~0.5 s/frame), `scale3d` (internal resolution of
+the 3D layer; labels, phones and type stay DOM-sharp), `bloom`. On a GPU machine, set
+`scale3d: 1`.
+
+## Real app recordings and screenshots
+
+| What | Files | Made by |
+|---|---|---|
+| Screen recordings, en + ckb | `public/recordings/<lang>/supervisor-assigns.mp4`, `employee-completes-task.mp4`, `supervisor-approves.mp4` + `src/recordings/events.json` | `npm run record` |
+| Screenshots, en + ckb | `public/screens/<lang>/admin-dashboard.png`, `regional-manager-home.png`, `supervisor-home.png`, `employee-tasks.png` | `node scripts/capture-screens.cjs [--lang ckb]` |
+
+Both scripts drive the actual app (this repo's `Frontend/` + `backend/`, run locally with the
+seed's demo accounts — see the root README), with Playwright:
+
+```bash
+npm i --no-save playwright@1.56.1
+npm run record                              # the three flows, English then Kurdish
+node scripts/capture-screens.cjs            # screenshots (add --lang ckb for Kurdish)
+```
+
+`record-flows.cjs` assigns a task, completes it with a photo and approves a logged activity
+**through the UI**, screencasting at device resolution and retiming to 60 fps; taps show as a soft
+ripple. It writes the moment of each tap to `events.json`, and the film cuts the clips around those
+moments (`src/recordings/clips.ts`) and fits them to their slot — so a re-recording drops straight
+in. It writes to the database the API points at, and switches the demo accounts' language for the
+Kurdish run (and back): only use it against a local or demo instance.
+
+What the film claims matches the app: Supervisors assign sudden tasks (`EmployeeTasksSection`);
+employees start and complete them with photo evidence (`SuddenTaskDetailScreen`); logged work goes
+to the Supervisor's Review Queue (`ReviewQueueScreen`), where it's approved. Dashboard figures are
+**sample values**, and the panel always says *Illustrative data*.
 
 ---
 
 ## Edit colors, copy and timing — `src/config.ts`
 
-Everything you'd normally want to change is in **one file**:
-
 | Block | Controls |
 |---|---|
-| `COLORS` | `bg` `#0A0B10`, `accent` `#4F7CFF`, `warm` `#FFB547` (alerts), text tints. `COLORS.app` holds TeamMart's real product tokens (orange/navy) used inside the phone UI so it matches the real screenshots. |
-| `COPY` | Every on-screen word: chaos messages, the beat line (and which words are highlighted), level names, role badges, the task, dashboard labels & sample numbers, reveal caption, tagline, CTA, optional URL. |
-| `SCREENS` | Which screenshot appears in which device. |
-| `TIMING.scenes` | Seconds per scene (default 6 / 3 / 8 / 10 / 8 / 5 = 40 s). Beats inside a scene scale with it, springs keep their snap, and SFX cues move with the picture. |
-| `LOOK` | Grain, vignette, motion blur on/off, shutter angle, max blur length, fade-out frames. |
-| `SFX` | Turn sound cues on once you've added audio files (below). |
+| `COLORS` | From `../brand/tokens.mjs`: blue for identity/data, orange for action/alerts. `COLORS.app` holds the app's own tokens for UI drawn in the film. |
+| `DEFAULT_PROSPECT` | The org shown when no prospect is given. |
+| `COPY` | Every English word on screen, including captions (Kurdish: `src/i18n/ckb.ts`). `{zone}`, `{market}`, `{employee}`, `{company}` are filled from the prospect. |
+| `SCREENS` | Which screenshot/recording appears where (`{lang}` is filled per language). |
+| `TIMING.scenes` | Seconds per scene (6 / 3 / 7 / 11 / 8 / 5 = 40 s). Beats scale with it; so do the sound cues. |
+| `LOOK` | Grain, vignette, motion blur, shutter angle, 3D samples/scale/bloom. |
+| `AUDIO` | Soundtrack on/off, master volume. |
 
-Dashboard figures are **sample values** and the panel always shows an *Illustrative data* tag.
+Cutdowns are edit decision lists over the master — `src/timeline/edits.ts` (shots with a speed,
+on the beat grid); their captions are in `COPY.captions`.
 
-## How the vertical cut works
+## How one composition makes every format
 
-There is no second edit. Every scene calls `useLayout()` (`src/lib/util.ts`) and adapts: the
-chaos simulation is re-run for the tall frame, the beat line re-wraps to four lines, the radial
-graph (orientation-agnostic by design) gets its headline above and role badges below, the phone
-is larger, the dashboard switches to a 2-column grid, and the product reveal stacks the browser
-above three phones.
-
----
+Each scene reads `useLayout()` (`landscape` / `portrait` / `square`) and `useLang()` and adapts —
+see PLAN.md for the per-format changes. Each edit maps output frames to fractional master frames
+(`src/timeline/edits.ts` → `FilmTimeProvider`); scenes animate on master time and use the frame
+step for motion blur, so sped-up shots blur correctly.
 
 ## Motion system
 
 | Technique | Where |
 |---|---|
-| **spring() + interpolate() only** | `src/lib/motion.ts` — five spring presets (`snap`, `pop`, `settle`, `heavy`, `camera`) tuned for fast attack and slight overshoot; easing curves for camera moves. |
-| **Unique stagger** | `stagger()` adds a golden-ratio sub-frame offset so no two elements ever start on the same frame (Remotion's `spring()` accepts fractional frames; time is quantised to ¼ frame to keep its cache small). |
-| **Directional motion blur** | `src/components/MotionBlur.tsx` — velocity-based: rotate into the direction of travel, one-axis Gaussian blur, rotate back. Length = velocity × 180° shutter. Used on chaos entries, the snap, kinetic type, the task packet, the phone, device fly-ins. Fast camera zooms get a speed-scaled smear. |
-| **2.5D camera + parallax** | `src/lib/camera.ts` — each layer has a parallax factor; `screen = center + (world − cam·p) · zoom^p`. The hierarchy is a shallow pyramid (HQ nearest the lens, employees farthest), so every push, drift and roll reveals depth. |
-| **Depth of field** | Per-plane blur from distance to the focus plane, with a rack focus as the task travels from the Regional Manager to the Supervisor. |
-| **Deterministic physics** | `src/scenes/chaos/sim.ts` — the chaos is a precomputed, seeded simulation (drift, noise jitter, AABB collisions, soft walls), so any frame renders in isolation on Remotion's parallel renderer. |
-| **Grain, glow, glass** | Animated Gaussian grain tiles (overlay blend, sized to survive H.264), radial glows, glass cards with a gradient 1px border via `mask-composite`. |
-
-## Sound design — cue sheet
-
-Cues live in [`src/sfx.ts`](src/sfx.ts) (anchored to scene beats, so they follow `TIMING`), and
-each is also marked as a `SFX:` comment in the scene code. To hear them: drop files with these
-names into `public/sfx/`, set `SFX.enabled = true` in `config.ts`, and render — Remotion mixes them
-into the MP4. (Every listed file must exist once enabled; delete cues you don't want.)
-
-| Time | Frame | File | Cue |
-|---|---|---|---|
-| 0:00.03 | 2 | `notification-pop.wav` | First bubble pops in |
-| 0:00.20 | 12 | `whoosh-small.wav` | Wave 1 entries begin (layer one whoosh+pop per element, f12–f292) |
-| 0:00.67 | 40 | `vibration-bed.wav` | Phone-vibration bed, rising with the camera shake |
-| 0:02.00 | 120 | `dissonant-pad.wav` | Pad swells with the warm alarm glow |
-| 0:03.33 | 200 | `hero-thud.wav` | "who's covering Zone 3?" slams in |
-| 0:06.00 | 360 | `low-hit.wav` | **THE FREEZE** — low hit + tape-stop |
-| 0:06.30 | 378 | `reverse-suck.wav` | Everything snaps into the point of light |
-| 0:07.00 | 420 | `light-tink.wav` | Light flares; shockwave |
-| 0:07.20 | 432 | `word-ticks.wav` | Soft tick per word of "What if every market ran like one team?" |
-| 0:08.70 | 522 | `whoosh-out.wav` | Words exit |
-| 0:09.00 | 540 | `bloom-whomp.wav` | Light blooms into the HQ node |
-| 0:09.33 | 560 | `tick-rise-3.wav` | Three zones pop |
-| 0:10.33 | 620 | `tick-cascade.wav` | Nine markets pop clockwise |
-| 0:11.50 | 690 | `granular-shimmer.wav` | 36 employees ripple in |
-| 0:13.33 | 800 | `chime-1.wav` | Admin badge — whole disc lights |
-| 0:14.33 | 860 | `chime-2.wav` | Regional Manager badge — zone wedge |
-| 0:15.33 | 920 | `chime-3.wav` | Supervisor badge — market wedge |
-| 0:16.33 | 980 | `riser-short.wav` | Riser into the push-in |
-| 0:16.70 | 1002 | `push-whoosh.wav` | Camera pushes into the Regional Manager node |
-| 0:17.67 | 1060 | `card-pop.wav` | Task card springs out |
-| 0:18.70 | 1122 | `zip-down.wav` | Task packet shoots down to the Supervisor |
-| 0:19.50 | 1170 | `impact-rise.wav` | Packet lands, phone rises |
-| 0:20.20 | 1212 | `notification-chime.wav` | Push notification |
-| 0:21.23 | 1274 | `ui-tap.wav` | Tap "Start task" |
-| 0:21.73 | 1304 | `camera-shutter.wav` | Photo evidence captured |
-| 0:22.50 | 1350 | `ui-tap-positive.wav` | Tap "Mark complete" — positive blip |
-| 0:23.33 | 1400 | `lift-swish.wav` | Task lifts off the phone |
-| 0:23.70 | 1422 | `whoosh-up.wav` | Packet flies back up |
-| 0:24.97 | 1498 | `ui-click.wav` | Approve pressed |
-| 0:25.27 | 1516 | `approve-ding.wav` | **THE CHECK** — confirmation ding + soft sub |
-| 0:26.07 | 1564 | `whoosh-big-out.wav` | Fast pull-back |
-| 0:27.03 | 1622 | `ui-swell.wav` | Dashboard settles in |
-| 0:27.50 | 1650 | `counter-ticks.wav` | Counters tick up, panels whoosh in (staggered) |
-| 0:29.83 | 1790 | `tick-chime.wav` | Live update: the approved task lands in the feed |
-| 0:31.83 | 1910 | `shimmer-sweep.wav` | Light sweep reveals the real product |
-| 0:32.43 | 1946 | `whoosh-device-1.wav` | Phone 1 slides in |
-| 0:32.57 | 1954 | `whoosh-device-2.wav` | Phone 2 slides in |
-| 0:32.70 | 1962 | `whoosh-device-3.wav` | Phone 3 slides in |
-| 0:34.00 | 2040 | `riser-short.wav` | Riser into the close |
-| 0:35.00 | 2100 | `whoosh-in.wav` | Devices converge to the light |
-| 0:35.50 | 2130 | `low-hit-soft.wav` | Lighter low hit as the logo forms |
-| 0:35.67 | 2140 | `logo-build.wav` | Crystalline build of the mark |
-| 0:37.17 | 2230 | `tagline-swell.wav` | Tagline |
-| 0:38.17 | 2290 | `soft-click.wav` | CTA appears |
-| 0:39.00 | 2340 | `reverb-tail.wav` | Tail |
-
----
-
-## Real screenshots
-
-`public/screens/` holds four screenshots taken from the real TeamMart app (this repo's
-`Frontend/` + `backend/`) running locally with the seed's demo accounts:
-
-| File | Role / route | Appears in |
-|---|---|---|
-| `admin-dashboard.png` | Admin · `/admin/home` (1440×900 @2x) | Browser frame, shot 5D |
-| `regional-manager-home.png` | Regional Manager · `/rm/profile` (390×844 @3x) | Phone 1, shot 5E |
-| `supervisor-home.png` | Supervisor · `/supervisor/home` | Phone 2, shot 5E |
-| `employee-tasks.png` | Employee · `/me/tasks` | Phone 3, shot 5E |
-
-They show demo data only, and the film captions them as such. The animated phone in the workflow
-(shots 4D–4J) is a rebuild of the app's real task-detail screen (same layout, tokens and icons),
-so it can animate through Assigned → In progress → Completed.
-
-To refresh them after UI changes, run the app locally (see the root README), then:
-
-```bash
-npm i --no-save playwright@1.56.1 && npx playwright install chromium
-node scripts/capture-screens.cjs                  # capture
-node scripts/capture-screens.cjs --seed-activity  # first create a "lived-in" day via the API
-```
-
-`--seed-activity` checks the demo Supervisor in and assigns a few sudden tasks through the app's
-own API — only run it against a local/demo database.
+| **spring() + interpolate() only** | `src/lib/motion.ts` — five spring presets tuned for fast attack and slight overshoot. |
+| **Unique stagger** | `stagger()` adds a golden-ratio sub-frame offset so no two elements start on the same frame. |
+| **Directional motion blur (DOM)** | `src/components/MotionBlur.tsx` — rotate into the direction of travel, one-axis Gaussian blur, rotate back; length = velocity × 180° shutter. |
+| **Motion blur (3D)** | Sub-frame accumulation across the shutter in `World.tsx`. |
+| **Depth of field** | 3D: from scene depth (BokehPass), racked so the world drops out of focus while a phone is up. DOM: per-layer blur. |
+| **Deterministic physics** | `src/scenes/chaos/sim.ts` — precomputed, seeded chaos simulation; any frame renders in isolation. |
+| **Grain, glow, glass** | Animated grain tiles, radial glows, glass cards with a gradient 1px border. |
 
 ## Project structure
 
 ```
 promo/
-  PLAN.md                     shot-by-shot plan (exact frames)
-  docs/frames/                poster frames used in this README
-  remotion.config.ts          render defaults (H.264, CRF 18, JPEG frames)
+  PLAN.md                       shot-by-shot plan
+  captions/                     SRT/VTT per edit and language
+  prospects/                    example prospect props
   public/
-    fonts/                    Inter variable (wght + opsz), OFL license
-    grain/                    deterministic Gaussian grain tiles
-    screens/                  real TeamMart screenshots
+    audio/                      generated soundtrack (npm run audio)
+    recordings/<lang>/          real app screen recordings (npm run record)
+    screens/<lang>/             real app screenshots
+    fonts/ grain/
   scripts/
-    render-stills.mjs         key-frame stills, one bundle + one browser
-    capture-screens.cjs       re-capture the real screens with Playwright
+    render-all.mjs              every deliverable, one bundle
+    render-stills.mjs           key-frame stills
+    record-flows.cjs            drive + screen-record the app
+    capture-screens.cjs         app screenshots
+    audio/                      synth, score, mixer (npm run audio)
+    export-captions.ts
   src/
-    config.ts                 ← colors, copy, timing, look, SFX switch
-    Root.tsx / index.ts       the two compositions
-    Promo.tsx                 scene windows, background, grain, vignette, fade
-    sfx.ts                    sound cue sheet + optional audio track
-    lib/                      timing, springs/easing, 2.5D camera, fonts, utils
-    components/               motion blur, atmosphere, glass, kinetic type,
-                              logo, phone/browser frames, check burst + taps
+    config.ts                   colors, copy, prospect, timing, look
+    props.ts                    composition props (zod)
+    Root.tsx  Film.tsx  Promo.tsx
+    i18n/                       Kurdish copy, placeholder filling, language context
+    structure/model.ts          the org layout from a prospect
+    timeline/                   master clock, edits (cutdowns), sound cue sheet
+    recordings/                 recording events + how clips are cut
+    lib/  components/
     scenes/
-      chaos/                  S1 — physics sim + messy UI fragments
-      Beat.tsx                S2 — freeze, snap, point of light, kinetic line
-      graph/                  S3+S4 — hierarchy model, camera timeline, world,
-                              overlays (headline, badges, stepper), phone UI
-      dashboard/              S5 — panels + real-product reveal
-      Close.tsx               S6 — logo, tagline, CTA
+      chaos/  Beat.tsx  graph3d/  dashboard/  Close.tsx
 ```
 
 ## Licensing notes
 
 - **Remotion** is free for individuals and companies of up to 3 people; larger for-profit
   organisations need a [company license](https://www.remotion.pro) to render with it.
-- **Inter** — SIL Open Font License 1.1 (`public/fonts/OFL-Inter.txt`).
-- **Lucide** icons (`lucide-react`, the same icon set the TeamMart app uses) — ISC License.
+- **three.js**, **@react-three/fiber** — MIT. **Lucide** icons — ISC. **zod** — MIT.
+- **Inter** and **Noto Sans Arabic** — SIL Open Font License 1.1 (`public/fonts/`).
+- The soundtrack is generated by this repo's code; no third-party audio.

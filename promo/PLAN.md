@@ -1,11 +1,11 @@
 # TeamMart promo — shot-by-shot plan
 
-**Spec:** 40.0 s · 60 fps · 2,400 frames · 1920×1080 master + 1080×1920 vertical (same composition, layout adapts).
+**Spec:** 40.0 s · 60 fps · 2,400 frames, plus 15 s and 6 s edits of the same master · 1920×1080, 1080×1920 and 1080×1080 from one composition (layout adapts) · English and Sorani Kurdish (RTL) · per-prospect structure and names via props.
 **Viewer:** head of operations at a supermarket chain. **Feeling:** "this would fix my daily chaos."
-**Look:** near-black `#0A0B10`, one electric accent `#4F7CFF`, warm alert `#FFB547`. Inter (variable, optical sizing), tight tracking, soft glows, animated grain, depth-of-field, 1px-bordered glass.
+**Look:** near-black `#0A0B10`, brand blue `#4F7CFF` for identity and data, brand orange `#F47A20` for action and alerts (`brand/tokens.mjs`). Inter (variable, optical sizing), tight tracking, soft glows, animated grain, depth-of-field, 1px-bordered glass.
 **Motion rules:** spring() + interpolate() only, nothing linear, nothing floaty. Every element gets its own start frame (no two elements start on the same frame). Velocity-based directional motion blur on fast moves. 2.5D camera with per-layer parallax and depth-of-field.
 
-Frame numbers are absolute (frame = seconds × 60). `SFX:` lines are the audio cue sheet; the same cues are marked in code comments and listed in `src/sfx.ts`.
+Frame numbers are absolute (frame = seconds × 60). `SFX:` columns describe the soundtrack; the generator builds its cue sheet from the same beats in code (`src/timeline/cues.ts`), so sound and picture can't drift.
 
 ---
 
@@ -16,7 +16,7 @@ Frame numbers are absolute (frame = seconds × 60). `SFX:` lines are the audio c
 | 1A | f0–f20 | 0.00–0.33 | Black → first chat bubble pops in: *"who's covering Zone 3?"* (spring, overshoot). | notification pop |
 | 1B | f12–f150 | 0.20–2.50 | Wave 1: 14 elements fly in from every edge — chat bubbles, sticky notes, missed-call chips — staggered 4–7 frames apart, motion-blurred on entry. | stacked whooshes + pops |
 | 1C | f90–f300 | 1.50–5.00 | Waves 2–3: ~30 more — spreadsheet cells (`#REF!`, `TBD`, red error cells), email subject `RE: RE: FW: shift_schedule_v7_FINAL(2).xlsx`, `3 missed calls`, `99+` badges. Deterministic physics: drift, noise jitter, elastic collisions, soft walls. Three depth layers (back: small/blurred, mid: sharp, front: large/blurred passing the lens). Camera shake ramps 0 → 9 px, ±0.4°. | phone-vibration bed rising, dissonant pad |
-| 1D | f200–f359 | 3.33–6.00 | The hero line *"who's covering Zone 3?"* swells into huge kinetic type with echo copies; missed-call counter ticks 3 → 27; background glow drifts warm (`#FFB547`) = alarm. Peak chaos at f350. | pad crescendo |
+| 1D | f200–f359 | 3.33–6.00 | The hero line *"who's covering Zone 3?"* swells into huge kinetic type with echo copies; missed-call counter ticks 3 → 27; background glow drifts warm (brand orange) = alarm. Peak chaos at f350. | pad crescendo |
 
 ## S2 · BEAT — 0:06.00–0:09.00 (f360–f539)
 
@@ -30,41 +30,35 @@ Frame numbers are absolute (frame = seconds × 60). `SFX:` lines are the audio c
 | 2F | f500–f522 | 8.33–8.70 | Hold. | — |
 | 2G | f522–f539 | 8.70–9.00 | Words exit (scale down + blur, 2-frame stagger); light returns to center. | whoosh out |
 
-## S3 · STRUCTURE — 0:09.00–0:17.00 (f540–f1019)
+## S3 · STRUCTURE — 0:09.00–0:16.00 (f540–f959) · real 3D
 
-Radial hierarchy blooming from the point of light: HQ → 3 Zones → 9 Markets → 36 Employees. Each ring sits on its own parallax plane.
-
-| Shot | Frames | Time | Picture | SFX |
-|---|---|---|---|---|
-| 3A | f540–f570 | 9.00–9.50 | Light blooms into the HQ root node (glass, TeamMart mark); shockwave travels to ring 1. | deep bloom "whomp" |
-| 3B | f560–f650 | 9.33–10.83 | **Zones:** 3 edges draw out (6 frames apart), zone nodes pop with overshoot. Headline: *Zones*. | 3 rising ticks |
-| 3C | f620–f730 | 10.33–12.17 | **Markets:** 9 edges draw, 9 nodes pop clockwise 4 frames apart. Headline: *Zones → Markets*. | tick cascade |
-| 3D | f690–f800 | 11.50–13.33 | **Employees:** 36 dots pop in a clockwise wave, 1–2 frames apart. Headline: *Zones → Markets → Employees*. Slow camera drift reveals parallax. | granular shimmer |
-| 3E | f800–f860 | 13.33–14.33 | **Admin** badge lights; scope = the whole disc (fill + outer ring + one sweep beam). *Every zone.* | power-up chime |
-| 3F | f860–f920 | 14.33–15.33 | **Regional Manager** badge; scope = the bottom zone's 120° wedge, the rest dims. *Their zone.* | chime, higher |
-| 3G | f920–f980 | 15.33–16.33 | **Supervisor** badge; scope = one market's 40° wedge inside it. *Their market.* | chime, highest |
-| 3H | f980–f1019 | 16.33–17.00 | Nested scopes hold together; camera starts pushing toward the bottom wedge. | riser |
-
-## S4 · WORKFLOW — 0:17.00–0:27.00 (f1020–f1619)
-
-One task's round trip. The phone UI is modelled 1:1 on the real TeamMart task screen (priority pill, title, location, due time, *Assigned by*, 3-step tracker, photo evidence, primary action).
+The point of light becomes the HQ of a **three.js** org chart lying on a disc: HQ → 3 Zones → 9 Markets → 36 Employees (or the prospect's own structure). Perspective camera, lit glass nodes with hot cores, arcing edges, a polar floor grid, true sub-frame motion blur, bloom and depth of field. Labels are DOM, pinned to nodes through the same camera.
 
 | Shot | Frames | Time | Picture | SFX |
 |---|---|---|---|---|
-| 4A | f1020–f1080 | 17.00–18.00 | Camera push into the Regional Manager's zone node (zoom 1 → 2.1); rest of graph defocuses + dims. Chip **01 · Assign**. | push whoosh |
-| 4B | f1060–f1120 | 17.67–18.67 | Task card springs out of the RM node: *Restock dairy shelf · Aisle 4 · High · Due 30 min*. | card pop + click |
-| 4C | f1120–f1170 | 18.67–19.50 | Card collapses to a glowing packet and shoots **down** the edge to the Supervisor's market node (motion blur + light trail); camera follows. | zip down |
-| 4D | f1170–f1210 | 19.50–20.17 | Impact ripple; a phone rises out of the node (scale + 3D tilt settle). Chip **02 · Complete**. | impact + rise whoosh |
-| 4E | f1210–f1240 | 20.17–20.67 | Push notification drops in: *New task · Restock dairy shelf*. | notification chime |
-| 4F | f1240–f1270 | 20.67–21.17 | Task detail staggers in (pill, title, meta, tracker). | UI ticks |
-| 4G | f1270–f1300 | 21.17–21.67 | Tap **Start task** → ripple; tracker step 2 fills; timer starts. | tap + tick |
-| 4H | f1300–f1345 | 21.67–22.42 | Photo evidence: shutter flash, restocked-shelf thumbnail pops in. | shutter click |
-| 4I | f1345–f1380 | 22.42–23.00 | Tap **Mark complete** → step 3 turns green, button morphs to *Completed ✓*. | tap + positive blip |
-| 4J | f1380–f1420 | 23.00–23.67 | The task card lifts off the screen and compresses into a packet. | lift swish |
-| 4K | f1420–f1470 | 23.67–24.50 | Packet flies back **up** to the RM node; phone sinks into the market node; camera follows. Chip **03 · Approve**. | whoosh up |
-| 4L | f1470–f1500 | 24.50–25.00 | Approval card at the RM node; *Approve* is pressed. | click |
-| 4M | f1500–f1560 | 25.00–26.00 | **The check:** circle draws, check mark draws with overshoot, double ring ripple, 18-particle burst, the branch flashes green. *Approved.* | confirmation ding + soft sub |
-| 4N | f1560–f1619 | 26.00–27.00 | Hold, then a fast motion-blurred pull-back (zoom 2.1 → 0.6). | big whoosh out |
+| 3A | f540–f570 | 9.00–9.50 | HQ blooms where the light was, camera tight overhead (72°). | bloom "whomp" |
+| 3B | f564–f600 | 9.40–10.00 | **Zones:** edges arc out 7 frames apart, nodes pop; camera pulls back and tilts. Headline *Zones*. | one bell per zone |
+| 3C | f610–f660 | 10.17–11.00 | **Markets** grow clockwise 3.4 frames apart; the framing slides right to make room for type. Headline *Zones → Markets*. | tick cascade |
+| 3D | f662–f713 | 11.03–11.88 | **Employees** ripple in, ~1 frame apart; camera settles into a wide 3/4 view with a slow orbit. Headline complete. | granular shimmer |
+| 3E | f752–f806 | 12.53–13.43 | **Admin** badge; the whole disc lights. | chime |
+| 3F | f806–f860 | 13.43–14.33 | **Regional Manager**; their zone's sector lights, other zones dim, camera eases toward it. | chime, higher |
+| 3G | f860–f928 | 14.33–15.47 | **Supervisor**; one market's sector, camera closer. | chime, highest |
+| 3H | f928–f959 | 15.47–16.00 | Overlays clear; riser into the push. | riser |
+
+## S4 · WORKFLOW — 0:16.00–0:27.00 (f960–f1619) · the real app
+
+One task's real round trip, filmed from the running app by `scripts/record-flows.cjs`. Each phone plays a screen recording, cut at the recorded taps (`src/recordings/events.json`) and sped up ~2–3× (the phone says so). What the steps claim is what the product does: Supervisors assign sudden tasks; employees start and complete them with photo evidence; logged work goes to the Supervisor's Review Queue for approval.
+
+| Shot | Frames | Time | Picture | SFX |
+|---|---|---|---|---|
+| 4A | f934–f1008 | 15.57–16.80 | Camera dives low to the Supervisor's market node; stepper **01 Assign**. | big whoosh |
+| 4B | f984–f1174 | 16.40–19.57 | A phone rises out of the node (leader line to the node, world defocuses): **real Supervisor UI** — *Assign Task*, title typed, submitted, task appears in the list. | phone rise, taps, success |
+| 4C | f1166–f1218 | 19.43–20.30 | The task, a glowing packet with a comet tail, races down the edge to the employee; camera follows. | zip down, land |
+| 4D | f1198–f1400 | 19.97–23.33 | **02 Complete.** Employee phone: open the task → *Start Task* → camera → photo → *Complete Task* → *Task Completed*. | taps, shutter, success |
+| 4E | f1392–f1440 | 23.20–24.00 | Packet back up to the market. | zip up, land |
+| 4F | f1426–f1558 | 23.77–25.97 | **03 Approve.** Supervisor's **Review Queue**: open the logged refill → *Approve* → *Save Decision* → *Approved.* | taps |
+| 4G | f1554–f1612 | 25.90–26.87 | **The check** bursts on the market node: *Approved · Visible to Zone 3 and HQ*; the news climbs to the zone and HQ with ring pulses. | approval ding + sub, rising arpeggio |
+| 4H | f1606–f1672 | 26.77–27.87 | Pull-back; the world fades under the arriving dashboard. | big whoosh |
 
 ## S5 · DASHBOARD — 0:27.00–0:35.00 (f1620–f2099)
 
@@ -95,17 +89,26 @@ All figures are sample values and the panel is labelled **Illustrative data**.
 ## Always-on layers
 Background `#0A0B10` with slow-drifting radial glows · far bokeh dust on a deep parallax plane (DoF-blurred) · animated film grain (overlay, ~6%) · vignette.
 
-## Vertical (1080×1920) adaptations
-- **Chaos:** same simulation, walls fitted to the tall frame; hero line wraps to 2 lines.
+## Vertical (1080×1920) and square (1080×1080) adaptations
+- **Chaos:** same simulation, walls fitted to the frame; hero line wraps to 2 lines.
 - **Beat:** sentence breaks into 4 lines, slightly smaller type.
-- **Structure:** radial graph unchanged (orientation-agnostic), headline above, role badges stacked below.
-- **Workflow:** phone is larger; chips sit above the phone.
-- **Dashboard:** 2-column tall grid instead of the wide 12-column grid.
-- **Product reveal:** browser frame on top, three phones in a row beneath.
-- **Close:** identical, scaled to width.
+- **Structure:** the 3D camera frames the disc lower (9:16) or right (1:1); headline above, role badges stacked below (9:16) or in a compact column (1:1).
+- **Workflow:** stepper becomes pills on top (9:16) or a compact column (1:1); the phone is larger in 9:16.
+- **Dashboard:** 2-column tall grid (9:16), a 2×2 grid with the live feed next to the chart (1:1).
+- **Product reveal:** browser on top with three phones beneath (9:16); phones overlap the browser's lower edge with role tags on the devices (1:1), since captions own the bottom band.
+- **Close:** lockup stacks vertically; tagline breaks into two balanced lines.
+- **Kurdish:** everything mirrors (overlay columns move right, the 3D framing flips), Noto Sans Arabic without tracking; the brand lockup stays left-to-right.
+
+## Cutdowns (`src/timeline/edits.ts`)
+Each is a list of master shots with a playback speed; cut points sit on the 120 BPM grid (30 frames per beat).
+
+| Edit | Shots (master frames @ speed) |
+|---|---|
+| 15 s · 900 f | chaos f20–335 @1.75 · beat f380–530 · 3D hierarchy f600–900 @2 (flash) · employee completes f1218–1398 · approved f1530–1590 · real product f1950–2040 @1.5 (flash) · close f2110–2380 @2.25 |
+| 6 s · 360 f | chaos peak f150–345 @1.625 · snap into the light f360–420 · real product f1950–2040 @1.5 (flash) · close f2125–2395 @2.25 |
 
 ---
 
 ## Implementation notes
-- Frame-exact beats are defined in code, not hand-placed: `src/scenes/graph/timeline.ts` (S3–S4), the `T` table in `src/scenes/dashboard/DashboardScene.tsx` (S5), and `sceneClock().at()` calls in each scene. A few beats moved by 2–6 frames from this plan where the motion read better (e.g. the "Start task" tap lands on f1274); the audio cue sheet in `src/sfx.ts` / README follows the final picture.
-- All beats are authored at 60 fps against the default scene lengths and scale automatically if `TIMING.scenes` in `src/config.ts` changes.
+- Frame-exact beats are defined in code, not hand-placed: `src/scenes/graph3d/beats.ts` (S3–S4), the `T` table in `src/scenes/dashboard/DashboardScene.tsx` (S5), and `sceneClock().at()` calls in each scene. The 3D camera is keyframed in `src/scenes/graph3d/choreo.ts`.
+- All beats are authored at 60 fps against the design scene lengths (6 / 3 / 7 / 11 / 8 / 5 s) and scale automatically if `TIMING.scenes` in `src/config.ts` changes.

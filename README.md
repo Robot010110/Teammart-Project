@@ -13,7 +13,9 @@ This repository contains both halves of the app:
 Teammart-project-draft-1/
   Frontend/   React + Tailwind CSS client
   backend/    Express + Prisma + PostgreSQL API
-  promo/      40-second Remotion promo video (not part of the app build)
+  brand/      logo, palette tokens and brand rules shared by app and promo
+  promo/      Remotion promo film: 40 s + 15 s + 6 s, three formats, en + ckb
+              (not part of the app build)
 ```
 
 Each folder has its own README with setup details specific to it —
@@ -23,7 +25,8 @@ the whole project; it doesn't replace either one. For a short walkthrough
 of how the frontend is put together (folders, services, the auth/API
 request flow), see [Frontend/docs/ARCHITECTURE.md](Frontend/docs/ARCHITECTURE.md).
 The marketing promo — a self-contained Remotion project with its own
-dependencies — is documented in [promo/README.md](promo/README.md).
+dependencies — is documented in [promo/README.md](promo/README.md); the
+logo and colour roles both use are in [brand/README.md](brand/README.md).
 
 ## Technology stack
 
